@@ -338,6 +338,16 @@ Foreground bash is limited to max 3 min by Claude Code and the tuner doesn't wor
 The record and the workaround are in
 [`doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md`](../../../doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md).
 
+From lines 49688 to 49692 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Container gates,
+  fuzz campaigns and the e2e suite may run in a subagent.
+  A campaign starts as a background unit and never holds a release or the next item;
+  survivors are killed or justified later.
+  Parallel campaigns use `--passes 2` (owner-accepted).
+
 ## Resuming a campaign
 
 Every campaign run through `runCampaign` is resumable.

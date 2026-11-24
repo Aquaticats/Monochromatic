@@ -842,12 +842,18 @@ Read-only commands,
      `v2.41.1`,
      `v2.42.2`,
      `v2.43.4`,
-     `v2.44.1`,
-     `v2.45.1`,
-     the commit `7b70e9efb`)
-     and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
-     a Git older than those that does not carry the fix
-     (Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores it and can fetch a missing blob,
+     `v2.44.1`;
+     the commit `7b70e9efb`),
+     by `v2.45.0` and later
+     (which set `fetch_if_missing = 0`,
+     and from `v2.45.1` also read the variable in `promisor-remote.c`),
+     and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later.
+     The maintenance releases and Ubuntu's package refuse the lazy fetch and the read exits 128,
+     so the rung declines to Git's checkout;
+     `v2.45.0` and later never attempt it,
+     so an unavailable size prints `BAD` and the run exits 0,
+     and only that path goes to Git's writing.
+     A Git older than the fix that does not carry it ignores the variable and can fetch a missing blob,
      which is the recorded limit of this read there.
      The read's answer is used only when it listed the commit the check proved,
      and when no path needs a size it is not used at all;
@@ -862,21 +868,30 @@ Read-only commands,
      a read an add will not use is ended at the refusal or the decline,
      a read abandoned before its child was published has that child ended the moment it is published,
      and the thread and child end with the process.
-     Re-timed in one btrfs guest of 2026-11-22 on Git 2.56.1 built from source,
-     position-balanced,
-     with an identical-binary control:
-     a served loose add 1282.8 ms against `main`'s 1692.9,
-     a served packed one 752.1 against 831.5,
-     a refused loose one 4540.6 against 4945.9,
-     a declined packed one 8882.5 against 8651.8,
-     a cone sparse refused one 190.6 against 203.2 loose and 159.2 against 169.3 packed,
-     and a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
-     No shape is resolved slower;
-     the ratios,
-     the rounds and the control's spread are in
+     A refused-at-once add pays about a millisecond of a child;
+     a declined add runs the read in the background beside `git check-attr`,
+     and the abandon hands the answered map to a thread of its own to free,
+     so the free is off the adding thread (its take step measures 0.002 ms)
+     and the parse stays on the read's thread,
+     where `main` had it.
+     The integration pass's twelve-round shapes of 2026-11-23,
+     position-balanced on Git 2.56.1 in a btrfs guest with an identical-binary control,
+     give a median ratio of an add's whole time
+     (this build to `main`,
+     then the twin to this build):
+     a served loose add 0.962 (0.928 to 1.001),
+     packed 0.985 (0.955 to 0.995);
+     a dirty loose one 1.007 (0.914 to 1.026),
+     packed 0.982 (0.940 to 1.042);
+     a declined loose one 0.989 (0.910 to 1.083),
+     packed 1.017 (0.959 to 1.067);
+     the twins 0.981 to 1.022.
+     No add's total is resolved slower;
+     the rounds,
+     the twin's spread and the rows are in
      `doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-     "The re-time on Git 2.56.1,
-     2026-11-22".
+     "The parse on the adding thread,
+     tested again".
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
@@ -923,8 +938,9 @@ Read-only commands,
      a file you write into an ignored directory between the snapshot and the swap is not in the new
      worktree,
      and the source keeps it.
-  2. Clones (`FICLONE`) of every tracked file of a clean worktree,
-     with its index,
+  2. Clones (`FICLONE`) of every tracked file the source's proof settles,
+     with the index the rung builds from the tree of the source's `HEAD`,
+     while Git writes the paths a change or the conversion fence reaches,
      on btrfs,
      XFS with reflink,
      overlayfs and ZFS.
@@ -935,6 +951,20 @@ Read-only commands,
      a slot a mounted clone already occupies,
      a mounted clone used as the source of a slot in the checkout's dataset,
      and any slot on another dataset than the source get Git's own checkout instead.
+     A source with uncommitted changes is cloned the same way:
+     every tracked path its proof settles is a clone,
+     and only the paths a change or a conversion rule reaches are Git's.
+     Three provisional limit rules send an add to Git's own checkout instead:
+     a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
+     a source with more changed tracked files than a quarter of its tracked paths,
+     and a clean source whose mean tracked file is under its filesystem's measured edge,
+     which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
+     btrfs has no mean rule:
+     a clean btrfs source clones as `main` does,
+     whatever its files average.
+     All are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
+     and all are open to the project's veto,
+     and the edge an unmeasured filesystem takes is itself open to the project's veto.
      It shares disk,
      and it is measured:
      on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
@@ -1006,7 +1036,7 @@ Read-only commands,
      and more than a thousand of them,
      is declined before anything is copied,
      and the line on standard error is the fence's own count and rule in place of
-     `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+     `the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -1157,6 +1187,10 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
+  A rung that declines before it copies anything says which checkout wrote the worktree instead of saying the add
+   took longer:
+     its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because ` and names
+   the input and the numbers the limit was decided on.
   The ladder does not read `--force`,
      `--no-checkout`,
      `-B`,
@@ -1273,9 +1307,11 @@ Read-only commands,
      while a record for it is still queued,
      a running service finds it by itself within five seconds
    (`LOOK_AGAIN_AFTER`),
-     and the next command of that repository wakes the service that reads the record,
-     which is every commit
-   and every add.
+     and the next `git commit` of that repository wakes the service that reads the record,
+   which no other ordinary command does:
+   of thirteen run against a record waiting in the queue,
+   only a commit woke it (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+   "Which commands wake the service").
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record
@@ -1870,6 +1906,37 @@ which is the same way out that the paragraph above describes.
 The wrapper adds one namespace to Git.
 
 ```sh
+
+From lines 37869 to 37893 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Open:
+the 8 unmapped instances have neither a note nor a journal record that hashes to them
+(units of worktrees that never landed a commit before this release,
+or whose repository was deleted whole),
+so they stay.
+An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
+and neither the unit file nor the running process names that directory,
+so nothing can map one of them back;
+the three answers open to the owner,
+with the coordinator's ranking:
+leave them (`doctor` counts them and names them,
+no live service is ever cut;
+today's answer),
+stop the units of an unmapped instance whose socket file is older than a bound
+(a live but idle worktree's socket is just as old,
+because a socket unit has no idle exit,
+so this is a blind stop that cuts a live worktree's service mid-commit),
+or stop every unmapped instance's units once
+(the same risk,
+now,
+with no age to argue from).
+Ranking:
+leave > age-out > stop once,
+because everything past the first interrupts a commit somebody asked for,
+and 8 leftovers are a small price for never failing one.
+
 # Check or fix the whole repository, or the named pathspecs.
 git monochromatic-git-policy-cli check --all
 git monochromatic-git-policy-cli fix -- docs/ README.md
@@ -5638,6 +5705,19 @@ monochromatic-git-policy-cli: git add is waiting for the commit service to finis
 this waits for at most 600 seconds in all, and then git add runs and reports what Git says.
 ```
 
+From lines 48070 to 48077 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  - Signing is not the slow part.
+    The coordinator's probe on the same day with the owner's real signing setup in a throwaway repository:
+    signed commits 16,
+    13 and 13 ms,
+    unsigned 9,
+    9 and 8 ms.
+    Hooks are not it either:
+    the step runs with `core.hooksPath` at a directory that cannot exist and every commit event switched off.
+
 #### Compiled rules are warmed off the commit path
 
 The forbidden-strings rules are compiled once per text of the rules files and kept in a cache shared by every worktree
@@ -5717,6 +5797,45 @@ and forcing the bytes to the device made the writer wait for a file that is deri
 (6.7 s and 3.0 s of `fsync` in one measured commit,
 and 1.5 s in its `rename`).
 
+From lines 47990 to 48024 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Rules warm:
+  the service warms the compiled forbidden-strings rules after the first landing of a repository,
+  after a landing that changes a rules path,
+  after a restart (the repository is remembered),
+  and on a client `warm` message
+  sent after a worktree-moving command changed the rules text.
+  Measured with a 30-file fixture holding the repository's real rules and configuration,
+  five samples per arm,
+  paired against the binary from before the change (release builds):
+  - first commit after a checkout that changed the rules text:
+    before 1313 ms and 1293 ms (medians of two runs),
+    after with the warm settled 45 ms,
+    immediately after the checkout 1401 ms;
+  - first commit after a fresh cache and a service restart:
+    before 1253 ms and 1263 ms,
+    after with the warm settled 45 ms,
+    immediately after the service started 1376 ms.
+  - The commit that races the warm is about 100 ms slower than before (both compile),
+    which is larger than the spread of the unchanged binary (10 to 20 ms between medians).
+    Neither first commit exceeded 5 s here;
+    the earlier 20 s was observed under load.
+    Next step if a commit that races a warm is over the owner's bound:
+    the client waits for the warm under way instead of compiling a second time.
+  - Wrapped `checkout` that leaves the rules unchanged:
+    7.9,
+    8.2,
+    8.2 and 8.0 ms (before,
+    after,
+    before,
+    after;
+    same-binary spread 0.3 ms mad).
+    A checkout that changes the rules text costs 10 to 15 ms more (config load,
+    hash,
+    one connection).
+
 ## Reading the repository in process
 
 The wrapper starts real Git as rarely as it can.
@@ -5777,6 +5896,16 @@ an index extension other than the ones Git reads without a word,
 an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
 a ref listing past the 256 refs the listing reader answers,
+a ref store the configuration or the environment moves away
+(`extensions.refStorage` other than exactly `files`,
+including a `files://` or `reftable://` payload,
+a `reftable` folder in the common directory or a linked worktree's,
+`GIT_REFERENCE_BACKEND` other than exactly `files`,
+an unparseable or over-large configuration),
+an object store or replacement base the environment moves away
+(`GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`,
+`GIT_REPLACE_REF_BASE`),
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
@@ -5784,6 +5913,28 @@ Differential controls run real Git and the readers over the same command lines
 
 Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
 for a measurement that compares both paths or to rule the readers out when output differs.
+
+A `git commit` is not refused for any of these variables:
+the commit service that lands the commit is another process and reads from its own environment,
+so a store or a replacement base named for one command is read by that command's Git and by nothing the landing asks,
+and the commit lands as `main` landed it.
+An effective replacement base the command alone holds lands on one parent where Git reads none,
+and an effective store the command alone holds fails loudly instead of landing:
+both are what `main` does,
+and issue 6347 covers that class
+(`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective setting the command alone holds").
+
+A `git worktree add` and a `git worktree remove` read the repository's own store,
+so `GIT_REPLACE_REF_BASE` naming a base that holds a replacement of the commit reaches Git's own reads and not the
+wrapper's proofs:
+the add snapshots the commit's own files where Git under the variable checks out the replacement's,
+and the removal destroys such a worktree where plain Git refuses it as dirty.
+That is what `main` does,
+a base with nothing under it keeps the snapshot,
+and issue 6396 holds it as a recorded limit
+(`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective replacement base the command names on the worktree-add path").
 
 ## Operating conditions
 
@@ -6667,6 +6818,40 @@ until the coordinator has switched over;
 nothing in this package reads them.
 
 ```sh
+
+From lines 49317 to 49345 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The wrapper's full gate runs after each release (2026-11-14, answered by 15:15:27-05:00)
+
+Asked through the question tool whether the package's full container gate
+(`native:test:container`:
+the whole suite and Clippy in bounded containers)
+runs for each alpha release,
+with three options
+(after each merge without blocking,
+as now with no gate,
+before every release)
+and what was so by then:
+`0.6.1-alpha.28` to `0.6.1-alpha.32` went out on each integration pass's own checks,
+and three library tests are red on `main`,
+so the gate does not pass today.
+
+- The owner's answer,
+  typed and not one of the three:
+  "Gate after release."
+- What this session does by it:
+  a release is dispatched,
+  awaited and installed as before,
+  on the pass's report;
+  then `mise run //package/git-policy/cli:native:gate:main-tip` starts the gate on the commit `main` points at,
+  which holds the release's bump,
+  and `native:gate:verdict` reads its verdict.
+  The verdict is recorded with the release in this file.
+  A failure the red list of `main` does not explain goes to an author as a finding;
+  it does not hold the next release.
+
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:gate -- <worktree name or full path> <label>
 mise run //package/git-policy/cli:native:gate:main-tip
@@ -8759,3 +8944,17 @@ the measurements and the migration plan are in `doc/planning/cli-git-resident-se
   refused,
   and the message says how many files it selected."
   Ordinary named paths skip the check.
+
+## Moved from the old handover
+
+From lines 49582 to 49588 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
+  on nine failing tests outside its three btrfs controls;
+  since `50161f7161` it refuses only when a required control fails,
+  is missing or did not run,
+  or the run timed out,
+  was stopped or failed without naming a test,
+  and prints other failing tests as notices above the pass.

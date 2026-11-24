@@ -72,6 +72,9 @@ pub mod handler_mode_arguments;
 /// The refusal of a mode whose step has not landed.
 pub mod mode_awaiting_its_step;
 
+/// The unmount arm's GUID read and refusal answer.
+mod sweep_unmount_answers;
+
 /// The default invocation:
 /// the clone-mount sweep.
 pub mod attaching_sweep_mode;

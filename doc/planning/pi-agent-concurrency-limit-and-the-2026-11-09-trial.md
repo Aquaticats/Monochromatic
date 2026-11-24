@@ -53,3 +53,14 @@ we're permanently raising the practical limit to 20."
 On going higher: "no, that's definitely going to blow up."
 
 The trial met no rate-limit error, so the practical limit in the skill is 20.
+
+From lines 35044 to 35049 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The owner:
+"Pi doesn't have a limit to number of concurrent subagents.
+In practice it's 16."
+The owner later:
+"I said 16 is practical,
+based on a rough estimation.

@@ -401,8 +401,9 @@ pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Resu
 /// every other refusal stays.
 /// Why:
 ///   The ladder snapshots such a source and restores the copy to the new worktree's `HEAD`;
-/// the clone rung and the other
-///  callers of the clean answer never see it.
+/// the clone rung takes the same source and clones the paths its proof settles while Git writes the rest,
+/// and the other
+///  callers of the clean answer see clean sources only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

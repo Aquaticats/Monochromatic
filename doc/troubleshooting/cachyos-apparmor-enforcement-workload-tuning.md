@@ -784,6 +784,21 @@ owner @{user_cache_dirs}/gh/{,**} rwlk,
 umount /var/tmp/buildah-context-*/overlay/*/merge/,
 ```
 
+The sixth batch came from host tests,
+and the seventh from the whole gate on `main` after the evening's merges (run `native-RxZa1T`):
+
+```text
+# /etc/apparmor.d/local/git, sixth batch: hooks of fixtures under the scratch folder (72 exec denials, host lock tests)
+owner @{HOME}/temp/agent/**/hooks/* mix,
+# /etc/apparmor.d/local/git_ssh (new), sixth batch: the ssh terminal tests' passphrase program (6 exec denials)
+@{bin}/false rix,
+# /etc/apparmor.d/local/ssh and local/git_ssh, seventh batch: the ssh terminal tests' key and known_hosts in their fixture
+# (client_key read 10, client_key.pub read 4, known_hosts create 2, under ssh and under git//ssh alike)
+owner /work/** rwk,
+```
+
+`local/git_ssh` belongs to the `ssh` child of the `git` profile,
+so it is loaded with `/etc/apparmor.d/git`.
 Each batch after the fourth is appended,
 and its profiles loaded,
 by `append-a-batch-of-local-rules-and-load.ts` in
@@ -835,9 +850,17 @@ kept (Recommended)" on 2026-11-23.
 (`backlog_limit 8192`,
 with `lost 69301` as the count before),
 and `/etc/audit/rules.d/10-backlog-limit.rules` holds `-b 8192`.
-That file is read at boot only once `audit-rules.service` is enabled,
-which is a change to the system service manager and the owner's to make:
-`sudo systemctl enable audit-rules.service`.
+That file is read at boot only once `audit-rules.service` is enabled.
+The owner enabled it on 2026-11-23
+(`sudo systemctl enable audit-rules.service`,
+which linked it into `multi-user.target.wants`),
+after the coordinating session had left it to the owner,
+and said:
+"I didn't need to run it myself but I just ran it as a courtesy."
+The rule against acting on the system service manager in the skill `pi-as-subagent` is for the agents a session briefs;
+a change the owner has authorised the session to make,
+as the rules of this page,
+the session makes itself.
 
 ### Verification so far
 
@@ -901,6 +924,20 @@ which is a change to the system service manager and the owner's to make:
   so their cause is not shown.
   The lost count stayed at 69,301 through the gate,
   so with the backlog at 8192 the kernel dropped no record.
+- The whole gate on `main` at `20c4bfa018`
+  (run `native-RxZa1T`,
+  after the evening's eleven merges and the sixth batch):
+  `Summary [938.002s] 9957 tests run: 9949 passed (7 slow), 8 failed, 37 skipped`.
+  The signed-commit control and the unknown-host-key `ssh_terminal` control pass since the fifth batch.
+  The eight are the cause-H pair,
+  the size read's child control,
+  two `ssh_terminal` controls,
+  whose denials the seventh batch answers,
+  and the three `stale_ref_lock` controls,
+  for which the gate's window logged no denial at all;
+  the lost count stayed at 69,301.
+  So their cause is either outside AppArmor or a rule that refuses without logging,
+  and is being looked for by running them alone.
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
 

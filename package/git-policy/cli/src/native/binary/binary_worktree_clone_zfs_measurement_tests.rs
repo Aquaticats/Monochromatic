@@ -21,7 +21,7 @@
 
 /// Import the shared fixtures and the counter readings.
 use super::support::{BlockCloneCounters, Fixture, Observed, counters, fixture, on_zfs_or_acknowledged, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
-use super::worktree_snapshot::{commit_all, tracked, tracked_content};
+use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use std::path::{Path, PathBuf};
 
 /// How many rounds each arm is measured in,
@@ -74,7 +74,11 @@ fn files_under(directory: &Path) -> Vec<(PathBuf, PathBuf)> {
 /// ```
 fn measured_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("measured"));
-    for (relative, absolute) in files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path()) {
+    let sources: Vec<(PathBuf, PathBuf)> = files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path());
+    // The anchor sits above the clone rung's mean-file edge on purpose: this tree of the crate's own sources averages
+    // about 14 KB a file, the size limit declines it, and the measurement would read Git's checkout instead of the rung.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", sources.len() as u64);
+    for (relative, absolute) in sources {
         let content: Vec<u8> = std::fs::read(absolute.as_path()).expect("a source file of the measured tree");
         tracked(repo.as_path(), relative.to_str().expect("a UTF-8 path in this crate"), content.as_slice());
     }

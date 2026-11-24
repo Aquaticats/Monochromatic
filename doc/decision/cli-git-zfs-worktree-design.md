@@ -67,3 +67,15 @@ The proposal states each part the decisions leave without a design,
 and most of those parts as open items; this record does not copy them.
 
 [owed]: ../planning/cli-git-zfs-worktree-design-proposal.md#forced-removal-and-deferred-origins
+
+## Moved from the old handover
+
+From lines 43960 to 43964 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  the staging re-check (and its round if it finds something), the question round. The owner, asked
+  in the question tool at 2026-11-19T19:49:44-05:00 whether to put the three designs' questions now or after these second
+  re-checks, answered "Wait for re-checks (Recommended)": they go in one question-tool round once all three re-checks
+  pass, or after one more quick round if a re-check finds something (each first re-check had found the questions
+  themselves wrong: a false premise under staging's Q2, lines deciding the owner's choices in the start probe, an

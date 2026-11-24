@@ -37,6 +37,17 @@ Do not select `rate-limit-fallback/writer-pool` or
 `rate-limit-fallback/reviewer-pool` directly: that is the pool without the
 router, and it loses Pi's context-overflow recovery.
 
+From lines 41497 to 41502 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Installed into `~/.pi/agent/settings.json` on "Install now": the package path was appended to `packages` (the file
+  before the change is kept in `~/temp/agent/zfs-route-open-choices-asked-2026-11-19/`), the package was built in the
+  main checkout (`dist/` was missing, so Pi had loaded nothing), and `pi --list-models rate-limit-fallback` then listed
+  `writer` and `reviewer` (128K window, 16.4K output before a session binds). Pi loads the built `dist/`, so each later
+  change in `main` needs `mise run //package/pi-plugin/rate-limit-fallback:build` again. The README's precondition, a
+  live check of the quota read's deadline, is still open.
+
 ## Order and refusal policy
 
 The project chose these writers on 2026-11-19 in [its subagent skill][writers]

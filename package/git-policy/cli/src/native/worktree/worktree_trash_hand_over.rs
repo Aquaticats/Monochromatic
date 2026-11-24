@@ -261,7 +261,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     }
     let record: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), PENDING).join(trash_item(trash).id());
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
-        // The record stays for the next wake a command of this repository gives, which is every commit and every add.
+        // The record stays for the next wake a command of this repository gives, which is a commit's own ask or an add's own hand-over of a trash.
         None => Err(String::from("no commit service can be started from this session")),
         Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
             Some(failure) => Err(render(&failure)),

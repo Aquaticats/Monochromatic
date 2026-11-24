@@ -172,6 +172,13 @@ the one release of the wrapper must happen before it depends on an unpublished c
 Where libraries go the owner answered on 2026-11-07T11:05:21-05:00: "Four libraries (Recommended)", recorded in
 `doc/planning/cli-git-source-layout-target-tree.md`.
 
+From lines 47668 to 47669 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- #6261 native-layer move:
+  "Defer until branches merge (Recommended)".
+
 ## What the code looks like now
 
 Measured on main at `2d82a3beb4`
