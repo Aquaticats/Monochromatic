@@ -1598,6 +1598,43 @@ the second line `owner @{tmp}/systemd-analyze-@{rand6}/** rw,` belongs beside it
 run needs that form,
 and no run of this repository does today.
 
+### Applied, and what the runs showed
+
+Applied by the coordinator on 2026-11-24 at about 02:35-05:00,
+with the two read rules a run showed the folder rule alone does not reach:
+
+```text
+# /etc/apparmor.d/local/systemd-analyze
+owner @{tmp}/systemd-analyze-@{rand6}/ rw,
+owner @{HOME}/.config/systemd/user/{,**} r,
+owner @{run}/user/@{uid}/systemd/{,**} r,
+```
+
+Before any rule,
+`systemd-analyze --user verify` of the two repository units printed "Failed to setup working directory: Permission denied"
+and exited 1.
+With the folder rule alone,
+the working folder was made and the verify then failed reading the user unit search path:
+"Failed to open "/home/user/.config/systemd/user", ignoring: Permission denied",
+the same for `/run/user/1000/systemd/user.control` and `/run/user/1000/systemd/user`,
+then "Unit toolchain-daily-update.service not found." and exit 1;
+the audit log held those three `open` denials.
+With the two read rules beside it,
+the verify of the installed units in `~/.config/systemd/user` (the folder the timer install writes and verifies in)
+exited 0.
+Two lines remain on every run,
+"/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator failed with exit status 1, ignoring."
+and the same for `60-flatpak`:
+the profile does not let it run the user environment generators,
+the verify ignores them,
+and no rule is added for them.
+The logs are `coordinator-verify-*.log` in
+`~/temp/agent/apparmor-ninth-batch-for-the-gate-at-8519c599d0-2026-11-24/keep/`.
+Tradeoff of the read rules:
+`systemd-analyze` may read the account's user unit files and the user manager's runtime unit folders,
+which is what a `--user` verify is for;
+it gains no write there.
+
 ### What would show the proposal right
 
 After the line is appended and
