@@ -7,7 +7,7 @@ use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, common_directory_awaiting, d
 use crate::service_route::Route;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git, git_context, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 

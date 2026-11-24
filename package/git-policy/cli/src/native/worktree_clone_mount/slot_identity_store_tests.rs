@@ -15,7 +15,7 @@ use crate::worktree_clone_mount::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
 use crate::test_support::{fixture, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
