@@ -1,6 +1,7 @@
 //! What:
 //!  What a held descriptor says about the mount it is on and the path the kernel finds at it now:
-//!  the mount ID from the descriptor's `/proc/self/fdinfo` line
+//!  the mount ID from the descriptor's `/proc/self/fdinfo` line,
+//!  the unique mount number from `statx(2)`
 //!  and the path its `/proc/self/fd` link names.
 //! Why:
 //!  An attach that landed beside its slot is seen by comparing the mount the attach recorded with
@@ -39,6 +40,44 @@ pub fn observed_path(handle: &std::fs::File) -> std::io::Result<PathBuf> {
 }
 
 /// What:
+/// What:
+///  The unique mount number of the mount an open handle is on,
+///  from `statx(2)`'s unique mount identity.
+/// Why:
+///   The number `/proc/self/mountinfo` prints is reused as soon as the mount
+///  that held it goes away,
+///  so a copy of the table keyed by it can name a mount that no longer exists;
+///  `statx(2)` documents the unique number as "guaranteed to not be reused
+///  while the system is running" and dates it from Linux 6.8,
+///  which is what lets `statmount(2)` be asked about this one mount.
+///  A kernel without it answers an error rather than the reused number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unique = statx(handle.fd, '', AT_EMPTY_PATH, STATX_MNT_ID_UNIQUE).stx_mnt_id;
+/// ```
+///
+/// # Errors
+/// The call refused,
+/// or this kernel reports no unique mount identity for the descriptor.
+pub fn unique_mount_number_of(handle: &std::fs::File) -> std::io::Result<u64> {
+    let mut facts: libc::statx = unsafe { std::mem::zeroed() };
+    let empty: [libc::c_char; 1] = [0];
+    // SAFETY: the descriptor is the caller's and open, the path is the empty string the flag tells the call to ignore,
+    // and the answer is written into `facts`, which this function owns.
+    let answered: libc::c_int = unsafe { libc::statx(handle.as_raw_fd(), empty.as_ptr(), libc::AT_EMPTY_PATH, libc::STATX_MNT_ID_UNIQUE, &mut facts) };
+    if answered != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    if facts.stx_mask & libc::STATX_MNT_ID_UNIQUE == 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("the kernel reports no unique mount number for {}", handle_path(handle).display()),
+        ));
+    }
+    return Ok(facts.stx_mnt_id);
+}
+
 ///  The mount ID the kernel has recorded for the mount an open handle is on,
 ///  read from `/proc/self/fdinfo`.
 /// Why:
