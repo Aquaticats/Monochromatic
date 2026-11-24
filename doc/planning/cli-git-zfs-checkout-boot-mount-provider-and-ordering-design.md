@@ -1909,7 +1909,8 @@ an already-mounted dataset, and the reason choice V9's option A needs it.
 - F10. This host runs systemd `262.2-1-arch`. Basis: host read.
 - F11. Guest 1 ran systemd `258.11-1.fc43` on kernel `6.17.1-300.fc43`, OpenZFS `2.4.4-1`, SELinux enforcing,
   and its agent ran `unconfined_service_t`. Basis: kept logs `prepare.log`, `evidence-as-written.log`.
-- F12. Guest 2 ran systemd `262.2-1.fc46` on kernel `7.4.0-0.rc3...fc46`, SELinux enforcing, its agent
+- F12. Guest 2 ran systemd `262.2-1.fc46` on kernel
+  `7.4.0-0.rc3.261119g4405c18c95d2.29.fc46.x86_64`, SELinux enforcing, its agent
   unconfined after the drop-in was written from the serial console. Basis: kept logs
   `mvm-create-guest2.log`, `boot-arm-learned-unit.log`, and `keep/state-so-far.md`.
 - F13. The unit text as this design writes it boots green, with the order gate, per-dataset unit, its consumer,
@@ -2049,7 +2050,7 @@ The guests were created and destroyed through `mvm` at the times in `mvm-create-
 (2026-11-24T08:02:35Z), `mvm-destroy-guest1.log` (08:13:06Z), `mvm-create-guest2.log` (08:13:10Z),
 `mvm-destroy-guest2.log` (08:17:56Z), `mvm-create-guest2b.log` (08:29:10Z) and
 `mvm-destroy-guest2b.log` (08:30:17Z).
-`mvm list` no longer reports either; the only guest it reports is another session's.
+`mvm list` no longer reports any of them; the only guest it reports is another session's.
 
 ## Revisions
 
