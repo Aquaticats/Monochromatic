@@ -4,6 +4,9 @@
 
 Moved on 2026-11-23 from the old handover, verbatim;
 not yet edited into a record of its own.
+The owner set how wide the ZFS route's own work may run under this hold on 2026-11-23,
+"Up to 64 rounds at once."
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 
 ## Moved from the old handover
 
