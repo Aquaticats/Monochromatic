@@ -19,8 +19,10 @@ the authority's duration and the script unit ([record][record]);
 the records record decides that a forced removal's record of who it ended is the handler's journal alone ([records][records]).
 The shared-namespace answer is a direction:
 this document designs the ways and recommends one,
-a guest measures it,
-then the project confirms.
+two measurement rounds ran it,
+and the project confirmed it on 2026-11-23,
+in the record's "The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23".
 Its correction withdraws the sentence that the answer was "the authorisation ...
 for the unmount of the clone's own copy and nothing wider";
 how far the change reaches is this design's to propose,
@@ -955,6 +957,10 @@ not a guest's.
   Linux `v7.3`,
   `fs/fhandle.c` (`may_decode_fh` at `:317` to `:323`,
   `capable(CAP_DAC_READ_SEARCH)`);
+  `O_DIRECTORY` on that descriptor is harmless and needed only by a caller that relies on the capability in a user namespace of its own,
+  as a rootless container did in T0-5a,
+  while the handler as root in the initial namespace does not need it (`may_decode_fh` returns before the flag check,
+  `fs/fhandle.c:322` to `:346` at `v7.3`);
   the descriptor it resolves on must be a readable directory descriptor,
   because the lookup takes it with `fdget`,
   which refuses a path-only one with `EBADF` (`fs/file.c:1206` to `:1208` and `include/linux/file.h:83` at `v7.3`,
@@ -1012,6 +1018,20 @@ not a guest's.
   "Who may set the propagation when no person is present",
   and `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   "Checkout propagation policy" and VM item 3.)
+
+- F59.
+  A mount namespace made together with a new user namespace has every mount it copied from its parent locked:
+  `copy_mnt_ns` calls `lock_mnt_tree` when the new namespace's user namespace differs from the old one,
+  a locked mount answers `EINVAL` to `umount2`,
+  `move_mount` refuses a locked source,
+  and a propagated unmount removes a locked receiver's copy only when its parent goes too.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c:4440` to `:4441`,
+  `:2088` and `:3786`,
+  and `fs/pnode.c:669` to `:688`;
+  a holder so made is the one this design refuses,
+  and no run made one.)
 
 ## Assumptions
 
@@ -1181,9 +1201,12 @@ not a guest's.
   whose syscall table ends at 461 and has no `listns`.
   No guest with the production kernel exists (the fixture's item 16:
   the image registry offers no CachyOS guest),
-  so Tier 0 runs on `6.8` as informative,
-  the taskless-namespace arm and the production evidence need a guest of `7.3.5-1-cachyos`'s generation,
-  and a CachyOS qcow2 with `linux-cachyos-zfs` and a guest agent is what the project must build for it.
+  so Tier 0 ran on `6.8` as informative,
+  and its second round ran on `7.3.5-2-cachyos` in a rootless container over ZFS,
+  which is the production kernel's code but not a caller with the initial user namespace's capabilities.
+  The taskless-namespace arm needs a guest of `6.19` or newer,
+  and a caller as root in the host's own namespaces needs a CachyOS guest with `linux-cachyos-zfs` and a guest agent,
+  which the project must build.
   Every arm records `uname -r` and `zfs version`.
 
 - L19.
@@ -1525,6 +1548,19 @@ and the chosen channel meets all of them in one removal:
   F18,
   F43).
 
+A sixth kind is not met but refused:
+a holder in a user namespace of its own,
+a bubblewrap or rootless-container sandbox,
+or a unit with `PrivateUsers=yes`,
+holds a copy the kernel locked when it copied the mount into the new user namespace (F59),
+so neither way 8's unmount nor way 7's move reaches it.
+The preflight reads the copy's `MNT_LOCKED` tag and refuses before any signal,
+naming the namespace and the account that holds it,
+with the refusal word the structural stage uses.
+This is the reviewer's reading of `v7.3` and not a run;
+T0-14 is the arm that would show it,
+and it has not run.
+
 One forced removal from start to end,
 on a clone at `.claude/worktrees/one`:
 
@@ -1647,7 +1683,8 @@ how far the change reaches is this design's to propose,
 and no way is excluded for being wider than an authorisation the record never gave.
 This section proposes,
 states each way's cost,
-and recommends one for the project to confirm after the guest.
+and recommends one,
+which the project confirmed on 2026-11-23 after two measurement rounds.
 
 ### What the act is aimed at
 
@@ -1814,7 +1851,10 @@ the copy (F31,
 F32).
 The service loses the copy only;
 the receivers are the parent's peers and slaves,
-so it is usable only when the preflight's receiver closure has no member outside the namespaces the act handles that has a mount at the slot (F55);
+so it is usable only when the preflight's receiver closure has no member outside the namespaces the act handles that has a mount at the slot (F55),
+which the host's own namespace is,
+and T0-13 measures what happens when it is not excluded:
+a peer of the holder loses the host's copy with the holder's own;
 where a member is one of those,
 its copy is unmounted too or refuses until its blockers are ended,
 and a copy already gone when its turn comes is success.
@@ -1877,7 +1917,11 @@ the act proceeds and reports the namespace and what it stops receiving (V8);
 and refuse,
 naming the holder,
 where neither fits.
-The project confirms this after the Tier 0 and Tier 1 arms and the Tier 2 arms the guest runs (V5).
+The project confirmed this on 2026-11-23,
+after the Tier 0 and Tier 1 arms (V5,
+V8,
+V9);
+Tier 2's arms are the build's evidence and are still owed.
 
 ### The recommended ways, step by step
 
@@ -1973,7 +2017,8 @@ the first signal and the first unmount:
   not the namespace's root,
   no child mount below the copy,
   no second mount of the dataset,
-  no `MNT_LOCKED` the move would refuse (F48),
+  no `MNT_LOCKED` the move would refuse,
+  which a copy in a namespace made with a new user namespace carries (F59),
   the tags recorded,
   the parent's root path and mount id.
 - It computes the receiver set as the closure over groups,
@@ -2179,6 +2224,12 @@ What the design still refuses:
   the act there ends path holders only;
 - a namespace whose root mount is the copy (F48);
 - a mount under the copy;
+- a holder whose copy is locked,
+  because its namespace was made with a new user namespace:
+  a bubblewrap or rootless-container sandbox,
+  or a unit with `PrivateUsers=yes` (F59);
+  neither the unmount nor the move reaches a locked copy,
+  so the preflight refuses it before any signal and names the namespace;
 - a second mount of the dataset in the same namespace;
 - a holder the preflight proves cannot be ended,
   and a blind spot;
@@ -2211,10 +2262,17 @@ or through its next peer when it has peers,
 while the service stops forwarding its own later mounts to namespaces made from it (F49).
 Way 8 changes nothing,
 and the receivers lose their copies or killed their blockers first.
-The host's own mount at the slot survives an unmount inside the service's namespace by the kernel's rule and not by a run:
-T0-1 kept H's bind at another path and its parent,
-and no arm unmounts a service's copy while the host carries a mount at the same slot,
-so the sentence rests on the unmount reaching the mount's receivers and not its master (F55).
+The host's own mount at the slot is the case T0-13 measured,
+and the answer depends on the shape:
+where the service's mount is a slave of the host's,
+the service's unmount removes its own copy and the host's copy stays;
+where the two are peers,
+the same unmount removes the host's copy as well,
+which is way 4's sentence ("the host's mount stays only where it is a master or no receiver of the parent") now measured.
+The preflight therefore counts the host's namespace as a kept receiver with a mount at the slot,
+so way 8 is not used there and the act falls to way 7 (V5);
+that the closure catches it is a reading,
+because T0-13 runs no oracle.
 The directory of way 7 is visible to the host,
 `git status` and snapshots while it lives;
 a kill leaves it.
@@ -2338,9 +2396,8 @@ the same holds only where the repair left it no master,
 which is inference from `fs/pnode.c` and rests on the unbuilt repair (L22);
 a short-lived directory may appear in the checkout and a kill can leave it;
 a kill can leave the checkout's mount in the service stopped from propagating and the copy at the directory.
-None of this is shown yet:
-it is a direction,
-and the measurement below is what must show it.
+This is a direction confirmed on 2026-11-23,
+and what the two rounds have shown of it is below.
 The arm for each claim:
 A's no change is T0-5a's stand-in-handle run and Z1-1;
 the repaired state's loss is T0-11 and M1;
@@ -2348,22 +2405,27 @@ the shared state's difference is T0-6 and M11a with M11b;
 the peer case is T0-4 and M2;
 the sandbox's lost later mount is T0-12;
 the job's end is M1.
-The first group has run in a `6.8` guest,
-and the Tier 0 arms named above are that run's:
-it shows the in-place unmount and the receiver closure,
+Two rounds have run the Tier 0 arms named above:
+the `6.8` guest over ext4,
+and the `7.3` container over ZFS,
+so the propagation rules the design leans on are run on the production kernel and not only read.
+They show the in-place unmount and the receiver closure,
 a receiver with no mount at the slot,
-a covering mount,
+a covering mount on the clone's own folder,
 the private-first and slave-first halves,
 the peer rows and the delivery they corrected,
 a sandbox that holds no copy,
-and the move after the signals.
-It does not show a copy that arrived from a host mount at the slot,
+the move after the signals,
+the host's own copy keeping or going with the holder's in the two shapes (T0-13),
+and the handle on ZFS under a cover and after an ancestor's rename (Z1-1).
+They do not show a holder in its own user namespace (T0-14),
 the unmount at way 7's destination,
 the directory's removal,
 a read-only parent,
-live blockers,
-the taskless namespace,
-or anything on `7.3`;
+live blockers and kills,
+the taskless namespace on a kernel that answers `listns`,
+a service the manager started,
+or the removal's own steps end to end;
 the arms named for those are still owed,
 and the part of each statement they name rests on the kernel's rule until they run.
 
@@ -2752,9 +2814,18 @@ L22).
 The record's own example,
 the parent made private (way 3),
 stays an option with the cost of the shared state.
-The project confirms the policy after the Tier 0 and Tier 1 arms and the Tier 2 arms the guest runs;
-this entry is a recommendation,
-not an adoption.
+The project confirmed this policy on 2026-11-23 in the record's "The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23",
+which quotes the answer as "Where the marker exists,
+unmount the copy where it stands and change no sharing;
+otherwise,
+or where the service shares its mount with the host both ways,
+stop that one mount sharing,
+move the copy onto a short-lived 0700 folder in the checkout,
+unmount it there,
+remove the folder".
+The answer is the design's rule;
+Tier 2's arms are the build's evidence and are still owed.
 
 ### V6. Whether a copy whose unmount is refused after the structural stage is moved back
 
@@ -2823,13 +2894,25 @@ each with what the person sees:
 
 Concrete example:
 `watcher.service` holds a copy of `one`,
-and a build sandbox inside it mounted a tmpfs over its own copy of `one/target`,
+and a build sandbox inside it mounted a tmpfs on `one` itself,
+over its own copy of the clone,
 so the sandbox's topmost mount at the slot is its own tmpfs.
+That is the case T0-5c measured,
+the tmpfs on the slot where the clone is mounted,
+on both kernels.
 Under (1) the in-place unmount in the service removes the copy under the sandbox's tmpfs and the kernel slides the tmpfs down onto the slot:
 the service's propagation is unchanged,
 no directory appears in the checkout,
 and the report names the sandbox and the mount it lost the copy under,
-so the job's `findmnt` at `one/target` still shows its tmpfs and the folder under it is the checkout's own.
+so the job's `findmnt` at `one` still shows its tmpfs and the folder under it is the checkout's own,
+which is empty of a clone.
+A mount lower down,
+on `one/target`,
+is a mount under the copy,
+which this design refuses before any act ("What is still refused");
+no arm ran one,
+and by the kernel's rule the receiver's copy stays mounted there,
+so (1) says nothing about it and the refusal stands.
 Under (2) the act makes the service's mount stop propagating,
 moves and unmounts the service's copy,
 writes a `0700` directory in the checkout and removes it,
@@ -2844,10 +2927,9 @@ cover or not,
 and the person is told which sandbox's mount sat over a copy.
 Cons:
 a mount in a namespace the act does not otherwise handle changes what it shows,
-the person must read the report to know,
-and the rule that removes a covered copy and re-parents the cover is shown on `6.8` and read,
-not run,
-on `7.3`.
+and the person must read the report to know;
+the rule that removes a covered copy and re-parents the cover is measured on both kernels (T0-5c,
+the `6.8` guest over ext4 and the `7.3` container over ZFS).
 Pros of (2):
 nothing under a covering mount changes.
 Cons:
@@ -2860,10 +2942,16 @@ because (1) leaves the service's mounts and the checkout as they are and takes e
 where (2) makes the larger change and still leaves the covered copy behind;
 (1)'s costs are a report line and a rule that rests on a kernel reading,
 which are costs to state and not reasons to place it lower.
-The project confirms this together with the policy of V5;
-this entry is a recommendation,
-not an adoption,
-and the veto is (2).
+The project answered this on 2026-11-23 in the words the record's "The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23" quotes:
+"Go ahead and report it",
+with (2) not chosen.
+The record states the same limit this entry does:
+a mount lower down,
+such as on `one/target`,
+is a case the design refuses and no test ran.
+So (1) is the design's rule and no longer a recommendation;
+the option the record did not choose is (2).
 
 ## The record of who a forced removal ended, and the questions left
 
@@ -2889,8 +2977,8 @@ No question is left:
 S1 to S13 are decided by the two records,
 and S8 (how long a cancellation's kept plan lives) is the records record's "How long the plan a cancellation keeps stays",
 decided as "until that clone's next removal".
-The forced arm's remaining choices are the veto entries below,
-and the shared-namespace policy the project confirms after the guest.
+The forced arm's remaining choices are the veto entries below;
+the shared-namespace policy was confirmed on 2026-11-23 and is no longer among them.
 
 ## Which build step builds which part
 
@@ -3099,10 +3187,14 @@ never passed (Z5).
   `findmnt`,
   `/proc/self/mountinfo`,
   `setsid --wait`.
-  It runs on the `6.8.0-147-generic` guest the fixture already has,
-  where its results are informative:
-  what it leaves unshown is the taskless namespace (no `listns`) and the production kernel's own mount code,
-  and a `7.3` guest is what would show them (Z8).
+  Two rounds have run it:
+  the `6.8.0-147-generic` guest the fixture already has,
+  over ext4,
+  and a rootless container on this machine's `7.3.5-2-cachyos` over ZFS,
+  which ran the same arms and is the production kernel's own mount code.
+  What the container cannot show is a caller with the initial user namespace's capabilities,
+  so a holder as root in the host's namespaces and the taskless namespace (no `listns` before `6.19`) are still owed (Z8),
+  and a `6.19` or newer guest is what would show the second (L18).
 - **Tier 1** needs a ZFS pool and datasets but none of the route's code:
   the handle route and the no-room states.
 - **Tier 2** needs step 17's code,
@@ -3156,19 +3248,23 @@ and `subprocess` for `unshare`,
 Each arm's `Bound:` is its own (60 s or 120 s) and overrides the 900 s harness timeout,
 because it runs no handler.
 
-The first group ran in a disposable guest:
-`6.8.0-147-generic`,
-Ubuntu 24.04.5,
+Two rounds have run.
+The first is the section headed `Tier 0 mounts and namespaces in a guest, 2026-11-23T05:24:20-05:00` in `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
+on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured` at commit `6319b2f7a3`:
+a disposable `6.8.0-147-generic` Ubuntu 24.04.5 guest,
 hand-made mounts on ext4,
 every arm twice.
-The record is the section headed `Tier 0 mounts and namespaces in a guest, 2026-11-23T05:24:20-05:00` in `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
-on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured` at commit `6319b2f7a3`;
-it is unapproved and decides nothing this design decides.
-Where an arm here says a row was observed,
-that record is what observed it,
-and the arms below carry the corrections its rows asked for.
-A second round is running the arms that gap left on a `7.3` guest and Tier 1's arms with a ZFS pool;
-nothing of it is cited here.
+The second is that document's section `Tier 0 on two kernels and Tier 1 on ZFS` on `main` at the merge `2e1e8afefe`,
+written by the commits `5cbdaa6714` to `a64d129a0e`:
+the same arms in a rootless container on this machine's `7.3.5-2-cachyos` over ZFS,
+the host's own copy in both shapes,
+and Tier 1's two arms on a file-backed pool in a guest.
+Both records are unapproved and decide nothing this design decides;
+where an arm here says a row was observed,
+one of them observed it,
+and the arms below carry the corrections their rows asked for.
+The two records' heading times differ from their commits',
+which is the records' business and not this design's.
 
 The common start (H).
 Every arm runs in one fresh private mount namespace,
@@ -3265,9 +3361,12 @@ and the check and the tables are recorded.
   once per variant.
   Positive control:
   on each variant's start,
-  a mount made in H under P reaches S before the change,
-  recorded first;
+  a mount made in H under P reaches S,
+  recorded before the change;
   and a plain unmount in U without the change removes S's copy in its own phase.
+  The second record ran this arm from the earlier text,
+  which named only the plain-unmount control,
+  so the delivery control is owed and the arm's own records do not have it.
   Expected:
   variant (a)'s U row reads `master:<the former group>` with no `shared:`,
   S's row keeps a `master:`,
@@ -3545,11 +3644,18 @@ and the check and the tables are recorded.
   and numbers 471 to 473 never called,
   because at `v7.3` they are `rseq_slice_yield` and `fchroot`,
   which would take the low half of a pointer as a descriptor;
-  then compare the listed ids with the pinned namespace's id and `setns` on that id,
-  with a table read.
+  then compare the listed ids with the pinned namespace's id,
+  turn that id into a descriptor with `open_by_handle_at` on the nsfs root's handle (`FD_NSFS_ROOT` at `fs/fhandle.c:191`),
+  and `setns` on the descriptor,
+  with a table read;
+  the id alone opens nothing,
+  which is what the first round's arm left undone.
   Positive control:
-  the same call lists the namespace the arm itself created,
-  and its id is among the listed ones.
+  the same call made by a caller that can see every namespace lists the namespace the arm itself created,
+  and its id is among the listed ones;
+  the same call made by a caller without that capability lists only its own,
+  which is the visibility rule the arm's reason rests on,
+  and a run where both callers see the same list shows the rule is not what the arm relies on.
   Expected:
   the pinned namespace's id is in the list and `setns` on it enters it;
   a guest whose `listns` answers `ENOSYS` records the arm unrun and shows nothing,
@@ -3631,6 +3737,65 @@ and the check and the tables are recorded.
   Decides:
   a sandbox that holds no copy stops receiving the service's own later mounts after way 7.
   Tier 0.
+- **T0-13.
+  The host's own copy when the holder unmounts.**
+  Start:
+  H and P as the common start;
+  H mounts the copy at the slot and U receives it by propagation,
+  U being a slave of H's group in one pair of phases and a peer of H in the other;
+  then U unmounts the copy,
+  once by the recorded handle and once by its path,
+  and H's table is read after.
+  Positive control:
+  the copy's arrival in U,
+  and a second mount made in H under P reaching U.
+  Expected:
+  in the slave shape U's copy goes and H's copy at the slot stays;
+  in the peer shape U's copy goes and H's copy goes with it.
+  This is what way 4's sentence says ("the host's mount stays only where it is a master or no receiver of the parent"),
+  and it is why the preflight treats the host's namespace as a kept receiver with a mount at the slot:
+  way 8 is not used there,
+  the act falls to way 7,
+  and that fall is the preflight's rule and not this arm's measure,
+  since the arm runs no oracle.
+  Bound:
+  120 s.
+  Decides:
+  whether a holder's own unmount takes the host's copy,
+  in a slave shape and in a peer shape.
+  Tier 0;
+  both shapes ran on both kernels in the second record.
+
+- **T0-14.
+  A holder in a user namespace of its own.**
+  Start:
+  a namespace made with `unshare --user --map-root-user --mount` from H,
+  so its user namespace is new and the kernel locks every mount it copies (F59);
+  the copy mounted in H at the slot before the namespace is made,
+  so the holder receives a locked copy;
+  the arm reads the copy's `MNT_LOCKED` tag in the holder's table.
+  One action:
+  way 8's unmount in the holder by the recorded handle,
+  and,
+  in a second phase from the same start,
+  way 7's `mount --make-slave` and `move_mount`.
+  Positive control:
+  the same two actions in a namespace made without a user namespace,
+  where both succeed.
+  Expected:
+  the holder's copy carries `MNT_LOCKED`;
+  the unmount answers `EINVAL` and the move refuses the source,
+  so neither way reaches the copy,
+  and the preflight's refusal is what the act does about it.
+  Bound:
+  120 s.
+  Decides:
+  that a holder in its own user namespace is refused and named,
+  and that no way reaches a locked copy.
+  Tier 0;
+  unrun,
+  so the refusal rests on the reading of F59.
+
 ### Tier 1: a ZFS pool, no route
 
 - **Z1-1.
@@ -4423,6 +4588,25 @@ the questions section is the decided record.
   T0-12's state named as a sandbox that holds no copy,
   the covered-copy policy as V9,
   and what the host's own mount rests on.
+- `f76b327831`,
+  2026-11-23T19:11:07-05:00:
+  the merge of `main` with the accepted marker-in-place answer.
+- `93f7b4378d`,
+  2026-11-23T19:15:29-05:00:
+  the second probe read's Q2 and Q5 and its remaining design edits:
+  V9's example on the folder where the clone is mounted,
+  the lower mount as the refused case,
+  the stale `7.3` clause,
+  V9's and V5's status and the intro's after the owner's answer,
+  the locked holder as a sixth kind with F59,
+  the preflight's lock check and the refused bullet,
+  T0-13's arm and T0-14's,
+  the host's own mount as measured,
+  T0-10's descriptor and control,
+  T0-3's unrun delivery control,
+  F53's `O_DIRECTORY` note,
+  both records cited,
+  and L18's tiers.
 
 ## What this revision left as it was
 
