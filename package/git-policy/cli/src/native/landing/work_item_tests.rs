@@ -11,6 +11,7 @@ use crate::work_item_state_directories_and_claim_names::{NAME_SEPARATOR, take_li
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A function-like value with the right shape is an expiry test in these controls:
 /// the shipped caller writes a small struct.
@@ -97,6 +98,9 @@ fn a_record_round_trips() {
 /// so a path that text cannot spell would refuse every item of such a repository.
 #[test]
 fn a_record_keeps_the_bytes_of_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("landing::work_item::tests::a_record_keeps_the_bytes_of_a_path_that_is_not_text") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("work-item-non-utf8");

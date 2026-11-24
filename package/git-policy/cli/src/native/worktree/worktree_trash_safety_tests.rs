@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStrExt;
 
 /// A snapshot of the main checkout at a stage name beside the repository,
@@ -818,6 +819,9 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_trash::tests::safety::a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes") {
+        return;
+    }
     let name: String = "9".repeat(40);
     let root: PathBuf = fixture("trash-hand-over-bytes");
     let worktree: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"topic-\xff"));

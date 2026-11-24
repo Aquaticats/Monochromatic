@@ -10,6 +10,7 @@ use super::support::{
     Fixture, Observed, bounded_for, direct, fixture, git, observe, porcelain, remove, repository, run_direct,
     stderr_of, stderr_without_wait_notices, wrapper_first_path,
 };
+use super::support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -2038,6 +2039,9 @@ fn a_commit_git_builds_writes_gits_reflog_row_where_the_reader_declines() {
 /// so Git builds this commit in the shadow repository.
 #[test]
 fn a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf8() {
+    if !in_a_fixture_root_taking_any_name("commit::a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf8") {
+        return;
+    }
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
     let fixture: Fixture = fixture("commit-reftable-not-utf8-directory");

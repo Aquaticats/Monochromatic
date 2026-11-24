@@ -14,6 +14,7 @@ use crate::worktree_copy_selection::CopySelection;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use crate::worktree_copy_stage::stage_ignored_snapshot;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// `settle_interrupted_add` with the two lookups as values,
@@ -1315,6 +1316,9 @@ fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
 /// and releasing one leaves the other's record.
 #[test]
 fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_stage_claim::tests::two_claims_whose_paths_differ_only_in_bytes_are_two_records") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let (root, common, _destination) = scene("claim-two-byte-names");
@@ -1342,6 +1346,9 @@ fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
 /// and a directory standing at the replacement spelling is not touched.
 #[test]
 fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_stage_claim::tests::an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is") {
+        return;
+    }
     let (root, common, destination) = scene_with_bytes("claim-reap-bytes", b"par\xffnt");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());

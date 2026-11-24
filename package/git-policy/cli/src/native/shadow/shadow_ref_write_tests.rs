@@ -10,6 +10,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 #[cfg(unix)]
 use crate::recording_git::{recorded_starts, recording_context};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A bare shadow repository in the fixture,
 /// with the given ref backend.
@@ -899,6 +900,9 @@ fn build_store(root: &Path, kind: &StoreKind) -> (PathBuf, SnapshotSources, Read
 #[cfg(unix)]
 #[test]
 fn the_reader_answers_every_kind_of_store_as_git_does_or_declines() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_ref_write::tests::the_reader_answers_every_kind_of_store_as_git_does_or_declines") {
+        return;
+    }
     let root: PathBuf = fixture("shadow-refs-every-kind-of-store");
     let mut answered: usize = 0;
     let mut declined: usize = 0;

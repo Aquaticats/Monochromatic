@@ -14,6 +14,7 @@ use crate::subvolume_error::Interrupt;
 use crate::subvolume_sync::{SyncOptions, sync_tree};
 use crate::subvolume_test_support::{PlainPlatform, make_checkout};
 use crate::test_support::{fixture, git, git_text, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A checkout with two linked worktrees inside it and one outside,
 /// and the three administrative directories.
@@ -280,6 +281,9 @@ fn a_file_that_changed_after_git_looked_is_not_refreshed_when_the_original_is_th
 /// because the recorded path is read as bytes.
 #[test]
 fn a_linked_worktree_with_a_non_utf8_name_is_found() {
+    if !in_a_fixture_root_taking_any_name("subvolume::subvolume_index_files::tests::a_linked_worktree_with_a_non_utf8_name_is_found") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let parent: PathBuf = fixture("index-files-non-utf8");
     let root: PathBuf = make_checkout(parent.as_path(), "checkout");

@@ -6,6 +6,7 @@ use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_ignore_rule::trash_location_is_ignored;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -62,6 +63,9 @@ fn the_line_joins_the_persons_patterns_without_rewriting_them() {
 /// ```
 #[test]
 fn a_pattern_that_is_not_text_is_kept_byte_for_byte() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_trash_exclude_line::tests::a_pattern_that_is_not_text_is_kept_byte_for_byte") {
+        return;
+    }
     let root: PathBuf = fixture("trash-exclude-not-text");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let name: &OsStr = OsStr::from_bytes(b"secret-\xff");

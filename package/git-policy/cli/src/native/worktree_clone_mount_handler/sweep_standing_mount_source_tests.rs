@@ -134,7 +134,7 @@ fn the_call_answered_nothing(control: &str, error: &std::io::Error) {
 #[test]
 fn the_kernel_names_the_source_of_one_mount_by_its_unique_number() {
     let control: &str = "worktree_clone_mount_handler::sweep_standing_mount_source::tests::the_kernel_names_the_source_of_one_mount_by_its_unique_number";
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(INSIDE, control) {
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(INSIDE, control) {
         return;
     }
     let root: std::path::PathBuf = crate::test_support::fixture("standing-mount-source");
@@ -182,7 +182,7 @@ fn the_kernel_names_the_source_of_one_mount_by_its_unique_number() {
 #[test]
 fn the_answer_reads_its_strings_at_the_offsets_it_names() {
     let control: &str = "worktree_clone_mount_handler::sweep_standing_mount_source::tests::the_answer_reads_its_strings_at_the_offsets_it_names";
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(INSIDE, control) {
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(INSIDE, control) {
         return;
     }
     let root: std::path::PathBuf = crate::test_support::fixture("standing-mount-source-offsets");

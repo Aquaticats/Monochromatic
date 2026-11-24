@@ -14,6 +14,7 @@ use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
 use crate::worktree_copy_unfilled_record::{UnfilledCopy, decode_unfilled, unfilled_records_exist};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.
@@ -380,6 +381,9 @@ fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
 #[cfg(unix)]
 #[test]
 fn a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_recovery::tests::a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("recovery-registration-leading-space");
     let (source, _topic) = linked_source(root.as_path());
@@ -1095,6 +1099,9 @@ fn a_recorded_registration_that_still_holds_is_resumed() {
 /// the pointer Git wrote names the administrative directory with those bytes.
 #[test]
 fn a_registration_under_a_path_that_is_not_text_is_read() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_recovery::tests::a_registration_under_a_path_that_is_not_text_is_read") {
+        return;
+    }
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("recovery-registration-bytes");

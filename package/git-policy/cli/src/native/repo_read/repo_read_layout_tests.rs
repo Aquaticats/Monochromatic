@@ -8,6 +8,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::repo_read_odb::ObjectDatabase;
 use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git:
@@ -187,6 +188,9 @@ fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() 
 /// a non-UTF-8 name and a very long path answer as Git does.
 #[test]
 fn awkward_paths_are_read_as_git_reads_them() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_layout::tests::awkward_paths_are_read_as_git_reads_them") {
+        return;
+    }
     let root = fixture("repo-read-paths");
     let repo = repository(root.as_path(), "repo");
     let raw_name = std::ffi::OsString::from_vec(vec![b'r', 0xff, 0xfe, b'x']);
@@ -554,6 +558,9 @@ fn variables_that_can_change_an_answer_are_not_plain() {
 ///  and every read of it started Git.
 #[test]
 fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_layout::tests::a_gitfile_that_names_a_directory_that_is_not_text_names_it") {
+        return;
+    }
     let root: PathBuf = fixture("repo-read-gitfile-not-text");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");

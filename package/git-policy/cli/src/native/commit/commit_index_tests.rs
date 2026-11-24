@@ -7,6 +7,7 @@ use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::RefFormat;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::fs::FileTimes;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -766,6 +767,9 @@ fn interactive_selection_succeeds_without_changes() {
 ///  and a conflicted name is listed with its bytes once.
 #[test]
 fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
+    if !in_a_fixture_root_taking_any_name("commit::commit_index::tests::names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings") {
+        return;
+    }
     let root: PathBuf = fixture("commit-index-odd-name");
     let (repo, indexes, base) = committed_repository(root.as_path());
     let odd: OsString = OsString::from_vec(b"caf\xe9.txt".to_vec());

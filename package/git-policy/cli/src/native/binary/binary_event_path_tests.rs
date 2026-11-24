@@ -16,6 +16,7 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
+use super::support::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -49,6 +50,9 @@ fn latin_finding(sequence: u64, trigger: &str, fix: &str) -> String {
 ///  in Git's byte order.
 #[test]
 fn events_carry_the_exact_bytes_of_a_name_that_is_not_utf8() {
+    if !in_a_fixture_root_taking_any_name("event_path::events_carry_the_exact_bytes_of_a_name_that_is_not_utf8") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let latin: OsString = OsString::from_vec(LATIN_NAME.to_vec());

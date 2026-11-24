@@ -14,6 +14,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 
@@ -119,6 +120,9 @@ fn all_shapes(root: &Path, repo: &Path) {
 /// in SHA-1 and SHA-256.
 #[test]
 fn the_shapes_equal_git_in_every_state() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::the_shapes_equal_git_in_every_state") {
+        return;
+    }
     let root = fixture("repo-read-query-shapes");
     for format in ["sha1", "sha256"] {
         let repo = staged_repository(root.as_path(), format, format);
@@ -159,6 +163,9 @@ fn subjects_and_root_commits_equal_git() {
 /// Every state whose output Git decides by more than the lists is declined.
 #[test]
 fn states_that_need_git_are_declined() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::states_that_need_git_are_declined") {
+        return;
+    }
     let root = fixture("repo-read-query-declined");
     // A file that became a directory.
     let repo = staged_repository(root.as_path(), "dir-file", "sha1");
@@ -304,6 +311,9 @@ fn a_real_sparse_index_is_declined() {
 ///  also through an include.
 #[test]
 fn a_worktree_config_that_sets_a_content_key_is_declined() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::a_worktree_config_that_sets_a_content_key_is_declined") {
+        return;
+    }
     let root = fixture("repo-read-query-worktree-config");
     let repo = staged_repository(root.as_path(), "wt", "sha1");
     git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "true"]);
@@ -405,6 +415,9 @@ fn with_index_extension(path: &Path, signature: &[u8; 4], body: &[u8]) {
 /// and an answer that stays silent is not Git's.
 #[test]
 fn an_unknown_index_extension_is_declined() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::an_unknown_index_extension_is_declined") {
+        return;
+    }
     let root = fixture("repo-read-query-unknown-extension");
     let repo = staged_repository(root.as_path(), "unknown", "sha1");
     with_index_extension(repo.join(".git/index").as_path(), b"ZZZZ", b"body");

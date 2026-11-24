@@ -8,6 +8,7 @@
 use super::*;
 use crate::test_support::{fixture, remove as remove_fixture};
 use crate::work_item::WorkKind;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// The oid of the first commit of the controls.
 const FIRST_OID: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -56,6 +57,9 @@ fn a_saved_plan_is_read_back_whole() {
 /// so a name that lost the path's bytes would leave the push untried and its file unremoved.
 #[test]
 fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
+    if !in_a_fixture_root_taking_any_name("push::push_retry_store::tests::a_plan_of_a_directory_that_is_not_text_is_read_back_whole") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("retry-store-non-utf8");
@@ -82,6 +86,9 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
 /// which is the real one.
 #[test]
 fn a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("push::push_retry_store::tests::a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text") {
+        return;
+    }
     use crate::push_retry::{Due, PushRetries};
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;

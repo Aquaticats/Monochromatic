@@ -22,7 +22,7 @@
 use super::{CloneOutcome, IDENTITY_RECORD_STEP, LiveMountTableSource, MountTableSource, StandingMounts, SweepContext, is_this_clones_own_mount, sweep_one_clone};
 use crate::start_probe::first_attach_record::{FIRST_ATTACH_NAME, FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace};
 use crate::start_probe::probe_fingerprint::ProbeFingerprint;
-use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
+use crate::testing::root_namespace_test_support::in_a_root_namespace;
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::{CloneFolderIdentity, LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, publish_parent_identity_under_root_control};
 use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;

@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A canonical transaction name an earlier release gave its commit directories.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -95,6 +96,9 @@ fn the_removal_command_in_the_note_removes_exactly_the_registry() {
 #[cfg(unix)]
 #[test]
 fn the_removal_command_names_a_registry_that_is_not_utf8_by_its_bytes() {
+    if !in_a_fixture_root_taking_any_name("invocation::startup_gate::tests::the_removal_command_names_a_registry_that_is_not_utf8_by_its_bytes") {
+        return;
+    }
     /// The Unix conversion from raw bytes.
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("startup-gate-removal-bytes");
