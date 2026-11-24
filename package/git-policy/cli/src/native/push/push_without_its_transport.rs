@@ -12,6 +12,9 @@
 //! that would speak a way its person did not ask for,
 //! and may carry none of
 //!  the credentials the chosen way needs.
+//!  A value that is not text never reached the service for the same reason,
+//! and the words say which of the two it was,
+//!  so a reader is not sent looking for a restart that never happened.
 //!  The words therefore say what is gone,
 //! that nothing was sent through another transport,
 //! and the one command that
@@ -31,6 +34,63 @@ use crate::shell_quote::shell_quote;
 use crate::work_item::WorkItem;
 
 /// What:
+///  Why the transport settings of the command that asked for a push are not there.
+/// Why:
+///   The person's next step depends on which one it is:
+/// after a restart the settings are held nowhere and the one command pushes the branch,
+/// while a value this release cannot write in a line has to be pushed by hand from that shell every time,
+/// so the words must not send its reader looking for a restart that never happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TransportGone = 'theServiceWasStartedAgain' | 'theValueCouldNotTravel';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TransportGone {
+    /// The service that held the settings was started again,
+    /// or the command never reached it,
+    /// so nothing of them is left.
+    TheServiceWasStartedAgain,
+    /// The command set one of the names to a value that is not text,
+    /// which a protocol line cannot carry,
+    /// so that value never reached the service.
+    TheValueCouldNotTravel,
+}
+
+/// What:
+///  Why a push that chose its transport must stop here,
+///  or nothing when it may run.
+/// Why:
+///   The record on disk is the only thing left that says the command chose a transport,
+/// so the answer is read from it and from the list this service holds for it:
+/// a service that was started again holds no list,
+/// and a value that is not text never reached it,
+/// while a list that holds the chosen value lets the push run.
+/// The decision sits beside the words it chooses,
+/// so both are read together and neither has to be reconstructed where the push is run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gone = (held, transport) => !transport ? undefined : held === undefined ? 'theServiceWasStartedAgain' : held.notText.some(isTransportName) ? 'theValueCouldNotTravel' : undefined;
+/// ```
+pub fn gone(
+    held: Option<&crate::service_push_programs_held_in_memory::PushPrograms>,
+    transport: bool,
+) -> Option<TransportGone> {
+    if !transport {
+        return None;
+    }
+    let Some(programs) = held else {
+        return Some(TransportGone::TheServiceWasStartedAgain);
+    };
+    let unspellable: bool = programs
+        .not_text
+        .iter()
+        .any(|name| { return crate::service_push_programs_held_in_memory::TRANSPORT.contains(&name.as_str()); });
+    return if unspellable { Some(TransportGone::TheValueCouldNotTravel) } else { None };
+}
+
+/// What:
 ///  The words a push is skipped with,
 ///  because the transport settings of the command that asked for it are gone.
 /// Why:
@@ -46,7 +106,7 @@ use crate::work_item::WorkItem;
 /// ```ts
 /// `the push of ${branch} of ${repository} was not made: ... run: ${git push ...}`
 /// ```
-pub async fn words(git: &PushGit, item: &WorkItem) -> String {
+pub async fn words(git: &PushGit, item: &WorkItem, gone: TransportGone) -> String {
     let command: Option<String> = push_command(git, item).await;
     // The command is the last line and on its own, so a person copies one line and a control can run exactly what is printed.
     let repository: String = item.repository.display().to_string();
@@ -56,15 +116,19 @@ pub async fn words(git: &PushGit, item: &WorkItem) -> String {
         //  only what happened; the push this replaces would have been skipped for the same reason.
         None => String::from("\nThis branch names no remote to push to, so give it one and push it yourself."),
     };
-    return format!(
-        "the push of {branch} of {repository} was not made. The command that asked for it set GIT_SSH, GIT_SSH_COMMAND or \
-         GIT_PROXY_COMMAND, and those settings are held only in the memory of the commit service; the service that holds this \
-         push has been started again since, or the command that asked could not reach it, so the settings are gone, and nothing \
-         was sent through another transport.{run}",
-        branch = item.branch_ref,
-        repository = repository,
-        run = run,
-    );
+    let reason: &str = match gone {
+        TransportGone::TheServiceWasStartedAgain => {
+            "The command that asked for it set GIT_SSH, GIT_SSH_COMMAND or GIT_PROXY_COMMAND, and those settings are held only in \
+             the memory of the commit service; the service that holds this push has been started again since, or the command \
+             that asked could not reach it, so the settings are gone, and nothing was sent through another transport."
+        }
+        TransportGone::TheValueCouldNotTravel => {
+            "The command that asked for it set GIT_SSH, GIT_SSH_COMMAND or GIT_PROXY_COMMAND to a value that is not valid text, \
+             and a request to the commit service is a line of text, so that value could not travel with the push's request: this \
+             push was not made, and nothing was sent through another transport."
+        }
+    };
+    return format!("the push of {branch} of {repository} was not made. {reason}{run}", branch = item.branch_ref, repository = repository, run = run);
 }
 
 /// What:

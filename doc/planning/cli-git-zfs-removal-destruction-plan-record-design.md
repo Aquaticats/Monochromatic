@@ -30,7 +30,7 @@ N3 and the lows in N4),
 which read this text at `76849b8d9b` beside the two sibling designs.
 It cites the origin cleanup record's one merged list of the removal's writes and removals,
 has the finish pass prove the head's absence from the live pool before it settles anything,
-drops the tuple-count ceiling,
+drops the count ceiling,
 and rewrites every statement about the two siblings at the commits it now cites.
 "Revisions" lists each commit and what it changed.
 
@@ -584,15 +584,17 @@ so each can be checked alone.
   The record's widest bytes,
   computed from the grammar in section 2 and F1,
   F2 and F3:
-  the version line and eighteen fields are at most 10,128 bytes,
+  the version line and eighteen fields are at most 10,130 bytes,
   of which `targetHex` alone is 8,201;
-  a tuple line is at most 340 bytes;
-  so a record of `n` tuples is at most `10,128 + 340 * n` bytes,
-  which is 44,128 bytes at 100 tuples and 350,128 at 1,000.
-  The header's 10,128 assumes an `owner` pid of at most seven digits and a `tuples=` count of at most seven,
+  an attempt line is at most 361 bytes;
+  so a record of `n` attempt lines is at most `10,130 + 361 * n` bytes,
+  which is 46,230 bytes at 100 attempts and 371,130 at 1,000.
+  The header's 10,130 is the old 10,128 plus the two bytes `attempts=` takes over the shorter key
+  `tuples=`,
+  and it assumes an `owner` pid of at most seven digits and an `attempts=` count of at most seven,
   which the reader enforces:
   a count with eight or more digits makes the header line wider than the header bound,
-  and stage one refuses the record before it reads a tuple byte.
+  and stage one refuses the record before it reads an attempt byte.
   The script is `scratch/plan-byte-arithmetic-revised.ts` and the log
   `keep/plan-byte-arithmetic-revised.json`.
 - F12.
@@ -751,7 +753,7 @@ and that is forced rather than chosen:
 The plan is not a dataset property either:
 
 - a property value is bounded at 8,192 bytes (F3),
-  which one clone with more than about two dozen tuples exceeds at 340 bytes per tuple (F11);
+  which one clone with more than about two dozen attempt lines exceeds at 361 bytes per line (F11);
 - the property belongs to the clone,
   so the head destroy takes it at the moment its own outcome must be written;
 - the origin is a different dataset shared with other clones,
@@ -774,7 +776,7 @@ The plan is not under `/run`:
 
 - a plan must outlive the boot in which a removal was killed.
   A reboot drops the mounts,
-  and a resumed removal then needs to know which tuples an earlier run destroyed and which outcomes are unknown;
+  and a resumed removal then needs to know which snapshots an earlier run destroyed and which outcomes are unknown;
   `/run` is right for a claim,
   whose own reason is that "a claim means nothing across a boot" (`SPEC.md:6263 to 6264`),
   and wrong for evidence.
@@ -872,7 +874,7 @@ with the measurement and the records that decide against them:
   (`reusedOnReAdd: true`,
   F12),
   so a plan keyed that way is one name for the clone removed today and the one added at that path tomorrow,
-  and a reader would have to prove which clone's plan it holds before it used a single tuple.
+  and a reader would have to prove which clone's plan it holds before it used a single line.
 - A digest of the slot path.
   Two clones at one path produce one name.
   The digest would also have to be computed from canonical path bytes,
@@ -925,18 +927,25 @@ and no record of this route is ever written inside a registration.
 The record is a text file of lines.
 The first line names the record and its version,
 every following line is a `key=value` pair in one fixed order,
-and the tuples are last,
-one per line,
-in ascending byte order of their names.
-The tuple count is declared before them,
+and the attempt lines are last,
+one line per attempt,
+in ascending byte order of their snapshot names and,
+within one name,
+in ascending attempt number.
+The line count is declared before them,
 so a record that ends early is detectable without guessing.
 A key outside the fixed list,
 a key out of order,
 a repeated key,
 a missing key,
 a declared count that does not match the lines,
+two lines carrying one name and one attempt number,
+a name's lines out of number order,
 and a line that does not parse each refuse the whole record;
 nothing is read as a partial record.
+A gap in one name's numbers is not an error:
+it is the trace of a write that was lost before it landed,
+and the highest number still stands as that name's current state.
 
 A concrete record,
 for an unpromoted clone of this repository's shape,
@@ -967,9 +976,9 @@ targetHex=2f686f6d652f752f7265706f2f2e636c617564652f776f726b74726565732f6669782d
 unmountNonce=0a1b2c3d4e5f60718293a4b5c6d7e8f9
 unmountMountId=none
 head=present
-tuples=2
-tuple=snapshot planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
-tuple=snapshot planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+attempts=2
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
 ```
 
 The example is an unpromoted clone:
@@ -1050,24 +1059,48 @@ which is the separation [VM item 13](cli-git-zfs-measurements-owed-before-accept
   `gone`,
   `refused` and `unknown`,
   the head destroy's state (section 4).
-- `tuples=<count>` declares the number of tuple lines that follow,
+- `attempts=<count>` declares the number of attempt lines that follow,
   canonical decimal,
   and the reader requires exactly that many.
-- A tuple line is `tuple=<kind> <outcome> <guid> <createtxg> <errno> name=<name>`:
+- An attempt line is `tuple=<kind> <attempt> <outcome> <guid> <createtxg> <errno> name=<name>`:
   - `<kind>` is `snapshot`.
     The decided design records no bookmark entry (proposal step 3,
     lines 895 to 896),
     so a reader that meets another kind refuses the record rather than skipping the line.
+  - `<attempt>` is one snapshot's own attempt number,
+    canonical decimal `uint64`.
+    The number counts the writes to that snapshot's history in this record:
+    `0` is the plan's first write,
+    before any request,
+    and every later write for that name,
+    whether it reports a request's outcome or a proof that settled the name,
+    takes the next number above the highest that name already holds.
+    Numbers are per name and need not agree across names:
+    two snapshots submitted in one request each take their own next number.
+    A number is never used twice for one name,
+    and a number that jumps means a write was lost before it landed.
   - `<outcome>` is one of `planned`,
-    `requested`,
     `destroyed`,
     `refused`,
     `intact` and `unknown` (section 4).
-  - `<guid>` and `<createtxg>` are the tuple's canonical decimal `uint64` values.
-  - `<errno>` is the decimal error number the per-name result carried for a `refused` tuple,
+  - `<guid>` and `<createtxg>` are the snapshot's canonical decimal `uint64` values,
+    repeated on every line,
+    so each line stands alone.
+  - `<errno>` is the decimal error number the per-name result carried for a `refused` line,
     and `-` for every other outcome.
   - `name=` is last,
     so the snapshot's name may hold the space F2 allows and is read to the end of the line.
+- The merge rule,
+  which every reader applies and no reader deviates from:
+  a snapshot's current state is the outcome on the line carrying that name's highest number.
+  `destroyed` is final:
+  a `destroyed` line ends that name's history,
+  and no later line may be written for it.
+- The split rule,
+  which the removal applies when the set does not fit one request:
+  the remaining names are taken in ascending byte order and split into chunks by largest fitting prefix,
+  and one request writes at most one line per name,
+  so a snapshot is in exactly one chunk of an attempt and its lines never come from two requests at once.
 
 No field carries a bookmark,
 a path other than the slot's,
@@ -1081,33 +1114,33 @@ The bound is a sum of named field bounds (F11),
 not a rounded pick:
 
 ```text
-10,128 + 340 * <the record's declared tuple count>
+10,130 + 361 * <the record's declared attempt count>
 ```
 
-where 10,128 is the version line and eighteen fields at their widest,
-and 340 is the widest tuple line:
+where 10,130 is the version line and eighteen fields at their widest,
+and 361 is the widest attempt line:
 `tuple=` (6),
 the kind (8),
-a separator,
+the attempt's canonical decimal (20),
 the outcome (9),
-a separator,
 two canonical `uint64` values (40),
-a separator,
 the errno (11),
-a separator,
 `name=` (5),
-a 255-byte name (F1) and the newline.
+a 255-byte name (F1),
+six separators and the newline.
+That is the old 340 with the attempt's twenty digits and one more separator added,
+which is what the project's choice of one line per attempt costs per line.
 
 A reader reads in two stages,
 and the two stages are what bound its memory with no ceiling:
 
 1. it opens the file without following a link,
-   reads at most 10,128 bytes,
+   reads at most 10,130 bytes,
    and parses the version line and the fields,
-   requiring the count before the tuples;
+   requiring the count before the attempt lines;
 2. it asks the same descriptor for the file's whole length,
-   refuses a file longer than `10,128 + 340 * count`,
-   and then reads at most `min(340 * count, the bytes the file holds after the header)` more,
+   refuses a file longer than `10,130 + 361 * count`,
+   and then reads at most `min(361 * count, the bytes the file holds after the header)` more,
    refusing a record that ends before the lines it declares.
 
 Both stages are one new reader around the repository's `read_plain_file` shape
@@ -1117,24 +1150,26 @@ The writer refuses to publish a record its own reader would refuse,
 which is the receipt family's rule (`SPEC.md:6154 to 6155`).
 
 The reader holds no more than the record's own bytes:
-the header's 10,128 at most,
-and then the tuple bytes the file holds,
-capped at 340 for each tuple the record declares.
-A record longer than its declared count allows is refused after that length read and before any tuple byte is read,
+the header's 10,130 at most,
+and then the attempt bytes the file holds,
+capped at 361 for each line the record declares.
+A record longer than its declared count allows is refused after that length read and before any line byte is read,
 so a foreign file cannot make the reader work past the formula.
 A record that declares its count honestly is read whole,
-and its size is what a clone with that many snapshots costs:
-a hundred thousand tuples are 34 MB,
+and its size is what a clone with that many attempts costs:
+a hundred thousand lines are 36 MB,
 and the reader reads them.
 There is no policy count ceiling,
-and a removal with a larger set is not refused for the record's size.
+and a removal with a larger set,
+or with a set retried many times,
+is not refused for the record's size.
 The header's seven-digit width is a format bound,
 not a policy:
-when a record declares ten million tuples or more,
-the header as a whole is wider than its 10,128-byte bound,
-and stage one refuses it as an oversized record before reading a tuple (F11).
-The grammar still allows 9,999,999 tuples,
-about 3.4 GB at 340 bytes each,
+when a record declares ten million attempts or more,
+the header as a whole is wider than its 10,130-byte bound,
+and stage one refuses it as an oversized record before reading a line (F11).
+The grammar still allows 9,999,999 attempt lines,
+about 3.6 GB at 361 bytes each,
 so a ceiling is in effect at that width;
 it is the grammar's own limit rather than a workload number,
 and the format ships no smaller one.
@@ -1144,15 +1179,19 @@ is Choice 10.
 
 The bound costs what a clone costs,
 not what a wait costs:
-a hundred tuples are 44,128 bytes and a thousand 350,128 (F11),
+a hundred attempt lines are 46,230 bytes and a thousand 371,130 (F11),
 and the record is written and renamed on the removal's own path,
 which already waits for an unmount and a destroy.
+The history is why the record grows with each retry:
+a snapshot retried three times holds four lines of its own,
+one per write,
+and a clone of a hundred snapshots retried three times holds four hundred.
 
 ### What the plan refuses to hold
 
 - No bookmark entry,
   decided by the proposal (lines 895 to 896).
-  A bookmark is explained by a snapshot tuple or it is not,
+  A bookmark is explained by a snapshot's lines or it is not,
   and nothing in the plan destroys a bookmark.
 - No name the removal has not verified.
   The first write holds the whole verified inventory and nothing else,
@@ -1217,8 +1256,9 @@ before the claim is released at step 14.
 - Step 4,
   the plan's first write:
   `head=present`,
-  every verified tuple as `planned`,
-  `tuples=<count>`,
+  one line for every verified snapshot,
+  each at attempt `0` and `planned`,
+  `attempts=<count>`,
   the clone and origin identities the proof reads,
   `unmountNonce` and `unmountMountId` from the verified receipt.
   A forced receipt that covers several mount namespaces has no single mount to identify,
@@ -1231,9 +1271,9 @@ before the claim is released at step 14.
   the fresh all-namespace verification and the reproof,
   all of which read the plan.
   A refusal at the first check leaves the removal pending with the clone unmounted and out of use,
-  and the plan stands with every tuple `planned` (section 4).
+  and the plan stands with every snapshot's only line `planned` (section 4).
   A holder the fresh scan sees without `--force` cancels the removal here,
-  and the plan stands with every tuple `planned` beside the reattached clone (section 7).
+  and the plan stands with every snapshot `planned` beside the reattached clone (section 7).
 - Step 6,
   the origin cleanup record:
   that design's writer,
@@ -1246,13 +1286,17 @@ differs,
   which is that design's own rule at this step.
 - Step 7,
   the snapshot requests:
-  a rewrite with that request's tuples as `requested`,
   the request,
-  a rewrite with the request's per-name outcomes.
+  and then one rewrite that appends each name the request carried as a new line at that name's next attempt,
+  with the outcome the request's answer gave it.
+  A write before the request naming the names as in flight is not made:
+  a kill inside the request leaves no line for that attempt,
+  and the next run proves each name that is not `destroyed` before it submits anything
+  (section 4).
 - Step 8,
   the second deferred-destroy check:
   no plan write.
-  A refusal here leaves the plan with the outcomes step 7 wrote and `head=present`,
+  A refusal here leaves the plan with the lines step 7 wrote and `head=present`,
   the origin record `owed`,
   and the clone unmounted and out of use;
   the cancel command is the person's way back.
@@ -1265,7 +1309,7 @@ differs,
   a rewrite with `head=gone`,
   `refused` or `unknown`.
   A holder that surfaces only now cancels the removal,
-  and the plan keeps the outcomes and stands beside the reattached clone (section 7).
+  and the plan keeps its lines and stands beside the reattached clone (section 7).
 - Step 10,
   the origin attempt:
   no plan write.
@@ -1327,7 +1371,7 @@ and each line says only what stands of the plan and who finishes the plan from t
   no plan;
   a holder seen without `--force` has cancelled the removal and the clone is attached again.
 - Between 4 and 5:
-  a plan with every tuple `planned` and `head=present`,
+  a plan with every line `planned` and `head=present`,
   and no origin record.
   Nothing was destroyed.
   A first-check refusal leaves it pending beside the unmounted clone;
@@ -1347,17 +1391,20 @@ and each line says only what stands of the plan and who finishes the plan from t
   the plan is `planned`,
   and nothing was destroyed.
 - Inside 7:
-  the plan says `requested` for the whole request.
-  That is the unknown outcome of section 4,
-  and the removal's next run proves each tuple against the live inventory.
+  the plan stands at the lines the last completed attempt wrote,
+  and the attempt's answer was never read,
+  so that attempt has no line at all.
+  The removal's next run proves each name that is not `destroyed` against the live inventory and writes its own
+  lines,
+  which is the unknown outcome's rule in section 4.
 - Between 7 and 8,
   and inside 8:
-  the plan holds the batch's outcomes with `head=present`,
+  the plan holds the batch's lines with `head=present`,
   the origin record says `owed`,
   and the clone is unmounted.
   A refusal at the second check leaves exactly that state pending,
   and the cancel command is the person's way back.
-  A rerun reads the outcomes and does not send those names again.
+  A rerun reads each name's current state by the merge rule and does not send a `destroyed` name again.
 - Inside 9:
   `head=requested` stands and the head may be gone.
   The next run takes the head-gone path of section 4.
@@ -1429,9 +1476,9 @@ the plan's writes fall in the unflushed class of the three records' one flush ru
   and the binding design's claim refuses a second operation on
   one slot with the live owner's process id.
   If one ever did,
-  the later rename wins and the earlier outcome is lost,
-  and a lost outcome reads as `requested` at worst,
-  which is the unknown state and refuses.
+  the later rename wins and the lines of the earlier write are lost,
+  and what stands is that name's previous state,
+  which the next run proves again before it submits anything.
   That is why last-writer-wins is safe here:
   a lost update cannot authorize a delete,
   only demand a proof.
@@ -1458,11 +1505,11 @@ This design's writes fall in that rule's unflushed class:
   because the destroy is a sync task that waits for its transaction group (F5),
   one pool assumed (A8).
   That covers `planned`,
-  `requested` and `head=requested`.
+  an attempt's outcome lines and `head=requested`.
 - a write made after a destroy,
   the outcome,
   can be lost by a power cut,
-  and the state it falls back to is `requested`,
+  and the state it falls back to is the lines of the attempt before it,
   which the next run proves again.
 
 The rule flushes a write made after an object exists that nothing else can prove,
@@ -1472,7 +1519,7 @@ and a lost outcome costs one repeated attempt.
 
 What a crash can cost is the evidence of what was destroyed:
 a later removal then refuses a bookmark whose snapshot is gone,
-because no recorded tuple explains it,
+because no recorded line explains it,
 and a person destroys that bookmark by hand
 (`zfs destroy <clone>#<bookmark>`,
 the proposal's own sentence at lines 1632 to 1634).
@@ -1483,21 +1530,22 @@ veto.
 
 ### The states
 
-A tuple's outcome moves through these states and no others:
+A line's outcome is one of these and no others:
 
 ```text
-planned   -> requested -> destroyed
-                       -> refused  -> requested, or destroyed
-                       -> intact   -> requested, or destroyed
-                       -> unknown  -> requested, or destroyed
+planned -> destroyed
+        -> refused  -> destroyed
+        -> intact   -> destroyed
+        -> unknown  -> destroyed
 ```
 
 `destroyed` is the only end,
-and nothing returns to `planned`.
+a `destroyed` line closes that name's history,
+and a name's lines only ever move forward through the numbers.
 
-- `planned` means the first write recorded the tuple among the whole verified inventory,
+- `planned` means the plan's first write recorded the snapshot among the whole verified inventory,
+  at attempt `0`,
   and no request naming it has been made.
-- `requested` means this removal submitted the name in a request whose answer is not recorded yet.
 - `destroyed` means the removal proved the object gone (the absence rule below),
   or the head's proof covers it.
 - `refused` means the kernel's per-name result carried an error for this name,
@@ -1509,72 +1557,85 @@ and nothing returns to `planned`.
   or a later read found the object still there.
 - `unknown` means the request's outcome cannot be attributed to names at all:
   a program error with no per-name list (F4,
-  `module/zfs/dsl_destroy.c:656 to 671`),
-  or a removal killed with `requested` standing.
+  `module/zfs/dsl_destroy.c:656 to 671`).
 
-The head has the same shape without names:
-`present`,
+Only the head has a stored in-flight state.
+Its single request is recorded in the header before it is made,
+and its word is one of `present`,
 `requested`,
 `gone`,
-`refused`,
-`unknown`.
+`refused` and `unknown`.
+A snapshot's attempt has no such marker:
+an attempt that died before its answer is written nowhere,
+which is why a later run proves every name that is not `destroyed` instead of trusting one.
 
 ### Every transition, and the rule that allows it
 
-An outcome is replaced only by evidence newer than it or by a newer request that names the tuple.
-`destroyed` is final;
-nothing moves out of it.
+A name's state changes only when a line with a higher number is written for it,
+and toward `destroyed` from any state.
 
-- `planned` to `requested`:
-  this run submits the tuple.
-- `requested` to `destroyed`,
-  `refused`,
-  `intact` or `unknown`:
-  the request's answer.
-- `refused` to `requested`:
-  a later run submits the same name again after re-proving it,
-  because a hold or a clone may have gone.
-- `intact` to `requested`:
+- `planned` to `refused`,
+  `intact`,
+  `unknown` or `destroyed`:
+  the first request that names the snapshot,
+  or a proof before any request named it.
+- `refused` to `refused`,
+  `intact`,
+  `unknown` or `destroyed`:
+  a later attempt submits the same name again after re-proving it,
+  because a hold or a clone may have gone,
+  and writes the next line.
+- `intact` or `unknown` to anything but `destroyed`:
   the same,
-  when the object is still there and still verified.
-- `unknown` to `requested`:
-  the same,
-  but only after the absence rule has failed to settle the tuple either way and
-  the object is proven live with its recorded GUID and group.
-- `intact` to `destroyed`,
-  `unknown` to `destroyed`,
-  and `refused` to `destroyed`:
-  the absence rule proves the object gone.
-  A refused tuple reaches this arm when the object goes without another request:
-  the head's proof covers it,
-  or the hold or clone that refused it was released and the snapshot went another way.
-  The head-gone path settles every remaining tuple by it.
-- Nothing returns a tuple to `planned`,
-  and nothing returns a `destroyed` tuple to an earlier state.
+  and only after the absence rule has failed to settle the name and the object is proven live with its recorded
+  GUID and group.
+- `refused`,
+  `intact` and `unknown` to `destroyed`:
+  the absence rule proves the object gone,
+  or the head's proof covers it.
+  The head-gone path settles every remaining name by it.
+- Nothing returns a name to `planned`,
+  and nothing writes a line for a name that holds a `destroyed` line.
 
-The record keeps one line per tuple,
-not one per attempt:
-its order is the ascending byte order of the names,
-and a second line for one name would be a record the reader refuses.
-The attempts themselves are not stored,
-because the only question a later run asks is what the pool says now.
-Choice 4 weighs the other shape,
-a line per attempt.
+Each write appends a line and rewrites the record whole;
+nothing is edited in place.
+The four states a name can be in before its end are what a person reads as its history,
+and the highest number is what a reader acts on.
+Choice 4 is the project's decision on this shape,
+one line per attempt.
 
 ### A walk: a hold, a refused batch, the hold released
 
 A clone `tank/wt/fix-flaky-test` has two own snapshots,
 `@worktree-own` and `@sanoid-hourly`,
 and a person holds `@sanoid-hourly` with `zfs hold`.
-Its plan records both as `planned`.
+Its plan's first write records both,
+at attempt `0`,
+as `planned`:
+
+```text
+attempts=2
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+```
 
 The first run submits both in one request.
 The kernel prechecks the whole request,
 and its answer destroys neither (F4):
 the per-name list names `@sanoid-hourly` with `EBUSY`,
 because a hold is what `EBUSY` names (`module/zfs/dsl_destroy.c:79 to :80`),
-while a dependent clone would answer `EEXIST` (`:85 to :86`),
-so the record becomes `refused` with that errno for `@sanoid-hourly` and `intact` for `@worktree-own`.
+while a dependent clone would answer `EEXIST` (`:85 to :86`).
+The write appends one line per name at that name's next attempt,
+so the record becomes four lines:
+
+```text
+attempts=4
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+tuple=snapshot 1 intact 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 1 refused 9332110456720018274 20 16 name=tank/wt/fix-flaky-test@sanoid-hourly
+```
+
 The removal prints the refusal and stops;
 the head is not attempted and the clone stands.
 
@@ -1582,17 +1643,34 @@ The person releases the hold.
 The next run reads the plan,
 proves lineage again,
 settles by the absence rule (both names live with their recorded GUIDs,
-so both stay `refused` and `intact`),
-and rewrites the remaining two as `requested` in one request.
-The request returns 0,
-and the absence rule then settles both `destroyed`.
-The head follows:
+so their current states stay `intact` and `refused`,
+and nothing is written for them yet),
+and submits the remaining name,
+`@sanoid-hourly`,
+in one request.
+That request returns 0,
+and the absence rule then proves both gone;
+the write appends both names at their next attempt,
+so the same walk leaves four attempt lines of the two requests,
+two per request:
+
+```text
+attempts=6
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+tuple=snapshot 1 intact 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 1 refused 9332110456720018274 20 16 name=tank/wt/fix-flaky-test@sanoid-hourly
+tuple=snapshot 2 destroyed 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 2 destroyed 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+```
+
+Both names are `destroyed` by their highest-numbered lines,
+and a person reading the record sees that `@sanoid-hourly` was refused once and destroyed on the second attempt.
+The head follows in the header's own field,
+not in a line:
 `requested`,
 the destroy,
 `gone`.
-
-The two rewrites of `requested` are the transition `refused` to `requested` and `intact` to `requested`,
-which the earlier revision of this design could not express.
 
 ### The absence rule, object by object
 
@@ -1602,12 +1680,17 @@ so each check compares an object's own identity:
 - While the head is present,
   the removal reads the clone's live snapshot inventory,
   which answers every snapshot's GUID and its creation group.
-  A tuple is `destroyed` only when no live snapshot carries its recorded GUID;
-  a live snapshot whose name equals the tuple's name and whose GUID differs is another object,
-  and the recorded tuple is `destroyed` beside it,
+  A snapshot is `destroyed` only when no live snapshot carries its recorded GUID;
+  a live snapshot whose name equals a recorded name and whose GUID differs is another object,
+  and the recorded name is `destroyed` beside it,
   not settled by the name.
   A live snapshot that carries the GUID but a different `createtxg` is not this removal's object either,
   and the removal refuses rather than guessing.
+  A name it settles writes a new line at that name's next attempt,
+  with the outcome the proof gives:
+  a proof of absence writes `destroyed`,
+  and a proof that the object is still there writes `intact`.
+  A name whose proof settles nothing writes nothing.
   The head itself cannot be settled on this path,
   because a live head proves it is there.
 - Once the head is gone,
@@ -1625,15 +1708,16 @@ so each check compares an object's own identity:
   but the decided rule asks for the name's absence as well,
   so the removal refuses and names the reuse rather than settling.
   With the head proven gone,
-  every remaining snapshot tuple of that clone is `destroyed`
+  every remaining snapshot of that clone is `destroyed`
   by the kernel's own rule that a head with snapshots of its own cannot be destroyed (F4,
   `module/zfs/dsl_destroy.c:783 to 790`),
-  so the head's proof covers them.
+  so the head's proof covers them,
+  and the run writes one `destroyed` line for each at that name's next attempt.
   That is an object-by-object statement:
-  each tuple names a snapshot of that head,
+  each line names a snapshot of that head,
   and the head's absence proves that head and its snapshots gone.
 
-A tuple whose outcome stays `unknown` after both arms is retained and the run stops;
+A name whose highest line stays `unknown` after both arms is retained and the run stops;
 nothing is regenerated from the names that are left.
 
 ### Which resume path a removal takes
@@ -1708,25 +1792,26 @@ The two paths below follow from the rule above.
 2. Prove the lineage of proposal step 1 again,
    against the plan's recorded identities and the binding's
    origin-side inventory.
-3. Settle every tuple that is not `destroyed` by the head-present arm of the absence rule,
-   rewriting the plan once with the settled outcomes.
-4. Re-plan only the tuples that are still live and still verified.
-   Every earlier tuple and its outcome stays in the record.
-   A live own snapshot with no tuple is new history,
+3. Settle every name whose current state is not `destroyed` by the head-present arm of the absence rule,
+   writing one new line at that name's next attempt for each state the proof decides,
+   all in one rewrite.
+4. Re-plan only the names that are still live and still verified.
+   Every earlier line stays in the record.
+   A live own snapshot with no line is new history,
    and only the amended-plan rule of section 4's last part adds it.
 5. Run the deferred-origin check,
    and submit the remaining set,
-   as one request or as the largest fitting prefix of the remaining recorded tuples,
-   sorted by name
+   as one request or as the largest fitting prefix of the remaining names,
+   sorted by name,
+   with each name in exactly one chunk
    (proposal lines 915 to 917).
-   Write `requested`,
-   submit,
-   write the outcomes.
-6. Repeat from step 3 until the snapshot set is settled.
+   Submit,
+   and then write each name's new line at its next attempt with the outcome the answer gave it.
+6. Repeat from step 3 until every name's current state is `destroyed`.
 7. Run the second deferred-origin check,
    after the clone's own snapshots are gone and before the head destroy (the
 list's step 8).
-   A refusal leaves the plan with the outcomes step 5 wrote and `head=present`,
+   A refusal leaves the plan with the lines step 5 wrote and `head=present`,
    the clone unmounted and out of use,
    and the cancel command the way back;
    `head=refused` is not this state (section 3).
@@ -1747,7 +1832,8 @@ list's step 8).
    and no `unmount` intent is read,
    because the intent is a property of the clone and went with the head (F8).
 2. Prove the head's GUID absent from the pinned parent's children (the absence rule's second arm).
-3. Settle every remaining snapshot tuple and the head as `destroyed` by F4's kernel rule.
+3. Settle every remaining snapshot and the head as `destroyed` by F4's kernel rule,
+   writing one `destroyed` line for each remaining name at its next attempt.
 4. If the registration still stands,
    settle it and the underlay (the list's step 11);
    the origin cleanup record stood from the list's step 6,
@@ -1769,30 +1855,47 @@ head went.
 
 ### A worked example
 
-A plan for `tank/wt/fix-flaky-test` whose removal was killed inside the snapshot request:
+A plan for `tank/wt/fix-flaky-test` whose removal was killed inside the snapshot request,
+after the first write and before the answer:
 
 ```text
 head=present
-tuples=2
-tuple=snapshot requested 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
-tuple=snapshot requested 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+attempts=2
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
 ```
 
+The killed attempt left no line,
+so the record does not say the two were submitted,
+and it does not say they were not:
+it says only that both were planned.
 The next removal reads it,
 takes the live inventory and finds no snapshot carrying GUID `17157080670377245572`,
 and one carrying `9332110456720018274` at group 20.
 `@worktree-own` is `destroyed` by the head-present arm,
-and `@sanoid-hourly` is `intact`.
-The plan is rewritten once with those two outcomes,
-and the remaining set (`@sanoid-hourly`) is submitted in a new request after the deferral check.
+and `@sanoid-hourly` is `intact`,
+so one rewrite appends two lines at each name's next attempt:
+
+```text
+attempts=4
+tuple=snapshot 0 planned 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 0 planned 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+tuple=snapshot 1 destroyed 17157080670377245572 18 - name=tank/wt/fix-flaky-test@worktree-own
+tuple=snapshot 1 intact 9332110456720018274 20 - name=tank/wt/fix-flaky-test@sanoid-hourly
+```
+
+The remaining name (`@sanoid-hourly`) is submitted in a new request after the deferral check,
+and its answer appends that name's next line.
 No name is compared to decide either outcome:
 the GUIDs decide.
 
 If the kill had landed after the head destroy,
-the same record would say `head=requested`,
+the same record would hold the planned lines,
+the header would say `head=requested`,
 the clone would not answer,
-and the head-gone path would prove the head's GUID absent from `tank/wt`'s children and settle both tuples and the
-head by F4's rule.
+and the head-gone path would prove the head's GUID absent from `tank/wt`'s children and settle both names and the
+head by F4's rule,
+writing the two `destroyed` lines.
 
 ### Re-planning with new snapshots
 
@@ -1800,11 +1903,12 @@ The proposal's amended-plan rule is kept as written (lines 923 to 927):
 a newly created own snapshot is submitted by the wrapper,
 not by a person,
 after all lineage and unmount checks run again,
-and the amended plan keeps every earlier tuple and its outcome.
+and the amended plan keeps every earlier line and its outcome.
 This design adds only the mechanics:
 the amended record is one rewrite,
 its `run` field takes the new nonce,
-and its tuple count is recomputed,
+the new snapshot gets one line at attempt `0` with `planned`,
+and its `attempts=` count is recomputed,
 so the record is never a set of deltas.
 
 A missing or changed recorded identity,
@@ -1825,7 +1929,7 @@ a record's word alone settles nothing.
   no such file,
   a permission the reader lacks,
   an I/O error,
-  a record that stops before its declared tuple count,
+  a record that stops before its declared line count,
   a record whose last line is unfinished,
   a record with a key outside the fixed order,
   a record whose numbers are not canonical,
@@ -1838,7 +1942,7 @@ a record's word alone settles nothing.
   and says that nothing was destroyed by this refusal.
   A plan that does not read is never moved aside or deleted (the seven answers' unreadable rule).
 - An oversized record:
-  a file larger than `10,128 + 340 * declared count`,
+  a file larger than `10,130 + 361 * declared count`,
   or one that ends before the lines it declares.
   It is refused,
   never truncated.
@@ -1848,7 +1952,9 @@ a record's word alone settles nothing.
   a link,
   a record whose header line is not this record's,
   a record whose name and `cloneGuid` disagree,
-  a record with a tuple kind other than `snapshot`.
+  a record with a line kind other than `snapshot`,
+  a record with two lines of one name and one attempt number,
+  and a record whose lines for one name are out of number order.
   No reader reads it,
   and `doctor` reports it.
 - A wrongly owned entry:
@@ -1889,7 +1995,7 @@ and each differs only in what it stops:
 - The cancel command prints the case rather than acting on it:
   the path,
   what was read,
-  the tuples whose outcomes are therefore unknown,
+  the snapshots whose outcomes are therefore unknown,
   and that it deleted no snapshot;
   it removes a plan only in the one state section 7 names,
   and a foreign or oversized entry is printed as not this removal's record.
@@ -1906,10 +2012,12 @@ and each differs only in what it stops:
 Proposal step 1,
 before the first delete.
 
-It reads the plan's tuples as the "recorded plan tuple" of the decided rule (lines 1339 to 1342),
-and a bookmark passes when a live passing clone snapshot or a plan tuple explains its tuple,
-whatever that tuple's outcome is:
-an `unknown` tuple still says this clone had that snapshot.
+It reads the plan's attempt lines as the "recorded plan tuple" of the decided rule (lines 1339 to 1342),
+and a bookmark passes when a live passing clone snapshot or any line for a snapshot explains its tuple,
+whatever that line's outcome is:
+an `unknown` line still says this clone had that snapshot,
+and a name with several lines is one snapshot,
+judged by any of them.
 A plan that cannot be read completely refuses every bookmark that would have needed it,
 which is the same answer the rule already gives for a bookmark list that cannot be read
 (proposal,
@@ -1925,14 +2033,13 @@ Before each request the batch reads:
 - the plan's `cloneGuid` and `cloneCreatetxg` against the live clone,
   and its origin fields against the live origin,
   refusing on any mismatch;
-- the tuples as the record of what an earlier chunk did,
-  so no name is submitted twice and no destroyed name is re-read as live;
-- any `unknown` tuple,
+- each name's current state by the merge rule,
+  so no `destroyed` name is submitted again and no name is put in two chunks of one attempt;
+- any name whose current state is `unknown`,
   which stops the attempt (section 4).
 
-It then writes the request's tuples as `requested`,
-submits,
-and writes the outcomes.
+It then submits,
+and writes each name's new line at that name's next attempt with the outcome the answer gave it.
 The head destroy reads `head` for the same reasons and writes `requested` then the outcome.
 
 ### The deferred-origin checks
@@ -1957,7 +2064,8 @@ The command reads the plan and prints:
 
 - the slot,
   clone and dataset names,
-- each tuple's outcome,
+- each snapshot's current state by the merge rule,
+  and the attempts it took,
 - which snapshots are proven destroyed and which are unknown,
 - what remains (the head,
   the registration,
@@ -1966,7 +2074,7 @@ The command reads the plan and prints:
 
 It deletes no snapshot.
 It removes a plan only in the one state section 7 names:
-a plan whose every tuple is `planned` and whose head is `present`,
+a plan whose every line is `planned` and whose head is `present`,
 beside the reattached clone,
 after it has proved the clone and the plan and before it releases the claim.
 In every other state it removes nothing.
@@ -2138,10 +2246,13 @@ per entry:
   with a line when they disagree;
 - its state:
   `head`,
-  the tuples' outcomes,
-  and the tuples that are not proven,
-  each such tuple printed with its name,
+  each snapshot's current state by the merge rule and the number of attempts it took,
+  and the snapshots that are not proven,
+  each such snapshot printed with its name,
   its GUID and its group;
+- a gap in one name's numbers,
+  which says a write was lost before it landed,
+  and which is reported and not treated as damage;
 - its owner and the folder's owner and mode,
   with a line when they differ from the common directory's;
 - a plan whose registration is gone,
@@ -2177,6 +2288,13 @@ and never rewrites one.
   it stops,
   names the plan and the command the heading "Which resume path a removal takes" gives,
   and acts on nothing.
+  It reads the header's `cloneGuid` and no attempt line:
+  a plan of the shape this design now writes,
+  one line per attempt,
+  names its clone in that field exactly as the earlier shape did,
+  so the add's read finds it whether the clone's history is one line per name or many.
+  It reads no line,
+  so it does not apply the merge rule and cannot mistake an older attempt for a name's current state.
   A plan of a clone that stood at the same path before names another GUID and is not that binding's plan.
   That read is the binding design's V24,
   a choice it marks for the project's veto,
@@ -2248,7 +2366,7 @@ and the binding is never edited by a removal.
 
 The one deliberate non-refusal is the amended plan of section 4:
 a new own snapshot is added to the record by the wrapper after every check runs again,
-and the record keeps every earlier tuple.
+and the record keeps every earlier line.
 That is an addition to the plan,
 not an update of a fact about the add.
 
@@ -2268,11 +2386,11 @@ When the plan's nonce and the live property's nonce differ,
 on the head-present path only:
 
 - if its identities still match live,
-  once any `unknown` tuple has been settled by the head-present arm,
+  once every `unknown` name has been settled by the head-present arm,
   the run re-proves everything and rewrites the plan with the new nonce,
-  keeping every tuple and outcome;
-- it refuses only when the head-present arm cannot settle an `unknown` tuple,
-  naming that tuple and the read that failed.
+  keeping every line and adding the lines it settles;
+- it refuses only when the head-present arm cannot settle an `unknown` name,
+  naming that snapshot and the read that failed.
 
 A plan with no live intent while the head still stands is refused by the removal,
 because nothing then proves the unmount it claims;
@@ -2281,16 +2399,16 @@ A plan whose head is gone is never refused for that reason (section 4).
 An intent that reads `mount` while the head still stands is not an absence:
 it is the reattach of a removal that cancelled itself,
 so a plan beside it is adopted on the head-present path under the nonce rule above,
-and every tuple and outcome it holds is kept.
+and every line it holds is kept.
 A retry after a cancel presents the kept plan when the cancellation kept one:
 it adopts it under its own nonce,
-keeps every tuple and outcome,
+keeps every line,
 and proceeds to the first deferred check,
 and the look does not run on it.
 When the cancellation kept no plan,
 because it removed the all-`planned` plan or wrote none,
 the retry is a fresh removal and the look runs as on any first run.
-An `unknown` tuple of a plan whose head stands and whose clone is present has its settling step here:
+An `unknown` name of a plan whose head stands and whose clone is present has its settling step here:
 the head-present arm of the absence rule settles it against the live inventory,
 a live snapshot carrying its GUID makes it `intact`,
 and a GUID that is absent makes it `destroyed`,
@@ -2299,15 +2417,15 @@ Only a live snapshot carrying the GUID with another `createtxg`,
 or a pool that cannot be read,
 leaves it unsettled:
 the run refuses,
-prints the tuple's name and GUID and that it stopped,
+prints the snapshot's name and GUID and that it stopped,
 and names the read that failed.
 A pool that cannot be read ends when it answers,
 and the removal is run again.
 A live snapshot carrying the GUID with another `createtxg` is a permanent refusal:
-the run names the tuple,
+the run names the snapshot,
 its recorded GUID and group and the live snapshot's,
-and nothing rewrites the tuple.
-`doctor` prints that tuple's name,
+and nothing adds a line that would rewrite the snapshot's state.
+`doctor` prints that snapshot's name,
 GUID and group and that it is unsettled;
 it reads no pool of its own for it,
 so the live identity is the run's to name and a person's to read.
@@ -2326,16 +2444,16 @@ with).
 The second is a decision,
 and this design accounts for both ends of it:
 
-- The tuple is accepted as describing an object the pool no longer holds,
+- The line is accepted as describing an object the pool no longer holds,
   and the person ends that snapshot with the pool's own `zfs destroy <name>`,
   as the proposal already leaves a refused bookmark to a person's `zfs destroy` (lines 1632 to 1634).
   The next removal finds no live snapshot carrying the recorded GUID,
-  settles the tuple `destroyed` by the absence rule,
+  writes `destroyed` for it by the absence rule,
   and finishes.
 - The history is kept,
   and the plan stands as the evidence of what was destroyed.
   `doctor` names it on every run,
-  the removal stays refused at that tuple,
+  the removal stays refused at that snapshot,
   and nothing in this design ends that state by itself.
 A plan's `owner` may name a process that has ended,
 and no reader of this design refuses on that field;
@@ -2477,23 +2595,24 @@ By state:
 
 - Nothing destroyed yet.
   A holder at the list's step 3 leaves no plan at all.
-  A holder at its step 5 leaves a plan with every tuple `planned` and `head=present` beside the reattached clone,
+  A holder at its step 5 leaves a plan with every line `planned` and `head=present` beside the reattached clone,
   and the live intent is `mount`.
   Nothing was destroyed,
   so the plan witnesses nothing.
   Both the removal that cancels itself and the cancel command remove such a plan,
-  one whose every tuple is `planned` and whose head is `present`,
+  one whose every line is `planned` and whose head is `present`,
   after proving the clone and the plan and before releasing the claim (section 6 tells the `mount` intent from an
 absent property).
   A cancellation killed before that removal leaves the plan to the next removal,
   which adopts it on the head-present path,
-  re-proves every tuple and rewrites it as its own;
+  re-proves every name and rewrites it as its own,
+  keeping every line it found and adding its own as new numbers;
   the two actors do the same thing,
   and neither writes an outcome.
 - Some destroyed.
   A holder that surfaces only at the head destroy cancels after the batch,
   and the clone is attached again with every loss reported.
-  The plan keeps the batch's outcomes and its head:
+  The plan keeps the batch's lines and its head:
   `present` when no head request was made,
   `refused` when the head request was refused,
   `unknown` when its outcome cannot be told.
@@ -2505,7 +2624,7 @@ absent property).
   which reads it,
   proves it against the live clone,
   adopts it under its own nonce,
-  keeps every tuple and outcome,
+  keeps every line,
   carries the loss forward,
   and ends it at the list's step 13 after proving the remaining set and the head gone.
   `doctor` names it until then.
@@ -2533,9 +2652,9 @@ absent property).
 - The clone may still stand with part of its history gone,
   or may be gone with its origin left.
   The record says which,
-  by its `head` and tuple outcomes,
+  by its `head` and its snapshots' current states,
   and `doctor` says the same in words.
-- A plan whose tuples are all `planned` and whose head is `present` is a removal that refused before it destroyed
+- A plan whose lines are all `planned` and whose head is `present` is a removal that refused before it destroyed
   anything,
   which is the state the pre-delete refusals leave.
   It is safe to resume and safe to leave.
@@ -2574,7 +2693,7 @@ each guard is shown to fail with the guard removed before it counts.
 The writer and reader of the format,
 on a disposable folder:
 
-- an encode and decode round trip of a record with two tuples,
+- an encode and decode round trip of a record with two attempt lines,
   built from the example's values,
   so the grammar is exercised and not just accepted;
 - a refusal for each malformed form:
@@ -2584,19 +2703,22 @@ on a disposable folder:
   repeated key,
   a header line that is not `version 1`,
   a declared count above and below the line count,
-  a tuple kind other than `snapshot`,
-  an outcome outside the six,
+  a line kind other than `snapshot`,
+  an outcome outside the five,
+  two lines carrying one name and one number,
+  one name's lines out of number order,
   a non-canonical GUID (`+1`,
   `007`,
   an upper-case digit,
   21 digits),
   a non-canonical `createtxg`,
   a name with no `name=` key,
-  an errno on a non-`refused` tuple,
-  a missing errno on a `refused` tuple;
-- a truncated record at every field boundary of the header and at the last tuple line,
+  an errno on a non-`refused` line,
+  a missing errno on a `refused` line,
+  an attempt number that is not canonical;
+- a truncated record at every field boundary of the header and at the last attempt line,
   asserting the reader refuses and changes nothing;
-- an oversized record (one byte past `10,128 + 340 * count`),
+- an oversized record (one byte past `10,130 + 361 * count`),
   refusing without reading past either stage;
 - a foreign entry,
   a directory,
@@ -2615,28 +2737,31 @@ on a disposable folder:
   then a second write,
   asserting the earlier record or the new one and never a mixture;
 - a writer that refuses a record its reader would refuse,
-  forced by a tuple whose name is one byte past the kernel's bound and makes its line wider than 340 bytes;
+  forced by a name one byte past the kernel's bound,
+  which makes its line wider than 361 bytes;
 - the two stages of the reader with no count ceiling:
   a file that grows between stage one and stage two is refused,
   a file whose declared count needs more bytes than it holds is refused,
-  a file longer than `10,128 + 340 * count` is refused after the length read and before a tuple byte is read,
+  a file longer than `10,130 + 361 * count` is refused after the length read and before a line byte is read,
   a declared count with eight digits is refused within the header bound,
-  and a record of 5,000 tuples is read whole.
+  and a record of 5,000 attempt lines is read whole.
 
 The lifecycle,
 without a pool:
 
-- `planned` to `requested` to each outcome,
-  and each of `refused`,
-  `intact` and `unknown` back to `requested`,
-  asserted on records written by the control and read back by the built reader;
-- a `destroyed` tuple refused any later transition,
-  whatever a control writes over it;
+- one line per write,
+  each name's attempt numbers ascending and never repeated,
+  asserted on records the control writes and the built reader reads back;
+- the merge rule:
+  a name's current state is its highest number's outcome,
+  whatever order the lines' outcomes would suggest,
+  and a gap in one name's numbers reads as a lost write and not as damage;
+- a `destroyed` name's history closed:
+  a control that appends a higher-numbered line over one is refused;
 - the hold-released walk of section 4,
   arm by arm,
-  with the per-name answers of a refused batch planted as a control
-  record;
-  this is the walk the earlier revision could not express.
+  with each attempt's per-name answers planted as a control record,
+  asserting the six lines and that the two requests left four of them.
 
 The finish pass and the folder:
 
@@ -2699,7 +2824,7 @@ for the plan:
 - with the clone's GUID and name absent,
   a `requested` or `unknown` plan is taken by a removal on the head-gone path
   with no confirmation,
-  and the removal settles its tuples and ends the plan at step 13;
+  and the removal settles its names and ends the plan at step 13;
 - with the clone's GUID absent and the name absent,
   a `present` or `refused` plan is refused by a removal,
   which names the settling
@@ -2730,19 +2855,19 @@ The refusals,
 a cancellation and a forced receipt,
 without a pool:
 
-- a first-check refusal leaves a plan with every tuple `planned` and `head=present`,
+- a first-check refusal leaves a plan with every line `planned` and `head=present`,
   beside an unmounted clone,
   and the rerun reads it and resumes;
-- a second-check refusal leaves a plan with the batch's outcomes and `head=present`,
+- a second-check refusal leaves a plan with the batch's lines and `head=present`,
   and the rerun reads those outcomes and sends none of those names again;
 - a head request's refusal leaves `head=refused` and the clone standing,
   which is a different state from the second check's;
-- a cancellation with nothing destroyed removes a plan whose every tuple is `planned` and whose head is `present`,
+- a cancellation with nothing destroyed removes a plan whose every line is `planned` and whose head is `present`,
   and the next removal of that clone writes its own plan;
   both the removal that cancels itself and the cancel command are driven in this arm,
   and they do the same thing;
 - a cancellation after losses keeps the plan,
-  and the next removal adopts it and keeps every outcome (the seven answers' kept-plan rule);
+  and the next removal adopts it and keeps every line (the seven answers' kept-plan rule);
 - a forced receipt that covers several mount namespaces writes `unmountMountId=none` and the nonce;
 - a control that runs an add which fails asserts that no plan appears in the folder.
 
@@ -2751,17 +2876,17 @@ forced without timing luck:
 
 - the owner-gone trick (`record_destroy_with_owner`,
   `worktree_removal_interrupted_destroy.rs:134`):
-  a control writes a plan with `requested` tuples and an owner that has ended,
+  a control writes a plan with `unknown` lines and an owner that has ended,
   and the next run must prove,
   not re-request;
 - a plan with one `destroyed`,
-  one `intact` and one `unknown` tuple,
+  one `intact` and one `unknown` line,
   asserting the run settles all three by the head-present arm,
-  and stops with nothing deleted where a live snapshot carries the `unknown` tuple's GUID with another
+  and stops with nothing deleted where a live snapshot carries the `unknown` line's GUID with another
   `createtxg`;
 - a second writer that publishes a conflicting outcome between two steps,
   asserted through the documented staging hook (`private_storage_replacing_a_record.rs:94 to 95`),
-  showing a lost update reads as `requested` and refuses.
+  showing a lost update leaves the earlier lines and the next run re-proves them.
 
 ### Guest arms
 
@@ -2779,12 +2904,11 @@ and the seam is the crate's own measurement-only feature (F16):
   no shipped build carries either seam.
 - One arm per state of section 4 on a real clone:
   `planned`,
-  `requested`,
   `destroyed`,
   `refused`,
   `intact` and
   `unknown`,
-  by killing between the write and the request,
+  by killing after the write and before the request,
   between the request and the outcome,
   and by planting a dependent snapshot for the refusal arm.
 - The hold-released walk of section 4 end to end:
@@ -2799,7 +2923,7 @@ and the seam is the crate's own measurement-only feature (F16):
   asserting `head=refused` and that the record names the holder or the new snapshot;
   and the second-check arm beside it,
   a refusal before any head request,
-  asserting `head=present` with the batch's outcomes and the clone unmounted.
+  asserting `head=present` with the batch's lines and the clone unmounted.
 - The absence rule's two arms:
   a live snapshot whose name matches and whose GUID differs (destroyed by the GUID,
   not the name);
@@ -2807,7 +2931,7 @@ and the seam is the crate's own measurement-only feature (F16):
   and the head-gone path refusing to settle while a child carries the recorded GUID or the recorded name carries
 another GUID,
   then settling once both are absent.
-- The bookmark arm of the decided rule over a plan tuple,
+- The bookmark arm of the decided rule over a plan line,
   and the arm whose bookmark is refused because its snapshot went before the plan was made.
 - The deferred-origin arm of plan step 15,
   with the mark set before the first delete and between the two checks.
@@ -2848,7 +2972,7 @@ planted-binding and refusal arms need none.
 - Step 14 builds the folder,
   the record's name grammar,
   the fields,
-  the first write with every tuple `planned`,
+  the first write with one `planned` line per snapshot at attempt `0`,
   the reader's two stages with no count ceiling,
   the refusal of a record that does not read or does not match,
   the early mark look's no-plan refusal,
@@ -2889,7 +3013,8 @@ planted-binding and refusal arms need none.
 
 Each choice is a writer's decision,
 adopted so the design is whole,
-and the project can veto it at acceptance.
+and the project can veto it at acceptance,
+except the one the project has since decided.
 Each gives the options with a concrete example a person would see,
 the pros and cons,
 and a ranking with the reason for each adjacent pair.
@@ -2901,6 +3026,9 @@ it is the origin cleanup design's V4,
 and section 3 says this order depends on it (A7).
 Choice 11 is this design's own addition:
 the staging rule.
+Choice 4 is decided by the project's choice of 2026-11-23,
+quoted there,
+and the rest of its entry is the record of what it decided over.
 The lifetime of a plan a cancellation keeps and the answer for a record that cannot be read
 are decided by the seven answers,
 and this list no longer asks them.
@@ -2983,7 +3111,7 @@ no file at all,
 and the record travels with the dataset.
 
 Cons:
-8,192 bytes (F3) hold about two dozen tuples at 340 bytes each (F11);
+8,192 bytes (F3) hold about two dozen attempt lines at 361 bytes each (F11);
 the head destroy takes the property at the moment its own outcome must be written;
 the origin is shared,
 so a property there would be one record for several removals.
@@ -3034,7 +3162,7 @@ a command holding the registration computes it without reading ZFS.
 Cons:
 the name is reused (F12),
 so two clones' plans collide and a reader must prove which clone's plan it holds before
-it uses one tuple;
+it uses one line;
 the name goes with the registration the settle removes.
 
 Option C,
@@ -3082,12 +3210,13 @@ C beats D because C is unique per slot while D is shared by every clone of one o
 ### Choice 3: what the first write holds
 
 Option A,
-every verified tuple as `planned`,
+every verified snapshot as `planned` at attempt `0`,
 adopted.
 
 Example:
 a clone with two snapshots is proved and unmounted;
-the first write records `tuples=2` with both `planned`,
+the first write records `attempts=2`,
+both `planned` at attempt `0`,
 and the removal then refuses at the deferred-origin check
 because the origin is marked.
 A person runs `doctor` and sees a plan beside a live clone,
@@ -3097,7 +3226,8 @@ Pros:
 the plan persists the verified inventory,
 as the proposal's words say;
 the count is known before the first delete;
-the split has "the remaining recorded tuples" to take a prefix of (proposal lines 915 to 917);
+the split has "the remaining recorded tuples" to take a prefix of (proposal lines 915 to 917),
+  which the merge rule turns into the remaining names;
 a resume never regenerates a set from the names that are left.
 
 Cons:
@@ -3106,12 +3236,14 @@ which `doctor` must name;
   - the first write is larger than an empty plan would be.
 
 Option B,
-tuples enter the plan at submission.
+lines enter the plan as attempts happen,
+and none is written before its request.
 
 Example:
-the same clone's first write records `tuples=0`,
-and the first request's rewrite is where the two snapshots
-first appear;
+the same clone's first write records `attempts=0`,
+and the first request's write is where the two snapshots
+first appear,
+each at attempt `1`;
 a removal killed before its first request leaves an empty plan,
 and the next run re-enumerates the live set.
 
@@ -3131,18 +3263,36 @@ A > B.
 A beats B because the proposal's own words make the plan the verified inventory,
 and B's resume is the regeneration the proposal's resume rule forbids.
 
-### Choice 4: the tuple lifecycle
+### Choice 4: how a plan records each snapshot's history
+
+Decided by the project on 2026-11-23,
+in `doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+"Choice 32:
+how a plan records each snapshot's history",
+in its words:
+
+> The project chose "One line per attempt (Recommended)":
+> "The whole history stays readable after a later success.
+> Cost:
+> the record grows with each retry,
+> and the build needs a merge rule and a bound counted in attempts."
+> This replaces the plan design's adopted one line per snapshot.
+
+Option B is therefore the design's shape,
+and option A is the alternative the project did not take;
+the record's grammar,
+its bound and every reader follow B,
+in section 2's merge and split rules and in sections 3 to 5.
 
 Option A,
-one line per tuple,
-an outcome replaced only by newer evidence or a newer request,
-adopted.
+one line per snapshot,
+an outcome replaced only by newer evidence or a newer request.
 
 Example:
 the hold walk of section 4.
-After the refused batch the record holds `refused` for `@sanoid-hourly` and `intact` for `@worktree-own`;
+After the refused batch the record would hold `refused` for `@sanoid-hourly` and `intact` for `@worktree-own`;
 after the hold is released and the second request returns,
-it holds `destroyed` for both,
+it would hold `destroyed` for both,
 on the same two lines.
 
 Pros:
@@ -3152,32 +3302,30 @@ the state a later run acts on is the state the pool last showed.
 
 Cons:
 the attempts themselves are not kept,
-so a person cannot read how many tries a tuple took.
+so a person cannot read how many tries a snapshot took,
+which is the gain the project chose against it.
 
 Option B,
 one line per attempt,
-keyed by name and attempt number.
+keyed by name and attempt number,
+decided.
 
 Example:
-the same walk leaves four lines:
-`... refused ... attempt=1`,
-`... intact ... attempt=1`,
-`... destroyed ... attempt=2` and `... destroyed ... attempt=2`.
+the same walk of section 4 leaves four attempt lines from its two requests,
+two per request:
+`... 1 intact ...` and `... 1 refused ...` for the first,
+and `... 2 destroyed ...` twice for the second,
+over the two `... 0 planned ...` lines the plan's first write made.
 
 Pros:
-the whole history is readable;
-a refused attempt stays visible after a later success.
+the whole history is readable,
+and a refused attempt stays visible after a later success.
 
 Cons:
 the reader needs a merge rule (the highest attempt wins),
-the split's prefix rule must never split one name's
-attempts,
-and the bound must count attempts rather than objects.
-
-Ranking:
-A > B.
-A beats B because the only question a later run asks is what the pool says now,
-and B's history costs a merge rule and a bound that no longer tracks the objects.
+the split must never put one name in two chunks of an attempt,
+and the bound must count attempts rather than snapshots,
+so a record is as large as the attempts its clone took.
 
 ### Choice 5: the flush rule
 
@@ -3185,8 +3333,8 @@ Option C,
 by position,
 adopted:
 no flush for a write made before an irreversible ZFS step,
-which covers this plan's `planned`,
-`requested` and `head=requested` writes;
+which covers this plan's `planned` lines,
+an attempt's outcome lines and its `head=requested` write;
 a flush for a write made after an object exists that nothing else can prove,
 which is the binding's first write and no write of this plan.
 This is the three records' one rule.
@@ -3194,14 +3342,14 @@ The origin cleanup design's V14 adopts it for the three and names this entry and
 its citations (read at `f17455b786`).
 
 Example:
-power is cut right after the plan's `requested` write and before the request returns.
+power is cut right after the request and before the write that would record its answer.
 The destroy waits for its transaction group (F5,
 one pool assumed by A8),
-so the record and the request are in the same or an earlier group,
-and the next boot's plan says `requested`,
+and the record was on disk before the request,
+so the next boot's plan holds the lines of the attempts before it,
 which the next run proves.
-Power is cut right after the plan's outcome write:
-the record may fall back to `requested`,
+Power is cut right after the outcome write:
+the record may fall back to those earlier lines,
 one repeated proof,
 and the destroyed snapshot is gone either way.
 
@@ -3365,7 +3513,7 @@ adopted.
 Example:
 a plan from a removal refused three weeks ago still stands,
 `doctor` still names it,
-and the next removal of that slot adopts it after proving every tuple.
+and the next removal of that slot adopts it after proving every name.
 
 Pros:
 the evidence of a destroyed snapshot survives as long as the clone or the origin does;
@@ -3488,7 +3636,7 @@ Option B,
 one record per chunk plus a small index record.
 
 Example:
-the same clone records ten chunk files of 4,000 tuples and an index naming them;
+the same clone records ten chunk files of 4,000 attempt lines and an index naming them;
 the bookmark rule reads the index and then the chunks it needs.
 
 Pros:
@@ -3504,7 +3652,7 @@ a person's repair is several files.
 
 Ranking:
 A > B.
-A beats B because the common case is one batch and a handful of tuples,
+A beats B because the common case is one batch and a handful of attempts,
 and B's small files cost every reader a union rule for the rare huge set.
 
 ### Choice 11: who removes a killed writer's staging name
@@ -3695,7 +3843,7 @@ with the same numbers as the points below.
     the difference is that document's own choice and its list carries it.
     No project record decides the file shape;
     this design follows the slot store's `#` line,
-    and the tuple lines stay positional with the name last after
+    and the attempt lines stay positional with the name last after
     `name=`.
 4.  **The moment of the origin carrier (X1).**
     This design reads the origin cleanup record and never writes it;
@@ -3898,8 +4046,9 @@ Each item names the probe that would settle it and the step that owes it.
   the record's real size and its write cost on the removal's path.
   Host,
   under the acceptance workload:
-  build one record from a clone's real inventory,
-  compare its bytes with F11's `10,128 + 340 * n`,
+  build one record from a clone's real inventory and one retried twice,
+  compare its bytes with F11's `10,130 + 361 * n`,
+  where `n` is the record's line count and not the number of snapshots,
   and time its unflushed write against an interleaved control that writes the same bytes without the rename,
   reported as a ratio with its spread under rule `QNB`.
   It checks the bound's arithmetic against a real record and sizes no shipped limit.
@@ -3923,7 +4072,7 @@ Each item names the probe that would settle it and the step that owes it.
   the loss a crash can cause.
   A control that fails between the staging write and the rename
   (the staging hook at `private_storage_replacing_a_record.rs:94 to 95`),
-  asserting the old record is read and the loss reads as `requested`;
+  asserting the old record is read and the loss reads as the lines the earlier attempt wrote;
   a kernel power cut cannot be forced,
   so the kernel's ordering stays unmeasured and is stated as such.
 - M5,
@@ -3964,7 +4113,7 @@ Each item names the probe that would settle it and the step that owes it.
   which the accepted same-account residual already allows,
   and nothing here narrows it.
 - A plan cannot report an outcome it never recorded.
-  A kill inside an ioctl leaves `requested`,
+  A kill inside an ioctl leaves that attempt's lines unwritten,
   and the proof that follows is the only truth the record can carry.
 - The record has no count ceiling and its refusal for size is gone;
   the reader's memory follows the record's own length (section 2).
@@ -4268,4 +4417,35 @@ meets" for the pass's binding condition,
   and says a plan of an earlier clone at the same path is not that binding's plan,
   which is the binding design's V24 and its "Which command is true for a state".
   The dependency sentence beside it says one fact remains and is B's own.
+- `53e8120410`,
+  committer time `2026-11-23T20:31:46-05:00`:
+  the project's choice of one line per attempt,
+  as `doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`
+  records it under "Choice 32:
+  how a plan records each snapshot's history".
+  The record keeps every attempt:
+  an attempt line's fields gain the attempt's number,
+  the header's count becomes `attempts=` and counts lines,
+  and section 2 states the merge rule (a name's current state is its highest number's line) and the split rule
+  (a name in one chunk of an attempt).
+  The bound is counted in attempts,
+  `10,130 + 361 * each`,
+  with 361 the old 340 plus the attempt's twenty digits and one separator,
+  and the header two bytes wider for `attempts=`.
+  Every reader follows:
+  the bookmark rule reads any line,
+  the batch reads each name's current state,
+  the cancel command prints each snapshot's current state and its attempts,
+  and `doctor` prints the state,
+  the attempt count and a gap as a lost write.
+  A snapshot has no stored in-flight marker,
+  so a kill inside a request leaves no line and the next run proves each name before it submits,
+  which keeps the project's four lines for the two-request walk;
+  the walk,
+  the worked example and Choice 4's example show them.
+  "Readers that do not exist" adds that the add reads the header's `cloneGuid` and no attempt line,
+  which is why a many-line plan still names its clone for V24.
+  Choice 4 is marked decided,
+  quoting the project's words,
+  and every other entry stands as it was.
   A later commit that only adds or corrects this list is not listed.

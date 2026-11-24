@@ -41,7 +41,7 @@ use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_decline, explain_refusal, explain_unsupported};
 use crate::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
 use crate::worktree_clone_conversion_beside_the_clone::CloneFence;
-use crate::worktree_clone_conversion_fence::Fence;
+use crate::worktree_clone_conversion_fence::{AttributeFence, Fence};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -382,14 +382,47 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     //  uncommitted changes every path the proof still settles, with Git writing the rest (the partial clone rung).
     if clone_refusal.is_none() {
         // What:
+        //  The fence's attributes are read here,
+        //  before the rung's limits are asked and before its claim on a stage name and its first copy:
+        //  the cheap refusal for an untracked or ignored `.gitattributes`,
+        //  the `git check-attr` read,
+        //  and the decline their count prices.
+        // Why:
+        //  The whole-tree limit sums the bytes the clones would carry,
+        //  which is the attributes' answer,
+        //  so the limit cannot be asked before this read
+        //  (`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+        //  "What the whole-tree limit sums (D3)").
+        //  A source the fence refuses or declines must not pay the claim, Git's `--no-checkout` run and a copy first:
+        //  the decline needs the attributes alone,
+        //  so deciding it here makes a declined add one Git checkout plus that one query.
+        //  What the read costs a size-declined add, and what it cost on this repository,
+        //  is stated beside the limit (`worktree_clone_rung_limits`, `bytes_the_clones_carry`) and in the round's report.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const attributes = fenceTheAttributes(source, context); // throws the reason the rung cannot be proven
+        // ```
+        let conversion_fence_entered: bool = begin_step("conversionFence");
+        let attributes_outcome: Result<AttributeFence, String> = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, context);
+        end_step(conversion_fence_entered);
+        let attributes: AttributeFence = match attributes_outcome {
+            Ok(read) => read,
+            Err(reason) => {
+                abandon_the_read_beside_the_check(sizes_beside);
+                log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+                return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+            }
+        };
+        // What:
         //  The rung's provisional limits are asked here,
-        //  before its fence, its claim on a stage name and its first copy:
-        //  a source with changes of too few tracked bytes for a clone to win,
-        //  a clean source whose mean tracked file is too small for one,
+        //  before its claim on a stage name and its first copy:
+        //  a source with changes whose clones would copy too few bytes for a clone to win,
+        //  a source with no tracked change whose mean tracked file is too small for one,
         //  and a source whose changed paths exceed the cut.
         // Why:
         //  They decide between this rung and Git's own checkout,
-        //  so asking them later makes a declined add pay the reads, the claim and the copies it was declined for;
+        //  so asking them later makes a declined add pay the claim and the copies it was declined for;
         //  each limit's value, its measurement and why it sits at that edge are beside it
         //  (`worktree_clone_rung_limits`), and all send the add to Git's own checkout, which is the baseline they were
         //  measured against.
@@ -399,35 +432,29 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         // In TS you'd write (pseudocode):
         // ```ts
         // const entries = trackedEntries(source);
-        // const limit = entries && declineBeforeCloning(source, entries);
+        // const limit = entries && declineBeforeCloning(source, entries, attributes.bytesTheClonesCarry());
         // if (limit) return { rung: git, slow: explainDecline(limit) };
         // ```
         let entries_entered: bool = begin_step("trackedEntries");
         let entries: Option<Vec<crate::worktree_clean::StatEntry>> = crate::worktree_clone_rung_limits::tracked_entries(&source);
         end_step(entries_entered);
-        let limit: Option<String> = entries.as_deref().and_then(|read| { return crate::worktree_clone_rung_limits::decline_before_cloning(&source, read); });
+        let limit: Option<String> = entries.as_deref().and_then(|read| { return crate::worktree_clone_rung_limits::decline_before_cloning(&source, read, attributes.bytes_the_clones_carry()); });
         if let Some(reason) = limit {
             log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
             return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
         }
         // What:
-        //  The fence decides here,
+        //  The fence's remaining shape is chosen here,
         //  before the add's record is claimed and before real Git runs:
-        //  the cheap refusal for an untracked or ignored `.gitattributes`,
-        //  the `git check-attr` reads and the decline they price,
-        //  and the rest beside the copies unless this build's routes decide it here too.
+        //  the rest beside the copies unless this build's routes decide it here too.
         // Why:
-        //  A source the fence refuses or declines must not pay the claim, Git's `--no-checkout` run and a copy first:
-        //  the decline needs the attributes alone,
-        //  so deciding it here makes a declined add one Git checkout plus that one query.
+        //  A source the fence refuses must not pay the claim, Git's `--no-checkout` run and a copy first.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const fence = theFenceOfThisBuild(source, context); // throws the reason the rung cannot be proven
+        // const fence = theFenceOfThisBuild(source, context, attributes); // throws the reason the rung cannot be proven
         // ```
-        let conversion_fence_entered: bool = begin_step("conversionFence");
-        let fence_outcome: Result<CloneFence, String> = crate::worktree_clone_conversion_beside_the_clone::the_fence_of_this_build(&source, context);
-        end_step(conversion_fence_entered);
+        let fence_outcome: Result<CloneFence, String> = crate::worktree_clone_conversion_beside_the_clone::the_fence_of_this_build(&source, context, attributes);
         let fence: CloneFence = match fence_outcome {
             Ok(chosen) => chosen,
             Err(reason) => {

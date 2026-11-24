@@ -198,7 +198,17 @@ pub fn leftover_report(created: &[Created], destination: &Path) -> String {
         }
         shown.push(joined_names(entry.names.as_slice()));
     }
-    return format!("{} entries the clones created stay in {} (for example {}); the checkout that completes the worktree overwrites the tracked ones, and `git -C {} status` lists any other as untracked", created.len(), destination.display(), shown.join(", "), destination.display());
+    // What:
+    //  Name the example only when a file was created, so a run that made only directories is not reported as
+    //  "(for example )".
+    // Why:
+    //  The entries left behind are mostly directories from a run that ended early, and an empty parenthesis reads as a
+    //  missing name rather than as no file.
+    let example: String = match shown.is_empty() {
+        true => String::new(),
+        false => format!(" (for example {})", shown.join(", ")),
+    };
+    return format!("{} entries the clones created stay in {}{example}; the checkout that completes the worktree overwrites the tracked ones, and `git -C {} status` lists any other as untracked", created.len(), destination.display(), destination.display());
 }
 
 /// The run itself for one entry set:

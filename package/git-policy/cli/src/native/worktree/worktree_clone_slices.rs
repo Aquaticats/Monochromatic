@@ -25,7 +25,7 @@ use crate::parallel_budget::{HostResources, PARALLEL_BREAK_EVEN_ENTRIES, sliced_
 use crate::side_by_side_on_the_runtime::{AJob, run_all_side_by_side_on_the_runtime};
 use crate::subvolume_index::StatFields;
 use crate::worktree_clean::StatEntry;
-use crate::worktree_clone_entries::{ClonedEntries, EntriesToClone, clone_the_entries, clone_with};
+use crate::worktree_clone_entries::{ClonedEntries, EntriesToClone, clone_the_entries, clone_with_entries};
 use crate::fs_beneath::open_root;
 use crate::worktree_clone_entry::{Seams, do_nothing};
 use crate::worktree_clone_paths::{Created, Directories};
@@ -40,6 +40,37 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cloneSlices";
+
+/// What:
+///  Whether a control asked the process's runtime to refuse the slices,
+/// so the one-turn arm runs.
+/// Why:
+///   That arm runs only where no runtime can be entered,
+/// which no argument of an add can ask for;
+///  a control of the arm then has no shape to reach it
+/// (the release pass over alpha.45's finding H2).
+/// The flag is a control's route alone:
+///  the release build has no such route,
+///  so no shipped add can choose the arm.
+#[cfg(test)]
+pub(crate) static FORCED_ONE_TURN_ARM: AtomicBool = AtomicBool::new(false);
+
+/// What:
+///  Whether the slices are refused, which a control may ask for and no shipped add can.
+/// Why:
+///   The arm's shape is the caller's answer and not the runtime's here,
+/// so a control names why the arm ran rather than reaching into the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = () => process.env.NODE_ENV === 'test' && forcedOneTurn;
+/// ```
+fn the_slices_are_refused_by_a_control() -> bool {
+    #[cfg(test)]
+    return FORCED_ONE_TURN_ARM.load(Ordering::SeqCst);
+    #[cfg(not(test))]
+    return false;
+}
 
 /// What one slice of the clones works on.
 #[derive(Clone)]
@@ -197,7 +228,10 @@ where
     // const beside = besideJob ? besideJob() : undefined;
     // const answers = await runtime.wait(started);
     // ```
-    let started: Result<tokio::task::JoinHandle<Vec<Result<ClonedEntries, String>>>, crate::lazy_runtime::RuntimeError> = crate::lazy_runtime::run_on_runtime(async move { return tokio::spawn(clone_the_slices(states)); });
+    let started: Result<tokio::task::JoinHandle<Vec<Result<ClonedEntries, String>>>, crate::lazy_runtime::RuntimeError> = match the_slices_are_refused_by_a_control() {
+        true => Err(crate::lazy_runtime::RuntimeError::Nested),
+        false => crate::lazy_runtime::run_on_runtime(async move { return tokio::spawn(clone_the_slices(states)); }),
+    };
     let beside_answer: Option<T> = beside.take().map(|(state, work)| return work(state));
     let entries_entered: bool = begin_step("cloneEntries");
     let ran = match started {
@@ -212,7 +246,15 @@ where
             let mut directories: Directories = HashMap::new();
             directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
             let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-            let stats: HashMap<Vec<u8>, StatFields> = clone_with(source, &mut directories, created, &mut seams)?;
+            // What:
+            //  The one-turn arm clones the entries `clone_in_slices` was handed, not a fresh read of the source's
+            //  index.
+            // Why:
+            //  The caller chose the entry set:
+            //  a partial clone of a source with changes hands over the paths its proof settled, so a fresh read of the
+            //  index would clone every index path instead, staged additions included, and a staged addition is in no
+            //  tree (the release pass over alpha.45's finding H2).
+            let stats: HashMap<Vec<u8>, StatFields> = clone_with_entries(source, entries.as_ref(), &mut directories, created, &mut seams)?;
             return Ok((stats, beside_answer));
         }
     };

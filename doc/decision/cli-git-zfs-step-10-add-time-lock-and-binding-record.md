@@ -52,7 +52,8 @@ kept until the pointer's exchange and then left in the wrapper's trash for the d
 the pointer install as that exchange;
 ...".
 The plan's step 10 text now reads so
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 10").
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 10").
 Not chosen:
 "Leave it as it is".
 

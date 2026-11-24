@@ -2,21 +2,29 @@
 
 ## Status
 
-Current-boot repairs are measured. The final enforcement cold boot and owner review remain open.
-This is a local deployment record, not an upstream bug report or a claim that every profile is
+Current-boot repairs are measured.
+The final enforcement cold boot and owner review remain open.
+This is a local deployment record,
+not an upstream bug report or a claim that every profile is
 enforcing.
 
 The rollout uses the broad `apparmor.d` collection at commit
-`5c34009a6ea104831c9a91a578f9255dbb289fe2`, with `default enforce`, `include default`, `reload yes`,
-and `fsp no`. Package complain and unconfined exceptions remain intentional.
+`5c34009a6ea104831c9a91a578f9255dbb289fe2`,
+with `default enforce`,
+`include default`,
+`reload yes`,
+and `fsp no`.
+Package complain and unconfined exceptions remain intentional.
 
 ## Symptom
 
 Default enforcement exposed independent workload failures:
 
-- Sanoid 2.3.0 exited with status 2 after snapshot creation. Its journal said
+- Sanoid 2.3.0 exited with status 2 after snapshot creation.
+  Its journal said
   `Timed out waiting for subprocesses to start at /usr/share/perl5/vendor_perl/Capture/Tiny.pm line 271.`
-- `checkupdates` 1.13.1 could not create the `local` symlink selected by Cachy-Update 4.4.7. The
+- `checkupdates` 1.13.1 could not create the `local` symlink selected by Cachy-Update 4.4.7.
+  The
   parent user service could still exit 0 with an empty or misleading package comparison.
 - `aa-install` and `aa-mode` were denied their transient scope's `cpu.max` file during Go runtime
   initialization.
@@ -24,11 +32,16 @@ Default enforcement exposed independent workload failures:
   cache's `.features` file.
 - Git could not create source-audit directories beneath `/home/user/temp/agent`.
 - Helium was denied `/etc/os-release` and initially used Chromium's configuration and cache
-  directory names. Its crashpad child was denied the real `net.imput.helium/Crash Reports` paths.
-- The existing KeePassXC 2.8.0 process repeatedly failed to read `/home/user/Plain/main.kdbx`, and
+  directory names.
+  Its crashpad child was denied the real `net.imput.helium/Crash Reports` paths.
+- The existing KeePassXC 2.8.0 process repeatedly failed to read `/home/user/Plain/main.kdbx`,
+  and
   its file picker later could not enter `/home/user/Plain` itself.
 
-These are separate AVCs and workloads. A successful parent unit, a loaded profile name, or an empty
+These are separate AVCs and workloads.
+A successful parent unit,
+a loaded profile name,
+or an empty
 later denial query does not prove that any of them succeeded.
 
 ## Root cause
@@ -52,7 +65,8 @@ my $exit;
 };
 ```
 
-Capture::Tiny 0.50 creates a readiness marker before waiting for its tee child. The [installed
+Capture::Tiny 0.50 creates a readiness marker before waiting for its tee child.
+The [installed
 `lib/Capture/Tiny.pm:202-217`](https://fastapi.metacpan.org/v1/source/DAGOLDEN/Capture-Tiny-0.50/lib/Capture/Tiny.pm#:~:text=scalar(%20tmpnam()%20)%20.%20%24%24)
 uses this expression:
 
@@ -61,12 +75,17 @@ uses this expression:
 $stash->{flag_files}{$which} = scalar( tmpnam() ) . $$;
 ```
 
-The exact installed module was compared byte for byte with the CPAN 0.50 archive, not with the newer
-0.51 default branch. Both copies had SHA-256
+The exact installed module was compared byte for byte with the CPAN 0.50 archive,
+not with the newer
+0.51 default branch.
+Both copies had SHA-256
 `229bdb082963bbb29629da2ef61bf151fd0f4705800e45672127ed11162581a8`.
 
-The installed File::Temp 0.2312 defines ten temporary characters, including underscore, at
-`File/Temp.pm:207-223`. Its [`tmpnam`
+The installed File::Temp 0.2312 defines ten temporary characters,
+including underscore,
+at
+`File/Temp.pm:207-223`.
+Its [`tmpnam`
 implementation](https://github.com/Perl-Toolchain-Gang/File-Temp/blob/bb40d5b960961c5c37503461e6ca0d6759d37675/lib/File/Temp.pm#L1963-L1978)
 applies that template:
 
@@ -86,8 +105,12 @@ sub tmpnam {
 ```
 
 The failed AVC `/tmp/2y2FMN44FE102311` contains ten File::Temp characters followed by confined
-parent PID `102311`, with `fsuid=0` and `ouid=0`. The first narrow rule covered only the
-ten-character file used by `tempfile`, not the readiness marker with its PID suffix. Repeated
+parent PID `102311`,
+with `fsuid=0` and `ouid=0`.
+The first narrow rule covered only the
+ten-character file used by `tempfile`,
+not the readiness marker with its PID suffix.
+Repeated
 scheduled runs reproduced that same shape.
 
 ### Cachy-Update overrides the checkupdates database location
@@ -130,8 +153,10 @@ else
 fi
 ```
 
-The installed `check.sh` matches tag `v4.4.7` byte for byte. Installed `common.sh` differs only in
-CachyOS tray-icon names; the allocation lines match.
+The installed `check.sh` matches tag `v4.4.7` byte for byte.
+Installed `common.sh` differs only in
+CachyOS tray-icon names;
+the allocation lines match.
 
 ### Go retains the current cgroup quota descriptor
 
@@ -166,8 +191,11 @@ case 2:
     return c, nil
 ```
 
-The packaged `golang-strict` abstraction covered `system.slice/*.service/cpu.max`, but not the
-observed transient `system.slice/*.scope/cpu.max`. This is a descriptor-lifetime behavior, so
+The packaged `golang-strict` abstraction covered `system.slice/*.service/cpu.max`,
+but not the
+observed transient `system.slice/*.scope/cpu.max`.
+This is a descriptor-lifetime behavior,
+so
 command success or missing AVCs is weaker evidence than inspecting the real process's open
 descriptor.
 
@@ -175,7 +203,9 @@ descriptor.
 
 Incus's
 [`InstanceLoad`](https://github.com/lxc/incus/blob/8f5e6c2235f6424ec59d3dc06f12e344a4a416e2/internal/server/apparmor/instance.go#L61-L77)
-creates the namespace, generates the instance profile, then loads it:
+creates the namespace,
+generates the instance profile,
+then loads it:
 
 ```go
 // internal/server/apparmor/instance.go:61-77
@@ -200,18 +230,24 @@ func InstanceLoad(sysOS *sys.OS, inst instance, extraBinaries []string) error {
 
 Its
 [`loadProfile`](https://github.com/lxc/incus/blob/8f5e6c2235f6424ec59d3dc06f12e344a4a416e2/internal/server/apparmor/apparmor.go#L65-L76)
-invokes `apparmor_parser` with the generated cache and profile directories. The measured AVC named
-`/var/lib/incus/security/apparmor/cache/48da56f3.0/.features`, not the system early-policy cache.
+invokes `apparmor_parser` with the generated cache and profile directories.
+The measured AVC named
+`/var/lib/incus/security/apparmor/cache/48da56f3.0/.features`,
+not the system early-policy cache.
 
 The host-init label includes the generated outer profile and the named namespace.
 [`driver_lxc.go:1085-1090`](https://github.com/lxc/incus/blob/8f5e6c2235f6424ec59d3dc06f12e344a4a416e2/internal/server/instance/drivers/driver_lxc.go#L1085-L1090)
-appends `//&:<instance namespace>:` when stacking is available. Consequently, an inner guest
+appends `//&:<instance namespace>:` when stacking is available.
+Consequently,
+an inner guest
 `unconfined` label is not sufficient evidence of a missing outer profile.
 
 ### KeePassXC's selected database is outside the stock password-store path
 
-The stock KeePassXC profile grants `*.kdbx*` beneath `@{user_passwordstore_dirs}`. This host leaves
-that variable at `.password-store`, while the selected existing database is
+The stock KeePassXC profile grants `*.kdbx*` beneath `@{user_passwordstore_dirs}`.
+This host leaves
+that variable at `.password-store`,
+while the selected existing database is
 `/home/user/Plain/main.kdbx`.
 
 [KeePassXC 2.8.0's
@@ -247,23 +283,33 @@ bool Database::performSave(const QString& filePath, SaveAction action, const QSt
 ```
 
 The current local rule covers the database basename and same-basename save or temporary suffixes.
-Real database reads are proven. A later AVC named the directory `/home/user/Plain/` itself, so the
-picker also needs directory-only read access. A save and rename at that path has not been exercised
-against a disposable database, so this remains an explicit verification limit.
+Real database reads are proven.
+A later AVC named the directory `/home/user/Plain/` itself,
+so the
+picker also needs directory-only read access.
+A save and rename at that path has not been exercised
+against a disposable database,
+so this remains an explicit verification limit.
 
 ### Helium and Git require deployment-specific boundaries
 
 The custom Helium profile originally inherited Chromium's configuration and cache directory
-variables. That did not match this package's real `.config/net.imput.helium` and
-`.cache/net.imput.helium` paths. `/etc/os-release` is root-owned, so an `owner` qualifier would not
+variables.
+That did not match this package's real `.config/net.imput.helium` and
+`.cache/net.imput.helium` paths.
+`/etc/os-release` is root-owned,
+so an `owner` qualifier would not
 match its `ouid=0` read.
 
-Git's source-audit denials were confined to the private source-audit workspace. A later signed
+Git's source-audit denials were confined to the private source-audit workspace.
+A later signed
 commit also failed on `/tmp/.git_signing_buffer_tmpM40r71`.
 
 [Git 2.56.1's SSH signing
 path](https://github.com/git/git/blob/03b41523c576f26ad34085378717a0c1b287470f/gpg-interface.c#L1092-L1112)
-creates that exact six-character buffer, writes it, and passes it to the signer:
+creates that exact six-character buffer,
+writes it,
+and passes it to the signer:
 
 ```c
 // gpg-interface.c:1092-1112
@@ -283,18 +329,27 @@ strvec_pushl(&signer.args, use_format->program,
              NULL);
 ```
 
-At `gpg-interface.c:1128-1130`, Git appends `.sig` and reads that signature file. It later removes
-both temporary paths. This does not justify access to every personal directory, arbitrary temporary
-files, or execution of repository hooks and build outputs.
+At `gpg-interface.c:1128-1130`,
+Git appends `.sig` and reads that signature file.
+It later removes
+both temporary paths.
+This does not justify access to every personal directory,
+arbitrary temporary
+files,
+or execution of repository hooks and build outputs.
 
 Granting only the buffer exposed the next AVC:
-`operation="exec" profile="git" name="/usr/bin/ssh-keygen" requested_mask="x"`. An unlisted
+`operation="exec" profile="git" name="/usr/bin/ssh-keygen" requested_mask="x"`.
+An unlisted
 executable inside this confined Git profile does not automatically receive an unconfined fallback.
 The narrow repair transitions only `ssh-keygen` to its existing enforcing profile and grants the
 same buffer and `.sig` paths there.
 
-Auto-push then reached a different missing profile: managed Git declares `@{bin}/gh px`, but no
-packaged `gh` target exists. The AVCs were `profile transition not found` for exec and a read denial
+Auto-push then reached a different missing profile:
+managed Git declares `@{bin}/gh px`,
+but no
+packaged `gh` target exists.
+The AVCs were `profile transition not found` for exec and a read denial
 on `/usr/bin/gh`.
 
 GitHub CLI 2.105.0's [keyring
@@ -331,28 +386,45 @@ cmd.Stdout = c.Stdout
 return &Command{cmd}, nil
 ```
 
-After keyring access and the real push reached the repository, Git denied this repository's own
-`.git/hooks/pre-push`. The hook is a POSIX shell script that runs `git lfs pre-push "$@"`. The exact
+After keyring access and the real push reached the repository,
+Git denied this repository's own
+`.git/hooks/pre-push`.
+The hook is a POSIX shell script that runs `git lfs pre-push "$@"`.
+The exact
 own-hook inherit-exec rule is separate from third-party hook and build-output policy.
 
-The follow-up auto-push also produced `/proc/154971/cgroup`, with `comm="git-lfs"` and `ouid=0`. Git
-LFS 3.8.1 is built with Go 1.27.3-X:nodwarf5. The Go runtime source cited in
+The follow-up auto-push also produced `/proc/154971/cgroup`,
+with `comm="git-lfs"` and `ouid=0`.
+Git
+LFS 3.8.1 is built with Go 1.27.3-X:nodwarf5.
+The Go runtime source cited in
 `Go retains the current cgroup quota descriptor` resolves the current cgroup from
-`/proc/self/cgroup` before opening its CPU limit. That root-owned proc file requires no `owner`
-qualifier. The local rule covers only this proc read; any subsequent cgroup-file denial requires its
+`/proc/self/cgroup` before opening its CPU limit.
+That root-owned proc file requires no `owner`
+qualifier.
+The local rule covers only this proc read;
+any subsequent cgroup-file denial requires its
 own evidence.
 
-After the proc repair, Git LFS produced an owner-matched `/proc/<pid>/mountinfo` denial. It also
+After the proc repair,
+Git LFS produced an owner-matched `/proc/<pid>/mountinfo` denial.
+It also
 requested execution of this repository's own cached
-`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`. The
-active `git` command resolves through this exact owner-managed wrapper. Only that binary gets
-inherit-exec permission; a rebuilt wrapper needs a new review, and third-party build output gets no
+`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`.
+The
+active `git` command resolves through this exact owner-managed wrapper.
+Only that binary gets
+inherit-exec permission;
+a rebuilt wrapper needs a new review,
+and third-party build output gets no
 general grant.
 
 ### Loopback SSH forwarding and picker state
 
-The SSH profile's stock `abstractions/network/out/ssh` grants outbound port 22 access, not local
-bind. Reverse forwarding repeatedly failed with `operation="bind"` and loopback source addresses.
+The SSH profile's stock `abstractions/network/out/ssh` grants outbound port 22 access,
+not local
+bind.
+Reverse forwarding repeatedly failed with `operation="bind"` and loopback source addresses.
 The upstream [loopback TCP
 abstraction](https://github.com/roddhjav/apparmor.d/blob/5c34009a6ea104831c9a91a578f9255dbb289fe2/apparmor.d/abstractions/network/lo/tcp#L11-L12)
 shows the appropriate address-scoped rule shape:
@@ -363,87 +435,190 @@ network (accept bind listen send receive) inet stream ip=127.0.0.1,
 network (connect send receive) inet stream peer=(ip=127.0.0.1),
 ```
 
-KeePassXC's file picker also exercised directory traversal, KIO bookmark and service-menu state,
-anonymous sockets, its own proc mount table, thread names, and its XDG state directory. These are
-separate from the selected database permission. The installed AppArmor manual states that a trailing
-slash matches directories; recursive directory-only rules do not grant file contents.
+KeePassXC's file picker also exercised directory traversal,
+KIO bookmark and service-menu state,
+anonymous sockets,
+its own proc mount table,
+thread names,
+and its XDG state directory.
+These are
+separate from the selected database permission.
+The installed AppArmor manual states that a trailing
+slash matches directories;
+recursive directory-only rules do not grant file contents.
 
-GitHub CLI's own `px` transition to Git worked, but it then needed the same exact owner-managed
-policy-wrapper exec path already granted to Git. Helium's existing KeePassXC integration needed only
+GitHub CLI's own `px` transition to Git worked,
+but it then needed the same exact owner-managed
+policy-wrapper exec path already granted to Git.
+Helium's existing KeePassXC integration needed only
 its native-messaging JSON in `google-chrome/NativeMessagingHosts`.
 
 ## Verification
 
 ### Versions and evidence scope
 
-The measured host runs AppArmor 4.1.8-2.1, Sanoid 2.3.0-2, Capture::Tiny 0.50-4, File::Temp from
-Perl 5.44.0-1.1, Cachy-Update 4.4.7-1, pacman-contrib 1.13.1-1.2, Go 1.27.4-X:nodwarf5, Incus
-7.6.0-1.1, KeePassXC 2.8.0-4.1, Git 2.56.1-1.1, Git LFS 3.8.1-1.1 with Go 1.27.3-X:nodwarf5, GitHub
-CLI 2.105.0-1, and the custom confined Helium package.
+The measured host runs AppArmor 4.1.8-2.1,
+Sanoid 2.3.0-2,
+Capture::Tiny 0.50-4,
+File::Temp from
+Perl 5.44.0-1.1,
+Cachy-Update 4.4.7-1,
+pacman-contrib 1.13.1-1.2,
+Go 1.27.4-X:nodwarf5,
+Incus
+7.6.0-1.1,
+KeePassXC 2.8.0-4.1,
+Git 2.56.1-1.1,
+Git LFS 3.8.1-1.1 with Go 1.27.3-X:nodwarf5,
+GitHub
+CLI 2.105.0-1,
+and the custom confined Helium package.
 
-Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`. Reports marked
+Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`.
+Reports marked
 `ownerAcceptance: false` are not final approval.
 
 ### Failing catalog
 
 - An isolated `AppArmorProfile=sanoid` `tee_stderr` fixture timed out when only the ten-character
-  File::Temp rule was installed. The AVC contained ten random characters followed by the parent PID.
-- A ten-character-only Sanoid `tempfile` fixture was insufficient even though create, write, read,
+  File::Temp rule was installed.
+  The AVC contained ten random characters followed by the parent PID.
+- A ten-character-only Sanoid `tempfile` fixture was insufficient even though create,
+  write,
+  read,
   and delete succeeded for that different operation.
 - The unchanged native `arch-update.service` denied `checkupdates` creation of
   `/run/user/1000/arch-update/checkupdates-1fHIo/local`.
 - A harness-generated six-character `checkupdates-cMs5PD` directory remained denied after the
-  five-character rule was installed. This was an incorrect fixture, not a reason to broaden the
+  five-character rule was installed.
+  This was an incorrect fixture,
+  not a reason to broaden the
   rule.
-- An `ALLOWED`-only matcher missed explicitly audited successful KeePassXC operations. The kernel
+- An `ALLOWED`-only matcher missed explicitly audited successful KeePassXC operations.
+  The kernel
   emitted `AUDIT` with paired `SYSCALL success=yes` instead.
-- The first Incus namespace-assertion run completed its workload and cleanup, then failed the report
-  writer's no-clobber guard. That was not a guest-confinement failure.
-- A signed documentation commit initially failed with `fatal: failed to write commit object`. The
-  corresponding AVC named `/tmp/.git_signing_buffer_tmpM40r71`; this was not a repository ownership
-  problem. After the buffer rule, the next attempt failed with
-  `fatal: cannot exec 'ssh-keygen': Permission denied`, with a separate exec AVC. The two denials
+- The first Incus namespace-assertion run completed its workload and cleanup,
+  then failed the report
+  writer's no-clobber guard.
+  That was not a guest-confinement failure.
+- A signed documentation commit initially failed with `fatal: failed to write commit object`.
+  The
+  corresponding AVC named `/tmp/.git_signing_buffer_tmpM40r71`;
+  this was not a repository ownership
+  problem.
+  After the buffer rule,
+  the next attempt failed with
+  `fatal: cannot exec 'ssh-keygen': Permission denied`,
+  with a separate exec AVC.
+  The two denials
   required separate evidence.
-- The first auto-push failed because `/usr/bin/gh` had no transition target. After a custom `gh`
-  profile succeeded at `gh auth status`, the real push failed on this repository's own `pre-push`
-  hook. The follow-up auto-push also recorded Git LFS's `/proc/154971/cgroup` denial, followed by
-  `mountinfo` and exact policy-wrapper exec denials. These were new workflow stages, not repeats of
+- The first auto-push failed because `/usr/bin/gh` had no transition target.
+  After a custom `gh`
+  profile succeeded at `gh auth status`,
+  the real push failed on this repository's own `pre-push`
+  hook.
+  The follow-up auto-push also recorded Git LFS's `/proc/154971/cgroup` denial,
+  followed by
+  `mountinfo` and exact policy-wrapper exec denials.
+  These were new workflow stages,
+  not repeats of
   the signing-buffer incident.
 
 ### Passing catalog
 
-- The corrected Sanoid tee fixture returned exact captured stderr. The already-scheduled 14:00 EST
-  `sanoid.service` exited 0, and direct `zfs list -t snapshot` queries confirmed all three reported
+- The corrected Sanoid tee fixture returned exact captured stderr.
+  The already-scheduled 14:00 EST
+  `sanoid.service` exited 0,
+  and direct `zfs list -t snapshot` queries confirmed all three reported
   snapshots.
 - `verify-sanoid-narrow-tempfile.ts sanoid-narrow-tempfile-readback` proved nonempty readback and
   deletion while the same confined PID's `/proc/<pid>/attr/current` read remained denied.
 - `verify-checkupdates-runtime-database.ts` used native five-character `mktemp` allocation,
-  confirmed raw target `/var/lib/pacman//local`, canonical target `/var/lib/pacman/local`, nonempty
-  synchronized databases, package comparisons, and fixture removal.
+  confirmed raw target `/var/lib/pacman//local`,
+  canonical target `/var/lib/pacman/local`,
+  nonempty
+  synchronized databases,
+  package comparisons,
+  and fixture removal.
 - `verify-go-cpu-quota-descriptor.ts` observed each real enforcing helper with the expected scope's
-  `cpu.max` open. Descriptor contents matched direct quota reads.
-- The strengthened Incus workload proved the exact outer enforcing profile, namespace presence
-  during the workload, nonzero host UID/GID mappings, payload readback, and namespace and profile
+  `cpu.max` open.
+  Descriptor contents matched direct quota reads.
+- The strengthened Incus workload proved the exact outer enforcing profile,
+  namespace presence
+  during the workload,
+  nonzero host UID/GID mappings,
+  payload readback,
+  and namespace and profile
   removal afterward.
-- KeePassXC remained enforcing and produced audited successful opens of its existing database. After
-  the later directory denial, PID 4823 opened `/home/user/Plain/` with paired `SYSCALL success=yes`
+- KeePassXC remained enforcing and produced audited successful opens of its existing database.
+  After
+  the later directory denial,
+  PID 4823 opened `/home/user/Plain/` with paired `SYSCALL success=yes`
   and a returned directory descriptor.
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
-  helper. Audited events proved its OS-release read, existing crash-report reads, settings
-  read/write opens, and lock-file operations. It did not create a new crash dump.
-- After the picker/state and loopback rules, the credential helper, real Git push, and `man setpci`
-  succeeded, and no new denials appeared after 2026-11-23T20:47:39Z. The selected database directory
+  helper.
+  Audited events proved its OS-release read,
+  existing crash-report reads,
+  settings
+  read/write opens,
+  and lock-file operations.
+  It did not create a new crash dump.
+- After the picker/state and loopback rules,
+  the credential helper,
+  real Git push,
+  and `man setpci`
+  succeeded,
+  and no new denials appeared after 2026-11-23T20:47:39Z.
+  The selected database directory
   is traversable without making unrelated file contents readable by that rule alone.
 - Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b`,
-  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`, `d189b6f6d0355cd41c377d1fdfc4b68aff043668`, and
-  `2a6969039952edf5564c8f384f03ea9ad4aa7737` reached `main`. `gh auth status` read the existing
-  keyring credential through the enforcing custom profile, and `git ls-remote` returned the same
-  commit hashes. The push also exercised the exact own Git LFS hook.
+  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`,
+  `d189b6f6d0355cd41c377d1fdfc4b68aff043668`,
+  and
+  `2a6969039952edf5564c8f384f03ea9ad4aa7737` reached `main`.
+  `gh auth status` read the existing
+  keyring credential through the enforcing custom profile,
+  and `git ls-remote` returned the same
+  commit hashes.
+  The push also exercised the exact own Git LFS hook.
 
 ## Verified workarounds
 
-Install only the measured local rules and reload the affected profile. Rebuild the complete
+Install only the measured local rules and reload the affected profile.
+Rebuild the complete
 early-policy cache after all local edits.
+
+### systemd-oomd reading the cgroup tree
+
+During the whole gate of 2026-11-24T01:57:53Z to 02:51:53Z,
+with six guests and Rust builds beside it,
+the audit log held 224 denials for each of eleven cgroup folders,
+all `systemd-oomd` opening a folder under `/sys/fs/cgroup/` for read
+(`list-denials-in-a-window.ts` over that window).
+Its journal repeated "Considered 0 cgroups for killing, top candidates were:",
+and `oomctl` listed only `/system.slice` and `.../app.slice` with "Swap Usage: 0B"
+while 47.5 GiB of swap was in use and 1,964 MiB of memory was available.
+So under enforcement the daemon meant to end a runaway cgroup before memory runs out could choose none.
+On 2026-11-22,
+before enforcement,
+it read the cgroups
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, "Nothing shed load").
+
+```text
+# /etc/apparmor.d/local/systemd-oomd
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+```
+
+The owner answered "Add the read rule now (Recommended)" on 2026-11-24
+(`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`);
+the lines were appended with a comment naming that answer,
+and `sudo apparmor_parser --replace /etc/apparmor.d/systemd-oomd` reloaded the profile and wrote its early-policy cache.
+Afterwards `oomctl` listed the account's app cgroups one by one.
+Tradeoff:
+the daemon may read every cgroup file,
+which is what it is for;
+it gains no write.
 
 ### Sanoid temporary files
 
@@ -453,8 +628,10 @@ owner /tmp/[0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a
 owner /tmp/[0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z][0-9A-Z_a-z]@{pid} rw,
 ```
 
-Tradeoff: these owner-matched flat paths cover the installed File::Temp character set and
-Capture::Tiny PID suffix. They do not cover other temporary directories or arbitrary filenames.
+Tradeoff:
+these owner-matched flat paths cover the installed File::Temp character set and
+Capture::Tiny PID suffix.
+They do not cover other temporary directories or arbitrary filenames.
 
 ### Cachy-Update database location
 
@@ -464,8 +641,12 @@ owner @{run}/user/@{uid}/arch-update/checkupdates-@{rand4}@{c}/ w,
 audit owner @{run}/user/@{uid}/arch-update/checkupdates-@{rand4}@{c}/local w,
 ```
 
-Tradeoff: the five-character shape is specific to the installed wrapper. Pacman remains complain, so
-this is not proof of enforcing pacman confinement. Remove the audit qualifier after final evidence
+Tradeoff:
+the five-character shape is specific to the installed wrapper.
+Pacman remains complain,
+so
+this is not proof of enforcing pacman confinement.
+Remove the audit qualifier after final evidence
 collection if routine audit volume is unwanted.
 
 ### Go quota descriptors
@@ -475,8 +656,12 @@ collection if routine audit volume is unwanted.
 owner @{sys}/fs/cgroup/system.slice/*.scope/cpu.max r,
 ```
 
-Tradeoff: each helper can read any flat scope's quota beneath `system.slice`, not only its current
-scope. The rule does not cover nested scopes or other cgroup files. Keep it profile-local instead of
+Tradeoff:
+each helper can read any flat scope's quota beneath `system.slice`,
+not only its current
+scope.
+The rule does not cover nested scopes or other cgroup files.
+Keep it profile-local instead of
 broadening every Go application through the shared abstraction.
 
 ### Incus parser paths
@@ -487,8 +672,11 @@ owner /var/lib/incus/security/apparmor/profiles{,/**} r,
 owner /var/lib/incus/security/apparmor/cache{,/**} rw,
 ```
 
-Tradeoff: the parser can write Incus's generated cache tree. This does not unconfine the Incus
-controller or remove the guest's outer profile. The strengthened workload must prove namespace
+Tradeoff:
+the parser can write Incus's generated cache tree.
+This does not unconfine the Incus
+controller or remove the guest's outer profile.
+The strengthened workload must prove namespace
 creation and cleanup independently.
 
 ### KeePassXC selected database
@@ -515,9 +703,15 @@ owner @{run}/user/@{uid}/#@{int} rw,
 @{run}/udev/data/b{8:0,259:1} r,
 ```
 
-Tradeoff: recursive directory traversal exposes names and metadata throughout the home directory but
-not file contents. The state, socket, proc, and observed udev metadata grants are separate and do
-not make the selected database or other personal files generally readable. KeePassXC save behavior
+Tradeoff:
+recursive directory traversal exposes names and metadata throughout the home directory but
+not file contents.
+The state,
+socket,
+proc,
+and observed udev metadata grants are separate and do
+not make the selected database or other personal files generally readable.
+KeePassXC save behavior
 at the selected database path remains unexercised.
 
 ### Loopback SSH forwarding
@@ -528,26 +722,39 @@ network (bind listen accept send receive) tcp ip=127.0.0.1,
 network (bind listen accept send receive) tcp ip=::1,
 ```
 
-Tradeoff: this permits SSH listeners and accepted streams on any loopback TCP port, not arbitrary
-non-loopback listeners. Outbound SSH remains governed by the stock outbound abstraction. This is
-needed for dynamic reverse-forward ports; granting only one historical port would be too narrow.
+Tradeoff:
+this permits SSH listeners and accepted streams on any loopback TCP port,
+not arbitrary
+non-loopback listeners.
+Outbound SSH remains governed by the stock outbound abstraction.
+This is
+needed for dynamic reverse-forward ports;
+granting only one historical port would be too narrow.
 
 ### Exact wrapper, native messaging, and small service boundaries
 
 `/etc/apparmor.d/local/gh` grants inherit-exec only to the exact current owner-managed
-`monochromatic-git-policy-cli` path already measured for Git. `/etc/apparmor.d/local/helium` adds
+`monochromatic-git-policy-cli` path already measured for Git.
+`/etc/apparmor.d/local/helium` adds
 read-only access to the existing KeePassXC native-messaging JSON.
 
-Other measured local rules grant `basename` to `man//groff`, logind's exact `+module:uhid` read, the
-portal's own `memory.pressure`, and the nested profile-sync-daemon Chromium mountpoints. DMI reads
-and `iw`'s explicit `audit deny capability sys_module` remain unchanged. Portal pressure writes and
+Other measured local rules grant `basename` to `man//groff`,
+logind's exact `+module:uhid` read,
+the
+portal's own `memory.pressure`,
+and the nested profile-sync-daemon Chromium mountpoints.
+DMI reads
+and `iw`'s explicit `audit deny capability sys_module` remain unchanged.
+Portal pressure writes and
 new profile-sync-daemon mount operations are not claimed exercised until their real services repeat
 them.
 
 ### Helium and Git
 
-Helium uses the real `net.imput.helium` configuration and cache variables. Its local OS-release rule
-is `audit /etc/os-release r,` with no `owner` qualifier. The crashpad local include audits the
+Helium uses the real `net.imput.helium` configuration and cache variables.
+Its local OS-release rule
+is `audit /etc/os-release r,` with no `owner` qualifier.
+The crashpad local include audits the
 existing path and permissions without adding access.
 
 Git's local rules are:
@@ -602,10 +809,19 @@ profile gh /{,usr/}bin/gh {
 }
 ```
 
-Tradeoff: `gh` receives its own config, keyring, network, TLS, and Git subprocess access. It has no
-blanket home or temporary-directory grant. Git can mutate and lock the private source-audit
-workspace, but only this repository's measured `pre-push` receives new inherit-exec permission.
-Third-party hooks and build output receive none. Agents and unprofiled development programs remain
+Tradeoff:
+`gh` receives its own config,
+keyring,
+network,
+TLS,
+and Git subprocess access.
+It has no
+blanket home or temporary-directory grant.
+Git can mutate and lock the private source-audit
+workspace,
+but only this repository's measured `pre-push` receives new inherit-exec permission.
+Third-party hooks and build output receive none.
+Agents and unprofiled development programs remain
 unconfined outside these specific profile boundaries.
 
 ## What does not work
@@ -614,33 +830,61 @@ unconfined outside these specific profile boundaries.
   source-derived filename boundary.
 - The ten-character-only Sanoid rule misses the readiness marker's PID suffix and leaves scheduled
   snapshots failing.
-- Raising `PERL_CAPTURE_TINY_TIMEOUT` only changes the wait. It does not grant the readiness marker
+- Raising `PERL_CAPTURE_TINY_TIMEOUT` only changes the wait.
+  It does not grant the readiness marker
   and is not a repair.
 - Running extra Sanoid snapshot cycles solely for testing is unnecessary and changes real backup
-  state. Use the isolated tee fixture and observe the configured timer.
-- Broad `/home/user/temp` Helium access hides an incorrect disposable-profile location. Keep browser
+  state.
+  Use the isolated tee fixture and observe the configured timer.
+- Broad `/home/user/temp` Helium access hides an incorrect disposable-profile location.
+  Keep browser
   state in its permitted native configuration and cache scope.
 - `owner /etc/os-release r` does not match root-owned OS metadata.
-- `--no-sandbox`, `--disable-setuid-sandbox`, privileged containers, `apparmor=unconfined`, and
+- `--no-sandbox`,
+  `--disable-setuid-sandbox`,
+  privileged containers,
+  `apparmor=unconfined`,
+  and
   manually supplied fake session runtime paths bypass the workload instead of repairing it.
-- A global Go abstraction grant exposes every Go profile to scope quota files. The measured helpers
+- A global Go abstraction grant exposes every Go profile to scope quota files.
+  The measured helpers
   need only profile-local reads.
 - Read/write access to every file under `/home/user/Plain` is unnecessary for the observed database
-  and directory picker. Directory-only read access is separate from the selected database-file
+  and directory picker.
+  Directory-only read access is separate from the selected database-file
   grant.
-- Blanket `/home/user/** rw` is unnecessary for a picker. `owner @{HOME}/**/ r` grants directory
-  traversal only; file permissions still need their own measured rules.
-- Disabling commit signing, granting all of `/tmp`, or using `pux` would hide the Git buffer and
-  exec mismatches. The exact buffer and `.sig` names plus the existing enforcing `ssh-keygen`
-  profile are sufficient; the separate literal-key temporary file is not needed for this configured
-  key file. Leaving the signer unlisted produced a denial, not an unconfined fallback.
-- Leaving `gh` unprofiled broke the managed `px` transition. Disabling the credential helper or
-  repository hooks would avoid the workload rather than repair it. The custom enforcing `gh` profile
+- Blanket `/home/user/** rw` is unnecessary for a picker.
+  `owner @{HOME}/**/ r` grants directory
+  traversal only;
+  file permissions still need their own measured rules.
+- Disabling commit signing,
+  granting all of `/tmp`,
+  or using `pux` would hide the Git buffer and
+  exec mismatches.
+  The exact buffer and `.sig` names plus the existing enforcing `ssh-keygen`
+  profile are sufficient;
+  the separate literal-key temporary file is not needed for this configured
+  key file.
+  Leaving the signer unlisted produced a denial,
+  not an unconfined fallback.
+- Leaving `gh` unprofiled broke the managed `px` transition.
+  Disabling the credential helper or
+  repository hooks would avoid the workload rather than repair it.
+  The custom enforcing `gh` profile
   and exact own-hook rule address the measured stages separately.
-- Extending the updater rule to six random characters would accommodate a harness error, not the
+- Extending the updater rule to six random characters would accommodate a harness error,
+  not the
   installed wrapper's five-character `mktemp` call.
-- Unit status, profile names, empty denial queries, CDP readiness, and returned process handles are
-  not substitutes for workload behavior, process labels, kernel maps, namespace state, or successful
+- Unit status,
+  profile names,
+  empty denial queries,
+  CDP readiness,
+  and returned process handles are
+  not substitutes for workload behavior,
+  process labels,
+  kernel maps,
+  namespace state,
+  or successful
   syscall evidence.
 
 ## The Git wrapper's own tests, gate and helpers under enforcement
@@ -816,7 +1060,8 @@ after the eighth batch and the stale lock controls' fix
 gave `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`.
 The two are the cause-H pair,
 which fail on a leftover scratch folder and failed on the Btrfs host too
-(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H"),
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+"Cause H"),
 so no test of the gate fails under this enforcement.
 The denials in that window were `umount`'s `dac_override` (three)
 and six reads by `helium`.
@@ -983,14 +1228,16 @@ the session makes itself.
 
 Recorded by the round that ran them alone,
 at 2026-11-23T19:32:36-05:00 by the fix commit's time
-(`fix/git-policy-cli-stale-ref-lock-controls-under-apparmor`, fix at `0767a62bbb`).
+(`fix/git-policy-cli-stale-ref-lock-controls-under-apparmor`,
+fix at `0767a62bbb`).
 Not approved and not final:
 no whole container gate has run with the fix.
 
 `a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`,
 `a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_command` and
 `another_command_gets_no_notice_and_clears_nothing`
-failed at `binary_stale_ref_lock_tests.rs:197`, `:217` and `:250`
+failed at `binary_stale_ref_lock_tests.rs:197`,
+`:217` and `:250`
 because the lock they meant to leave was not there at all:
 the wrapper's fetch after it exited 0 and printed nothing.
 
@@ -998,45 +1245,69 @@ the wrapper's fetch after it exited 0 and printed nothing.
 which puts `/usr/bin/timeout --signal=KILL <bound>` in front of the real Git
 (`binary_support_native_git_command.rs`),
 so `Held::kill` sent `SIGKILL` to that `timeout`
-and the Git behind it kept running, still waiting on its `reference-transaction` hook.
+and the Git behind it kept running,
+still waiting on its `reference-transaction` hook.
 Ending the hook then made that Git abort the prepared transaction
 (`fatal: in 'prepared' phase, update aborted by the reference-transaction hook`)
-and remove the reference lock, the packed-refs lock and the `packed-refs.new` staging file,
+and remove the reference lock,
+the packed-refs lock and the `packed-refs.new` staging file,
 so the walk of `ref_lock_candidates` found no candidate,
-the wrapper printed no notice, and the fetch it ran succeeded.
+the wrapper printed no notice,
+and the fetch it ran succeeded.
 
 That abort is the difference this profile makes,
 measured inside the gate's own image on 2026-11-23:
 a Git under this profile runs it and removes all three files,
 while the same binary at a path no profile names ends without it and leaves them.
 No read was refused:
-the decision reads the fixture's own files, which `local/git` grants under `~/.cargo/build` and `/work`,
+the decision reads the fixture's own files,
+which `local/git` grants under `~/.cargo/build` and `/work`,
 and the gate's window logged no denial.
 
 So the fix is in the control and not in a rule:
 `hold_fetch` and `hold_transaction` start their Git with `direct_held()`,
-the Git alone, which exists for a control that holds the child.
-Red before and green after, on the host and in the gate image.
+the Git alone,
+which exists for a control that holds the child.
+Red before and green after,
+on the host and in the gate image.
 The unconfined Git's silent ending is not explained:
-it is recorded here as measured, not as understood.
+it is recorded here as measured,
+not as understood.
 
 ## Upstream filing artifact
 
 ### Upstream filing decision
 
-Nothing to add upstream. These incidents are local policy mismatches for this host's configured
+Nothing to add upstream.
+These incidents are local policy mismatches for this host's configured
 paths and the custom Helium profile.
 
-- Upstream fault: not established. The applications expose the paths and behavior used here; the
+- Upstream fault:
+  not established.
+  The applications expose the paths and behavior used here;
+  the
   local profile did not cover them.
-- Upstream fix capability: not required for the verified local configuration changes.
-- Supported use case: the actual native services, wrapper, browser launcher, password database,
-  source workspace, and unprivileged container were exercised locally.
-- Contribution policy: no filing is proposed. Incus also prohibits direct LLM-filed issues, and
+- Upstream fix capability:
+  not required for the verified local configuration changes.
+- Supported use case:
+  the actual native services,
+  wrapper,
+  browser launcher,
+  password database,
+  source workspace,
+  and unprivileged container were exercised locally.
+- Contribution policy:
+  no filing is proposed.
+  Incus also prohibits direct LLM-filed issues,
+  and
   these local caller and policy incidents are not upstream-filing artifacts.
-- Likelihood of an upstream fix: not assessed because no upstream defect is claimed.
-- Minimal compatible prototype: the installed local rules and their passing fixtures are the
-  consumer-side configuration changes. No upstream patch is offered.
+- Likelihood of an upstream fix:
+  not assessed because no upstream defect is claimed.
+- Minimal compatible prototype:
+  the installed local rules and their passing fixtures are the
+  consumer-side configuration changes.
+  No upstream patch is offered.
 
-Do not file a report from this document. Reassess only if a reproducible defect remains after the
+Do not file a report from this document.
+Reassess only if a reproducible defect remains after the
 application and profile agree on the intended path and behavior.

@@ -284,7 +284,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables });
+/// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables, notText: programs.notText });
 /// ```
 fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>) -> Value {
     let Some(carried) = programs else {
@@ -297,7 +297,14 @@ fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::
             .map(|(name, value)| { return Value::Array(vec![Value::from(name.as_str()), Value::from(value.as_str())]); })
             .collect(),
     );
-    return Value::Object(Map::from_iter([(String::from("transport"), Value::from(carried.transport)), (String::from("variables"), variables)]));
+    // The names whose value this release cannot write in a line, never the values themselves: the service keeps the
+    //  manager's own value for such a name, and a value no line can hold cannot be written here either.
+    let not_text: Value = Value::Array(carried.not_text.iter().map(|name| { return Value::from(name.as_str()); }).collect());
+    return Value::Object(Map::from_iter([
+        (String::from("transport"), Value::from(carried.transport)),
+        (String::from("variables"), variables),
+        (String::from("not_text"), not_text),
+    ]));
 }
 
 /// What:

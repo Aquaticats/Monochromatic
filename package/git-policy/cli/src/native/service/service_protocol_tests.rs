@@ -94,6 +94,47 @@ fn a_request_carries_the_programs_its_command_set_and_refuses_anything_else() {
 }
 
 /// What:
+///  The names whose value a request could not carry survive the socket,
+///  and a name outside the five or a name that is not text is refused there too.
+/// Why:
+///   The service keeps the manager's own value for exactly those names,
+/// so a name that arrived wrong would leave a push searching a list its command never named,
+/// or none at all (L1 of the alpha.45 release pass).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(decode(encode(request)).programs.notText).toEqual(['PATH', 'GIT_SSH_COMMAND']);
+/// ```
+#[test]
+fn a_request_carries_the_names_whose_value_could_not_travel_and_refuses_anything_else() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
+        (OsString::from("PATH"), OsString::from_vec(b"/opt/lfs/bin:/usr/bin:\xff".to_vec())),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from_vec(b"ssh -i /nowhere/key-\xff".to_vec())),
+    ]);
+    assert_eq!(
+        carried.not_text,
+        vec![String::from("PATH"), String::from("GIT_SSH_COMMAND")],
+        "the control sets up two names whose value cannot travel"
+    );
+    let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))), "the names travel whole");
+    for (why, not_text) in [
+        ("a name outside the five", serde_json::json!(["SSH_AUTH_SOCK"])),
+        ("a name that is not text", serde_json::json!([7])),
+        ("a name that is not text", serde_json::json!("PATH")),
+    ] {
+        let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+        let programs: &mut serde_json::Map<String, serde_json::Value> =
+            value.get_mut("programs").and_then(serde_json::Value::as_object_mut).expect("the request carries programs");
+        programs.insert(String::from("not_text"), not_text);
+        assert!(decode_client(value.to_string().as_str()).is_err(), "{why}");
+    }
+}
+
+/// What:
 ///  A change whose path is not text survives the socket.
 /// Why:
 ///   A commit's changed paths travel as JSON,

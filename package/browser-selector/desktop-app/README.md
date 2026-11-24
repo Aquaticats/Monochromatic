@@ -1,12 +1,17 @@
 # Browser Selector
 
-A Slint picker for links and local web pages on Linux. It opens one window per request.
-Click a browser or profile to open the target. Use the arrow keys and Enter to choose with the
-keyboard, or Escape to close.
+A Slint picker for links and local web pages on Linux.
+It opens one window per request.
+Click a browser or profile to open the target.
+Use the arrow keys and Enter to choose with the
+keyboard,
+or Escape to close.
 
 ## Install and set the defaults
 
-Builds use the system GIO 2.66 or newer and SQLite development libraries, Rust, and `pkg-config`.
+Builds use the system GIO 2.66 or newer and SQLite development libraries,
+Rust,
+and `pkg-config`.
 Installation uses `update-desktop-database` from `desktop-file-utils`.
 
 ```sh
@@ -14,27 +19,43 @@ Installation uses `update-desktop-database` from `desktop-file-utils`.
 mise run //package/browser-selector/desktop-app:install
 ```
 
-In KDE System Settings, select **Browser Selector** as the default web browser to route HTTP and
-HTTPS. In **File Associations**, select **Browser Selector** for `text/html` and
+In KDE System Settings,
+select **Browser Selector** as the default web browser to route HTTP and
+HTTPS.
+In **File Associations**,
+select **Browser Selector** for `text/html` and
 `application/xhtml+xml` to route ordinary `.html` and `.htm` files as well as XHTML.
 
 The install task copies the executable to `~/.local/bin/monochromatic-browser-selector` and
 registers `monochromatic.browser-selector.desktop` under the XDG applications directory.
-The executable accepts one HTTP URL, HTTPS URL, native file URI, or local path.
+The executable accepts one HTTP URL,
+HTTPS URL,
+native file URI,
+or local path.
 
 ## Browser profiles
 
-Plain browser entries use the launchers registered with the desktop. Automatic profile discovery
-covers the native Firefox, Firefox ESR, Firefox Developer Edition, and Helium desktop launchers.
-Profile choices use standard native desktop commands with a single URL field. Firefox profiles come
-from `profiles.ini` and read-only SQLite group databases, including groups outside the legacy index.
-When several Firefox channels are installed, a profile's compatibility metadata or its group's
-last-used installation determines which browser can open it. Helium profiles come from `Local State`.
-For Helium wrappers, the picker keeps the launcher's fixed arguments before the profile flags and target.
+Plain browser entries use the launchers registered with the desktop.
+Automatic profile discovery
+covers the native Firefox,
+Firefox ESR,
+Firefox Developer Edition,
+and Helium desktop launchers.
+Profile choices use standard native desktop commands with a single URL field.
+Firefox profiles come
+from `profiles.ini` and read-only SQLite group databases,
+including groups outside the legacy index.
+When several Firefox channels are installed,
+a profile's compatibility metadata or its group's
+last-used installation determines which browser can open it.
+Helium profiles come from `Local State`.
+For Helium wrappers,
+the picker keeps the launcher's fixed arguments before the profile flags and target.
 
 ## Uninstall
 
-Choose replacement defaults in KDE System Settings, then remove the installed files.
+Choose replacement defaults in KDE System Settings,
+then remove the installed files.
 
 ```sh
 # From the repository root.
@@ -47,9 +68,19 @@ From lines 41510 to 41515 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- **Dependency bumps in `package/browser-selector/desktop-app`** on the owner's "Look into the alert", "Bump windows
-  too", "Bump rustix" and "Bump slint": `tar` 0.4.46 for Dependabot alert 85 (`d6809fccfa`), `windows-sys` back to
-  0.61.2 for five dependents and to 0.59.0 for `rustix` 0.38 (`7f3248ebcd`), `slint` and `slint-build` 1.19.0 with 45
-  packages (`7760586f8a`); `rustix` is already at its newest (1.1.6; 0.38.44 is held by `winit` 0.30.13 under
-  `slint` 1.19, and `winit` 0.31 is in beta). The package's `lint` task (clippy with `--deny warnings`, then
+- **Dependency bumps in `package/browser-selector/desktop-app`** on the owner's "Look into the alert",
+  "Bump windows
+  too",
+  "Bump rustix" and "Bump slint":
+  `tar` 0.4.46 for Dependabot alert 85 (`d6809fccfa`),
+  `windows-sys` back to
+  0.61.2 for five dependents and to 0.59.0 for `rustix` 0.38 (`7f3248ebcd`),
+  `slint` and `slint-build` 1.19.0 with 45
+  packages (`7760586f8a`);
+  `rustix` is already at its newest (1.1.6;
+  0.38.44 is held by `winit` 0.30.13 under
+  `slint` 1.19,
+  and `winit` 0.31 is in beta).
+  The package's `lint` task (clippy with `--deny warnings`,
+  then
   `desktop-file-validate`) passes on `7760586f8a`.
