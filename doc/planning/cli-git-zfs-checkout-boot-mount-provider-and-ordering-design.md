@@ -14,8 +14,8 @@ The two sentences of the plan and the design that it amends are quoted under
 What it ran, and where the evidence is:
 one throwaway `mvm` guest (`zfs-step-19-boot-order-2026-11-23`, Ubuntu 24.04, kernel `6.8.0-147-generic`,
 systemd `255` (`255.4-1ubuntu8.19`), OpenZFS `2.4.4-1` module and userspace built from the release tarball),
-a 1 GiB file-backed pool laid out like this host's, fifteen unattended boots (three of them ended by a poweroff the
-round read back), and three arms that run without rebooting.
+a 1 GiB file-backed pool laid out like this host's, fifteen unattended boots, three of them ended by a reboot whose
+stop pass the round read back, and three arms that run without rebooting.
 Every run is logged whole under
 `~/temp/agent/zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23/keep/guest-logs/`.
 Host reads are read-only and kept in that folder's
@@ -51,8 +51,11 @@ kernel and systemd behaviour they rest on; none of it is a result about the wrap
   Measured: a `Requires=` on it made the dependent's start job fail with `No mount parameters to operate on`, and at
   an unattended boot the gate's job vanished without a journal line, so the sweep never ran and account sessions
   opened.
-- **A `Requires=zfs-mount.service` does carry a real failure**, and it is what pulls the provider into the boot when
-  nothing else wants it. That is what it buys; ordering alone it does not buy on this systemd (measured).
+- **A `Requires=zfs-mount.service` carries a real failure and a pull-in, and neither is a mount.**
+  Measured: with the checkout's key taken away the provider failed, and that failure failed the gate's job, so
+  nothing ran; and on a boot where nothing wanted `zfs.target` the requirement did bring the provider into the
+  transaction, where its own condition skipped it and the gate refused.
+  Ordering alone the line does not buy on this systemd (measured).
 - **The path descendants the design wants gated are mounted by the provider itself** unless they are excluded from
   the automatic mount.
   Measured: the nested output dataset was mounted by `zfs mount -a` under the checkout before any handler ran, and a
@@ -226,7 +229,7 @@ WantedBy=multi-user.target
 Why each line, and what the runs said about it:
 
 - `Requires=zfs-mount.service`.
-  What it buys is the failure path, and it buys nothing else.
+  What it buys is the failure path and a pull-in, and neither of them is a mount.
   Measured, with the checkout's key taken away: the provider failed with exit status one, and systemd failed this
   unit's start job with `Job reconcile-git-worktree-clone-mounts.service/start failed with result 'dependency'`, so
   the handler never ran and no slot, no nested mount and no account consumer ran either.
@@ -313,7 +316,7 @@ Dependency failed for git-account-session-standin.service
 reconcile-...: Job .../start failed with result 'dependency'
 ```
 
-The four assertions the design asks for, each measured:
+The assertions the design asks for, each measured, and one more the arm showed:
 
 - The gate's mounts did not run.
   No slot mount exists, the nested stand-in never ran its program, and its unit's job failed with `dependency`.
