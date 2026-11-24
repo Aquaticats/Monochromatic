@@ -130,7 +130,8 @@ fn world(name: &str) -> World {
 }
 
 /// What:
-///  The fixture's own service, which every wrapped command of this fixture reaches.
+///  The fixture's own service,
+///  which every wrapped command of this fixture reaches.
 /// Why:
 ///   The settings a push needs live in the memory of the service the command spoke to,
 /// so a control that takes them away has to stop that service.
@@ -351,7 +352,8 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
 /// so after a restart the push must not run through the manager's transport;
 /// it stops within its bound,
 /// and the person is handed the one command that sends the commit.
-///  The scene the control names is made by the control, never by a race:
+///  The scene the control names is made by the control,
+/// never by a race:
 /// the command is killed once its gate approved the push and before it promoted the record,
 /// so the record waits in `held`,
 /// which no round drains.
