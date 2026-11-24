@@ -752,6 +752,11 @@ and the controls proving the fallback under a real seccomp refusal.
 The end-to-end push program controls passed in about 5 ms each,
 so they declined there too:
 the gate image now holds a real `git-lfs`.
+Fixed as `09f58f1470`:
+every list the controls hand a push names the fixture's own folders,
+so a real `git-lfs` in `/usr/bin` no longer turns the red control's refusal into a push that succeeds,
+the decline is gone,
+and the restart control acts on the service the commands reach.
 Its new denials (`git` asking `dac_override`,
 `git//ssh` running `/work/stubs/askpass`,
 `ssh-agent` asking `setgid` and making sockets,
@@ -768,8 +773,8 @@ the ssh-terminal and askpass controls passing when their askpass program is refu
 which `pi-askpass-controls-see-a-refused-program` fixes.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
-`end-to-end-push-program-controls-run-in-the-gate-2026-11-24` (the other two merged:
-`a80675a4af` and `ada7a937b0`).
+all three merged since
+(`a80675a4af`, `ada7a937b0` and `09f58f1470`).
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -866,9 +871,7 @@ not its regression:
 issue 6447,
 fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
-The same fixture pattern sits in `binary_push_programs_end_to_end_tests.rs`,
-whose controls decline wherever a real `git-lfs` is in `/usr/bin`;
-whether they still run anywhere after the gate image gained `git-lfs` is read from the next gate.
+The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
 The next alpha waits for the one-program build round:
 the record says "alpha.45 shipped with the second program,"
