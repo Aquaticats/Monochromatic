@@ -791,6 +791,16 @@ the daily-update timer's `systemd-analyze --user verify` now exits 0.
 It also named a blind spot,
 the ssh-terminal and askpass controls passing when their askpass program is refused,
 which `pi-askpass-controls-see-a-refused-program` fixes.
+The gate on `main` at `f3b710cbc9`
+(run `native-MgA4LN`, 2026-11-24T07:45:49Z to 08:09:44Z)
+gave `10809 tests run: 10807 passed (6 slow), 2 failed, 41 skipped`:
+the cause-H pair alone,
+so the blocking-sleep guard,
+the `statmount` control and Clippy all hold on `main`.
+Its window's denials were `git` asking `dac_override` (88) and `umount` the same (3),
+with no test failing;
+the ninth batch declines that grant,
+and a run of one named control with the audit log read beside it is what would attribute them.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
 all three merged since
