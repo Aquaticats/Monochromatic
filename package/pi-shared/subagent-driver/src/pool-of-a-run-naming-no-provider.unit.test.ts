@@ -96,7 +96,7 @@ await describe({
   children: [
     it({
       name: 'takes the first pool of the owner\'s order with room, skipping the pools that take only a run naming their own model',
-      fn: () => {
+      fn: async () => {
         /**
          The table at its own limits, where the qwen plan's DeepSeek pool is open and stands before every other pool.
          */
@@ -124,7 +124,7 @@ await describe({
     },),
     it({
       name: 'takes the next pool of the order when the first is full, and the pool after a closed one',
-      fn: () => {
+      fn: async () => {
         /**
          The table with `opencode-go` taking one run, which one run already holds.
          */
@@ -161,7 +161,7 @@ await describe({
     },),
     it({
       name: 'keeps the pool a resumed run names while that pool takes new runs, and applies no wall factor to it',
-      fn: () => {
+      fn: async () => {
         /**
          What the resumed run takes.
          */
@@ -181,7 +181,7 @@ await describe({
     },),
     it({
       name: 'refuses a run no pool has room for, naming every pool it may take with why that pool takes no run now',
-      fn: () => {
+      fn: async () => {
         /**
          The table with both open pools a run naming no provider may take closed by the caller.
          */
@@ -221,7 +221,7 @@ await describe({
     },),
     it({
       name: 'refuses a run every pool of the order is full for, naming each pool with the count it was read at',
-      fn: () => {
+      fn: async () => {
         /**
          The table with both open pools a run naming no provider may take taking one run each.
          */
@@ -252,7 +252,7 @@ await describe({
     },),
     it({
       name: 'throws when its caller hands it a pair no pool holds, which is the caller\'s own check to make',
-      fn: () => {
+      fn: async () => {
         expect(function placesAPairNoPoolHolds() {
           poolOfARunNamingNoProvider({
             requested: { holds: 'no-pool', },

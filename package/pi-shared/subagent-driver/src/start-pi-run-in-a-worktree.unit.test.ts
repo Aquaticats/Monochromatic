@@ -542,8 +542,8 @@ async function launchThroughTheStandIns({
     processes,
     { recursive: true, },
   );
-  for (const [index, other,] of otherLaunchers.entries()) {
-    await writeLauncherProcess({
+  await Promise.all(otherLaunchers.map(function writesOne(other, index,) {
+    return writeLauncherProcess({
       folder: processes,
       pid: String(index + 1,),
       words: [
@@ -556,7 +556,7 @@ async function launchThroughTheStandIns({
         ...((other.pool === undefined) ? [] : [`--provider=${other.pool.provider}`, `--model=${other.pool.model}`]),
       ],
     },);
-  }
+  },),);
   await standInsThatReachTheUnit({
     launcherBin,
     sessionBin,
