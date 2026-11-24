@@ -414,6 +414,37 @@ A per-image template with qemu-guest-agent pre-installed is baked on first use
 (e.g. `template-ubuntu.qcow2`,
  `template-fedora.qcow2`).
 
+### Fedora guests and SELinux
+
+Fedora labels `/usr/bin/qemu-ga` `virt_qemu_ga_exec_t`,
+and its own unit turns `qemu-guest-agent.service` into the `virt_qemu_ga_t`
+domain.
+That domain may not read the virtiofs share,
+write the guest's own files,
+execute a file it wrote,
+or open a TCP connection,
+so `mvm push`,
+`mvm exec` and `mvm pull` are refused there.
+The Fedora template therefore starts the agent through `/usr/bin/env`,
+which the policy turns into `unconfined_service_t`,
+and the guest's SELinux stays enforcing.
+
+The drop-in lives in the template,
+so a template baked by an earlier mvm keeps the confined agent.
+Bake it again once no running guest's disk is backed by it:
+
+```sh
+# package/mvm/cli/README.md
+rm ~/.local/share/mvm/images/template-fedora.qcow2
+```
+
+The next `mvm create --image fedora` bakes it again.
+Do not delete or replace that file while a Fedora guest created from it runs:
+those disks use it as their qcow2 backing file.
+A custom template of another SELinux distro needs the same drop-in by hand;
+see `doc/troubleshooting/mvm-fedora-guest-agent-confined-by-selinux.md` in the
+repository root.
+
 ## Hetzner Cloud backend
 
 Select it per command with `--backend hetzner` (or `export MVM_BACKEND=hetzner`).
