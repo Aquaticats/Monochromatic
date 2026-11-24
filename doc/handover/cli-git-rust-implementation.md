@@ -68,6 +68,13 @@ and each stays in force until the owner changes it.
   "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
   About thirty wrapper and driver branches that wait for a review are held under this
   ("Held work").
+  For the ZFS route's own work the owner set the width on 2026-11-23:
+  "Up to 64 rounds at once.",
+  and later steps' pieces are built ahead of the plan's order,
+  unwired:
+  "Build them ahead, unwired (Recommended)"
+  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+  A rising memory stall pauses new starts.
 - A branch may not make anything `main` does well worse.
   The owner waived this once,
   for one case:
@@ -578,6 +585,36 @@ then the acceptance question for the two designs.
   look whether it is gone before removing it by hand.
 
 Each one's acceptance is the section "The design is accepted" of its decision record.
+
+#### Later steps' pieces built ahead, unwired
+
+Outcome:
+pieces of later steps that need only work on `main` are merged as code no person's command reaches,
+so their steps wait only for their wiring.
+
+State:
+started 2026-11-23 evening,
+one round each,
+under `rules-for-a-build-ahead-round-from-2026-11-23.md` in
+`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`:
+`pi-zfs-step-15-deferred-origin-check-built-ahead`,
+`pi-zfs-step-16-snapshot-batch-request-built-ahead`,
+`pi-zfs-step-12-move-refusal-and-unmounted-report-built-ahead`,
+`pi-zfs-step-13-managed-lock-distinction-built-ahead`
+and `pi-zfs-step-18-doctor-checks-for-steps-2-to-9-built-ahead`,
+each on the branch of the same name under `feat/git-policy-cli-`.
+Step 19's two open design parts,
+the unit that mounts the checkout and the boot ordering's proof,
+have a prompt and a worktree
+(`zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23`),
+held until the memory stall the wave raised eases
+(the freeze document,
+"The comparison that would verify the change").
+
+Next:
+merge each when it ends;
+start step 19's round when the stall eases;
+take the wave's end read for the freeze document.
 
 ### The clone rung serves every source no slower than `main`
 
