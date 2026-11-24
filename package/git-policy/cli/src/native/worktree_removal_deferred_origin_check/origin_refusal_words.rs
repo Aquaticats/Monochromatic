@@ -55,7 +55,7 @@ fn compared_nothing(refusal: &OriginRefusal) -> String {
             JudgedObject::OriginSnapshot => String::from("Nothing this removal recorded about the origin snapshot could be compared, and its mark was not judged."),
         },
         OriginRefusal::OriginMarkedBeforeTheUnmount { .. } | OriginRefusal::OriginMarkedForDeferredDestroy { .. } | OriginRefusal::MarkUnreadable { .. } => {
-            String::from("The mark was judged on the object its own reply proved, and no other object of this removal was compared.")
+            String::from("Only the object whose reply carried the mark was compared, and no other object of this removal was.")
         }
     };
 }
