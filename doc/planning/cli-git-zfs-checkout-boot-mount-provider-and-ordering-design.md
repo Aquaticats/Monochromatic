@@ -37,9 +37,9 @@ The read
 (`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/keep/read-of-the-fourth-step-19-revision.md`,
 a same-vendor second pass, not an independent review)
 found no high defect, eight medium ones and twelve lows.
-Seven mediums held as written and are folded here.
-The eighth held, and the remedy it proposed does not, which this round measured and answers below with
-the measurement.
+All eight held as findings and are folded here.
+One of them, the second, proposed a remedy that does not work, which this round measured; the fold
+answers it with the measurement rather than with agreement.
 The read numbered eleven lows and counted twelve; each numbered low, and each item of its format
 check, has an entry here.
 
@@ -159,14 +159,16 @@ refusal", understates it, and this round measured the rest: after `systemctl res
 the unit re-ran its explicit mount on the dataset that was still mounted and ended
 
 ```text
-zfs[1335]: cannot mount 'zfsstep19/nosnap/vm-builder-output': filesystem already mounted
-git-worktree-nested-output-mount.service: Main process exited, code=exited, status=1/FAILURE
-git-worktree-nested-output-mount.service: Failed with result 'exit-code'.
-Dependency failed for git-vm-builder-standin.service - A vm-builder service of the account that needs the dataset under the checkout
+1795530237.561479 zfs-step-19-fifth-2026-11-24 zfs[1335]: cannot mount 'zfsstep19/nosnap/vm-builder-output': filesystem already mounted
+1795530237.561874 zfs-step-19-fifth-2026-11-24 systemd[1]: git-worktree-nested-output-mount.service: Main process exited, code=exited, status=1/FAILURE
+1795530237.561960 zfs-step-19-fifth-2026-11-24 systemd[1]: git-worktree-nested-output-mount.service: Failed with result 'exit-code'.
+1795530237.562126 zfs-step-19-fifth-2026-11-24 systemd[1]: Failed to start git-worktree-nested-output-mount.service - Mount a dataset whose mountpoint lies inside the verified checkout.
+1795530237.562187 zfs-step-19-fifth-2026-11-24 systemd[1]: Dependency failed for git-vm-builder-standin.service - A vm-builder service of the account that needs the dataset under the checkout.
+1795530237.562198 zfs-step-19-fifth-2026-11-24 systemd[1]: git-vm-builder-standin.service: Job git-vm-builder-standin.service/start failed with result 'dependency'.
 ```
 
 with that consumer's job failing `dependency` while the dataset stayed mounted
-(kept log `restart-provider-v9c.log`).
+(kept log `restart-provider-v9c.log`; one contiguous run of that boot).
 So C needs the already-mounted rule as much as the mode does, and C's advantage is smaller than "it
 ships today" alone suggests.
 Folded in: V9's C is written with A's lines, ranked again on what each delivers, and the section
@@ -175,7 +177,7 @@ Folded in: V9's C is written with A's lines, ranked again on what each delivers,
 **M6, "nothing else the provider would have mounted is mounted either" is false.** Held.
 In that same boot the home dataset was mounted: `zfs list` reports `zfsstep19/home` with
 `MOUNTED yes`, and the arm's unit list shows the learned `srv-zfs…-home.mount` active
-(kept log `evidence-hazard-flag-on.log`, boot `fcfae077-91df-49bf-bced-ff085a27b7ca`).
+(round four's `evidence-hazard-flag-on.log`, boot `fcfae077-91df-49bf-bced-ff085a27b7ca`).
 The provider did fail, which is what the section measures.
 Folded in: the sentence now says that the provider unit fails and that datasets outside the failed
 mountpoint's subtree still mount, and the OpenZFS source that decides it is cited where the claim
@@ -207,9 +209,9 @@ already labels it.
   that claimed the arm's boot held four records and that its own `daemon-reload` wrote them is gone:
   the green boot's window holds none, the file's records all fall in the earlier boot's window, and the
   guest's stand-in units ran in `unconfined_service_t`, which the evidence block does print.
-- **L-4, `-.mount`.** Held. On this host `-.mount` is `LoadState=loaded` with an empty `FragmentPath`,
-  so `RequiresMountsFor=` puts only `After=` on it here, and the guest's 258 put it in `Requires=`
-  because that machine's root mount unit has a fragment
+- **L-4, `-.mount`.** Held. On this host `-.mount` is `LoadState=loaded` with empty `FragmentPath` and
+  `SourcePath`, so by the fragment rule `RequiresMountsFor=` would put only `After=` on it here, and
+  the guest's 258 put it in `Requires=` because that machine's root mount unit has a fragment
   (kept log `host-reads.log`, and `state-green.log` for the derived set).
   Corrected in V3, in `F26` and in the sentence in "The answer in brief".
 - **L-5, AppArmor text slips.** Held, all four, and corrected: `zpool` has its own profile at
@@ -295,7 +297,7 @@ Three limits, so no result is read wider than it is:
   provider fails the whole boot's mount: it cannot create the mountpoint inside the immutable entry,
   `zfs-mount.service` ends `Result=exit-code`, `ExecMainStatus=1`, and the gate's job fails with
   `dependency` before its own check runs
-  (kept log `evidence-hazard-flag-on.log`, boot `fcfae077-91df-49bf-bced-ff085a27b7ca`).
+  (round four's `evidence-hazard-flag-on.log`, boot `fcfae077-91df-49bf-bced-ff085a27b7ca`).
 - With the same dataset at `canmount=on` and the flag **off**, the provider creates the mountpoint
   folder inside the exposed home underlay and mounts the dataset there
   (round three's `evidence-hazard-nested-auto.log`).
@@ -318,9 +320,9 @@ Three limits, so no result is read wider than it is:
   `After=` on the root mount and on the home dataset's mount unit, and `Requires=` only on the root
   mount, the one of them with a fragment (kept log `state-green.log`; round three's
   `systemd-262-arms.log` arm G).
-  **On this host it would put only the `After=` on `-.mount`**, because this host's root mount unit is
-  learned with an empty `FragmentPath` (host read, `keep/host-reads.log`), so the `Requires=` half
-  lands on the provider's own line and not here.
+  **On this host it would put only the `After=` on `-.mount`**, whose `FragmentPath` is empty, and the
+  `Requires=` half lands on the provider's own line and not here (host read,
+  `keep/host-reads.log`; the fragment rule, V3).
 - The gate's ordering before `systemd-user-sessions.service` is real, and its cost is a start bound
   that is per phase, a reload that shares it, and a stop phase whose every stage the stop bound bounds.
   Measured in one boot, with a pass and a stop pass that both ignore SIGTERM: 8 s of start bound and
@@ -421,7 +423,7 @@ Two consequences a reader must carry:
 This section replaces a control that read a provider exit status one as a checkout failure.
 It is not one, and a boot where the descendants carry `canmount=noauto` never produces it.
 
-Measured, this host's shape (kept log `evidence-host-shape.log`, boot
+Measured, this host's shape (round four's `evidence-host-shape.log`, boot
 `773296e0-6fea-4ee0-94c1-1e486e063ce4`): the checkout's dataset has
 `canmount=on`, its key is unavailable, no key-loading unit exists for it, and the dataset under the
 path carries `canmount=noauto`, so nothing loads the key and `zfs mount -a` skips both. The provider's
@@ -510,7 +512,7 @@ Two consequences:
   `dependency` before its `ExecStart` ran (round three's `evidence-key-removed.log`).
 - Where none exists, nothing loads a key at boot except the pool's import.
   That is this host's state, and the measured consequence is the gate's refusal
-  `checkout-not-the-dataset` (kept log `evidence-host-shape.log`).
+  `checkout-not-the-dataset` (round four's `evidence-host-shape.log`).
   `doctor` reports that no key-loading unit exists and that the checkout's key must be loaded before
   the provider runs.
 
@@ -590,7 +592,7 @@ a unit that requires a unit the boot does not install stays `inactive` with `Res
 journal line at all (F31), which is a gate that silently never runs.
 This host's unit, the shape such a machine installs, is the same text with those two lines removed,
 and it ran on round four's host-shape boot, where the gate refused the checkout by its own rule
-(kept logs `state-host-shape.log`, `evidence-host-shape.log`):
+(round four's `state-host-shape.log`, `evidence-host-shape.log`):
 
 ```ini
 # /etc/systemd/system/reconcile-git-worktree-clone-mounts.service, on a machine with no key-loading unit
@@ -687,7 +689,7 @@ sessions start last.
   that succeeds and mounts nothing (source reading of the unit text, `keep/host-reads.log`), and
   where a dataset under the checkout path cannot be mounted the provider fails the whole boot's
   mount, which this unit's requirement then carries as a `dependency` failure instead of the unit's
-  own refusal (kept log `evidence-hazard-flag-on.log`, quoted under "The failure controls").
+  own refusal (round four's `evidence-hazard-flag-on.log`, quoted under "The failure controls").
   Restart propagation is load-bearing at runtime: measured on systemd 258 and on 262.2, a provider
   restart takes this unit, every per-dataset unit and every consumer that requires them through
   their stop pass and starts them again, four units in the 258 log
@@ -714,9 +716,9 @@ sessions start last.
   At the moment the unit loads, the checkout's own learned unit may not exist yet, so that edge
   orders the stop half rather than the first start; what orders the first start is the provider's
   requirement and `zfs-import.target`.
-  What lands differs by machine and this host is the other shape: its root mount unit is learned with
-  an empty `FragmentPath`, so `Requires=` does not attach to it there and the line leaves an
-  `After=` only (host read, `keep/host-reads.log`; the same rule V3 states).
+  What lands differs by machine and this host is the other shape: its root mount unit has an empty
+  `FragmentPath`, so `Requires=` does not attach to it there and the line would leave an `After=` only
+  (host read, `keep/host-reads.log`; the same rule V3 states).
 - `Before=systemd-user-sessions.service`.
   What makes the checkout ready before an account session, and the line whose cost "What a hung start
   costs" measures. Measured in this round's green boot: the gate finished at `1795529986.223586` and
@@ -1118,8 +1120,8 @@ and would need, in addition to what the profile carries:
 
 ### The profile's mode, as the readable policy derives it
 
-The live list cannot be read unprivileged, and `[nothing]` does not settle it either way: the earlier
-loaded" as a live possibility. The host's own files make that near-impossible here:
+The live list cannot be read unprivileged, and `[nothing]` cannot settle the mode either way on its
+own. The host's own readable files make "the `zed` profile is not loaded" near-impossible here:
 
 - `apparmor.service` is `enabled` and `active` (`systemctl is-enabled`, `is-active`);
 - `/etc/apparmor/modes` reads `default enforce`, `include default`, `reload yes`, `fsp no`, and is
@@ -1218,8 +1220,7 @@ A is not the lowest-privilege shape, and this design no longer calls the choice 
 the only program that mounts": **the same wrapper starts unconfined from the boot unit's `ExecStart=`,
 `ExecReload=` and `ExecStopPost=` and from the propagation service**, and only the ZED path inherits a
 profile, as "Only the ZED path is confined" says. What B buys is confinement for the hook's own path,
-not for the
-wrapper.
+not for the wrapper.
 
 **The owner's recorded answer, read for what it decided.** On 2026-11-23 the owner answered a
 rule-or-profile question with "No, please do rules for everything instead of a dedicated profile that
@@ -1294,7 +1295,7 @@ the entry is the account's, and the account cannot rename `/home/user` because t
 The flag has a second effect this round measured: with the checkout unmounted, the entry is an
 immutable directory in the home underlay, so `zfs mount -a` cannot create a mountpoint beneath it and
 the provider fails instead of mounting a dataset into the exposed underlay
-(kept log `evidence-hazard-flag-on.log`).
+(round four's `evidence-hazard-flag-on.log`).
 
 ## The failure controls
 
@@ -1334,7 +1335,8 @@ enforcing.**
   1795530237.561479 zfs-step-19-fifth-2026-11-24 zfs[1335]: cannot mount 'zfsstep19/nosnap/vm-builder-output': filesystem already mounted
   1795530237.561874 zfs-step-19-fifth-2026-11-24 systemd[1]: git-worktree-nested-output-mount.service: Main process exited, code=exited, status=1/FAILURE
   1795530237.561960 zfs-step-19-fifth-2026-11-24 systemd[1]: git-worktree-nested-output-mount.service: Failed with result 'exit-code'.
-  1795530237.562187 zfs-step-19-fifth-2026-11-24 systemd[1]: Dependency failed for git-vm-builder-standin.service - A vm-builder service of the account that needs the dataset under the checkout
+  1795530237.562126 zfs-step-19-fifth-2026-11-24 systemd[1]: Failed to start git-worktree-nested-output-mount.service - Mount a dataset whose mountpoint lies inside the verified checkout.
+  1795530237.562187 zfs-step-19-fifth-2026-11-24 systemd[1]: Dependency failed for git-vm-builder-standin.service - A vm-builder service of the account that needs the dataset under the checkout.
   1795530237.562198 zfs-step-19-fifth-2026-11-24 systemd[1]: git-vm-builder-standin.service: Job git-vm-builder-standin.service/start failed with result 'dependency'.
   ```
 
@@ -1357,10 +1359,12 @@ enforcing.**
   `773296e0-6fea-4ee0-94c1-1e486e063ce4`).
 - The hazard with the covered entry's flag on, `canmount=on`, and the checkout's mount failing: the
   provider cannot create the mountpoint and the boot's mount fails.
-  That arm ran with both drop-ins absent and with the per-dataset unit and both consumers disabled;
-  three of the four ZFS-side units stayed enabled (`restart`, `import-cache` and the two key units),
-  and the `state-hazard-flag-on.log` block "== enabled" is where that set is written
-  (round four's `evidence-hazard-flag-on.log`, boot `fcfae077-91df-49bf-bced-ff085a27b7ca`).
+  The set of units that boot ran is the arm's own:
+  `zfs.target`, `zfs-mount.service`, the gate and the pool's key unit were enabled, the per-dataset
+  unit and both consumers were disabled, the checkout's key unit and its file were moved aside, and
+  both drop-ins were absent (round four's `state-hazard-flag-on.log`, the blocks "== enabled" and
+  "== drop-in directories"; round four's `evidence-hazard-flag-on.log`, boot
+  `fcfae077-91df-49bf-bced-ff085a27b7ca`).
   One contiguous run of that boot:
 
   ```text
@@ -1819,7 +1823,7 @@ and on a machine with none the gate's own refusal names the checkout path (both 
 here).
 It also carries a failure this design learned in round four: where a dataset under the checkout path
 cannot have its mountpoint created, the provider fails and this unit's requirement turns that into a
-`dependency` failure before its own check runs (kept log `evidence-hazard-flag-on.log`).
+`dependency` failure before its own check runs (round four's `evidence-hazard-flag-on.log`).
 
 What it costs: the provider's own status says nothing about the checkout **when the descendants carry
 `canmount=noauto`**, so a reader must know which unit to read; and the pull-in is not a proof of a
@@ -1959,7 +1963,7 @@ pass unmounts every attached clone before the pass re-attaches them, all measure
 already provides, so the propagation is a second path to the same re-run at the price of the
 disruption.
 Measured this round, the requirement is also what turns a provider failure into a `dependency`
-failure before the gate's own named refusal can run (kept log `evidence-hazard-flag-on.log`): a boot
+failure before the gate's own named refusal can run (round four's `evidence-hazard-flag-on.log`): a boot
 whose checkout is absent for a reason inside the provider's reach says `dependency` and not
 `checkout-not-the-dataset`.
 
@@ -2070,11 +2074,13 @@ What it delivers: every prefix mount unit derived from the path; both provider s
 a line per machine; `Requires=` only on units that have a fragment, which is the safe half of the rule
 in "Never require a mount unit systemd learned"; one line instead of two.
 
-What lands differs by machine, and on this host it is only the ordering: its root mount unit `-.mount`
-is `LoadState=loaded` with an empty `FragmentPath` and `SourcePath=/proc/self/mountinfo`
-(host read, `keep/host-reads.log`), so the `Requires=` half does not attach to it here, while the guest's
-258 did put `-.mount` in `Requires=` (`state-green.log`).
-Either way the line cannot put a requirement on a unit systemd learned.
+What lands differs by machine, and on this host the `Requires=` half would not attach at all: its root
+mount unit `-.mount` is `LoadState=loaded` with an empty `FragmentPath` and an empty `SourcePath`
+(host read, `keep/host-reads.log`), and a requirement is added only to a mount unit that has a fragment
+(round four's read of v262 `unit.c`, which adds `Requires=` only `if (m->fragment_path)`).
+`[nothing]` This host cannot be booted to show it, so the claim rests on that source rule and this
+host's file shape together, not on a run; the guest's 258 did put `-.mount` in `Requires=`
+(`state-green.log`), and its root mount unit has a fragment.
 
 What it costs: the derived dependency set is a manager report rather than a line a reader can check in
 the unit file; a machine whose path prefix differs has a different set; and the checkout's own learned
@@ -2328,7 +2334,7 @@ this round did not want to leave a guest in.
 
 No consumer requirement; sessions start after the gate's job by the gate's own `Before=`.
 Measured in round four's host-shape boot: the gate's job failed with its own refusal and sessions
-started anyway (kept log `evidence-host-shape.log`, `1795522164.523793`).
+started anyway (round four's `evidence-host-shape.log`, `1795522164.523793`).
 
 What it delivers: nothing to name.
 
@@ -2811,9 +2817,10 @@ This host has one dataset under the checkout path, `zpcachyos/nosnap/vm-builder-
 What the two choices do to it:
 
 - **V4-A (`canmount=noauto`) and neither mounter:** the provider skips it at every boot, and nothing
-  else mounts it. The path exists as an empty mountpoint directory under the checkout, `doctor`
-  reports the dataset as not mounted, and any `vm-builder` run that writes there writes into the
-  checkout. This is the state today's design ships while V9 is open.
+  else mounts it. `doctor` reports the dataset as not mounted, and a `vm-builder` run that writes
+  under that path writes into the checkout instead; whether the directory is there to write into
+  depends on the checkout's own tree, which this round did not read through the mount.
+  `[nothing]` This is the state today's design ships while V9 is open.
 - **V4-A and V9-C:** the per-dataset unit mounts it after the gate, before sessions; a provider restart
   fails that unit on the already-mounted message until C's wrapper lands.
 - **V4-A and V9-A or V9-B:** the mode or the pass mounts it, and it stays unmounted until that code
@@ -2970,13 +2977,13 @@ needs new code there; V9's option C needs none.
   `TimeoutStopFailureMode` for every service. Basis: host read, `keep/host-reads.log`.
 - F11. The guest runs Fedora Linux 43, systemd `258.11-1.fc43`, kernel `6.17.1-300.fc43.x86_64`,
   OpenZFS `2.4.4-1` from the pinned tarball, SELinux enforcing, agent in `unconfined_service_t`.
-  Basis: kept logs `prepare-readback.log`, `evidence-as-written-stopsec.log`.
+  Basis: kept logs `prepare-readback.log`; round four's `evidence-as-written-stopsec.log`.
 - F12. The hazard with the covered entry's flag on and `canmount=on` makes the provider fail:
   `failed to create mountpoint: Operation not permitted`, `Result=exit-code`, `ExecMainStatus=1`, and
   the gate's job fails with `dependency` before its own check. Basis: kept log
   `evidence-hazard-flag-on.log`.
 - F13. The unit text as this design writes it, both bounds included, boots green with the order gate,
-  per-dataset unit, its consumer, the account consumer and sessions. Basis: kept log
+  per-dataset unit, its consumer, the account consumer and sessions. Basis: round four's
   `evidence-as-written-stopsec.log`.
 - F14. The checkout's key unit failing fails the gate, both consumers and the per-dataset unit with
   `dependency`, and sessions start after. Basis: round three's `evidence-key-removed.log`, journal
@@ -2986,7 +2993,7 @@ needs new code there; V9's option C needs none.
   all. Basis: round three's `evidence-key-removed.log`, `evidence-no-key-unit.log`; round four's
   `evidence-host-shape.log`.
 - F16. With no key-loading unit, the gate refuses `checkout-not-the-dataset` with status two.
-  Basis: kept log `evidence-host-shape.log`.
+  Basis: round four's `evidence-host-shape.log`.
 - F17. With the flag removed, the gate refuses `covered-entry-not-immutable` with status two and its
   dependents' jobs fail with `dependency`. Basis: round three's `evidence-flag-removed.log`.
 - F18. With the flag absent, the checkout's mount failing and the descendant at `canmount=on`, the
@@ -3007,12 +3014,13 @@ needs new code there; V9's option C needs none.
   failure and its dependent's start by 5.01 s. Basis: round three's `systemd-262-arms.log` arm D.
 - F25. `TimeoutStopSec=` bounds the stop pass: a 2 s value killed a 5 s `ExecStopPost=` after 2.07 s on
   the host's user manager, and a 3 s value cut a ten-minute stop pass 3.25 s after the start bound fired
-  in a boot. Basis: round three's `keep/host-user-manager-stopsec.log`; kept log
+  in a boot. Basis: round three's `keep/host-user-manager-stopsec.log`; round four's
   `evidence-bound-stop.log`.
 - F26. `RequiresMountsFor=` puts `After=` on every prefix mount unit and `Requires=` only on a unit
   that has a fragment. On the guest that was `-.mount`; on this host `-.mount` is `LoadState=loaded`
-  with an empty `FragmentPath`, so the requirement does not attach here. Basis: kept log
-  `state-green.log`; round three's `systemd-262-arms.log` arm G; host read, `keep/host-reads.log`.
+  with empty `FragmentPath` and `SourcePath`, so the requirement does not attach here.
+  Basis: kept log `state-green.log`; round three's `systemd-262-arms.log` arm G; host read,
+  `keep/host-reads.log`; the fragment rule as round four's read of v262 `unit.c` gives it.
 - F27. A provider restart restarts the gate, the per-dataset unit and both consumers, and the stop pass
   unmounts the attached slot. Basis: round three's `restart-provider.log`, four units.
 - F28. The same propagation reaches a four-unit chain on 262.2. Basis: round three's
@@ -3030,7 +3038,7 @@ needs new code there; V9's option C needs none.
 - F32. The stand-in pass mounting a descendant in its own process works: `descendant-mount exit=0`, then
   `descendant-mounted=…`. Basis: round three's `evidence-v9b.log`. Its exit status is the echo's, so it
   is not evidence that a failed mount fails the pass.
-- F33. A consumer requiring the per-dataset unit runs after it and sees the mount. Basis: kept log
+- F33. A consumer requiring the per-dataset unit runs after it and sees the mount. Basis: round four's
   `evidence-as-written-stopsec.log`.
 - F34. `Upholds=` and `BindsTo=` work on a mount unit learned from the mount table: the service starts
   with the mount unit's activation and stops with its deactivation. Basis: round three's
