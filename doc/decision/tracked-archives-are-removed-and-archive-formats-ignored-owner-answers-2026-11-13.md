@@ -52,3 +52,9 @@ as the project's own:
   the owner chose "Edit all, re-record digests".
   The brief was changed to that before the run had a run folder;
   whether the run was sent the changed text is checked against its feed when it starts.
+
+From lines 19318 to 19318 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  "Keep as plain text (Recommended)".
