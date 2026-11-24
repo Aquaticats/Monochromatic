@@ -1,7 +1,7 @@
 //! What:
 //!  The three limit rules of the clone rung:
-//! a source with changes whose clones would copy fewer bytes than a whole-tree size threshold takes Git's own
-//! checkout,
+//! a source with changes whose clones would copy fewer bytes than its filesystem's whole-tree size threshold takes
+//! Git's own checkout,
 //! a clean source on ZFS whose tracked files average too few bytes a file takes it too,
 //! and so does a
 //!  source with more changed files than a cut derived from its tracked path count.
@@ -24,6 +24,15 @@
 //! keep the rule on ZFS and on filesystems nobody measured"
 //! (the same record,
 //! "No size rule on btrfs").
+//! Neither has the whole-tree rule there:
+//! the guest round that measured the dirty shapes on btrfs found the clone no slower than Git's own checkout on
+//! every shape it ran,
+//! 0.41 on this repository's tree,
+//! 0.55,
+//! 0.73,
+//! 0.54 and 0.24 on the others,
+//! which is the condition the project's answer set for dropping the limit on btrfs
+//! (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
 //! Every limit sends the add to Git's own checkout,
 //! and a declined add costs what `main` paid for the same source:
 //! the source check and then Git's own checkout,
@@ -86,9 +95,59 @@ use std::path::Path;
 /// A clean source is judged by `the_smallest_mean_tracked_file`,
 /// so a clean tree of a few large files clones whatever its total.
 ///
+/// The Btrfs round measured the same three shapes again in one guest,
+/// its own file system a 12 GiB loop-backed image mounted at `/mnt/dirty-shapes`,
+/// with the identical-binary control and Git's own checkout as the arms,
+/// and the clone was no slower there on any of them:
+/// 0.73 (0.60 to 1.13) on the 26 MB tree,
+/// 0.55 (0.49 to 0.98) on the 260 MB tree,
+/// and 0.41 (0.32 to 0.70) on this repository's tree,
+/// and it added the shape the release pass found costly,
+/// twenty files of 8,000,000 bytes with one untracked file,
+/// at 0.54 (0.34 to 0.96),
+/// with its clean twin at 0.24 (0.19 to 0.28)
+/// (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`,
+/// "The shapes,
+/// ratio by ratio").
+/// So btrfs takes no whole-tree rule
+/// (`the_fewest_tracked_bytes_that_keep_the_clone_rung`),
+/// and this value is the ZFS one and the one an unmeasured filesystem takes.
+///
 /// Provisional and open to the project's veto,
-/// and to a lower value once a size below this tree is measured a win.
+/// and to a lower value once a size below this tree is measured a win on ZFS.
 pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
+
+/// What:
+///  The fewest bytes a source with changes must have its clones carry for this filesystem's clone to be quicker than
+/// Git's own checkout,
+/// or nothing for a filesystem whose sources with changes are cloned whatever their size.
+/// Why:
+///   The measurements differ by filesystem as the clean rule's do:
+/// on ZFS the clone lost below this repository's tree,
+/// while on btrfs it won on every dirty shape the round ran,
+/// and the project answered "Yes,
+/// after one Btrfs round" to dropping the limit there once that round showed no loss
+/// (`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+/// "The dirty-tree limit on Btrfs (D2)",
+/// and the round itself,
+/// `doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
+/// A filesystem nobody measured takes the safest measured limit,
+/// which is the ZFS one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const limit = kind === 'btrfs' ? undefined : kind === 'zfs' ? ZFS : safest();
+/// ```
+pub fn the_fewest_tracked_bytes_that_keep_the_clone_rung(kind: FilesystemKind) -> Option<u64> {
+    return match kind {
+        // The project's answer stands on the round that measured the dirty shapes on btrfs and found no loss there
+        // (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`), so a btrfs source with changes is
+        // cloned whatever its size, as a clean one is.
+        FilesystemKind::Btrfs => None,
+        FilesystemKind::Zfs => Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG),
+        FilesystemKind::Overlayfs | FilesystemKind::Other => Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG),
+    };
+}
 
 /// The smallest mean tracked file size a clean source on ZFS may have and still be cloned.
 ///
@@ -284,6 +343,12 @@ pub fn mean_tracked_file(entries: &[StatEntry]) -> Option<u64> {
 /// so the person is owed the numbers the decision was made on rather than a bare refusal
 /// (`AGENTS.md`,
 /// rule `DGT`).
+/// The limit is chosen by the source's filesystem
+/// (`the_fewest_tracked_bytes_that_keep_the_clone_rung`),
+/// and nothing is asked where it has none:
+/// a btrfs source with changes is cloned whatever its size,
+/// as the round that measured those shapes found the clone no slower than Git's own checkout on every one
+/// (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
 /// The words name the input and what happens,
 /// and the route's own lead says who wrote the worktree
 /// (the integration pass's low L4).
@@ -300,13 +365,15 @@ pub fn mean_tracked_file(entries: &[StatEntry]) -> Option<u64> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reason = carried < THE_FEWEST_TRACKED_BYTES ? `...` : undefined;
+/// const limit = theFewestTrackedBytes(kindOf(source)); const reason = limit !== undefined && carried < limit ? `...` : undefined;
 /// ```
 pub fn reason_the_tree_is_too_small(source: &SnapshotSource, bytes_the_clones_carry: u64) -> Option<String> {
-    if bytes_the_clones_carry >= THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG {
+    let kind: FilesystemKind = filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other);
+    let limit: u64 = the_fewest_tracked_bytes_that_keep_the_clone_rung(kind)?;
+    if bytes_the_clones_carry >= limit {
         return None;
     }
-    return Some(format!("the clones would copy {} bytes of the tracked files of {}, below the {} a tree with changes needs on ZFS for the clone to be quicker than Git's own checkout", bytes_the_clones_carry, shown(source.root.as_path()), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
+    return Some(format!("the clones would copy {} bytes of the tracked files of {}, below the {} a tree with changes needs on ZFS for the clone to be quicker than Git's own checkout", bytes_the_clones_carry, shown(source.root.as_path()), limit));
 }
 
 /// What:
@@ -373,6 +440,11 @@ pub fn reason_too_many_changed_paths(source: &SnapshotSource, entries: &[StatEnt
 /// and the mean is the limit the project chose for a tree it calls clean
 /// (`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
 /// "A source whose only change is untracked (D1)").
+/// Each of those two is chosen again by the source's filesystem:
+/// btrfs has neither of them
+/// (`the_fewest_tracked_bytes_that_keep_the_clone_rung`,
+/// `the_smallest_mean_tracked_file`),
+/// so a btrfs source takes only the changed-file cut.
 /// The changed-file cut applies to both.
 /// Both limits are asked before the rung's fence,
 /// its claim on a stage name and its first copy,

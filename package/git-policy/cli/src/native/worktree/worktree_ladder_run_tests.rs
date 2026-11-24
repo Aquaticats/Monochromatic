@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::fs_kind::is_subvolume_root;
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::test_support::{fixture, git_context, remove, repository};
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked, tracked_sparse};
@@ -385,6 +385,10 @@ fn a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claime
 /// Removing the limit makes the rung clone the fixture and the worktree holds a shared extent,
 ///  which this control's byte comparison alone would not catch,
 ///  so the clone-capable skip and the extent are what make it red.
+/// The limit is chosen by the filesystem,
+///  so this control runs where the fixture's filesystem has the rule,
+///  and `a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule` is its other half
+///  (`the_whole_tree_limit_is_the_subject_filesystems_own_measurement` pins both).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,6 +403,13 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
         return;
     }
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let kind: FilesystemKind = filesystem_kind(repo.as_path()).expect("the fixture's filesystem");
+    if crate::worktree_clone_rung_limits::the_fewest_tracked_bytes_that_keep_the_clone_rung(kind).is_none() {
+        // A filesystem with no whole-tree rule clones this source, and
+        // `a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule` is that control.
+        remove(root.as_path());
+        return;
+    }
     tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
     tracked(repo.as_path(), "edited.txt", b"the commit's bytes\n");
     // Enough tracked paths that the changed-file cut does not take this one change, so the size is the reason.
@@ -424,6 +435,63 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
     assert_eq!(tracked_content_of(topic.as_path()), tracked_content_of(control.as_path()), "the add's worktree is Git's own checkout");
     assert_eq!(std::fs::read(topic.join("edited.txt")).expect("the commit's bytes"), b"the commit's bytes\n", "the person's change reaches no worktree");
     assert_eq!(crate::test_support::git_text(topic.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the worktree is clean");
+    remove(root.as_path());
+}
+
+/// What:
+///  A source below the size limit gets the clone rung on a filesystem whose whole-tree rule does not apply,
+///  runs Git without a checkout,
+///  and declines nothing.
+/// Why:
+///   The guest round that measured the dirty shapes on btrfs found the clone no slower than Git's own checkout on
+///   every shape it ran,
+///   so the project dropped the limit there
+///   (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
+/// The fixture is the one `a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes` declines,
+/// so this control is red without the change:
+/// it expects the clone rung where that control expects Git's checkout,
+/// and no sentence,
+/// because a cloned add has nothing to decline
+/// (`worktree_slow_route::explain_decline`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ladder.rung).toBe('clone'); expect(ladder.slow).toBeUndefined();
+/// ```
+#[test]
+fn a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule() {
+    let root: PathBuf = fixture("run-size-limit-without-a-rule");
+    if !can_clone_a_file(root.as_path()) {
+        remove(root.as_path());
+        return;
+    }
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let kind: FilesystemKind = filesystem_kind(repo.as_path()).expect("the fixture's filesystem");
+    if crate::worktree_clone_rung_limits::the_fewest_tracked_bytes_that_keep_the_clone_rung(kind).is_some() {
+        // A filesystem with the whole-tree rule declines this source, and
+        // `a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes` is that control.
+        remove(root.as_path());
+        return;
+    }
+    tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
+    tracked(repo.as_path(), "edited.txt", b"the commit's bytes\n");
+    // Many more tracked paths than changed ones, so the changed-file cut takes none of this one change.
+    for index in 0..crate::worktree_clone_conversion_fence::DECLINE_SHARE_DIVISOR {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), b"the commit's bytes\n");
+    }
+    commit_all(repo.as_path(), "a tree far below the limit");
+    std::fs::write(repo.join("edited.txt"), b"a change nobody committed\n").expect("the person's change");
+    let plan: AddPlan = plan_to(root.join("topic"));
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "the clone rung runs Git without a checkout on a tree this small");
+    assert!(matches!(ladder.rung, Rung::Clone(..)), "the rung is the clone rung");
+    assert!(ladder.slow.is_none(), "a cloned add declines nothing, so no sentence says a rule applied: {:?}", ladder.slow);
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung records the add durably");
+    let mut runner = no_runner();
+    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result.git, FAILED);
+    assert!(result.claim.is_some(), "the record of the add is handed to the lifecycle rather than dropped");
+    result.claim.expect("the record").settle().expect("settled");
     remove(root.as_path());
 }
 

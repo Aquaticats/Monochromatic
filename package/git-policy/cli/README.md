@@ -975,7 +975,8 @@ Read-only commands,
      every tracked path its proof settles is a clone,
      and only the paths a change or a conversion rule reaches are Git's.
      Three provisional limit rules send an add to Git's own checkout instead:
-     a source with changes whose clones would copy fewer than 762,000,000 bytes,
+     a source with changes whose clones would copy fewer than 762,000,000 bytes on ZFS
+     (and on a filesystem nobody measured),
      a source with more changed tracked files than a quarter of its tracked paths,
      and a source with no tracked change whose mean tracked file is under its filesystem's measured edge,
      which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
@@ -984,9 +985,16 @@ Read-only commands,
      A source whose only difference is an untracked file,
      or whose recorded times are stale with no change in `git status`,
      takes the mean rule and not the whole-tree one.
-     The whole-tree limit and the changed-file cut were measured on ZFS and apply on every filesystem until a Btrfs
-     round measures the dirty shapes;
-     until then nothing changes on btrfs.
+     The whole-tree limit was measured on ZFS,
+     and the changed-file cut applies on every filesystem.
+     btrfs has no whole-tree rule,
+     because the guest round that measured the dirty shapes there found the clone no slower than Git's own
+     checkout on every one (0.41,
+     0.55,
+     0.73,
+     0.54 and 0.24 of it,
+     `doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`),
+     so a btrfs source with changes is cloned whatever its size.
      These are the four answers of
      `doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`.
      btrfs has no mean rule:

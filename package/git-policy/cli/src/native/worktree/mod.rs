@@ -343,8 +343,10 @@ pub mod worktree_clone_partial_tracked;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_partial_staged;
 
-/// The two provisional limits that send an add to Git's own checkout:
-/// a whole-tree size threshold and a changed-file cut,
+/// The provisional limits that send an add to Git's own checkout:
+/// a whole-tree size threshold where the source's filesystem has one,
+/// a mean file size edge,
+/// and a changed-file cut,
 /// each with the measurement it rests on.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_rung_limits;

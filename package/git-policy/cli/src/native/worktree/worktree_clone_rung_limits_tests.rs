@@ -71,8 +71,10 @@ fn entries_of(source: &SnapshotSource) -> Vec<StatEntry> {
 }
 
 /// What:
-///  The bytes the clones would carry from a source, as the ladder reads them before it asks the whole-tree limit:
-/// the fence's attributes first, then the sum over the paths no rule hands to Git.
+///  The bytes the clones would carry from a source,
+/// as the ladder reads them before it asks the whole-tree limit:
+/// the fence's attributes first,
+/// then the sum over the paths no rule hands to Git.
 /// Why:
 ///   A control that summed the index itself would test a number the ladder no longer asks,
 /// and a path an attribute rule hands to Git (`filter=lfs`) must not be counted:
@@ -91,20 +93,25 @@ fn carried_of(source: &SnapshotSource) -> u64 {
 
 /// What:
 ///  A source with changes of exactly the pinned bytes is cloned,
-/// and one byte fewer is declined,
-/// with the sum in the sentence.
+/// and one byte fewer is declined on a filesystem whose whole-tree rule applies,
+/// with the sum in the sentence;
+/// one byte fewer on a filesystem with no whole-tree rule is cloned too.
 /// Why:
 ///   The whole-tree limit's edge is what the measurement was taken at,
 /// so the control is the arithmetic beside it:
 /// a
 ///  limit that said "at or below" or that summed something else would show here.
+/// btrfs has no whole-tree rule
+/// (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`),
+/// so there is no value there to subtract one from,
+/// and the control says so instead of expecting a decline.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(reason(tree(THE_FEWEST))).toBeUndefined(); expect(reason(dirtyTree(THE_FEWEST - 1))).toContain('sum to');
 /// ```
 #[test]
-fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_changes() {
+fn the_size_limit_declines_one_byte_below_the_pinned_bytes_where_the_filesystem_has_the_rule() {
     let at: PathBuf = fixture("limit-at-the-size");
     let at_source: SnapshotSource = source_of(at.as_path(), &[(String::from("one.bin"), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG)]);
     assert_eq!(tracked_bytes(entries_of(&at_source).as_slice()), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG);
@@ -112,9 +119,18 @@ fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_cha
     crate::test_support::remove(at.as_path());
     let below: PathBuf = fixture("limit-below-the-size");
     let below_source: SnapshotSource = source_of(below.as_path(), &[(String::from("one.bin"), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1)]);
-    let reason: String = reason_the_tree_is_too_small(&below_source, carried_of(&below_source)).expect("one byte fewer is declined");
-    assert!(reason.contains("would copy"), "the sentence names the bytes the clones would copy: {reason}");
-    assert!(reason.contains((THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1).to_string().as_str()), "{reason}");
+    let kind: FilesystemKind = filesystem_kind(below.as_path()).expect("the fixture's filesystem");
+    match the_fewest_tracked_bytes_that_keep_the_clone_rung(kind) {
+        Some(limit) => {
+            let reason: String = reason_the_tree_is_too_small(&below_source, carried_of(&below_source)).expect("one byte fewer is declined");
+            assert!(reason.contains("would copy"), "the sentence names the bytes the clones would copy: {reason}");
+            assert!(reason.contains((THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1).to_string().as_str()), "{reason}");
+            assert!(reason.contains(limit.to_string().as_str()), "and the limit it is below: {reason}");
+        }
+        None => {
+            assert!(reason_the_tree_is_too_small(&below_source, carried_of(&below_source)).is_none(), "a filesystem with no whole-tree rule clones a source of any size");
+        }
+    }
     crate::test_support::remove(below.as_path());
 }
 
@@ -206,12 +222,22 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
             assert!(decline_before_cloning(&small_source, entries_of(&small_source).as_slice(), carried_of(&small_source)).is_none(), "a filesystem with no mean edge clones a clean tree of tiny files");
         }
     }
-    // The same two files with one of them changed: now the whole-tree sum decides.
+    // The same two files with one of them changed: now the filesystem's whole-tree rule decides, or none does.
     std::fs::write(small_source.root.join("one.txt"), b"a change\n").expect("the change");
     let dirty_source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(small_source.root.as_path())).expect("a source with changes");
-    let sum_reason: String = decline_before_cloning(&dirty_source, entries_of(&dirty_source).as_slice(), carried_of(&dirty_source)).expect("a small tree with changes is declined");
-    assert!(sum_reason.contains("would copy"), "the source with changes is declined by the bytes its clones would copy: {sum_reason}");
-    assert!(!sum_reason.contains("average"), "the mean says nothing about a source with changes: {sum_reason}");
+    match the_fewest_tracked_bytes_that_keep_the_clone_rung(small_kind) {
+        Some(_limit) => {
+            let sum_reason: String = decline_before_cloning(&dirty_source, entries_of(&dirty_source).as_slice(), carried_of(&dirty_source)).expect("a small tree with changes is declined");
+            assert!(sum_reason.contains("would copy"), "the source with changes is declined by the bytes its clones would copy: {sum_reason}");
+            assert!(!sum_reason.contains("average"), "the mean says nothing about a source with changes: {sum_reason}");
+        }
+        None => {
+            assert!(reason_the_tree_is_too_small(&dirty_source, carried_of(&dirty_source)).is_none(), "a filesystem with no whole-tree rule asks no sum of a source with changes");
+            let reason: String = decline_before_cloning(&dirty_source, entries_of(&dirty_source).as_slice(), carried_of(&dirty_source)).expect("one changed path of two is over the cut");
+            assert!(reason.contains("have changes"), "the changed-file cut is the one limit left there: {reason}");
+            assert!(!reason.contains("would copy"), "and no sum is asked: {reason}");
+        }
+    }
     crate::test_support::remove(small.as_path());
 }
 
@@ -289,6 +315,74 @@ fn the_mean_edge_is_the_subject_filesystems_own_measurement() {
 }
 
 /// What:
+///  btrfs takes no whole-tree rule,
+///  and ZFS and a filesystem nobody measured take the pinned limit.
+/// Why:
+///   The guest round that measured the dirty shapes on btrfs found the clone no slower than Git's own checkout on
+///   every shape it ran,
+///   which is the condition the project's answer set for dropping the limit there,
+///   and no such round measured a filesystem nobody measured
+///   (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
+/// This control is what pins the mapping,
+/// so a limit that came back on btrfs or vanished elsewhere shows here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(limit('btrfs')).toBeUndefined(); expect(limit('zfs')).toBe(762_000_000); expect(limit('other')).toBe(762_000_000);
+/// ```
+#[test]
+fn the_whole_tree_limit_is_the_subject_filesystems_own_measurement() {
+    assert_eq!(the_fewest_tracked_bytes_that_keep_the_clone_rung(FilesystemKind::Btrfs), None, "the btrfs round measured no loss, so btrfs has no whole-tree rule");
+    assert_eq!(the_fewest_tracked_bytes_that_keep_the_clone_rung(FilesystemKind::Zfs), Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
+    assert_eq!(the_fewest_tracked_bytes_that_keep_the_clone_rung(FilesystemKind::Overlayfs), Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG), "a filesystem nobody measured keeps the limit");
+    assert_eq!(the_fewest_tracked_bytes_that_keep_the_clone_rung(FilesystemKind::Other), Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
+}
+
+/// What:
+///  A dirty source whose clones would carry fewer bytes than the pin declines on a filesystem whose whole-tree rule
+///  applies,
+///  and is cloned on one with no whole-tree rule.
+/// Why:
+///   This is the shape the limit was pinned for,
+/// so it is where the filesystem's choice decides between the clone and Git's own checkout;
+/// the changed-file cut is kept quiet so the size is the only rule in question,
+/// and the control takes whichever branch its fixture's own filesystem gives it
+/// (`the_whole_tree_limit_is_the_subject_filesystems_own_measurement` pins both branches).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(decline(dirty(belowThePin))).toMatch(LIMIT === undefined ? /^$/ : /would copy/);
+/// ```
+#[test]
+fn a_dirty_source_below_the_pin_is_cloned_where_the_filesystem_has_no_whole_tree_rule() {
+    let root: PathBuf = fixture("limit-dirty-below-the-pin");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    for index in 0..crate::worktree_clone_conversion_fence::DECLINE_SHARE_DIVISOR {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), b"the commit's bytes\n");
+    }
+    commit_all(repo.as_path(), "a tree far below the pin");
+    std::fs::write(repo.join("plain-0.txt"), b"the person's change\n").expect("the tracked change");
+    let source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source with changes");
+    assert_eq!(changed_tracked_files(&source), 1, "the fixture's source has one tracked change, so the whole-tree rule is the one asked");
+    let entries: Vec<StatEntry> = entries_of(&source);
+    let carried: u64 = carried_of(&source);
+    assert!(carried < THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the clones would carry far fewer bytes than the pin: {carried}");
+    assert!(reason_too_many_changed_paths(&source, entries.as_slice()).is_none(), "one changed path is inside the cut, so only the size is in question");
+    let kind: FilesystemKind = filesystem_kind(repo.as_path()).expect("the fixture's filesystem");
+    match the_fewest_tracked_bytes_that_keep_the_clone_rung(kind) {
+        Some(limit) => {
+            let reason: String = decline_before_cloning(&source, entries.as_slice(), carried).expect("the tree is declined by the bytes the clones would carry");
+            assert!(reason.contains("would copy"), "the sentence names the bytes the clones would copy: {reason}");
+            assert!(reason.contains(limit.to_string().as_str()), "and the limit it is below: {reason}");
+        }
+        None => {
+            assert!(decline_before_cloning(&source, entries.as_slice(), carried).is_none(), "a filesystem with no whole-tree rule clones a dirty tree this small");
+        }
+    }
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
 ///  Every limit sentence a person can see starts with the decline's own lead and never says the add took longer.
 /// Why:
 ///   The lead was changed because nothing of a declined add had started when a limit declined it,
@@ -311,8 +405,11 @@ fn every_limit_sentence_starts_with_the_decline_lead_and_never_says_it_took_long
     std::fs::write(repo.join("one.txt"), b"a change\n").expect("the change");
     let dirty: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source with changes");
     let entries: Vec<StatEntry> = entries_of(&dirty);
+    let kind: FilesystemKind = filesystem_kind(dirty.root.as_path()).expect("the fixture's filesystem");
     let mut reasons: Vec<String> = Vec::new();
-    reasons.push(reason_the_tree_is_too_small(&dirty, carried_of(&dirty)).expect("a tree this small is declined by its sum"));
+    if the_fewest_tracked_bytes_that_keep_the_clone_rung(kind).is_some() {
+        reasons.push(reason_the_tree_is_too_small(&dirty, carried_of(&dirty)).expect("a tree this small is declined by its sum"));
+    }
     reasons.push(reason_too_many_changed_paths(&dirty, entries.as_slice()).expect("one changed path of two is over the cut"));
     crate::test_support::remove(root.as_path());
     let clean: PathBuf = fixture("limit-decline-lead-mean");
@@ -406,6 +503,11 @@ fn a_path_a_filter_hands_to_git_is_not_in_the_whole_tree_sum() {
     }
     tracked(repo.as_path(), ".gitattributes", b"*.bin filter=lfs\n");
     tracked(repo.as_path(), "changed.txt", b"the commit's bytes\n");
+    // Enough tracked paths that the changed-file cut does not take this one change, so the sum is the rule in question
+    // on a filesystem that has it.
+    for index in 0..crate::worktree_clone_conversion_fence::DECLINE_SHARE_DIVISOR {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), b"the commit's bytes\n");
+    }
     commit_all(repo.as_path(), "fixture");
     // The filter the attribute names, so Git's own reads of the fixture do not fail.
     for (key, value) in [("filter.lfs.clean", "cat"), ("filter.lfs.smudge", "cat"), ("filter.lfs.required", "false")] {
@@ -418,9 +520,19 @@ fn a_path_a_filter_hands_to_git_is_not_in_the_whole_tree_sum() {
     assert!(tracked_bytes(entries.as_slice()) >= THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the index's own total is above the pin, so the sum that counted every tracked byte kept the rung");
     let carried_bytes: u64 = carried_of(&source);
     assert!(carried_bytes < THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the bytes the clones would copy leave the filtered path out and sit below the pin: {carried_bytes}");
-    let reason: String = decline_before_cloning(&source, entries.as_slice(), carried_bytes).expect("the tree is declined by the bytes the clones would copy");
-    assert!(reason.contains("would copy"), "the sentence says the sum is what the clones copy: {reason}");
-    assert!(reason.contains(carried_bytes.to_string().as_str()), "and names it: {reason}");
-    assert!(!reason.contains((carried + filtered).to_string().as_str()), "the filtered path's bytes are not in it: {reason}");
+    let kind: FilesystemKind = filesystem_kind(repo.as_path()).expect("the fixture's filesystem");
+    match the_fewest_tracked_bytes_that_keep_the_clone_rung(kind) {
+        Some(limit) => {
+            let reason: String = decline_before_cloning(&source, entries.as_slice(), carried_bytes).expect("the tree is declined by the bytes the clones would copy");
+            assert!(reason.contains("would copy"), "the sentence says the sum is what the clones copy: {reason}");
+            assert!(reason.contains(carried_bytes.to_string().as_str()), "and names it: {reason}");
+            assert!(!reason.contains((carried + filtered).to_string().as_str()), "the filtered path's bytes are not in it: {reason}");
+            assert!(reason.contains(limit.to_string().as_str()), "and the limit it is below: {reason}");
+        }
+        None => {
+            assert!(reason_the_tree_is_too_small(&source, carried_bytes).is_none(), "a filesystem with no whole-tree rule asks no sum, whatever its tracked bytes record");
+            assert!(decline_before_cloning(&source, entries.as_slice(), carried_bytes).is_none(), "and nothing else declines this source");
+        }
+    }
     crate::test_support::remove(root.as_path());
 }
