@@ -1509,6 +1509,126 @@ and return holders and incomplete reads in a fresh,
 Step 16 consumes it before each snapshot-destroy request and before the head destroy,
 and step 18 reports its holders.
 
+(Amended 2026-11-22 by an agent,
+in a round of its own;
+this note is unapproved and non-final.)
+That round built this step's all-namespace holder scan and nothing else of
+step 9:
+
+- the scan,
+  its bounds and its result are
+  `package/git-policy/cli/src/native/clone_holder_scan/`;
+- the thread grouping,
+  the one mount table per distinct namespace and the exact ZFS source match are
+  `package/git-policy/cli/src/native/mount_namespace_scan/`,
+  which the start probe's arm 7 now reads too,
+  as the start probe's design proposed
+  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+  "The arms",
+  arm 7);
+- the handler's `holder-scan --dataset <name> [--nonce <32 hex digits>]` mode is
+  `package/git-policy/cli/src/native/worktree_clone_mount_handler/holder_scan_mode.rs`,
+  declared and documented as the other modes are;
+- `SPEC.md` states what the scan promises and what it cannot,
+  under "The all-namespace holder scan of a ZFS worktree clone";
+- the guest arms are
+  `package/git-policy/cli/src/native/binary/binary_zfs_holder_scan_guest_tests.rs`
+  and one entry of
+  `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
+  and what they measured sits in
+  `package/git-policy/cli/doc/holder-scan-across-mount-namespaces-2026-11-22.md`.
+
+The other half of this step was another round's on
+`feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach`,
+and it is merged into `main` (`534000d680`) with this half (`cf5c7ddb8d`):
+the unmount from a fresh process,
+the staging folder and the reattach,
+which add their own files under
+`package/git-policy/cli/src/native/worktree_clone_mount_handler/` and own the
+`shutdown-unmount` mode this build still refuses.
+Neither round's files stood in the other's way:
+this round added `holder_scan_mode.rs` and the handler folder's two `uses/`
+links,
+and changed the mode grammar by adding one word and two options,
+and the merge kept both guest modules and both arms in the guest driver.
+
+What the steps that read this result will find:
+
+- step 16 calls `scan_holders` with the request it holds,
+  or the `holder-scan` mode where a process boundary is what it needs,
+  before each snapshot-destroy request and before the head destroy,
+  and reads `holders`,
+  `incomplete` and `is_clear` after `accept` has matched the GUID and the
+  nonce it asked under;
+  a result for another dataset or another scan is refused before anything it
+  holds is read,
+  and an incomplete read is reported rather than read as a clear namespace;
+- step 17 carries the result's text to the wrapper,
+  which reads it back with `parse_holder_scan` key by key,
+  which the project decided on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
+  "before each destroy,
+  the wrapper asks root for a fresh scan and prints" the holders it names,
+  so that step builds the carrier and the wrapper's refusal and this round
+  built neither;
+- this round built no receipt and no recording;
+- step 18 reads `holders` and each holder's mounts,
+  which name the kernel's namespace identity,
+  the task the table came from and each mount's id,
+  root and mount point,
+  and `doctor` names them from those fields.
+
+The residual the destroy-anyway decision accepts is recorded in `SPEC.md`,
+and the guest arm that pins a namespace with a handle and no task shows the
+scan reporting no holder for it,
+which is the limit rather than a bug.
+
+(Amended 2026-11-23 by an agent,
+in the fix round that answers the integration pass's findings;
+this note is unapproved and non-final.)
+
+The round of 2026-11-22 built the scan with two rules the project then
+corrected,
+and this round changed all three of the parts the pass found wrong:
+
+- the scan sets nothing aside.
+  the standing-unmount rule,
+  `HolderScan`'s excluded list and the result's excluded section are gone,
+  and a mount of the clone at a worktree's path is a holder in every namespace,
+  under every intent.
+  The project chose "no set-aside" on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`),
+  and the staging design's "the removal refuses because that mount is
+  present" now holds;
+- the scan reads every thread and every root.
+  It groups by `/proc/<pid>/task/<tid>/ns/mnt`,
+  reads each thread's `root`,
+  reads each namespace through a thread at that namespace's own root,
+  and reports a namespace whose threads disagree about their root,
+  none of them at the reader's,
+  as an incomplete read.
+  A thread whose namespace link it may not read is an incomplete read naming
+  the thread and the errno,
+  never a silent skip;
+- every scan answers under a nonce of its own,
+  which the caller may name with `--nonce` and which is never the clone's
+  request nonce,
+  because the wrapper asks for a fresh scan before each destroy.
+
+The paragraph above still says the scan "excludes new managed attaches with the
+standing `unmount` intent".
+This note replaces that sentence,
+as the decision record reads it:
+the exclusion is the attaching sweep's refusal under the intent,
+and the scan names every holder it can read.
+
+The wrapper's carrying of root's finding and its refusal that names the holders
+are plan steps 16 and 17's and unbuilt;
+this step's mode only prints the answer where the other modes print theirs.
+The guest arms this round adds are the same files as before,
+with an arm for each of the four holders the pass found missed and one for the
+scan under a standing `unmount` intent.
+
 #### Design sections
 
 "Descriptor mount and unmount" (the unmount half);
@@ -1560,10 +1680,16 @@ and on the build that ships it,
 which also owes the interface that unmounts a staged mount from the held descriptor.
 Steps 14,
 16 and 17 wait on that build as well.
+The holder scan half of this step is built by the round of 2026-11-22 and its
+notes above say what remains open in it:
+the scan answers one dataset's holders across mount namespaces,
+and the unmount,
+the staging folder and the reattach this step also owns are built and merged
+with it (`534000d680` and `cf5c7ddb8d`).
 Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
-step 16 and step 18 read the result this step records.
+step 16 and step 18 read the result this step answers.
 
 #### Depends on
 
@@ -1624,9 +1750,11 @@ a holder's `EBUSY` and the checked reattach back to the slot,
 the same clone's unmount after the holder ended,
 and two removals at once.
 The arm's output is in the round's keep folder.
+The all-namespace holder scan this step also owns is built and merged into
+`main` with it (`cf5c7ddb8d`),
+and its own note above says what it answers and what it leaves to steps 16 to
+18.
 Still owed by this step:
-the all-namespace holder scan is another round's,
-built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
 the stacked-mount rollback in the guest,
 a reboot with a staged record,
 the repeat of VM items 3,

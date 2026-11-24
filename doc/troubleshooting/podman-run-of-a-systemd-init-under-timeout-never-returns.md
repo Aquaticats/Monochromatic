@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -11,7 +12,7 @@ From lines 29391 to 29412 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### A run that waited on a container from 20:42:55 to 22:14:46
+### A run that waited on a container from 20:42:55 to 22:14:46
 
 `first-commit-after-an-install-does-not-wait-for-the-old-service-1` issued
 `timeout 300 podman run --rm ... --systemd=always ... /sbin/init | head -5 &` followed by `wait`.

@@ -56,3 +56,18 @@ pub mod doctor_hook_entries;
 /// the removal mount option and its commands.
 #[cfg(target_os = "linux")]
 pub mod doctor_filesystem;
+
+/// The ZFS route's checks plan step 18 adds to `doctor`:
+/// the device,
+/// ABI and dataset facts,
+/// the checkout's mount and propagation,
+/// the recorded identities,
+/// the store's listing and the two staging forms it removes,
+/// the delegation,
+/// the handler and its records,
+/// the staging folder,
+/// the holders,
+/// and the checks later steps owe.
+/// Nothing reaches it from a command path until step 18 is wired.
+#[cfg(target_os = "linux")]
+pub mod doctor_zfs_route;

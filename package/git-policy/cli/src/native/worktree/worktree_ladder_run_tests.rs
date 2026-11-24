@@ -414,7 +414,7 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
     assert!(matches!(ladder.rung, Rung::Git(_)), "a tree below the size limit takes Git's checkout");
     let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
     assert_eq!(route.word(), "declines", "{route:?}");
-    assert!(route.line().contains("sum to"), "the sentence names the sum it found: {}", route.line());
+    assert!(route.line().contains("would copy"), "the sentence names the bytes the clones would carry: {}", route.line());
     assert!(route.line().contains(crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG.to_string().as_str()), "and the limit it is below: {}", route.line());
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed");
     let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };

@@ -395,6 +395,17 @@ export function dailyUpdateGroups({
               ],
               timeoutMs: INSTALL_TIMEOUT_MS,
             },),
+            // The proof that the lock records the catalog and the manifest edits this step just wrote: the frozen
+            // install the release workflows run, so a lock left out of step fails here and the tail lands nothing
+            // instead of failing a release days later (doc/troubleshooting/pnpm-frozen-install-validation-drift.md).
+            miseExec({
+              words: [
+                'pnpm',
+                'install',
+                '--frozen-lockfile',
+              ],
+              timeoutMs: INSTALL_TIMEOUT_MS,
+            },),
             miseExec({
               words: [
                 'cargo-shadow',

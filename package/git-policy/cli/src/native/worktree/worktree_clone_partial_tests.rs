@@ -253,7 +253,6 @@ fn the_unchanged_paths_are_cloned_and_the_changed_ones_written() {
     let Some(root) = clone_capable_fixture("clone-partial") else { return };
     let dirty: Dirty = dirty_repository(root.as_path());
     let part: PartCloned = clone_through_the_fence(&dirty);
-    eprintln!("DEBUG cloned={} written={} staged=[{}] edited=[{}]", part.cloned, part.written, String::from_utf8_lossy(&std::fs::read(dirty.destination.join("staged.txt")).unwrap_or_default()), String::from_utf8_lossy(&std::fs::read(dirty.destination.join("edited.txt")).unwrap_or_default()));
     // The two paths nothing changed, the executable and the link are clones; the three a change touches are Git's.
     assert_eq!(part.cloned, 3 + UNCHANGED_PATHS, "kept.txt, bin/tool.sh, link and the unchanged paths are cloned; edited.txt, staged.txt and deleted.txt are not");
     assert_eq!(part.written, 3);
@@ -529,9 +528,10 @@ fn a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy() 
         Err(reason) => reason,
         Ok(_) => panic!("a split that leaves Git more paths than the cut is refused rather than cloned"),
     };
-    assert!(refusal.contains("are out of date though their bytes are unchanged"), "{refusal}");
-    assert!(refusal.contains("run `git status` once in"), "the sentence gives the remedy: {refusal}");
-    assert!(refusal.contains(stale.to_string().as_str()), "the sentence names how many: {refusal}");
+    assert!(refusal.contains("no longer match their files"), "{refusal}");
+    assert!(refusal.contains("Run `git status` once in"), "the sentence gives the remedy: {refusal}");
+    assert!(refusal.contains(format!("the file times recorded for {stale} of them").as_str()), "the sentence names how many times are stale: {refusal}");
+    assert!(refusal.contains("and 0 of them changed or were staged"), "no path of this source changed: {refusal}");
     assert!(refusal.contains(cut.to_string().as_str()), "and the cut: {refusal}");
     let copied: Vec<PathBuf> = std::fs::read_dir(destination.as_path()).expect("the destination").map(|entry| { return entry.expect("an entry").path(); }).filter(|path: &PathBuf| { return path.file_name().is_some_and(|name: &std::ffi::OsStr| return name != ".git"); }).collect();
     assert!(copied.is_empty(), "nothing was copied into the destination: {copied:?}");
@@ -567,4 +567,80 @@ fn a_new_head_that_differs_is_brought_in_after_the_clones() {
     assert_eq!(std::fs::read(dirty.destination.join("kept.txt")).expect("the commit's bytes"), KEPT, "a cloned path the new commit does not change keeps its bytes");
     assert_eq!(git_text(dirty.destination.as_path(), &["status", "--porcelain=v1"]), "");
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A staged addition among the entries of a partial clone reaches no destination,
+/// in the arm where the slices run and in the one-turn arm a refused runtime takes.
+/// Why:
+///   The one-turn arm clones what `clone_in_slices` was handed, which is the entry set the partial clone's proof
+///   settled and not the source's whole index;
+///   an arm that re-read the index would clone a staged addition, which is in no tree, into the new worktree and say
+///   nothing about it (the release pass over alpha.45's finding H2).
+/// The runtime's refusal cannot be asked for by an argument, so a control asks for it through the module's own flag;
+/// both arms assert the same absence, which is what makes the flag's arm the one under test.
+/// The fixture holds more unchanged paths than the clone's break-even, so the slices are what runs and the one-turn arm is
+/// their fallback rather than the shape a small repository takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const forced of [false, true]) { forcedOneTurn = forced; const part = cloneTheUnchanged(...); expect(exists(destination, 'added.txt')).toBe(false); }
+/// ```
+#[test]
+fn a_staged_addition_reaches_no_destination_in_the_one_turn_arm_the_runtime_refusal_takes() {
+    for forced in [false, true] {
+        let Some(root) = clone_capable_fixture(if forced { "clone-partial-one-turn-forced" } else { "clone-partial-one-turn-sliced" }) else { return };
+        let dirty: Dirty = repository_for_the_one_turn_arm(root.as_path());
+        let context: crate::transaction_git::GitContext = git_context();
+        let source: SnapshotSource = source_or_dirty(&context, &main_identity(dirty.repo.as_path())).expect("a source with changes");
+        let entries: Vec<crate::worktree_clean::StatEntry> = crate::worktree_clone_rung_limits::tracked_entries(&source).expect("the entries");
+        let changed: usize = source.dirty.as_ref().expect("the changes").tracked;
+        let clones: usize = entries.len() - changed;
+        assert!(crate::worktree_clone_slices::clone_worker_count(clones) > 1, "the fixture has {clones} cloned paths of {} and this host's budget splits them into slices, so the one-turn arm is the fallback under test", entries.len());
+        let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &context).expect("the attributes");
+        let destination: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
+        let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
+        crate::worktree_clone_slices::FORCED_ONE_TURN_ARM.store(forced, std::sync::atomic::Ordering::SeqCst);
+        let cloned = clone_the_unchanged(PartialClone { context: &context, source: &source, entries: None, destination: &destination, admin: &admin, admin_path: dirty.admin.as_path(), fence: held_fence });
+        crate::worktree_clone_slices::FORCED_ONE_TURN_ARM.store(false, std::sync::atomic::Ordering::SeqCst);
+        let (part, _decided, _pending): (PartCloned, Fence, PendingIndex) = cloned.expect("the partial clone");
+        assert!(!dirty.destination.join("added.txt").exists(), "forced={forced}: a staged addition is in no tree, so no arm clones it into the destination");
+        assert_eq!(part.cloned, clones, "forced={forced}: the proof's own paths are the clones, as many as the source's index holds beyond its changes");
+        assert!(dirty.destination.join("kept.txt").exists(), "forced={forced}: the paths the proof settled are cloned in both arms");
+        assert_eq!(part.written, changed, "forced={forced}: every path the source's own status names is Git's, and the staged addition is one of them");
+        crate::test_support::remove(root.as_path());
+    }
+}
+
+/// What:
+///  The fixture of the one-turn arm's control:
+/// a source with a tracked edit, a staged change, a deletion and a staged addition,
+///  and more unchanged paths than
+/// the clone's break-even, so the copies are split into slices.
+/// Why:
+///   The arm under test is the slices' fallback,
+/// and a repository below the break-even never takes it:
+/// a fixture of ten unchanged paths would test the one-turn shape twice and the flag would prove nothing
+/// (measured while this control was written).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dirty = await repositoryForTheOneTurnArm(root); // 30 unchanged paths and the three changes
+/// ```
+fn repository_for_the_one_turn_arm(root: &Path) -> Dirty {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), "kept.txt", KEPT);
+    for index in 0..30 {
+        tracked(repo.as_path(), format!("kept/unchanged-{index}.txt").as_str(), KEPT);
+    }
+    commit_all(repo.as_path(), "the commit the person adds to");
+    std::fs::write(repo.join("added.txt"), b"a file the person staged and never committed\n").expect("the staged addition");
+    git(repo.as_path(), &["add", "--", "added.txt"]);
+    settle_the_index(repo.as_path());
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    let source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source with changes");
+    assert!(source.dirty.is_some(), "the fixture's source has uncommitted changes");
+    return Dirty { repo, destination, admin, source };
 }

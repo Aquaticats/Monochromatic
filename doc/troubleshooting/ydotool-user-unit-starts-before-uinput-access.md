@@ -14,9 +14,12 @@ and the owner had not yet confirmed Ctrl+F4 in Helium after the same-boot restar
 
 ## Boot verification at 2026-11-23T06:00:23-05:00
 
-Codex checked the current boot journal. `ydotoold` reported `failed to open uinput device: Permission denied`
-on its first three starts. The installed drop-in retried successfully at `05:44:14 EST` and the user unit stayed active.
-A live Ctrl+F4 check remains open. The helper executable hit a separate
+Codex checked the current boot journal.
+`ydotoold` reported `failed to open uinput device: Permission denied`
+on its first three starts.
+The installed drop-in retried successfully at `05:44:14 EST` and the user unit stayed active.
+A live Ctrl+F4 check remains open.
+The helper executable hit a separate
 [startup failure after the simdjson upgrade](node-sea-keeps-stale-simdjson-soname.md).
 
 ## Symptom
@@ -108,7 +111,8 @@ Only this one failure variant was observed.
   class `user`,
   service `login`,
   the getty autologin on tty1
-  (logind D-Bus `Session.Timestamp` of `session/_32`, and `loginctl show-session 2`).
+  (logind D-Bus `Session.Timestamp` of `session/_32`,
+  and `loginctl show-session 2`).
 - 10:14:16.663:
   `Reached target Startup of XDG autostart applications.` (user journal).
 - 10:25:47 to 10:25:59:
@@ -231,8 +235,16 @@ KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
 ```
 
 The account is not in `input`:
-`id` lists the groups `user`, `sys`, `network`, `nopasswdlogin`, `rfkill`,
-`users`, `video`, `storage`, `lp`, `audio` and `wheel`.
+`id` lists the groups `user`,
+`sys`,
+`network`,
+`nopasswdlogin`,
+`rfkill`,
+`users`,
+`video`,
+`storage`,
+`lp`,
+`audio` and `wheel`.
 The user ACL comes from `TAG+="uaccess"` in installed rules from other packages,
 none from this repository or from ydotool:
 
@@ -314,7 +326,8 @@ and the start limit is five starts per 10 s
 ```
 
 [`man/systemd-system.conf.xml:694-696`][sd-startlimit-man] agrees:
-"DefaultStartLimitIntervalSec= defaults to 10s. DefaultStartLimitBurst= defaults to 5."
+"DefaultStartLimitIntervalSec= defaults to 10s.
+DefaultStartLimitBurst= defaults to 5."
 The running user manager reports the same values:
 
 ```text
@@ -340,9 +353,11 @@ also after that boot.
 
 The old Bazzite system did not depend on this timing either.
 It ran ydotoold from XDG autostart as `app-ydotoold@autostart.service`
-(`doc/troubleshooting/ydotool-interrupted-key-release.md`, section "Symptom"),
+(`doc/troubleshooting/ydotool-interrupted-key-release.md`,
+section "Symptom"),
 and its account was in `input`
-(`~/Downloads/old-drives/windows-shortcuts-2026-11-17.md`, the key-helper section).
+(`~/Downloads/old-drives/windows-shortcuts-2026-11-17.md`,
+the key-helper section).
 On this boot the XDG autostart target was reached at 10:14:16.663,
 4.9 s after the seat session.
 
@@ -379,7 +394,8 @@ ship the old unit.
 
 ## Verification
 
-- ydotool 1.0.4-3.1 (`cachyos-extra-znver4`, built 2026-10-22),
+- ydotool 1.0.4-3.1 (`cachyos-extra-znver4`,
+  built 2026-10-22),
   upstream tag v1.0.4 at `57ba7d0af525e82da2de0e275d169477f293b197`.
 - systemd 262.2-1-arch,
   upstream tag v262.2 at commit `63511d7283d7d0e2a2fc28075481afaf1a7be8f5`.
@@ -442,10 +458,12 @@ with `NRestarts=30` (`keep/never-granted.log`).
 
 ### Works
 
-- Drop-in values (`RestartSec=2`, 30 starts per 90 s),
+- Drop-in values (`RestartSec=2`,
+  30 starts per 90 s),
   access after 7 s:
   active after 4 restarts.
-- Upstream master's values (`RestartSec=3`, `ExecStartPre=/bin/sleep 2`),
+- Upstream master's values (`RestartSec=3`,
+  `ExecStartPre=/bin/sleep 2`),
   access after 2.45 s,
   the real gap on this boot:
   active after 1 restart.
@@ -458,7 +476,8 @@ with `NRestarts=30` (`keep/never-granted.log`).
 
 ### Fails
 
-- Packaged defaults (100 ms, five starts per 10 s),
+- Packaged defaults (100 ms,
+  five starts per 10 s),
   access after 3 s in the proxy:
   `start-limit-hit` after 5 restarts.
 - Packaged defaults on the real boot,
@@ -523,7 +542,8 @@ Tradeoffs:
 
 - It still gives up.
   If the seat session does not exist within about a minute of the user manager starting,
-  the unit fails as before (measured: 64.7 s).
+  the unit fails as before (measured:
+  64.7 s).
   With linger that clock starts at boot,
   so a manual or slow login more than a minute after boot leaves ydotoold dead
   until `reset-failed` and `start` are run.
@@ -597,7 +617,9 @@ Replacing the packaged unit with the autostart (disabling `ydotool.service`) was
 
 - The first proxy run used `systemd-run --collect`.
   The unit that hit its start limit was garbage-collected,
-  so `systemctl show` printed defaults (`inactive`, `Result=success`, `NRestarts=0`).
+  so `systemctl show` printed defaults (`inactive`,
+  `Result=success`,
+  `NRestarts=0`).
   The harness in "Verification" drops `--collect`.
 - `/dev/uinput`'s ctime reads 10:30:34.607,
   the moment ydotoold was started by hand,
@@ -613,20 +635,32 @@ Checked by 2026-11-18T10:49:04-05:00.
 
 No entry in `.out-of-scope/` covers ydotool,
 systemd or udev.
-Its files are `bun-install.md`, `cargo-workspace.md`, `claude-code-upstream-bugs.md`, `codex-harness.md`,
-`jsr.md`, `lightningcss.md`, `low-impact-typescript-formatting.md`, `module-es-monolith.md`,
-`pi-gpt55-long-context.md`, `terminal-title-fork-parity-tests.md` and `typescript-project-references.md`.
+Its files are `bun-install.md`,
+`cargo-workspace.md`,
+`claude-code-upstream-bugs.md`,
+`codex-harness.md`,
+`jsr.md`,
+`lightningcss.md`,
+`low-impact-typescript-formatting.md`,
+`module-es-monolith.md`,
+`pi-gpt55-long-context.md`,
+`terminal-title-fork-parity-tests.md` and `typescript-project-references.md`.
 
 ### Duplicate search
 
 On the ydotool tracker (`gh search issues --repo ReimuNotMoe/ydotool`):
 
-- "uinput Permission denied boot", "ydotool.service fails to start" and "linger" returned nothing.
-- "start-limit-hit", "RestartSec" and "new release" returned [#311][issue-311],
-  older release requests #180, #90 and #19,
+- "uinput Permission denied boot",
+  "ydotool.service fails to start" and "linger" returned nothing.
+- "start-limit-hit",
+  "RestartSec" and "new release" returned [#311][issue-311],
+  older release requests #180,
+  #90 and #19,
   and #42 (ship a service file),
   all closed.
-- [#311][issue-311] ("Request: new release to include systemd service reliability fixes", 2026-02-12)
+- [#311][issue-311] ("Request:
+  new release to include systemd service reliability fixes",
+  2026-02-12)
   names the same missing `RestartSec=3` and `ExecStartPre=/bin/sleep 2`,
   and the same "Start request repeated too quickly" failure.
   Its author closed it the next day as completed,
@@ -635,13 +669,16 @@ On the ydotool tracker (`gh search issues --repo ReimuNotMoe/ydotool`):
 
 On the packaging trackers:
 
-- The Arch `archlinux/packaging/packages/ydotool` issues (GitLab API, all states):
-  #2 "Default user service is broken: `failed to open uinput device: Permission denied`" (1.0.4-2)
+- The Arch `archlinux/packaging/packages/ydotool` issues (GitLab API,
+  all states):
+  #2 "Default user service is broken:
+  `failed to open uinput device: Permission denied`" (1.0.4-2)
   was closed 2025-12-16,
   and #1 (the `input` group exposes every keyboard) is open.
   Their comments are returned only to signed-in users (HTTP 401),
   so they were not read.
-- CachyOS: `gh search issues --owner CachyOS ydotool` returned nothing.
+- CachyOS:
+  `gh search issues --owner CachyOS ydotool` returned nothing.
   The CachyOS package is a rebuild of Arch's.
 
 ### Work in progress
@@ -682,13 +719,16 @@ Outside pull requests are merged (#221 came from a contributor).
 
 The fix is merged,
 but no release has followed in almost four years,
-despite #19, #90, #180 and #311,
+despite #19,
+#90,
+#180 and #311,
 and #311 got no maintainer reply.
 
 ### Constraint 6: have we prototyped a minimal fix?
 
 The upstream fix is the prototype.
-It is absent from the installed unit (the `diff` in "Step 2: the packaged unit starts with the user manager"),
+It is absent from the installed unit (the `diff` in "Step 2:
+the packaged unit starts with the user manager"),
 the version (v1.0.4) and the journal lines match,
 and the harness shows master's values recover from this boot's 2.45 s gap.
 No patch needs to be kept here.
@@ -745,7 +785,8 @@ gitlab.archlinux.org denied `agent-browser` with an Anubis "Access Denied" page,
 so the GitLab links were not loaded in a browser.
 Their content was read instead through the GitLab API at the same commit
 `62c3920b955db1d244e5798f65d7ac31dbcedc40`.
-The logs are `gh-links.log`, `other-links.log` and `gitlab-api-check.log`
+The logs are `gh-links.log`,
+`other-links.log` and `gitlab-api-check.log`
 in `~/temp/agent/ydotool-boot-race-doc-2026-11-18/keep/`.
 
 [client-connect]: https://github.com/ReimuNotMoe/ydotool/blob/57ba7d0af525e82da2de0e275d169477f293b197/Client/ydotool.c#L157-L173

@@ -125,6 +125,35 @@ pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> 
 }
 
 /// What:
+///  The checkout the probe will open,
+///  and the dataset the row that carried its path named,
+///  when the table itself was where the path came from.
+/// Why:
+///   The mount table answers both halves of one row at once:
+///  the path the walk starts at and the dataset whose pool the design's probe
+///  name sits in.
+///  Keeping the row's own dataset here is what lets the source be told from one
+///  read of the table rather than two,
+///  and a second read of system state for an answer already in hand is work added
+///  to the boot's own path.
+///   A path the file names carries no dataset,
+///  because the file named a folder and not a row,
+///  so the table is read there for the one answer only the table has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProbeCheckout = { path: string; dataset?: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbeCheckout {
+    /// Where the walk opens the checkout read-only.
+    pub path: PathBuf,
+    /// The dataset the table named for this path,
+    /// or nothing when the file named the path.
+    pub dataset: Option<String>,
+}
+
+/// What:
 ///  The checkout the walk opens read-only:
 ///  the file's `startProbe.checkout` when it holds one,
 ///  and otherwise the one mounted instance of the design's checkout dataset.
@@ -133,15 +162,18 @@ pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> 
 ///  and a file that names it wins over what the table would be searched for,
 ///  while a table that matches none or several is refused rather than guessed
 ///  at.
+///  The row the table answered is kept whole (`ProbeCheckout`),
+///  because its dataset is the pool the design's probe name needs and asking the
+///  table again for the row it just answered is a second read of the same state.
 ///
 /// # Errors
 /// The file is not JSONC,
 /// the key is not text,
 /// a path is not absolute,
 /// or the design's name matched none or several.
-pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Result<PathBuf, CheckoutRefusal> {
+pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Result<ProbeCheckout, CheckoutRefusal> {
     let Some(held) = document else {
-        return the_one_mounted_checkout(mounts, None).map(|one| return one.mount_point).map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
+        return found_checkout(mounts, None);
     };
     if held.trim().is_empty() {
         return Err(CheckoutRefusal::Empty);
@@ -150,20 +182,42 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
         MemberReading::Text(text) => {
             let checkout: PathBuf = PathBuf::from(text);
             if checkout.is_absolute() {
-                Ok(checkout)
+                Ok(ProbeCheckout { path: checkout, dataset: None })
             } else {
                 Err(CheckoutRefusal::NotAbsolute)
             }
         }
         MemberReading::Absent => {
             let container: Option<String> = clone_container_in_use(held);
-            the_one_mounted_checkout(mounts, container.as_deref())
-                .map(|one| return one.mount_point)
-                .map_err(|refusal| return CheckoutRefusal::NotFound { refusal })
+            found_checkout(mounts, container.as_deref())
         }
         MemberReading::NotText => Err(CheckoutRefusal::NotText),
         MemberReading::DocumentNotJsonc => Err(CheckoutRefusal::Unparsable),
     };
+}
+
+/// What:
+///  The one mounted instance of the design's checkout dataset,
+///  kept as the row it is.
+/// Why:
+///  The row carries the path the walk starts at and the dataset the design's
+///  probe name sits in,
+///  so one read of the table answers both keys the look-up needs and the second
+///  read only repeated the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const told = { path: one.mountPoint, dataset: one.dataset };
+/// ```
+///
+/// # Errors
+/// The table could not be read,
+/// no row is an instance of the design's dataset,
+/// or more than one row is.
+fn found_checkout(mounts: &dyn MountedDatasets, container_in_use: Option<&str>) -> Result<ProbeCheckout, CheckoutRefusal> {
+    return the_one_mounted_checkout(mounts, container_in_use)
+        .map(|one| return ProbeCheckout { path: one.mount_point, dataset: Some(one.dataset) })
+        .map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
 }
 
 /// What:
@@ -181,7 +235,7 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
 /// the key is not text,
 /// the text is not a dataset name,
 /// or the checkout's dataset and pool could not be told.
-pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedDatasets, checkout: Option<&Path>) -> Result<ProbeSource, SourceRefusal> {
+pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedDatasets, checkout: Option<&ProbeCheckout>) -> Result<ProbeSource, SourceRefusal> {
     let reading: MemberReading = match document {
         Some(text) => text_at_key(text, DATASET_KEY),
         None => MemberReading::Absent,
@@ -211,11 +265,16 @@ pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedData
 /// # Errors
 /// The checkout's dataset could not be told,
 /// or its name has no pool component.
-fn found_source(mounts: &dyn MountedDatasets, checkout: Option<&Path>, path: &Path) -> Result<ProbeSource, SourceRefusal> {
+fn found_source(mounts: &dyn MountedDatasets, checkout: Option<&ProbeCheckout>, path: &Path) -> Result<ProbeSource, SourceRefusal> {
     let Some(told) = checkout else {
         return Err(SourceRefusal::CheckoutNotFound { path: path.to_path_buf() });
     };
-    let dataset: String = the_checkout_dataset_at(told, mounts).map_err(|refusal| return SourceRefusal::Checkout { refusal })?;
+    // The row that carried the path also carried the dataset, and the look-up that found it already checked the design's leaf name,
+    // so only a path the file named has a table answer still owed.
+    let dataset: String = match told.dataset.as_deref() {
+        Some(named) => String::from(named),
+        None => the_checkout_dataset_at(told.path.as_path(), mounts).map_err(|refusal| return SourceRefusal::Checkout { refusal })?,
+    };
     let probe: String = the_designs_probe_dataset_under(dataset.as_str()).map_err(|refusal| return SourceRefusal::Checkout { refusal })?;
     return Ok(ProbeSource { dataset: probe });
 }

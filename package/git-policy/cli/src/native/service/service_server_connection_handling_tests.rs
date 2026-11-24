@@ -688,7 +688,7 @@ fn a_service_gives_up_the_values_of_the_records_a_forget_message_names() {
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let elsewhere: PathBuf = PathBuf::from("/srv/other-repo/gitdir");
     let (shared, _jobs) = shared_serving("connection-forget-programs", own.clone());
-    let programs = PushPrograms { variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))], transport: false };
+    let programs = PushPrograms { variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))], not_text: Vec::new(), transport: false };
     let named: String = String::from("push-0123456789abcdef0123456789abcdef01234567-0123456789abcdef");
     let sibling: String = String::from("push-89abcdef0123456789abcdef0123456789abcdef-0123456789abcdef");
     let foreign: String = String::from("push-456789abcdef0123456789abcdef0123456789ab-fedcba9876543210");

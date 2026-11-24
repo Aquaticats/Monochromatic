@@ -2,7 +2,9 @@
 
 ## Status at 2026-11-23T06:06:22-05:00
 
-Codex diagnosed the CachyOS boot, verified the recovery in an isolated fixture, and restored the live daemon.
+Codex diagnosed the CachyOS boot,
+verified the recovery in an isolated fixture,
+and restored the live daemon.
 Owner review and a physical Ctrl+F4 check remain open.
 
 ## Symptom
@@ -18,8 +20,10 @@ KWin reported that the `key-helper-kwin` script was loaded.
 The live session bus reported `b false` for `NameHasOwner` on `org.monochromatic.KeyHelper`.
 The Helium shortcut callback calls `SendKeys` on that service to send Ctrl+W.
 
-`ydotoold` reported `failed to open uinput device: Permission denied` at `05:44:08`, `05:44:10` and `05:44:12 EST`.
-The installed retry drop-in got `ydotoold` running at `05:44:14 EST`, before key-helper launched.
+`ydotoold` reported `failed to open uinput device: Permission denied` at `05:44:08`,
+`05:44:10` and `05:44:12 EST`.
+The installed retry drop-in got `ydotoold` running at `05:44:14 EST`,
+before key-helper launched.
 The earlier [ydotool startup incident](ydotool-user-unit-starts-before-uinput-access.md) describes the drop-in.
 
 ## Root cause
@@ -34,7 +38,8 @@ The earlier [ydotool startup incident](ydotool-user-unit-starts-before-uinput-ac
 `readelf --dynamic` shows `DT_NEEDED` for `libsimdjson.so.36` in the November 17 helper binary
 and in `/usr/bin/node` extracted from the cached CachyOS `nodejs 26.13.1-2` package.
 The cached old `simdjson` package contains `.36`.
-The installed `nodejs 26.13.1-3` needs `.37`, and the installed `simdjson 2:5.2.0-1.1` supplies `.37`.
+The installed `nodejs 26.13.1-3` needs `.37`,
+and the installed `simdjson 2:5.2.0-1.1` supplies `.37`.
 
 The key-helper `sea` task invokes the build runtime at `package/kwin/key-helper/mise.toml:67`:
 
@@ -46,7 +51,8 @@ execFileSync(process.execPath, ['--build-sea', scratchConfigPath,], { stdio: 'in
 The config leaves the executable path unset.
 Node v26.13.1 reads the running Node ELF and injects the bundled app into it.
 The resulting binary retains the base executable's dynamic library dependencies.
-The relevant excerpts are from `src/node_sea_bin.cc:418-459`. [Node source][node-sea-build]
+The relevant excerpts are from `src/node_sea_bin.cc:418-459`.
+[Node source][node-sea-build]
 
 ```cpp
 // src/node_sea_bin.cc:418-421, 437-438 and 458-459
@@ -63,7 +69,8 @@ The relevant excerpts are from `src/node_sea_bin.cc:418-459`. [Node source][node
 ```
 
 KDE's generated user unit pipes the helper's output to `systemd-cat`.
-The shell pipeline returned the logger's status, so systemd reported `Result=success` and `ExecMainStatus=0`
+The shell pipeline returned the logger's status,
+so systemd reported `Result=success` and `ExecMainStatus=0`
 for an inactive unit while the executable itself exited `127`.
 The ELF loader stopped the process before it could register the D-Bus service.
 
@@ -81,18 +88,26 @@ busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DB
 ```
 
 The private bus test ran the actual shortcut callback with a simulated Helium window and the actual helper executable.
-A test `ydotool` recorded the arguments. The fixture had an empty `/dev/input` and no access to the host's input devices.
+A test `ydotool` recorded the arguments.
+The fixture had an empty `/dev/input` and no access to the host's input devices.
 
-- Fails: the installed SEA on current libraries exited `127` with the journal error and never acquired the bus name.
-- Works: the same installed SEA with the real cached `.36` library supplied only to the fixture acquired the name
+- Fails:
+  the installed SEA on current libraries exited `127` with the journal error and never acquired the bus name.
+- Works:
+  the same installed SEA with the real cached `.36` library supplied only to the fixture acquired the name
   and handled the callback.
-- Works: repackaging the existing JS bundle with the `sea` task under current Node produced a SEA that resolved `.37`,
-  acquired the name, and handled the callback. Both passing cases emitted `key 29:1 17:1 17:0 29:0`.
+- Works:
+  repackaging the existing JS bundle with the `sea` task under current Node produced a SEA that resolved `.37`,
+  acquired the name,
+  and handled the callback.
+  Both passing cases emitted `key 29:1 17:1 17:0 29:0`.
 
 ## Verified workaround
 
-Repackage the existing JS bundle against current Node. The `sea` task replaces the on-disk artifact atomically.
-It embeds the existing bundle as-is. Use the package's `binary` task instead if the bundle also needs rebuilding.
+Repackage the existing JS bundle against current Node.
+The `sea` task replaces the on-disk artifact atomically.
+It embeds the existing bundle as-is.
+Use the package's `binary` task instead if the bundle also needs rebuilding.
 On this installation the current-session start command targets the unit generated from the existing desktop entry.
 
 ```sh
@@ -100,27 +115,39 @@ mise run //package/kwin/key-helper:sea
 systemctl --user start 'app-key\x2dhelper\x2dservice@autostart.service'
 ```
 
-After running both commands, `ldd` resolved `.37` for the installed executable.
+After running both commands,
+`ldd` resolved `.37` for the installed executable.
 At `06:06:16 EST` the unit became active and the journal recorded `D-Bus service registered: org.monochromatic.KeyHelper`.
-Live D-Bus introspection returned `SendKeys` and `SendNvimKeys`. The Helium shortcut was exercised in the private fixture.
+Live D-Bus introspection returned `SendKeys` and `SendNvimKeys`.
+The Helium shortcut was exercised in the private fixture.
 
 ## What does not work
 
 The working `ydotoold` service and the loaded KWin script still left the shortcut without a D-Bus destination.
 The generated unit's success status also missed the loader failure.
-Running the same executable directly showed exit `127`. Piping it through `cat` reproduced the masked status `0`.
+Running the same executable directly showed exit `127`.
+Piping it through `cat` reproduced the masked status `0`.
 
 ## Upstream filing decision
 
-Node's v26.13.1 implementation embeds the app into a supplied executable, and the CachyOS upgrade refreshed the
-packaged executable and library together. The stale executable was generated and installed locally.
+Node's v26.13.1 implementation embeds the app into a supplied executable,
+and the CachyOS upgrade refreshed the
+packaged executable and library together.
+The stale executable was generated and installed locally.
 The Node issue searches for `"build-sea" "shared libraries"` and `"build-sea" "simdjson"` returned no matches.
-No `.out-of-scope/` entry matched this incident. There is no upstream issue or comment to file.
+No `.out-of-scope/` entry matched this incident.
+There is no upstream issue or comment to file.
 
-- Upstream fault: the observed SEA behavior follows the selected build runtime.
-- Upstream remedy: the stale artifact is owned by the local build and can be regenerated there.
-- Supported use case: building a SEA from the current executable is implemented in Node's source.
-- Contribution policy and maintainer interest: those checks were unnecessary once the incident traced to the local artifact.
-- Prototype: the local rebuild passed with `.37`. An upstream patch was unnecessary.
+- Upstream fault:
+  the observed SEA behavior follows the selected build runtime.
+- Upstream remedy:
+  the stale artifact is owned by the local build and can be regenerated there.
+- Supported use case:
+  building a SEA from the current executable is implemented in Node's source.
+- Contribution policy and maintainer interest:
+  those checks were unnecessary once the incident traced to the local artifact.
+- Prototype:
+  the local rebuild passed with `.37`.
+  An upstream patch was unnecessary.
 
 [node-sea-build]: https://github.com/nodejs/node/blob/e9c277643b0249c50f6e6de5413be8a88ea11b6a/src/node_sea_bin.cc#L418-L459

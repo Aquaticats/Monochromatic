@@ -434,12 +434,15 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
-        // What: A push whose command chose its transport stops here when this service no longer holds that choice.
-        // Why:  Those settings live only in the memory of the service that received them, so a service that was started again has
-        //  none; running the push through the manager's environment would speak a transport nobody asked for, which may also lack
-        //  the credentials the chosen way needs. Nothing was sent, so the person is told why and given the command that pushes.
-        if newest.transport && crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_none() {
-            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest).await);
+        // What: A push whose command chose its transport stops here when this service no longer holds that choice, or holds
+        //  it as a value this release cannot write in a line (`push_without_its_transport::gone`).
+        // Why:  Those settings live only in the memory of the service that received them, so running the push through the
+        //  manager's environment would speak a transport nobody asked for; nothing was sent, so the person is told why and
+        //  given the command that pushes.
+        let held: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
+            crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str());
+        if let Some(gone) = crate::push_without_its_transport::gone(held.as_ref(), newest.transport) {
+            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest, gone).await);
         }
         // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
         //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
