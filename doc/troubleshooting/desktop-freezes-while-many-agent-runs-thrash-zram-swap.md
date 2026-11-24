@@ -723,11 +723,18 @@ That boot value is 100 on this kernel,
 not the documented default of 0:
 it read 100 after the restarts of 2026-11-23.
 What sets it is not found.
-The kernel command line names no `lru_gen` parameter,
-`/proc/config.gz` carries no default for it (only `CONFIG_LRU_GEN=y`, `CONFIG_LRU_GEN_ENABLED=y` and
-`CONFIG_LRU_GEN_WALKS_MMU=y`),
-and a search for `min_ttl_ms` in `/etc`, `/usr/lib/systemd`, `/usr/lib/udev`, `/usr/share` and `/usr/bin`
-found no file (the search skipped files it could not read).
+The kernel command line names no `lru_gen` parameter.
+`/proc/config.gz` carries no default for it:
+its only matching lines are `CONFIG_LRU_GEN=y`,
+`CONFIG_LRU_GEN_ENABLED=y`
+and `CONFIG_LRU_GEN_WALKS_MMU=y`.
+A search for `min_ttl_ms` found no file in
+`/etc`,
+`/usr/lib/systemd`,
+`/usr/lib/udev`,
+`/usr/share`
+or `/usr/bin`,
+though it skipped files it could not read.
 A patch in the distribution's kernel is the place not yet read.
 So reverting to 100 is reverting to the boot value.
 At 100 the machine's valve was a tenth of a second;

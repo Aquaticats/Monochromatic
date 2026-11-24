@@ -656,14 +656,24 @@ and what a session does is in `doc/handover/agents-at-once-on-this-machine.md`,
 "The freeze of 2026-11-22 set no limit on runs".
 Two later readings are in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`,
 both under lighter loads than the freeze's.
+The machine's restarts on 2026-11-23 cleared both settings,
+which are runtime values;
+the session applied them again at 2026-11-23T19:26:27-05:00,
+since the owner's answer keeps them until the comparison.
+After any restart,
+read both and apply them again
+(the commands are in the freeze account).
+Running:
+a start read at 19:26:55 under four guests,
+the batch gate and the Pi rounds' builds,
+and a sampler of the batch gate's container memory every 30 seconds
+(scope `sample-gate-container-memory-second-evening-batch-20261123-b`).
 
 Next:
-the same counters under a load like the freeze's,
-which cannot be made on purpose and has to be caught;
+the end read when the batch gate ends,
+and the rates between the two reads;
 then the persistent form of the two settings,
-for the owner to apply;
-and one gate's container memory sampled across a whole run,
-for its peak.
+for the owner to apply.
 A gate's fixture file system is a `tmpfs` capped at 768 MiB,
 so one gate's fixtures hold at most that
 (the freeze account's question 4 has the one reading so far).
