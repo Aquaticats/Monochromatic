@@ -7,8 +7,9 @@
 //!  the handler's refusals,
 //!  the descriptor unmount a rollback makes,
 //!  the child bound the listing takes,
-//!  and the four shapes that name no checkout,
-//!  with a second pool holding the design's leaf name.
+//!  the four shapes that name no checkout,
+//!  with a second pool holding the design's leaf name,
+//!  and the `snapdir` the route's own dataset-stats request carries.
 //! Why:
 //!  The sweep mounts a real clone as root,
 //!  writes the store under `/var/lib` and files receipts under `/run`,
@@ -58,6 +59,8 @@
 //! ```
 
 use git_policy_cli::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
+use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::{PropertyValue, value_of};
+use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ZfsDatasetReader};
 use git_policy_cli::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
 use git_policy_cli::worktree_clone_mount::{
     CloneFolderIdentity, HoldCloneSlotRequest, SlotIdentityStore, attach_the_clone, observe_the_clone_slot_under_root_control, publish_parent_identity_under_root_control, unmount_through_descriptor,
@@ -831,5 +834,27 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     assert!(bounded.said.contains(&format!("more than the {} children", git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN)), "the stop names the bound: {}", bounded.said);
     println!("MEASUREMENT child-bound-listing-ms={} children={} bound={}", bounded.elapsed.as_millis(), children, git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN);
     println!("SWEEP bound stopped=true children={children}");
+    // What the route's own dataset-stats request says about `snapdir`, which the documents once said it could not
+    // report (the second pass's finding B1). Three states: a value set locally, a value inherited from the parent, and
+    // the default nobody set.
+    let snapdir_parent: String = format!("{pool}/step8-snapdir");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", snapdir_parent.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "snapdir=disabled", snapdir_parent.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", format!("{snapdir_parent}/local-visible").as_str()]);
+    zfs_ok(sbin.as_str(), &["set", "snapdir=visible", format!("{snapdir_parent}/local-visible").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", format!("{snapdir_parent}/inherited-disabled").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=legacy", "-o", "canmount=off", format!("{pool}/step8-snapdir-default").as_str()]);
+    let reader: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest permits the device");
+    let read = |dataset: &str| -> PropertyValue {
+        let identity = reader.identity(dataset).unwrap_or_else(|failure| panic!("the reader answers for {dataset}: {}", failure.said));
+        return value_of(&identity.properties, "snapdir");
+    };
+    let locally_set: PropertyValue = read(format!("{snapdir_parent}/local-visible").as_str());
+    let inherited: PropertyValue = read(format!("{snapdir_parent}/inherited-disabled").as_str());
+    let default: PropertyValue = read(format!("{pool}/step8-snapdir-default").as_str());
+    assert_eq!(locally_set, PropertyValue::Number(1), "a locally set snapdir is carried as its number: {locally_set:?}");
+    assert_eq!(inherited, PropertyValue::Number(2), "an inherited snapdir is carried as its number: {inherited:?}");
+    assert_eq!(default, PropertyValue::Absent, "the default is the one state the reply leaves out: {default:?}");
+    println!("SNAPDIR-REPLY local-visible=1 inherited-disabled=2 default=absent");
     println!("SWEEP done pool={pool} layout=design slot={SLOT}");
 }
