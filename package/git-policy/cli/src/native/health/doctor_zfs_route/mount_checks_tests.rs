@@ -171,10 +171,25 @@ fn two_rows_at_one_nested_path_are_a_finding() {
     assert!(detail.contains("50") && detail.contains("51"), "{detail}");
 }
 
-/// A row naming a parent the table does not hold leaves reachability unknown.
+/// A row whose chain leaves the table reaches no checkout mount,
+/// which is the shape a namespace cloned from another shows:
+/// its root row names a parent the table does not hold.
 #[test]
-fn a_row_naming_no_parent_leaves_reachability_unknown() {
+fn a_row_whose_chain_leaves_the_table_is_unreachable() {
     let table: MountCheckFacts = with_extra(mount_row(50, 99, "/", &format!("{CHECKOUT}/output"), "zfs", "zpcachyos/nosnap/vm-builder-output", ""));
+    let super::CheckOutcome::Finding { field, .. } = check_nested_reachability(&table) else {
+        panic!("a chain that leaves the table reaches no checkout mount");
+    };
+    assert_eq!(field, "reachability");
+}
+
+/// A row whose chain loops inside the table leaves reachability unknown.
+#[test]
+fn a_looping_chain_leaves_reachability_unknown() {
+    let table: MountCheckFacts = with_extras(&[
+        mount_row(50, 51, "/", &format!("{CHECKOUT}/output"), "zfs", "zpcachyos/nosnap/vm-builder-output", ""),
+        mount_row(51, 50, "/", &format!("{CHECKOUT}/output-two"), "zfs", "zpcachyos/nosnap/vm-builder-output-two", ""),
+    ]);
     assert!(matches!(check_nested_reachability(&table), super::CheckOutcome::Unknown { .. }));
 }
 

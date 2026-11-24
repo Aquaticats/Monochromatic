@@ -237,7 +237,9 @@ fn reachability(row: &MountFacts, parents: &BTreeMap<u64, u64>, checkout_id: u64
             return Reachability::Reachable;
         }
         let Some(parent) = parents.get(&current) else {
-            return Reachability::Incomplete { mount_id: current };
+            // The chain left this namespace's tree, so no path in the table
+            // reaches the checkout from the row.
+            return Reachability::Orphaned;
         };
         if *parent == 0 {
             return Reachability::Orphaned;
@@ -311,7 +313,7 @@ pub fn check_nested_reachability(facts: &MountCheckFacts) -> CheckOutcome {
         }
     }
     if !incomplete.is_empty() {
-        return unknown(format!("the table names no parent for {}, so its rows' reachability is unproved", incomplete.join(", ")));
+        return unknown(format!("the ancestor chain of {} loops inside the table, so its reachability is unproved", incomplete.join(", ")));
     }
     return pass(format!("{} dataset(s) mounted under the checkout path are reachable through its mount", nested.len()));
 }
