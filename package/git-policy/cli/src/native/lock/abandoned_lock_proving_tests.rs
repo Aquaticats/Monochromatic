@@ -708,7 +708,7 @@ struct FreedName {
     /// The inode number every read of the PID file reports,
     /// if the control arms one.
     every_inode_is: Option<u64>,
-    /// The term a later read of the PID file reports differently,
+    /// The term a read of the PID file taken after the lock's name went reports differently,
     /// if the control arms one.
     later: Option<crate::lock_metadata_arm::Changed>,
 }
@@ -737,7 +737,9 @@ struct TakenName {
 ///  The state,
 /// the write and the answer are the whole difference between the controls of this section,
 ///  and the hook runs on this thread inside `clear_one`,
-///  so the arm of this thread answers its reads.
+///  so the arm of this thread answers its reads,
+///  and it moves that arm to the phase the removal's last look is in,
+///  so the read the removal judged is the one it took before the lock's name went.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -754,6 +756,9 @@ fn a_freed_name_taken(fixture: FreedName) -> TakenName {
     crate::service_fault::hooks::set(
         UNLINKED_THE_LOCK,
         std::rc::Rc::new(move || {
+            // The removal's last look starts here, so the arm answers every read of the PID file from this point as one
+            //  taken after the lock's name went, and a judged read taken here cannot pass for the judged one.
+            crate::lock_metadata_arm::the_locks_name_is_gone();
             let new_lock: PathBuf = taken.join("index.lock");
             let new_pid_file: PathBuf = pid_file_beside(new_lock.as_path());
             // The holder that won the freed name writes its lock first, as every writer does.
@@ -952,22 +957,23 @@ fn a_pid_file_with_no_newline_is_left_alone() {
     assert!(taken.pid_file.exists(), "a PID file with no newline is left alone");
     remove(taken.common_dir.as_path());
 }
+
 /// What:
 ///  A PID file of another inode and the judged number is left alone,
 ///  whatever number the file system gives the holder's new file.
 /// Why:
 ///   The holder removes the judged file and writes the judged number again,
 ///  so the two files hold the same number and the same device;
-///  the arm answers the later read with another inode number and one change time both reads report,
-///  so the inode is the term that decides,
-///  and neither the file system's reuse of a freed number nor the clock can make this control pass or fail for its own
-///  reason.
-///  The state is a real replacement of the file,
-///  and the arm only says that the number the removal reads is another one.
+///  the arm answers one inode for every read and one change time both reads report,
+///  so neither the file system's own number for the new file nor the clock can decide,
+///  and the arm's answer for a read taken after the lock's name went is the only difference.
+///  With that answer gone the removal compares one inode number with itself and takes the file,
+///  which is the term this control exists for.
+///  The state is a real replacement of the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = aFreedNameTaken({ name: 'another-inode', holder: 'the-judged-number-in-a-new-file', everyReadReportsChangeTime: 1000, later: 'inode' });
+/// const taken = aFreedNameTaken({ name: 'another-inode', holder: 'the-judged-number-in-a-new-file', everyReadReportsChangeTime: 1000, everyInodeIs: 1, later: 'inode' });
 /// expect(exists(taken.pidFile)).toBe(true);
 /// ```
 #[test]
@@ -976,7 +982,7 @@ fn a_pid_file_of_another_inode_is_left_alone() {
         name: "another-inode",
         holder: TheNewHolder::TheJudgedNumberInANewOne,
         every_read_reports_change_time: Some(A_CHANGE_TIME_EVERY_READ_REPORTS),
-        every_inode_is: None,
+        every_inode_is: Some(ONE_INODE_FOR_EVERY_FILE),
         later: Some(crate::lock_metadata_arm::Changed::Inode),
     });
     assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
@@ -1077,7 +1083,7 @@ fn a_pid_file_of_another_device_is_left_alone() {
 /// expect(exists(taken.pidFile)).toBe(false);
 /// ```
 #[test]
-fn a_pid_file_that_still_names_the_judged_number_goes_with_the_lock() {
+fn a_pid_file_with_the_very_bytes_it_was_judged_with_goes_with_the_lock() {
     let taken: TakenName = a_freed_name_taken(FreedName {
         name: "the-same-bytes",
         holder: TheNewHolder::TheJudgedNumberInPlace,
@@ -1087,7 +1093,7 @@ fn a_pid_file_that_still_names_the_judged_number_goes_with_the_lock() {
     });
     let Ended::Cleared(clearance) = taken.ended else { panic!("the abandoned lock itself is cleared: {:?}", taken.ended); };
     assert_eq!(clearance.pid, taken.judged_pid);
-    assert!(!taken.pid_file.exists(), "a PID file that still names the judged number goes with the lock it belongs to");
+    assert!(!taken.pid_file.exists(), "a PID file with the very bytes it was judged with goes with the lock");
     remove(taken.common_dir.as_path());
 }
 
@@ -1126,6 +1132,7 @@ fn an_arm_is_put_back_when_the_control_panics() {
     assert_eq!(afterwards.map(|found| { return found.ctime_ms; }), Some(judged_change_time), "the arm is not set any more, or the next control of this thread would read armed metadata");
     remove(root.as_path());
 }
+
 /// What:
 ///  A Git that takes the freed name while the abandoned holder's PID file still stands
 ///  writes no PID file of its own,

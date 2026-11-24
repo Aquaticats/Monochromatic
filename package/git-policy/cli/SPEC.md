@@ -12050,14 +12050,13 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   so a program that writes other bytes there is told apart on every file system and at every clock granularity.
   The project chose this on 2026-11-22,
   over correcting these words and leaving the route open
-  (the question put to the owner,
+  (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`,
   "B:
-  also compare bytes",
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
-  cause L).
+  also compare bytes").
 
-No time decides anything,
-so a correction of the clock moves no verdict.
+No time decides anything except the equality of stored change times,
+which the removal compares with the ones it judged,
+so a correction of the clock moves no other verdict.
 A process number alone decides nothing:
 numbers are reused,
 and a record of a process that ended says nothing about the program that has its number now.
