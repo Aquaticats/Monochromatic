@@ -18,7 +18,7 @@
 
 use super::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PLACEHOLDER_EXECUTABLE_PATH, PLACEHOLDER_ZEDLET_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, RESULTS_DIRECTORY_MODE, ReadinessFacts, RequestFacts,
-    READINESS_DIRECTORY_MODE, ROOT_OWNER, check_handler_configuration, check_handler_folders, check_handler_installation, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
+    READINESS_DIRECTORY_MODE, ROOT_OWNER, check_handler_configuration, check_handler_folders, check_handler_installation, check_modes, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
 };
 use crate::health::doctor_zfs_route::route_test_facts::{healthy_configuration, healthy_folders, healthy_installation, healthy_readiness, healthy_request, healthy_wiring, path_facts, root_file, LIVE_BOOT};
 use crate::worktree_clone_mount_protocol::ReadyState;
@@ -76,6 +76,17 @@ fn the_one_executable_answers_every_root_mode_the_route_needs() {
         panic!("this build's grammar holds every required mode: {outcome:?}");
     };
     assert!(detail.contains('4'), "{detail}");
+}
+
+/// A mode word this build does not answer is a finding naming the mode.
+#[test]
+fn a_mode_the_build_does_not_answer_is_a_finding() {
+    let outcome: super::CheckOutcome = check_modes(&["not-a-mode"]);
+    let super::CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a word the grammar refuses is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "mode");
+    assert!(detail.contains("not-a-mode"), "{detail}");
 }
 
 /// The required modes are the four the tree holds,

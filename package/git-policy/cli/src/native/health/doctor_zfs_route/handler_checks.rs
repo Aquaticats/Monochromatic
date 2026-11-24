@@ -80,7 +80,7 @@ pub const PLACEHOLDER_ZEDLET_PATH: &str = "/etc/zfs/zed.d/history_event-monochro
 ///  so a build that lost one of these four answers a finding here.
 ///  The empty word is the sweep,
 ///  which is the mode the installed ZED event starts with no argument.
-pub const REQUIRED_ROOT_MODES: [&'static str; 4] = ["", "boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"];
+pub const REQUIRED_ROOT_MODES: [&str; 4] = ["", "boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"];
 
 /// The owner every installed file and folder of the route must have.
 pub const ROOT_OWNER: u32 = 0;
@@ -250,8 +250,23 @@ pub fn check_handler_installation(facts: &HandlerInstallationFacts) -> CheckOutc
 /// const outcome = check_root_modes(); // pass | finding('mode')
 /// ```
 pub fn check_root_modes() -> CheckOutcome {
+    return check_modes(&REQUIRED_ROOT_MODES);
+}
+
+/// What:
+///  The same check over a list of mode words,
+///  so a control can hand in a word this build does not answer.
+/// Why:
+///  A check that read the build's own constant could only ever pass,
+///  and the control that proves it judges a word needs one that can fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = check_modes(['not-a-mode']); // finding('mode')
+/// ```
+pub fn check_modes(words: &[&str]) -> CheckOutcome {
     let mut missing: Vec<String> = Vec::new();
-    for word in REQUIRED_ROOT_MODES {
+    for word in words {
         let arguments: Vec<OsString> = mode_arguments(word);
         if parse(arguments.as_slice()).is_err() {
             missing.push(if word.is_empty() { String::from("the sweep (no argument)") } else { format!("`{word}`") });
@@ -260,11 +275,11 @@ pub fn check_root_modes() -> CheckOutcome {
     if !missing.is_empty() {
         return finding("mode", format!("the one executable answers no mode for {}; the route's root work cannot run", missing.join(", ")));
     }
-    return pass(format!("the one executable answers all {} root modes this route needs", REQUIRED_ROOT_MODES.len()));
+    return pass(format!("the one executable answers all {} root modes this route needs", words.len()));
 }
 
 /// The arguments one required mode word is read as.
-fn mode_arguments(word: &'static str) -> Vec<OsString> {
+fn mode_arguments(word: &str) -> Vec<OsString> {
     if word != "adopt-worktree-parent" {
         return if word.is_empty() { Vec::new() } else { vec![OsString::from(word)] };
     }

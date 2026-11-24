@@ -168,7 +168,7 @@ pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, Grant
 /// The handler's installation and folders.
 pub use handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PLACEHOLDER_EXECUTABLE_PATH, PLACEHOLDER_ZEDLET_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
-    check_handler_configuration, check_handler_folders, check_handler_installation, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
+    check_handler_configuration, check_handler_folders, check_handler_installation, check_modes, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
 };
 /// The staging folder and its bind.
 pub use staging_folder_checks::{StagedFolder, StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder, is_derived_folder_name, staging_binds};

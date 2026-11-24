@@ -183,7 +183,7 @@ pub fn check_checkout_propagation(facts: &MountCheckFacts) -> CheckOutcome {
         return pass(format!("the checkout's mount (id {}) is private", row.mount_id));
     }
     let path: String = row.mount_point.display().to_string();
-    finding(
+    return finding(
         "propagation",
         format!("the checkout's mount is not private ({}), and the route needs a mount no other namespace receives; set it back with `mount --make-rprivate {path}` after the mount is made", sharing.join(", ")),
     )
