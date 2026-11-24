@@ -4825,6 +4825,7 @@ and every step reads the state a kill at the step before it leaves:
   its sibling clone container,
   the pool,
   the boot's start-time compatibility gate,
+  the account's effective ZFS delegation against the shape the design scopes,
   and a current handler readiness report for this boot,
   pool and checkout,
   and it refuses a repository whose Git does not ignore
@@ -4888,8 +4889,11 @@ and every step reads the state a kill at the step before it leaves:
   published,
   and the phase becomes `snapshotted`.
 - The origin snapshot is cloned as
-  `<container>/<slot>` with `mountpoint=legacy` and `canmount=off`,
-  so the design's own mount is the only one it gets.
+  `<container>/<slot>` with `mountpoint=legacy` and no `canmount` property:
+  a clone inherits the origin's mountpoint,
+  a legacy dataset is never mounted by itself whatever `canmount` says,
+  and the kernel refused `canmount=off` at creation in the build's guest.
+  The design's own mount is therefore the only one the clone gets.
   Its GUID and group are read back,
   and its initial inventory is published even when it holds no entry.
   A dataset that already answers at the clone's name is adopted only when its
@@ -4964,6 +4968,25 @@ names the operation,
 the object and the pool,
 and the next add resumes once space is free.
 
+
+The preflight reads the account's effective delegation over the checkout dataset
+and its sibling clone container,
+the way `doctor`'s own check reads it,
+and refuses before the claim when a permission the design scopes is missing,
+is effective only through a wider ancestor grant,
+reaches the account through a named set,
+is granted to everyone,
+or is one of the lineage-changing grants the route must not have.
+The refusal prints that check's finding,
+which names each failing permission with the `zfs allow` or `zfs unallow`
+command that settles it,
+and the add writes nothing.
+The kernel's `ZFS_IOC_GET_FSACL` needs no privilege for this read:
+OpenZFS `zfs-2.4.4` registers it with `zfs_secpolicy_read`,
+which returns zero in the global zone
+(`module/zfs/zfs_ioctl.c:390` to `:398` and `:7825` to `:7826`),
+so the account reads its own delegation through the device the route already
+holds.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,
@@ -4974,18 +4997,17 @@ What this release does not yet do:
   would give Git different bytes keeps the source's bytes in the new worktree
   until plan step 11's fence write lands (issue 6323).
 - It does not restore a dirty main checkout;
-  such a source is not this route's until plan step 11,
-  and it takes the
-  ladder's rung 3 as the owner decided on 2026-11-19.
+- It does not restore a dirty main checkout;
+  the route refuses such a source before the claim,
+  with the wrapper's refusal exit code,
+  so the ladder never runs for it.
+  The restore is plan step 11's.
 - A failed add does not finish itself with Git's own checkout;
   it keeps what it made and the next add resumes it (plan step 11).
 - A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
-- The route checks no effective ZFS grant of its own;
-  the first refused snapshot or clone reports the kernel's error with the pool
-  already named in the record.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 

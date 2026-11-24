@@ -10,8 +10,11 @@
 //!  Git completes the file with one newline,
 //!  so the bytes on disk are the sentence and a newline,
 //!  and a killed write leaves a prefix:
-//!  only a prefix that covers the fixed part and the whole nonce attributes anything,
-//!  because a shorter one is what any just-opened lock looks like.
+//!  only a prefix that runs past the fixed part and the whole nonce attributes
+//!  anything,
+//!  which is one byte more than the nonce's last,
+//!  because a prefix that stops at or before that byte is what any just-opened
+//!  lock leaves.
 //!  The reason is a message for a person and never authority:
 //!  nothing here parses the words for permission.
 //!
@@ -54,7 +57,9 @@ pub const LOCK_WORDS_MAXIMUM_BYTES: u64 = LOCK_WORDS_PREFIX.len() as u64 + 32 + 
 pub enum LockStanding {
     /// The file holds the whole sentence and Git's newline.
     Verified,
-    /// The file holds a proper prefix that covers the fixed part and the whole nonce.
+    /// The file holds a proper prefix that runs past the fixed part and the
+    /// whole nonce,
+    /// and so carries at least one byte of the fixed part after it.
     CutShort {
         /// How many bytes the killed write left.
         at: u64,
