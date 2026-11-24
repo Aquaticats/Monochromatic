@@ -412,24 +412,29 @@ puts it back when the unmount is refused,
 and finishes after a kill.
 
 State:
-branch `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` at `59f2bd1876`.
-Its integration pass said not fit
-(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`):
-the reopen of the staged folder by its handle fails on a real kernel,
-no recovery after a kill is wired,
-and two mount calls act on a mount the handler did not prove.
-All of it sits behind the pin plan step 19 writes,
-so none reaches a user.
-The owner chose that a stopped unmount files an answer in an extended format
+merged as `931d6a2c9c`,
+after its round on the integration pass
+(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`)
+fixed the handle reopen,
+wired the recovery after a kill at four kill points,
+and built the owner's `cancelled` answer
 (`doc/decision/cli-git-zfs-staging-under-cache.md`,
 "The answer a stopped unmount files,
 answered 2026-11-23").
+All of it sits behind the pin plan step 19 writes,
+so none reaches a user.
+Not yet shown:
+the busy branch's check against the pass's adversarial arm,
+the pass's M1 and M2 guest arms,
+VM item 15 and M3 to M9,
+a host control for each of ten guards,
+and the reboot phase of the kill points.
 Running:
-`pi-zfs-step-9-unmount-after-the-machine-restarted`,
-the same round resumed from its session after the restarts ended it at 05:42.
+`pi-zfs-step-9-unmount-what-the-last-round-left`,
+on the same branch.
 
 Next:
-a second Sonnet pass.
+merge when it ends.
 
 #### Step 10's designs: the add-time lock and the binding record
 
@@ -692,29 +697,6 @@ The gate's known causes are lettered in
 Two tests fail in every gate on this host,
 the pair that document names under cause H.
 
-#### Issue 6342: the lock control and the PID file
-
-State:
-merged as `1ba2fe767d`.
-The merged code compares the number the PID file names,
-and the owner chose that its contents be compared
-(`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
-The byte comparison and the second pass's lows merged as `33546ca1c3`.
-Its third pass,
-stopped early by the owner's choice that passes run only at a release
-(`review-third-pass.md` in
-`~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/`),
-found the code doing what the decision says,
-and one mutant the old tests killed that now survives,
-because the test arm answers a read by its count;
-with lows.
-Running:
-`pi-lock-control-pid-file-follow-ups-on-main`,
-on `fix/git-policy-cli-lock-control-pid-file-follow-ups-arm-answers-by-phase`.
-
-Next:
-merge when it ends.
-
 
 #### The tests and the gate under AppArmor
 
@@ -857,13 +839,18 @@ and "You should (almost) never be waiting.
 There is always more work.",
 now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
 
+Running:
+five Sonnet sorters of the run logs (lines 153 to 34,866),
+one per range of about 7,000 lines,
+briefed by `brief-sorter-run-logs.md` in that folder,
+each scanning its own `delete` items with the audit's quote scan before it ends.
+
 Next:
+apply their ledgers the same way,
+a script moving text verbatim so that the owner's words pass through no model;
 file the sorters' `issue` items
-(drafts under each `sorter-lines-*/keep/`),
+(35 drafts so far under each `sorter-lines-*/keep/`),
 each after a search for an issue that already holds it;
-then sort the run logs (lines 153 to 34,866) the same way,
-a sorter giving each range a disposition and a script moving text verbatim,
-so that the owner's words pass through no model;
 then delete the old file.
 
 ## Held work
