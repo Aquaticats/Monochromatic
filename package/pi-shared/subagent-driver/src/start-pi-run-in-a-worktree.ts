@@ -37,6 +37,15 @@ import {
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
 import {
+  POOL_LIMITS_VARIABLE,
+  PoolLimitsError,
+} from './pool-limits.ts';
+import {
+  CLOSED_POOL_EXIT_STATUS,
+  ClosedPoolRefusalError,
+  refuseARunOnAClosedPool,
+} from './refusal-of-a-run-on-a-closed-pool.ts';
+import {
   CommandAnswerMissingError,
   requiredOutputOf,
 } from './required-output-of-a-command.ts';
@@ -90,6 +99,34 @@ const options = parseWorktreeLauncherOptions({
   commandLine: argv.slice(2,),
   checkoutFolder,
 },);
+
+// A run whose provider and model name a closed pool is refused before the worktree, the dependency link and the unit, and before
+// the questions this command asks the session: a closed pool is no work a start should spend anything on. The refusal names the
+// pools a run that names no model of its own may take instead, and, for a command line that named no provider at all, the pool gate
+// that counts the runs going and chooses one.
+try {
+  refuseARunOnAClosedPool({
+    provider: options.provider,
+    model: options.model,
+    namedByTheCommandLine: options.namedByTheCommandLine,
+    environment: env,
+  },);
+}
+catch (error) {
+  if (error instanceof ClosedPoolRefusalError) {
+    console.error(`${options.name}: refusing to start: ${error.message}`,);
+    process.exit(CLOSED_POOL_EXIT_STATUS,);
+  }
+  // A pool limit this command cannot read is refused the same way and before the same work: it names the setting and its fault,
+  // and a run outside every pool never reaches this, so a broken setting refuses only the runs it could have touched.
+  else if (error instanceof PoolLimitsError) {
+    console.error(`${options.name}: refusing to start: ${error.message}`,);
+    process.exit(1,);
+  }
+  else {
+    throw error;
+  }
+}
 
 /**
  Whether the run works in the checkout itself, which is what a run that only reads does.
@@ -284,6 +321,10 @@ const unit = unitCommandOf({
   wallSeconds: options.wallSeconds,
   pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
+  // The unit inherits nothing, so a pool this command reopened through the variable is reopened for the driver inside the unit
+  // only by this word. Without it the driver reads the shipped table, finds the pool closed and refuses the run the launcher let
+  // through, telling its reader to set the variable they already set.
+  ...((env[POOL_LIMITS_VARIABLE] === undefined) ? {} : { poolLimits: env[POOL_LIMITS_VARIABLE] }),
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
     command: 'mise',

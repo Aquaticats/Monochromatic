@@ -39,6 +39,11 @@ pub struct ChangedPaths {
     ///  of the index cannot vouch for it (files as new as the index,
     /// or touched without a change).
     pub count: usize,
+    /// How many of them Git tracks,
+    /// so each one's change is a path a checkout of the tree has to write;
+    /// an untracked path is none of them,
+    /// because no worktree takes it.
+    pub tracked: usize,
     /// The first of them,
     /// with control characters shown as `?`;
     /// nothing when `count` is zero.
@@ -190,7 +195,8 @@ fn ask_git_request(context: &GitContext, mut request: GitRequest) -> Result<Vec<
 /// What:
 ///  The paths `git status` lists as changed or untracked in the worktree at `root`,
 /// counted,
-/// with the first,
+/// with how many of them Git tracks,
+/// the first,
 /// and whether a
 ///  `.gitattributes` file is among them (also one inside an untracked directory);
 /// or the words that say which Git run failed
@@ -219,14 +225,19 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
     // deep in the tree would go unnoticed, two glob modes at once make Git refuse the listing, and case-insensitive
     // matching would let it reach a file of another name.
     let untracked_attributes: Vec<u8> = ask_git_own_pathspecs(context, root, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
-    // Each status entry is two status letters, a space, then the path.
+    // Each status entry is two status letters, a space, then the path; `??` is the one pair that names a path nobody
+    //  tracks, and every other pair names a tracked path whose change a checkout has to write.
     let mut paths: Vec<&[u8]> = Vec::new();
+    let mut tracked: usize = 0;
     for entry in listing.split(is_nul_byte) {
         if entry.is_empty() {
             continue;
         }
         if let Some(path) = entry.get(3..) {
             paths.push(path);
+            if entry.get(..2) != Some(b"??".as_slice()) {
+                tracked += 1;
+            }
         }
     }
     let mut names_attributes: bool = false;
@@ -238,7 +249,7 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
     }
     let attributes_changed: bool = !untracked_attributes.is_empty() || names_attributes;
     let first: Option<String> = paths.first().map(plain_path_text);
-    return Ok(ChangedPaths { count: paths.len(), first, attributes_changed });
+    return Ok(ChangedPaths { count: paths.len(), tracked, first, attributes_changed });
 }
 
 /// Controls for the two listings.

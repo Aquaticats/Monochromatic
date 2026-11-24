@@ -94,7 +94,7 @@ fn object_format_is_known(option: &str) -> bool {
     };
 }
 
-/// Whether `words` are the one `init` the wrapper runs (`shadow_create.rs`):
+/// Whether `words` are the one `init` the wrapper runs (`shadow_create_init.rs`):
 /// `--bare --template= --object-format=<format>
 ///  --ref-format=reftable <path>`,
 /// and nothing else,
@@ -509,7 +509,7 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     }
     let rest: Vec<String> = words_after(request, position);
     // The shadow's creation cannot be run twice in place (a cut `init` leaves a directory the second run fails in), and it is ended at
-    //  its ceiling because its creator discards that directory and starts a fresh one (`shadow_create.rs`, `init_with_git`), which the
+    //  its ceiling because its creator discards that directory and starts a fresh one (`shadow_create_init.rs`, `init_with_git`), which the
     //  cut experiment found equal to an uncut run.
     if name == "init" {
         return request.without_prefix && is_shadow_creation(&rest);

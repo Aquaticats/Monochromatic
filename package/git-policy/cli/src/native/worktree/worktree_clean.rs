@@ -366,11 +366,21 @@ impl State {
 
 /// What:
 ///  Read the index and the tree of `HEAD` of a worktree,
-/// in process.
+/// in process,
+///  from the repository's own store.
 /// Why:
 ///   The judgement of cleanliness and the snapshot of a worktree that is not clean start from the same reading;
 /// every shape
 ///  the readers do not know is a refusal of kind `Unreadable`.
+///  The question this answers is about this worktree's own files and its own index,
+/// so it reads the repository's own store,
+/// as `main`'s reader did,
+///  and a store or a base a command's environment names does not move that reading:
+/// the objects it asks for are this repository's,
+/// and their names are their bytes.
+/// Where the repository's own store lacks them,
+/// the proof refuses as `main` refused,
+/// and the caller takes Git's own answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -388,7 +398,8 @@ fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> 
     let entries: Vec<IndexEntry> = or_unreadable(parse_index(bytes.as_slice(), format), "the index has a layout the reader does not know")?;
     let stats = or_unreadable(stored_stats(bytes.as_slice(), hash_length), "the index entries have no plain layout")?;
     let commit: String = or_unreadable(head_commit(git_dir, common_dir, format), "HEAD is not a plain ref to a commit")?;
-    let database: ObjectDatabase = or_unreadable(ObjectDatabase::open(common_dir, None, format), "the object database has a layout the reader does not know")?;
+    let opened: Option<ObjectDatabase> = ObjectDatabase::open_of_the_repository_alone(common_dir, None, format);
+    let database: ObjectDatabase = or_unreadable(opened, "the object database has a layout the reader does not know")?;
     let commit_name: Vec<u8> = or_unreadable(crate::repo_read_object::from_hex(commit.as_bytes(), format), "HEAD names no object")?;
     let commit_object = or_unreadable(database.read(commit_name.as_slice()), "the commit of HEAD is unreadable")?;
     let commit_fields = or_unreadable(parse_commit(commit_object.bytes.as_slice(), format), "the commit of HEAD has a layout the reader does not know")?;
@@ -405,6 +416,7 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
     let read_index_and_tree_entered: bool = begin_step("readIndexAndTree");
+    // Both proofs read the repository's own store, as `main`'s reader did: the question is about this worktree's own files.
     let read_index_and_tree_outcome = read_state(git_dir, common_dir);
     end_step(read_index_and_tree_entered);
     let state: State = read_index_and_tree_outcome?;

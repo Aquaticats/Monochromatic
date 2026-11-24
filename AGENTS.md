@@ -269,14 +269,12 @@ XVW:
  never the official `deepseek` provider.
 
 KRV:
- Short reviews of a change (all but integration passes,
- releases and designs put to the owner) run through Pi on DeepSeek,
+ Short reviews of a change (all but releases and designs put to the owner) run through Pi on DeepSeek,
  in a worktree of their own;
  never the official `deepseek` provider.
 
 LHZ:
- Gate reviews (an integration pass before main,
- a release,
+ Gate reviews (a release,
  a design put to the owner) and long-horizon audits,
  in every harness:
  run Claude Sonnet,
@@ -443,6 +441,13 @@ OPT:
  because ..." giving the reason for every adjacent pair.
  Score capability for the target workload,
  never fidelity to incumbents.
+
+RBE:
+ Rank options by what each delivers for the target workload;
+ effort to build,
+ raw system calls
+ or a new code path are costs to state,
+ never reasons to rank an option lower.
 
 OPA:
  `AskUserQuestion`:

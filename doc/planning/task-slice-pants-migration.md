@@ -398,6 +398,13 @@ Docs (`AGENTS.md` `CM3`,
  follow wave 3,
  not before.
 
+From lines 49449 to 49450 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Task definitions wait for Pants, and the session focuses on the Git wrapper: "Wait for Pants. And you focus
+  on the git wrapper.", 2026-11-10T08:04:14-05:00.
+
 ## Reversal
 
 Rollback is deletion.

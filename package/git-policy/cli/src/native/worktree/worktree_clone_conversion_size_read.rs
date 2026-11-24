@@ -88,17 +88,23 @@ const THREAD: &str = "clone-size-read-beside-the-check";
 ///  and a test that read the config could miss a promisor remote whose flags arrive through an included file,
 /// a worktree config or the environment
 ///  (the integration recheck's High 1 of 2026-11-22).
-/// The variable is honoured from the May 2024 maintenance releases
+/// The variable is honoured by the May 2024 maintenance releases
 ///  (`v2.39.4`,
 /// `v2.40.2`,
 /// `v2.41.1`,
 /// `v2.42.2`,
 /// `v2.43.4`,
-/// `v2.44.1`,
-/// `v2.45.1`,
-/// the commit `7b70e9efb`)
-/// and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
-/// a Git older than those that does not carry the fix ignores it and can fetch,
+/// `v2.44.1`;
+/// the commit `7b70e9efb`),
+/// by `v2.45.0` and later,
+/// and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later.
+/// On a missing blob the maintenance releases and Ubuntu's package exit 128
+///  ("lazy fetching disabled ... could not fetch ... from promisor remote"),
+///  so the rung declines to Git's checkout;
+/// `v2.45.0` and later print `BAD` in the size column and exit 0,
+/// which `parse_sizes` skips.
+/// A path whose size cannot be listed therefore only ever goes to Git's writing.
+/// A Git older than the fix that does not carry it ignores the variable and can fetch,
 ///  which is a recorded limit,
 /// not something this read can avoid.
 /// The option `--no-lazy-fetch` is deliberately not used:
@@ -106,14 +112,17 @@ const THREAD: &str = "clone-size-read-beside-the-check";
 /// and an older Git refuses it (exit 129),
 ///  which sent a plain source from the snapshot to Git's whole checkout
 ///  (the integration recheck's Medium 3 of 2026-11-22).
-/// An unavailable size prints as `BAD`,
-/// which `parse_sizes` skips.
-/// A path whose size cannot be listed therefore only ever goes to Git's writing.
 const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
 
 /// What the read's job answers:
 /// how long it took,
 /// and the map or the reason it cannot be read.
+/// Why:
+///   The map is parsed on the read's own thread,
+/// where `main` parsed it,
+/// so the parse stays off the adding thread of every add that uses the answer
+/// (the integration pass's Medium 1 of 2026-11-23);
+/// an add that abandons the read frees the answer beside the add (`free_the_answered_map_beside_the_add`).
 type ReadAnswer = (Duration, Result<BlobSizes, String>);
 
 /// What:
@@ -127,7 +136,7 @@ type ReadAnswer = (Duration, Result<BlobSizes, String>);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Joined = { spent: number; outcome: Result<Map<string, number>, string> } | { silent: string };
+/// type Joined = { spent: number; outcome: Result<BlobSizes, string> } | { silent: string };
 /// ```
 enum Joined {
     /// The read answered,
@@ -155,7 +164,7 @@ enum Joined {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SizeReadBesideTheCheck = { commit: string; answer: Channel<Result<Map<string, number>, string>> };
+/// type SizeReadBesideTheCheck = { commit: string; answer: Channel<Result<BlobSizes, string>> };
 /// ```
 pub struct SizeReadBesideTheCheck {
     /// The commit the read listed.
@@ -249,9 +258,11 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
     let began: Instant = Instant::now();
     let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
-    // The runner cleared this cell when it reaped the child, before anything was parsed (`child_watch_one_shot_run.rs`,
-    //  the `StepBound::EndAt` arm), so an abandon after this line cannot signal a reused process id.
-    child.store(0, std::sync::atomic::Ordering::SeqCst);
+    // The cell is not cleared here: the runner clears it with a compare-exchange when the child it published is
+    //  gone (`child_watch_one_shot_run.rs`, the `StepBound::EndAt` arm), so a store here would erase an abandon
+    //  marker for nothing, and it can name no process the runner has not already dealt with.
+    #[cfg(test)]
+    free::note_the_answer_was_sent();
     let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
 }
 
@@ -292,15 +303,17 @@ fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
 /// run where a partial clone does not fetch.
 /// Why:
 ///   This is the early read's own run;
-/// its output is parsed by the same `parse_sizes` the fence's serial read uses,
+/// its output is parsed here with the same `parse_sizes` the fence's serial read uses,
+///  on this thread and off the adding thread,
 ///  and a run that fails says what the fence's own read says.
-/// The runner clears the published child's cell when it reaps that child,
-///  before this function parses anything,
-/// so an abandon after the wait cannot signal a reused process id.
+/// The runner clears the published child's cell with a compare-exchange once the child is gone,
+///  before this function parses anything;
+/// the abandon can still signal an id no process has in the window that clear leaves,
+///  and the `abandon` doc says which.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
+/// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): BlobSizes;
 /// ```
 fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
     #[cfg(test)]
@@ -311,8 +324,8 @@ fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Pat
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
-    // This seam sits where the old code still named the reaped child, after the whole output was parsed,
-    //  so a control can show that the cell is cleared before parsing starts.
+    // This seam sits after the wait and before this thread parses anything: an abandon here must find the cell
+    //  clear, so a control can show that the parse starts only after the runner let go of the child.
     #[cfg(test)]
     hold_the_sizes_after_the_wait_where_a_control_asked();
     return Ok(parse_sizes(output.stdout.as_slice()));
@@ -395,7 +408,7 @@ fn end_the_read_the_fence_will_not_use(started: &mut Option<SizeReadBesideTheChe
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sizesOfThePaths(source, context, started): Map<string, number>;
+/// function sizesOfThePaths(source, context, started): BlobSizes;
 /// ```
 fn sizes_of_the_paths(source: &SnapshotSource, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<BlobSizes, String> {
     let commit: &str = source.clean.head_commit.as_str();
@@ -510,8 +523,12 @@ impl SizeReadBesideTheCheck {
     ///  so the cell takes `ABANDONED_CHILD` and the runner ends the child the moment it publishes it
     ///  (`child_watch_one_shot_run.rs`);
     /// a child already published is signalled here.
-    /// A read whose child was reaped has zero here,
-    /// because the runner clears the cell right after the wait.
+    /// A read whose child was reaped has zero here within the time the runner takes to finish reading the child's pipes;
+    /// between the kernel's reap and that clear the cell still names an id no process has,
+    /// and between this swap and its signal the id can be reaped,
+    /// so either signal reaches nothing unless the id is reused in that window
+    /// (about four million forks in under a second at this host's `pid_max`,
+    /// the integration recheck's Low 3 of 2026-11-22).
     /// The thread answers into a receiver this value drops,
     /// and its send is ignored.
     ///
@@ -520,17 +537,26 @@ impl SizeReadBesideTheCheck {
     /// abandon() { const answer = this.answer.tryRecv(); if (answer) noteWork(work, answer.spent); else note(work, 'started and not joined'); const published = this.child.swap(ABANDONED_CHILD); if (published > 0) kill(published, 'SIGKILL'); }
     /// ```
     pub fn abandon(self) {
-        match self.answer.try_recv() {
+        let take_entered: bool = begin_step("abandonTakeTheAnswer");
+        let answered: Option<BlobSizes> = match self.answer.try_recv() {
             Ok((spent, outcome)) => {
                 note_work(WORK, spent);
-                if let Err(reason) = outcome {
-                    debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
+                match outcome {
+                    Ok(sizes) => Some(sizes),
+                    Err(reason) => {
+                        debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
+                        None
+                    }
                 }
             }
             Err(std::sync::mpsc::TryRecvError::Empty | std::sync::mpsc::TryRecvError::Disconnected) => {
                 crate::add_timing::note(WORK, "started and not joined");
+                None
             }
-        }
+        };
+        free_the_answered_map_beside_the_add(answered);
+        end_step(take_entered);
+        let child_entered: bool = begin_step("abandonEndTheChild");
         let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
         if published > 0 {
             // SAFETY: `published` is this add's own Git child, published by its runner while it ran;
@@ -540,6 +566,7 @@ impl SizeReadBesideTheCheck {
         } else if published == 0 {
             debug(TAG, "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it");
         }
+        end_step(child_entered);
     }
 
     /// What:
@@ -556,7 +583,7 @@ impl SizeReadBesideTheCheck {
     /// answerWithinTheDeadline() { const waited = await timeout(deadline, this.answer); return read(waited); }
     /// ```
     fn answer_within_the_deadline(self) -> Joined {
-        let deadline: Duration = the_deadline();
+        let deadline: Duration = deadline::the_deadline(THE_JOIN_DEADLINE);
         return match self.answer.recv_timeout(deadline) {
             Ok((spent, outcome)) => Joined::Answered { spent, outcome },
             Err(RecvTimeoutError::Timeout) => Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::new(std::io::ErrorKind::TimedOut, format!("`git ls-tree` did not answer within {deadline:?}")))),
@@ -566,7 +593,7 @@ impl SizeReadBesideTheCheck {
 
     /// What:
     ///  The child number the cell holds now,
-    /// for a control that shows the cell is cleared as soon as the child is reaped.
+    /// for a control that shows the cell is cleared once the child is gone.
     /// Why:
     ///   Nothing in the shipped command reads the cell for an answer;
     /// a control has to,
@@ -580,32 +607,22 @@ impl SizeReadBesideTheCheck {
     pub(crate) fn published_child_for_a_control(&self) -> i32 {
         return self.child.load(std::sync::atomic::Ordering::SeqCst);
     }
-}
 
-/// The deadline in force for this join:
-/// the shipped one,
-/// or one a control asked for on this thread.
-/// Why:
-///   The shipped deadline is two minutes long,
-/// so a control that shows the deadline's own sentence cannot spend it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deadline = THE_JOIN_DEADLINE_FOR_THIS_THREAD.get() ?? THE_JOIN_DEADLINE;
-/// ```
-fn the_deadline() -> Duration {
+    /// What:
+    ///  A handle on the cell that holds the read's child,
+    /// for a control that reads it after `abandon` took the read.
+    /// Why:
+    ///   `abandon` consumes the read,
+    /// and a control of the cell's value needs the cell itself.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// childCellForAControl() { return this.child; }
+    /// ```
     #[cfg(test)]
-    if let Some(asked) = THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(std::cell::Cell::get) {
-        return asked;
+    pub(crate) fn child_cell_for_a_control(&self) -> std::sync::Arc<std::sync::atomic::AtomicI32> {
+        return self.child.clone();
     }
-    return THE_JOIN_DEADLINE;
-}
-
-#[cfg(test)]
-thread_local! {
-    /// A control's own deadline for the join on this thread;
-    /// nothing outside a control.
-    static THE_JOIN_DEADLINE_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 #[cfg(test)]
@@ -738,36 +755,6 @@ fn die_where_a_control_asked() {
 }
 
 /// What:
-///  A shortened join deadline for this thread,
-/// cleared when the value is dropped.
-/// Why:
-///   The shipped deadline is two minutes;
-/// a control that shows its sentence needs a moment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deadline = aControlShortensTheDeadlineTo(50); // deadline === 50 ms until dropped
-/// ```
-#[cfg(test)]
-pub(crate) fn a_control_shortens_the_deadline_to(within: Duration) -> TheDeadlineForTheControl {
-    THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| { deadline.set(Some(within)); });
-    return TheDeadlineForTheControl;
-}
-
-/// The stand-in of `a_control_shortens_the_deadline_to`,
-/// cleared when it is dropped.
-#[cfg(test)]
-pub(crate) struct TheDeadlineForTheControl;
-
-/// Clears the shortened deadline.
-#[cfg(test)]
-impl Drop for TheDeadlineForTheControl {
-    fn drop(&mut self) {
-        THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| { deadline.set(None); });
-    }
-}
-
-/// What:
 ///  A control that holds the read until this value is dropped,
 /// with the read's own start of it.
 /// Why:
@@ -827,6 +814,22 @@ impl Drop for TheDeadReadForTheControl {
         THE_READ_DIES.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
+
+/// The join's shipped deadline and the control that shortens it.
+#[path = "worktree_clone_conversion_size_read_deadline.rs"]
+mod deadline;
+
+/// The answered map an add will not use,
+/// and the thread that frees it.
+#[path = "worktree_clone_conversion_size_read_free.rs"]
+mod free;
+
+#[cfg(test)]
+pub(crate) use deadline::a_control_shortens_the_deadline_to;
+#[cfg(test)]
+pub(crate) use free::{answered_maps_freed_for_a_control, the_answer_was_sent_for_a_control};
+
+use free::free_the_answered_map_beside_the_add;
 
 /// Size-read controls stay out of the release executable.
 #[cfg(test)]

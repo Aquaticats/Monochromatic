@@ -643,6 +643,304 @@ unconfined outside these specific profile boundaries.
   not substitutes for workload behavior, process labels, kernel maps, namespace state, or successful
   syscall evidence.
 
+## The Git wrapper's own tests, gate and helpers under enforcement
+
+Recorded 2026-11-23T17:10:00-05:00 by the session that works on the Git wrapper,
+on the owner's word at its return:
+"Add rules to unblock whatever you need to do as you go this session."
+While the session weighed a profile of the tests' own,
+the owner wrote:
+"No,
+please do rules for everything instead of a dedicated profile that agents would have to remember to use."
+Not final:
+the whole container gate on `main` that checks these rules is still running.
+
+### Symptoms
+
+- `git init` of the wrapper's test fixtures failed with "Permission denied",
+  both in host test runs (fixtures under the shared cargo build folder `~/.cargo/build/<hash>/.../test-fixtures/`)
+  and inside the container gate (fixtures under `/work/package/git-policy/cli/target/`).
+  The AVCs were `operation="mkdir" profile="git" requested_mask="c"`,
+  inside the container with `fsuid=100999`.
+- `gh issue view` failed with the wrapper's "Could not find a real Git executable after examining 66 PATH candidates",
+  every candidate,
+  `/usr/bin/git` included,
+  reading "missing,
+  not an executable file,
+  or unreadable".
+- `gh issue create --body-file <draft under ~/temp/agent>` failed with "permission denied" on the draft.
+- After the first rules,
+  the fixtures' hooks and editor scripts were denied running `/usr/bin/sleep`,
+  `git` was denied `ptrace read` of unconfined processes,
+  `ssh-keygen` was denied the signing buffer under a Pi run's temporary folder,
+  and Git LFS was denied its cgroup's `cpu.max` under the account's user manager.
+- The audit log rotated all five of its 8 MiB files within minutes during a gate,
+  and `auditctl -s` showed `lost 68735` with `backlog_limit 64`:
+  denials were being dropped before they were written.
+
+### Root cause
+
+- AppArmor attaches a profile by the path of the program run,
+  and a rootless Podman container's processes are unconfined,
+  so the container's own `/usr/bin/git` attaches to the host's `git` profile.
+  That profile grants the development paths the rollout measured,
+  not the paths the wrapper's tests make their fixtures in.
+- The custom `gh` profile let the policy wrapper inherit `gh`'s narrow confinement,
+  which cannot read Git,
+  the repository,
+  the wrapper's own `/proc` files,
+  its caller's environment or its user unit.
+- The wrapper reads its caller's environment (`/proc/<pid>/environ`),
+  which the kernel checks as a ptrace read of the caller.
+- The Pi driver points `TMPDIR` into each run's folder,
+  so Git writes its signing buffer there and not in `/tmp`.
+- `fuse-overlayfs` is in complain mode,
+  so every access its profile does not name is logged as `ALLOWED`:
+  11,029 of 11,052 AppArmor records in the two newest audit files were its,
+  all inside rootless Podman's layer storage.
+  With a backlog of 64,
+  bursts like that drop records.
+
+### Rules added
+
+All of them are in the `local/` includes,
+loaded with `apparmor_parser --replace`,
+which also wrote each profile's entry in the early-policy cache.
+Backups of each local file as it was are under
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+
+```text
+# /etc/apparmor.d/local/git, first batch
+owner @{HOME}/.cargo/build{,/**} rwlk -> @{HOME}/.cargo/build{,/**},
+owner @{HOME}/.cargo/build/** mix,
+owner /work{,/**} rwlk -> /work{,/**},
+owner /work/** mix,
+owner @{PROC}/@{pid}/stat r,
+owner @{PROC}/@{pid}/fd/ r,
+owner @{PROC}/@{pid}/environ r,
+owner @{run}/user/@{uid}/systemd/user/monochromatic-git-policy-cli@.service r,
+# /etc/apparmor.d/local/git, second batch
+ptrace (read) peer=unconfined,
+ptrace (read) peer=gh,
+@{bin}/{sleep,cat,touch,mkdir,rm,rmdir,mv,cp,ls,echo,printf,true,false,test,head,tail,wc,sort,uniq,grep,sed,awk,date,kill,stat,sync,id,basename,dirname,readlink,realpath,tr,cut,tee,chmod,ln,mktemp,uname,od,diff,cmp,seq,expr,dd} rix,
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/**/cpu.max r,
+# /etc/apparmor.d/local/git, third batch
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/io r,
+@{PROC}/loadavg r,
+@{sys}/fs/cgroup/{,**/}{cpu,memory,pids}.{max,current} r,
+# /etc/apparmor.d/local/git, fourth batch
+owner @{PROC}/@{pid}/task/ r,
+/etc/machine-id r,
+@{sys}/fs/cgroup/{,**/}memory.stat r,
+@{bin}/env rix,
+```
+
+```text
+# /etc/apparmor.d/local/ssh-keygen, fourth batch: signing tests make keys and signatures in their fixtures
+owner @{HOME}/.cargo/build/** rw,
+owner /work/** rw,
+# /etc/apparmor.d/local/gh, fourth batch: its Go runtime's cpu.max
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/**/cpu.max r,
+```
+
+```text
+# /etc/apparmor.d/local/systemd-run (new): a scope runs the account's own programs as the profile runs system ones
+owner @{HOME}/** pux,
+```
+
+```text
+# /etc/apparmor.d/local/gh: the wrapper's line changed from rix, and one rule added
+owner @{HOME}/Monochromatic/.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli px -> git,
+owner @{HOME}/temp/agent/** r,
+```
+
+```text
+# /etc/apparmor.d/local/ssh-keygen
+owner @{HOME}/temp/agent/**/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
+```
+
+```text
+# /etc/apparmor.d/local/fuse-overlayfs (new); the profile stays in complain mode
+@{user_share_dirs}/containers/storage/overlay{,/**} rwlk,
+```
+
+The fifth batch came from the denials of the second whole gate on `main`,
+each line with the count that gate logged:
+
+```text
+# /etc/apparmor.d/local/git, fifth batch: each thread's stat (38), the container's init (1), the cgroup's swap figures (11)
+owner @{PROC}/@{pid}/task/@{tid}/stat r,
+@{PROC}/1/stat r,
+@{sys}/fs/cgroup/{,**/}memory.swap.{current,max} r,
+# /etc/apparmor.d/local/ssh-keygen, fifth batch: Git's signature verification buffer (2)
+owner @{tmp}/.git_vtag_tmp@{rand6} r,
+owner @{HOME}/temp/agent/**/.git_vtag_tmp@{rand6} r,
+# /etc/apparmor.d/local/sshd (new): the ssh terminal tests' own sshd reads its fixture under /work (3)
+owner /work/** rwlk,
+# /etc/apparmor.d/local/gh, fifth batch: its HTTP cache (55 creates, 55 reads)
+owner @{user_cache_dirs}/gh/{,**} rwlk,
+# /etc/apparmor.d/local/fusermount, fifth batch: Buildah unmounts its build context's overlay (2)
+umount /var/tmp/buildah-context-*/overlay/*/merge/,
+```
+
+The sixth batch came from host tests,
+and the seventh from the whole gate on `main` after the evening's merges (run `native-RxZa1T`):
+
+```text
+# /etc/apparmor.d/local/git, sixth batch: hooks of fixtures under the scratch folder (72 exec denials, host lock tests)
+owner @{HOME}/temp/agent/**/hooks/* mix,
+# /etc/apparmor.d/local/git_ssh (new), sixth batch: the ssh terminal tests' passphrase program (6 exec denials)
+@{bin}/false rix,
+# /etc/apparmor.d/local/ssh and local/git_ssh, seventh batch: the ssh terminal tests' key and known_hosts in their fixture
+# (client_key read 10, client_key.pub read 4, known_hosts create 2, under ssh and under git//ssh alike)
+owner /work/** rwk,
+```
+
+`local/git_ssh` belongs to the `ssh` child of the `git` profile,
+so it is loaded with `/etc/apparmor.d/git`.
+Each batch after the fourth is appended,
+and its profiles loaded,
+by `append-a-batch-of-local-rules-and-load.ts` in
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`,
+which keeps each local file as it was beside the batch in that folder's `keep/`.
+
+### Tradeoffs
+
+- Git may create,
+  lock,
+  link and run files anywhere in the shared cargo build folder,
+  which holds every build's output,
+  not only test fixtures.
+  `/work` does not exist on the host,
+  and only root could make it.
+- The listed tools run under Git's confinement,
+  so they gain no file access Git does not have.
+- Git,
+  and the wrapper under it,
+  may read the environment of any unconfined process of the account and of `gh`,
+  which includes credentials those processes hold.
+  The owner's threat model for this machine assumes it is not compromised.
+- Under `gh`,
+  the wrapper now runs under the `git` profile it runs under everywhere else,
+  not under `gh`'s.
+  `gh` may read every file the account owns under `~/temp/agent`.
+- `fuse-overlayfs` may read and write any file in the layer storage,
+  whoever owns it,
+  which is its job;
+  those accesses are no longer logged.
+- `systemd-run --scope` may run any program the account owns under its home folder,
+  under that program's own profile or unconfined,
+  as the stock profile already lets it run any system program.
+  Before the rule,
+  a scope of mise's `node`,
+  cargo's binaries or the repository's `node_modules/.bin` tools was refused.
+
+### The audit backlog
+
+The kernel's audit backlog limit was its default of 64:
+no rule under `/etc/audit` set it,
+and `audit-rules.service`,
+which loads `/etc/audit/rules.d` with `augenrules --load`,
+is disabled.
+The owner chose "A:
+8192,
+kept (Recommended)" on 2026-11-23.
+`auditctl -b 8192` set it for the running boot
+(`backlog_limit 8192`,
+with `lost 69301` as the count before),
+and `/etc/audit/rules.d/10-backlog-limit.rules` holds `-b 8192`.
+That file is read at boot only once `audit-rules.service` is enabled.
+The owner enabled it on 2026-11-23
+(`sudo systemctl enable audit-rules.service`,
+which linked it into `multi-user.target.wants`),
+after the coordinating session had left it to the owner,
+and said:
+"I didn't need to run it myself but I just ran it as a courtesy."
+The rule against acting on the system service manager in the skill `pi-as-subagent` is for the agents a session briefs;
+a change the owner has authorised the session to make,
+as the rules of this page,
+the session makes itself.
+
+### Verification so far
+
+- After the first batch:
+  `git init` under the cargo build folder succeeded;
+  `gh issue view 6347` printed its title through the wrapper;
+  a container fixture under `/work` ran `git init`,
+  a commit and its own `post-commit` hook,
+  which wrote its file.
+- After the `gh` read rule:
+  `gh issue create --body-file` filed issue 6396.
+- After the `fuse-overlayfs` rule:
+  no `fuse-overlayfs` record was logged during the running gate,
+  and the denials that followed could be read.
+  The kernel still dropped 484 records in the next minutes,
+  with the backlog limit unchanged at 64.
+- After the second batch:
+  no `ssh-keygen` denial was logged.
+- After the `systemd-run` rule:
+  `systemd-run --user --scope` ran the repository's `node_modules/.bin/mvm --help`,
+  which printed its usage.
+- The first whole gate on `main` (run `native-pl935G`) began before the second batch
+  and was stopped after 47 minutes,
+  once its one remaining test,
+  `landing::service_work::push_retry_tests::a_stopped_push_is_still_tried_again_after_the_service_restarts`,
+  had run for over 36 minutes;
+  whole gates took about 29 minutes before enforcement.
+  It had about 42 distinct failures,
+  most of them before the batches that answer them were loaded.
+  It served to find denials,
+  not to judge the rules.
+- Held,
+  not granted:
+  two `capability dac_override` denials for `umount` and one for `git`,
+  apparently root inside a container.
+  A grant to the `git` profile would also let root's `git` on the host pass file permissions,
+  so it waits until a failing test is tied to it.
+  The second gate logged four more for `umount`,
+  and none for `git`.
+- The second whole gate on `main`
+  (unit `apparmor-second-gate-on-main-20261123`,
+  at `a467a1d22c`)
+  ran with all four batches loaded,
+  in 21 minutes:
+  `Summary [979.117s] 9914 tests run: 9904 passed (8 slow), 10 failed, 36 skipped`.
+  Beside the cause-H pair of
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  it failed
+  `service_native::an_ssh_signed_commit_lands_through_the_service_and_verifies`,
+  the three `ssh_terminal` controls (about 10 s each,
+  the denied `sshd_config` read),
+  three `stale_ref_lock` controls,
+  and `worktree::worktree_clone_conversion_size_read::tests::a_process_that_ends_with_a_running_read_leaves_no_child_behind`.
+  The fifth batch answers the `sshd` and verification-buffer denials.
+  No denial,
+  and no signal record at all,
+  was logged for the `stale_ref_lock` controls:
+  in `a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`
+  the wrapper's fetch after the killed one exited 0
+  (`left: Some(0)` at `binary_stale_ref_lock_tests.rs:197`),
+  so their cause is not shown.
+  The lost count stayed at 69,301 through the gate,
+  so with the backlog at 8192 the kernel dropped no record.
+- The whole gate on `main` at `20c4bfa018`
+  (run `native-RxZa1T`,
+  after the evening's eleven merges and the sixth batch):
+  `Summary [938.002s] 9957 tests run: 9949 passed (7 slow), 8 failed, 37 skipped`.
+  The signed-commit control and the unknown-host-key `ssh_terminal` control pass since the fifth batch.
+  The eight are the cause-H pair,
+  the size read's child control,
+  two `ssh_terminal` controls,
+  whose denials the seventh batch answers,
+  and the three `stale_ref_lock` controls,
+  for which the gate's window logged no denial at all;
+  the lost count stayed at 69,301.
+  So their cause is either outside AppArmor or a rule that refuses without logging,
+  and is being looked for by running them alone.
+- Not yet shown:
+  a whole container gate on `main` with no AppArmor denial.
+
 ## Upstream filing artifact
 
 ### Upstream filing decision

@@ -456,10 +456,10 @@ await describe({
           },
         },),
         it({
-          name: 'says the pool the qwen plan replaced, the qwen plan pool the owner took out and the Kimi pool the owner closed take no new run, and the pools that were given room do, the one whose week has reset among them',
+          name: 'says the pool the qwen plan replaced and the Kimi pool the owner closed take no new run, and the pools that were given room do, the qwen plan pool the owner reopened and the one whose week has reset among them',
           fn: async () => {
             expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
-            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(true,);
             expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(false,);
             expect(poolTakesNoNewRun({ pool: NEURALWATT_DEEPSEEK_FLEX, },),).toBe(false,);
@@ -558,7 +558,7 @@ await describe({
       name: summaryTextOf.name,
       children: [
         it({
-          name: 'names every pool the table ships, in the order a run that names no model of its own takes them, each with its own limit',
+          name: 'names every pool the table ships, in the table order every count prints, each with its own limit',
           fn: async () => {
             expectCountsLineNamesEachPool({
               line: summaryTextOf(talliesOf({ runs: [], },),),
@@ -602,12 +602,17 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order, which reaches opencode-go first because the qwen plan pool before it is closed, goes on to Neuralwatt flex once opencode-go is full, and skips a pool that takes only its own model',
+          name: 'takes the owner order, which reaches opencode-go first because the qwen plan pool before it takes only its own model, goes on to Neuralwatt flex once opencode-go is full, and skips a pool that takes only its own model',
           fn: async () => {
             expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(OPENCODE_GO,);
-            // Runs still going on the pool the owner took out are counted there, and take no room from the pool a new run goes to.
+            // The qwen plan's DeepSeek pool takes only a run that names its own model, so a run naming no model never lands on it.
+            expect(openDefaultPools().map(function nameOf(pool,) {
+              return pool.name;
+            },),).not.toContain(QWEN_PLAN_DEEPSEEK.name,);
+            // Runs going on the qwen plan's DeepSeek pool are counted there, and take no room from the pool a run that names no model
+            // of its own goes to.
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, OPENCODE_GO.limit,), },),
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,), },),
             },),).toEqual(OPENCODE_GO,);
             // The pool the owner prefers is taken until it is full, and only then the next one.
             expect(firstDefaultPoolWithRoom({
@@ -706,6 +711,11 @@ await describe({
               },) ?? NEURALWATT_STANDARD;
             expect(roomIn(closed,),).toBe(0,);
             expect(closed.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
+            // The owner closed this pool before the caller did, so the reason a reader gets names both: a mistyped zero is never
+            // taken for the whole story of why no run may take the pool.
+            expect(closed.closed?.reason,).toContain(NEURALWATT_STANDARD.closed?.reason ?? '',);
+            // A pool the owner left open says only what the caller's zero says.
+            expect(spent.closed?.reason,).toBe(`${POOL_LIMITS_VARIABLE} set its limit to zero`,);
             /**
              A pool the caller named nothing about.
              */
