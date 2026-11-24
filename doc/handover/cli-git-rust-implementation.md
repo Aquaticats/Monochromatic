@@ -401,9 +401,20 @@ Both rounds decided points the designs leave open
 (`keep/state-so-far.md` in
 `~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`).
 
-Running:
-`pi-zfs-step-10-binding-design-takes-the-build-decisions`,
-putting both rounds' decisions and the eleventh read's two fixes into the designs.
+The build decisions are in both designs (`3e651a9678`);
+the eleventh read's two fixes were already in.
+That round found the build short of its accepted designs in four places
+(its report in `~/temp/agent/zfs-step-10-binding-design-takes-the-build-decisions-2026-11-24/keep/`):
+the preflight reads no grants,
+the refusal beside a standing plan names the removal even where the plan design says it refuses,
+the account companion the start-probe record put in step 10 is unbuilt,
+and the gate serves only the step 19 dataset;
+and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
+Waiting for the memory stall to ease
+(`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
+`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`,
+whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
+the first also writes up what widening the gate would need, for the owner.
 Running too,
 once the memory stall fell:
 `pi-zfs-step-10-reboot-and-power-loss-arms`,
