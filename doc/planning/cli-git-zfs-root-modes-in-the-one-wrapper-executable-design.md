@@ -952,5 +952,10 @@ Round folder `/home/user/temp/agent/zfs-root-modes-in-the-one-wrapper-executable
 - `keep/probe-wrapper-start-forwarded-word.log`: the same binary, a mode word and a main-level dispatch;
 - `keep/probe-wrapper-under-zed-env.log`: the wrapper started as ZED starts a zedlet;
 - `keep/probe-start-cost-raw.txt`: the raw timings;
-- `scratch/dispatch-fixture/`: the fixture dispatcher, the replay harness and its links;
-- `scratch/zed-source/`: the OpenZFS `zfs-2.4.4` files this design's ZED facts were read from.
+- `keep/dispatch-fixture/fixture_dispatch_probe.rs`: the fixture dispatcher, compiled three times with
+  `rustc --cfg rule_name_and_words`, `rule_words_only` and `rule_applets`;
+- `keep/dispatch-fixture/zed_replay.c`: the replay harness, built with `cc -O2 -o zed_replay zed_replay.c`;
+- `keep/zed-source/`: the OpenZFS `zfs-2.4.4` files this design's ZED facts were read from.
+
+The round's `scratch/` folder, where the fixtures, their links and the throwaway repository lived, was removed when
+the round ended; the two sources above rebuild it.
