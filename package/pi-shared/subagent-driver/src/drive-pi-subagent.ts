@@ -13,6 +13,7 @@ import {
   env,
 } from 'node:process';
 import { parseDriverOptions, } from './parse-driver-options.ts';
+import { PoolLimitsError, } from './pool-limits.ts';
 import {
   CLOSED_POOL_EXIT_STATUS,
   ClosedPoolRefusalError,
@@ -38,9 +39,17 @@ try {
 }
 catch (error) {
   // The refusal has a status of its own, so a caller tells a run that never started from one that started and failed.
-  if (!(error instanceof ClosedPoolRefusalError)) {
+  if (error instanceof ClosedPoolRefusalError) {
+    console.error(error.message,);
+    process.exitCode = CLOSED_POOL_EXIT_STATUS;
+  }
+  else if (error instanceof PoolLimitsError) {
+    // A setting this command cannot read is the caller's own mistake, like a missing option: it is named with its fault and
+    // without a stack, and no Pi is started. It is no closed pool, so it carries the status of any other failure.
+    console.error(error.message,);
+    process.exitCode = 1;
+  }
+  else {
     throw error;
   }
-  console.error(error.message,);
-  process.exitCode = CLOSED_POOL_EXIT_STATUS;
 }

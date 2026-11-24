@@ -179,9 +179,13 @@ export type WorktreeLauncherOptions = {
   readonly model: string;
 
   /**
-   Whether the command line named a provider, or this launcher's own default provider and model were read in its place.
+   Whether the command line named the provider and the model, or this launcher's own defaults were read in their place. A command
+   line may name one and not the other, and the one it named is kept.
    */
-  readonly namesItsOwnProvider: boolean;
+  readonly namedByTheCommandLine: {
+    readonly provider: boolean;
+    readonly model: boolean;
+  };
 
   /**
    How many model turns the run may start, or nothing to size the cap from finished runs.
@@ -268,7 +272,10 @@ export function parseWorktreeLauncherOptions({
     ...(parsed.session === undefined ? {} : { session: parsed.session, }),
     provider: parsed.provider ?? PROVIDER_OF_A_RUN_NAMING_NONE,
     model: parsed.model ?? MODEL_OF_A_RUN_NAMING_NONE,
-    namesItsOwnProvider: parsed.provider !== undefined,
+    namedByTheCommandLine: {
+      provider: parsed.provider !== undefined,
+      model: parsed.model !== undefined,
+    },
     ...(parsed['turn-cap'] === undefined ? {} : { turnCap: requiredPositiveNumber(optionOf({
       value: parsed['turn-cap'],
       name: 'turn-cap',

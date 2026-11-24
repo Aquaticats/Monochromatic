@@ -5004,6 +5004,15 @@ and the folding of `commit-command`,
 `typed-push-planning` and `service-after-commit-work`
 (they fold now by the owner's rule).
 
+From lines 45994 to 45997 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The four libraries' shared test helpers: **"A separate library (Recommended)"** (`disposable-test-folders`).
+- Where the libraries live: **"package/<job>/core-rust (Recommended)"**, crate `monochromatic-<job>`.
+- Their plural names: **"Keep the names, exempt them (Recommended)"**; `doc/planning/singular-dir-name-invariant.md` gets the entries.
+  With these three the plan's open points for the owner are closed (`doc/planning/cli-git-source-layout-target-tree.md`, "Open points for the owner").
+
 ## First review, of the 46-library draft (2026-11-04)
 
 The reviewer was `openai/gpt-6.1-sol` (thinking xhigh),

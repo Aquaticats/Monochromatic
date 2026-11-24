@@ -104,6 +104,14 @@ and each stays in force until the owner changes it.
   the skill `pi-as-subagent`,
   section "Who writes and who reviews".
 
+From lines 39306 to 39308 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Owner:
+  "Do whatever you need to do,
+  but don't abandon any work."
+
 ## The restart the owner announced on 2026-11-23
 
 The owner,
@@ -143,20 +151,20 @@ and the launchers now take their pool from `writer-pool-for-a-round.ts` in the l
 which refuses that pool.
 The driver and the worktree launcher now refuse a run on a closed pool,
 and the qwen plan's DeepSeek pool is open for runs that name it:
-merged as `65a1dc0e78`.
-Its pass,
-stopped early by the owner's choice that passes run only at a release
-(`~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`),
-found two things that make `main` worse:
-a pool reopened with `PI_RUNS_POOL_LIMITS` through the gate or the worktree launcher is refused inside the run's unit,
-which gets only `PATH` and `HOME`;
-and `lint` is red.
-The round launchers in the launch folder call `drive-pi-subagent.ts` directly and set no `PI_RUNS_POOL_LIMITS`,
-so they are not reached.
+merged as `65a1dc0e78`,
+and its pass's findings merged as `cdc21b3661`:
+a reopened pool now reaches the run's unit (shown on real units),
+`lint` is green,
+and a malformed `PI_RUNS_POOL_LIMITS` refuses only the pool it touches.
+The owner answered the pass's three questions on 2026-11-23
+(`doc/decision/pi-driver-closed-pools-and-the-worktree-launchers-default.md`):
+the qwen plan's pool keeps 5,
+a reopened pool is forwarded into the unit,
+and a worktree launch naming no provider takes the first open pool instead of refusing.
 Running:
-`pi-driver-closed-pool-follow-ups-on-main`,
-on both and the pass's other findings,
-on `fix/pi-shared-subagent-driver-closed-pool-follow-ups-forward-pool-limits`.
+`pi-driver-launcher-takes-the-first-open-pool`,
+on that last answer,
+on `fix/pi-shared-subagent-driver-launcher-takes-the-first-open-pool`.
 A fresh worktree's `lint` and `lint:types` fail on a stale store link
 (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` when the wrapper relinks it),
 seen by three passes today (issue 6339's family).
@@ -331,16 +339,25 @@ set by step 19 and reported by step 18
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "What hiding comes to,
 answered 2026-11-23").
-Running:
-`pi-zfs-no-configuration-second-pass-findings`,
-on B1,
+The round on B1,
 B2,
-B4 and the lows,
-with that answer in its inbox.
+B4,
+the lows and that answer ended with every item done
+(`keep/report-pi-zfs-no-configuration-second-pass-findings.md` in
+`~/temp/agent/zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/`).
+Its merge into `main` stopped on two conflicts with step 9's unmount:
+`package/git-policy/cli/src/native/lib.rs` and `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`.
+The SPEC now says the probe with no file costs about 25 ms once per boot (1.14 times),
+spread over three look-ups,
+with the cause not found.
+Running:
+`pi-zfs-no-configuration-merge-main-after-step-9-unmount`,
+merging `main` and resolving both.
 
 Next:
-read its diff;
-then merge.
+merge it;
+then a fresh round that removes the probe's 25 ms,
+or moves it off the path a person waits on.
 
 #### Step 8's follow-up: the recheck's findings and the sweep's cost
 
@@ -404,239 +421,115 @@ puts it back when the unmount is refused,
 and finishes after a kill.
 
 State:
-branch `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` at `59f2bd1876`.
-Its integration pass said not fit
-(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`):
-the reopen of the staged folder by its handle fails on a real kernel,
-no recovery after a kill is wired,
-and two mount calls act on a mount the handler did not prove.
-All of it sits behind the pin plan step 19 writes,
-so none reaches a user.
-The owner chose that a stopped unmount files an answer in an extended format
+merged as `931d6a2c9c`,
+after its round on the integration pass
+(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`)
+fixed the handle reopen,
+wired the recovery after a kill at four kill points,
+and built the owner's `cancelled` answer
 (`doc/decision/cli-git-zfs-staging-under-cache.md`,
 "The answer a stopped unmount files,
 answered 2026-11-23").
+All of it sits behind the pin plan step 19 writes,
+so none reaches a user.
+Not yet shown:
+the busy branch's check against the pass's adversarial arm,
+the pass's M1 and M2 guest arms,
+VM item 15 and M3 to M9,
+a host control for each of ten guards,
+and the reboot phase of the kill points.
 Running:
-`pi-zfs-step-9-unmount-after-the-machine-restarted`,
-the same round resumed from its session after the restarts ended it at 05:42.
+`pi-zfs-step-9-unmount-what-the-last-round-left`,
+on the same branch.
 
 Next:
-a second Sonnet pass.
+merge when it ends.
 
-#### Step 10's designs: the add-time lock and the binding record
+#### Step 10: the add route from registration to a verified fill
 
 Outcome:
-the owner accepts the two designs step 10 is built from.
+a `git worktree add` on ZFS claims its slot,
+registers the worktree already locked,
+snapshots and clones the main checkout,
+and fills and checks the slot,
+resuming after a kill.
 
 State:
-the lock design is on `docs/planning-cli-git-zfs-add-time-git-lock-design` at `4625537ae5`,
-the binding record on `docs/planning-cli-git-zfs-add-binding-record-design` at `c077bdb1e1`,
-each after a round on the reviewer's sixth read.
-The reviewer's sixth read
-(`review-sixth-read-before-acceptance.md` in
+the owner accepted step 10's two designs on 2026-11-23,
+kept all 21 of their choices,
+reworded the plan's pointer sentence,
+and put the add's read of the plan folder in step 10
+(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`).
+The designs are on `main` as proposals:
+`doc/planning/cli-git-zfs-add-binding-record-design.md` and `doc/planning/cli-git-zfs-add-time-git-lock-design.md`.
+The lock reviewer's eleventh read
+(`review-eleventh-read-and-step-10-question.md` in
 `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`)
-found the lock design fit with three lows,
-and the binding fit after fixes its round has since made:
-a stale test paragraph,
-and a hazard in the settling command,
-which on a `settling` binding could remove the registration of a worktree Git had already checked out.
-That file holds both veto lists in plain words and the two plan sentences as they would read after the change.
-The same reviewer's seventh read,
-`review-seventh-read-before-acceptance.md` beside it,
-found the lock design fit to put to the owner as it stands,
-with two lows that can ride with its next commit,
-and plan step 10 buildable from the two documents and the accepted records.
-It found the binding fit after three mediums,
-all in the settling command and none of them step 10's:
-its two modes overlap on a half-made checkout;
-a settling command that was killed and is run again once the pool answers has no command the text shows to work;
-and the third option of the veto entry V23 sends a person in a circle.
-The record reviewer's seventh read found the same overlap from its side,
-and one more state with no command:
-a clone destroyed by hand before any removal ran.
-The binding's round on both reads ended at `86ce40be3c`
-(`continuation-seventh-reads.md` in its round folder is what it was asked);
-its report,
-`keep/report-seventh-reads.md`,
-says all eight items are done,
-H1 and H2 among them.
-Both reviewers' eighth reads
-(`review-eighth-read-before-acceptance.md` beside each seventh read;
-the lock reviewer is agent `a162ea896d0a950e2`,
-the record reviewer `a6207db50e3431e04`)
-found the lock design fit to put to the owner as it stands,
-and the binding fit after one narrow round:
-a `settling` binding with no plan is told two different commands
-(the lock reviewer's U26,
-the record reviewer's J1),
-with lows and the unrecorded clone at `snapshotted` (U27).
-The round on both eighth reads ended at `abeb058f63`,
-its report saying every item done,
-with one section,
-"Which command is true for a state",
-that the other rules cite.
-Both ninth reads
-(`review-ninth-read-before-acceptance.md` beside each eighth read)
-found the lock design fit as it stands,
-and the binding not yet:
-its new section said a `settling` binding never has a plan,
-which is false,
-so a plan a killed removal left could end with no clone,
-no binding and no command
-(the record reviewer's K5,
-blocking),
-and the removal's rule had lost its scope
-(U34 and K2).
-The round on both ended at `64b0ce5a36`,
-every item done by its report (`keep/report-ninth-reads.md`).
-It adds one rule:
-the add refuses while a plan stands.
-Both tenth reads
-(`review-tenth-read-before-acceptance.md` beside each ninth read)
-found the lock design fit as it stands,
-and three new states in the binding:
-a loop of refusals over a `settling` binding with a plan and a gone clone
-(K7,
-U40),
-a gone-clone row the add's readers contradict
-(K8,
-U39,
-which reaches step 10),
-and an add that reads the plan folder the plan design says it does not
-(K9,
-U41).
-Both designs,
-and the four other designs of this section and the next two,
-merged into `main` as proposals on 2026-11-23 at 18:29,
-by the owner's choice that a design merges when its round ends.
+left two fixes to the binding,
+neither step 10's:
+a wrong sentence about a `snapshotted` resume,
+and `doctor` naming two commands for one plan state.
 Running:
-the binding's round on both tenth reads
-(`continuation-tenth-reads.md` in its round folder),
-which also writes the plan record's paragraph K9 asks for.
+`pi-zfs-step-10-add-route-to-a-verified-fill`,
+the build,
+on `feat/git-policy-cli-zfs-step-10-add-route-to-a-verified-fill`;
+and the binding's round on the two fixes
+(`continuation-eleventh-read.md` in its round folder).
 
 Next:
-the acceptance questions,
-step 10's two designs and the three records.
-It names what the owner accepts for step 10,
-and puts one sentence of the plan to the owner:
-step 10's "discarded copied Git administration",
-which the accepted dirty-main design keeps and the binding calls wrong.
+merge each when it ends.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
 
 Outcome:
-the owner accepts the records a removal persists,
-together with the binding record they share states with.
+the owner accepts the records a removal persists.
 
 State:
-the plan record is on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design` at `28c590b4c4`,
-and the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design` at `77410b209a`,
-each after a round on the reviewer's sixth read.
-The reviewer's sixth read
-(`review-sixth-read-before-acceptance.md` in
-`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`)
-found each fit after listed fixes and the set not yet ready,
-for two things in the binding its round has since been given.
-It holds the three veto lists in plain words.
-The same reviewer's seventh read,
-`review-seventh-read-before-acceptance.md` beside it,
-found the two records fit after lows,
-and the set not ready for two things in the binding
-("Step 10's designs").
-Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
-each with the words that should replace it.
-The rounds on H9 and H10 ended with every low done:
-the origin cleanup record at `ea271e9e1d`,
-the plan record at `db69df972a`.
-The record reviewer's eighth read found the three fit with lows and the set ready to go to the owner with its list of accepted-design sentences
-(now its check 4,
-with entries 2,
-3,
-5,
-12 and 13 changed),
-once the binding's J1 is mended.
-Its ninth read retracted that set verdict on K5
-("Step 10's designs"),
-and found the two records fit as they stand once the binding takes K5's fix.
+the plan record and the origin cleanup record are on `main` as proposals
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`).
+The binding they share states with is accepted for step 10.
+Running:
+the record reviewer's eleventh read of the binding's last diff against the set,
+writing the acceptance question with its list of accepted-design sentences that the records leave untrue
+(`review-eleventh-read-and-the-records-question.md` in
+`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`).
 
 Next:
-its tenth read
-("Step 10's designs");
-then the acceptance question for the three,
-with that list.
-
-The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
-four in `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-and the sentences on A27 and on what a removal names in
-`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`.
-The review gives the replacement text for each.
-An edit to an accepted design is the owner's to allow,
-so these go to the owner with the acceptance question.
+the acceptance question for the two records.
 
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
 Outcome:
-the owner accepts the two designs,
-and confirms or changes the direction to unmount inside a holder's mount namespace.
+the owner accepts the two designs.
 
 State:
-the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `b62601213f`,
-and the cancelled removal on
-`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `c8cd85501c`,
-each after a round on the reviewer's seventh read.
-The reviewer's seventh read
-(`review-seventh-read.md` in
-`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
-found each fit after listed fixes and nothing high.
-Of the forced arm's first group of probe arms it found two ready to be scripted as written:
-no arm starts in a fresh private mount namespace,
-and none builds the peer group its rows assume.
-It holds both veto lists and the confirmation question's wording.
-The forced arm's round gave every arm a common start,
-the mode of `unshare` it uses and a positive control;
-the coordinator read that section,
-and no review follows it,
-because the guest round is its test.
-The cancelled removal's round closed its one medium
-(it no longer refuses a kept receiver the forced arm does not refuse);
-the coordinator read its diff.
-The guest round `pi-zfs-forced-removal-first-probe-arms-in-a-guest` scripted and ran Tier 0 from the design at `b62601213f`
-on kernel 6.8 with hand-made mounts,
-and wrote the results as a section of
-`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`
-on `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`
-(folder `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`).
-The design's reviewer read it against the logs
-(`review-guest-probe-arms.md` in that review's `keep/`):
-every result follows from its log,
-every arm started fresh,
-and the direction holds there,
-with five mediums:
-way 3's unmount half shows nothing,
-one variant of T0-3 shows nothing of its own,
-no arm starts from the production shape where the host mounts the clone,
-T0-5c gives two answers to whether way 8 is taken,
-and way 7 end to end never ran.
-Nothing is shown on kernel 7.3 or on ZFS.
-The design places the confirmation after Tier 0,
-Tier 1 (ZFS,
-no route) and Tier 2 (step 17's code);
-the reviewer drafted the question with every slot the guest could not fill left empty.
+both are on `main` as proposals
+(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`).
+The owner confirmed the direction on 2026-11-23:
+unmount by the marker inside a holder's namespace,
+and go ahead and report for both sandbox cases
+(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+"The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23").
+That rests on Tier 0 on kernel 6.8 and in a rootless container on 7.3 over ZFS,
+and Tier 1 on a guest pool
+(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
+read against the logs in `review-second-probe-round.md` in
+`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`).
+Tier 2 needs step 17's code.
 Running:
-`pi-zfs-forced-removal-probe-arms-gaps-kernel-7-and-tier-1`,
-on the mediums' arms,
-Tier 0 on kernel 7.3 (a guest of 6.19 or newer,
-or a rootless container on this machine's kernel),
-and Tier 1;
-and the design writer's round on the text edits the read asks for,
-G4's policy among them
-(`continuation-guest-read-edits.md` in `~/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/`).
+`pi-zfs-forced-removal-probe-arms-second-read-findings`,
+on the read's faults in the measurements section
+(which program ran where,
+the heading's time,
+a user-namespace holder named as unshown,
+one misleading T0-10 line).
 
 Next:
-a read of both against the logs;
-then the confirmation question for the direction,
-since Tier 2 needs step 17's code;
-then the acceptance question.
+merge it;
+then the acceptance question for the two designs.
 
 #### Accepted designs that wait for their build steps
 
@@ -665,26 +558,6 @@ the owner's bar for a worktree add,
 restated on 2026-11-23:
 a declined add costs what `main` paid for the same source.
 
-#### The size read beside the source check
-
-Outcome:
-rung 1 reads sizes without making a declined add slower.
-
-State:
-merged as `e37566df9c`.
-Its follow-up is on `feat/git-policy-cli-fence-size-read-beside-source-check` at `9329642a95`.
-Its Sonnet pass
-(`~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`)
-found it not fit:
-the declined add's step cost is gone,
-but the parse moved onto the adding thread,
-so the `conversionFence` step of every served and dirty add is 7.8 to 13.4 ms longer than `main`'s.
-Running:
-`pi-fence-size-read-integration-pass-findings`,
-which puts the parse back off the adding thread.
-
-Next:
-a second Sonnet pass.
 
 ### The wrapper's test gate tells the truth
 
@@ -696,65 +569,6 @@ The gate's known causes are lettered in
 Two tests fail in every gate on this host,
 the pair that document names under cause H.
 
-#### Issue 6342: the lock control and the PID file
-
-State:
-merged as `1ba2fe767d`.
-The merged code compares the number the PID file names,
-and the owner chose that its contents be compared
-(`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
-The byte comparison and the second pass's lows merged as `33546ca1c3`.
-Its third pass,
-stopped early by the owner's choice that passes run only at a release
-(`review-third-pass.md` in
-`~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/`),
-found the code doing what the decision says,
-and one mutant the old tests killed that now survives,
-because the test arm answers a read by its count;
-with lows.
-Running:
-`pi-lock-control-pid-file-follow-ups-on-main`,
-on `fix/git-policy-cli-lock-control-pid-file-follow-ups-arm-answers-by-phase`.
-
-Next:
-merge when it ends.
-
-#### Issue 6344: the sibling shadow control
-
-State:
-merged as `0b7a48def4`.
-The follow-ups merged as `a87967fe57`;
-the guard costs about one second per gate,
-and the owner kept it
-(`doc/decision/cli-git-shadow-sibling-control-guard-costs-a-second-per-gate.md`).
-Their pass,
-stopped early
-(`review-follow-ups.md` in
-`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/`),
-found each guard red when broken,
-and one medium in cause M's words with lows.
-Running:
-`pi-shadow-sibling-control-follow-ups-on-main`,
-on `fix/git-policy-cli-shadow-sibling-control-follow-ups-cause-m-words`.
-
-Next:
-merge when it ends.
-
-#### Issue 6354: the "recorded and not woken" warning
-
-State:
-issue 6345's control and its test wait merged as `41e55743cf`,
-the comment is posted and the issue is closed;
-6353 and 6355 are open on GitHub.
-Issue 6354 is decided
-(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`).
-Running:
-`pi-worktree-removal-not-woken-warning-names-the-way-out`,
-on `fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
-made from 6345's tip.
-
-Next:
-merge when it ends.
 
 #### The tests and the gate under AppArmor
 
@@ -819,7 +633,11 @@ The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
 which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.rules`.
-That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
+`audit-rules.service`,
+which loads that file at boot,
+is enabled since 2026-11-23,
+by the owner
+("Things a new session would not find elsewhere" has the owner's words).
 
 Next:
 read the gate on `main` against the baseline and its denials,
@@ -847,14 +665,27 @@ and what a session does is in `doc/handover/agents-at-once-on-this-machine.md`,
 "The freeze of 2026-11-22 set no limit on runs".
 Two later readings are in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`,
 both under lighter loads than the freeze's.
+The machine's restarts on 2026-11-23 cleared both settings,
+which are runtime values;
+the session applied them again at 2026-11-23T19:26:27-05:00,
+since the owner's answer keeps them until the comparison.
+After any restart,
+read both and apply them again
+(the commands are in the freeze account).
+Running:
+a start read at 19:26:55 under four guests,
+the batch gate and the Pi rounds' builds,
+and a sampler of the batch gate's container memory every 30 seconds
+(scope `sample-gate-container-memory-second-evening-batch-20261123-b`).
 
 Next:
-the same counters under a load like the freeze's,
-which cannot be made on purpose and has to be caught;
+the end read when the batch gate ends,
+and the rates between the two reads;
 then the persistent form of the two settings,
-for the owner to apply;
-and one gate's fixture file system memory,
-measured.
+for the owner to apply.
+A gate's fixture file system is a `tmpfs` capped at 768 MiB,
+so one gate's fixtures hold at most that
+(the freeze account's question 4 has the one reading so far).
 
 ### The handover holds only open work
 
@@ -870,89 +701,39 @@ are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
 The held backlog is on GitHub
 ("Held work").
 Ranges applied so far:
-none.
+lines 34,867 to 49,707 of the old file,
+committed as `a2b4fca7c8`.
+Five sorters gave each range a disposition,
+and `apply-the-cut-moves-to-their-targets.ts` in that folder moved 187 entries verbatim into 73 targets
+(41 existing files and 32 new records,
+each new one saying in its status that it holds moved text only),
+each after a line naming its lines in the old file;
+one entry was already held and was skipped.
+Before that,
+every quotation of the owner's inside a `delete` item was made a `move`
+(`quotations-the-ended-ledgers-would-delete/keep/` and `ledgers-keep-every-owner-quotation/keep/` in that folder),
+because the first check of quotations read them by alternation and by their opening characters and missed some
+(its controls and flaws:
+`keep/quotation-check-controls-2026-11-23.md`).
+Among the owner's words the rewrite had lost are
+"Treat reviews as async."
+and "You should (almost) never be waiting.
+There is always more work.",
+now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
 
-Two sorters have ended,
-each with a ledger that covers its range exactly once and with issue drafts,
-under `sorter-lines-<first>-to-<last>/keep/` in that folder:
-
-- lines 44,768 to 46,713,
-  in 307 items.
-  The coordinator's check script passed its coverage,
-  and one stretch read by hand agreed with it.
-  Its `delete` items are not applied until each quotation inside them that stands nowhere else is moved or shown to be held.
-- lines 46,714 to 49,499,
-  in 151 items,
-  after the same lesson was sent to it:
-  it moved the owner's sentences and answer labels out of `delete`.
-  Four of its items are private and get no target.
-  Not yet checked by the coordinator.
-
-Each sorter's report came as its last message,
-with contradictions between the old text and current documents and proposals for rule text.
-The second sorter's is also in its `keep/state-so-far.md`;
-the first sorter's is only in the session's record until it is copied into its `keep/`.
-
-The sorters of lines 41,470 to 44,767
-and of the open review findings,
-the picks and the working rules
-(40,844 to 41,469 and 49,500 to 49,707)
-have ended too,
-the second with 78 items covering its 834 lines exactly.
-
-The check of quotations inside `delete` items first matched a passage's first forty characters;
-a control set showed it wrong both ways,
-the unsafe way being a sentence taken as held because another opens alike
-(`keep/quotation-check-controls-2026-11-23.md`).
-Its replacement,
-`list-whole-quotations-a-ledger-would-delete.ts`,
-matches whole passages with whitespace read as one space,
-and got all three control items right.
-Over the four ended ledgers it finds 208 quoted passages in `delete` items,
-159 of them held nowhere else:
-76 in lines 41,470 to 44,767,
-65 in 44,768 to 46,713,
-17 in 46,714 to 49,499,
-and one in the findings,
-picks and working rules.
-
-The sorter of the open work (34,867 to 40,843) has ended:
-196 items cover its 5,977 lines exactly,
-112 of them `delete`,
-with seven issue drafts
-(`sorter-lines-34867-to-40843/keep/`).
-The Sonnet audit of the 159 has ended
-(`quotations-the-ended-ledgers-would-delete/keep/`):
-30 are the owner's words,
-9 are held elsewhere,
-and 120 are not the owner's.
-It found the check pairs quotes by alternation,
-so a short quotation flips every pair after it,
-and its own scan found 11 more of the owner's quotations the check never listed.
-Of the owner's,
-ten stand nowhere else,
-not even in a range another ledger moves
-(Group 1 in its report,
-among them "Fall back automatically (Recommended)",
-"Kimi for these only"
-and "Fix the driver too.");
-the rest have a copy in a range a ledger moves.
-The rule that reviews never block a merge was one such unmoved passage,
-and it was lost from the rewrite until the owner said it again;
-it is now `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
+Running:
+five Sonnet sorters of the run logs (lines 153 to 34,866),
+one per range of about 7,000 lines,
+briefed by `brief-sorter-run-logs.md` in that folder,
+each scanning its own `delete` items with the audit's quote scan before it ends.
 
 Next:
-turn the audit's Group 1 lines into `move` items in their ledgers,
-then apply the ledgers by script;
-the ranges in this order:
-the owner's decisions (lines 41,470 to 49,499 of the old file),
-the open review findings and the picks made under delegation (40,844 to 41,469),
-the open work (34,867 to 40,843),
-the working rules (49,500 to 49,707),
-and the run logs last (153 to 34,866).
-A sorter gives each range a disposition with its evidence and moves nothing;
-a script then moves text verbatim,
-so that the owner's words pass through no model.
+apply their ledgers the same way,
+a script moving text verbatim so that the owner's words pass through no model;
+file the sorters' `issue` items
+(35 drafts so far under each `sorter-lines-*/keep/`),
+each after a search for an issue that already holds it;
+then delete the old file.
 
 ## Held work
 
@@ -999,6 +780,20 @@ or that is no issue:
 ## Things a new session would not find elsewhere
 
 - Do not run `pnpm install` in a new worktree (issue 6339).
+- The coordinating session makes a host change the owner has authorised itself,
+  with the passwordless `sudo`,
+  and does not hand it back.
+  The owner,
+  2026-11-23,
+  after enabling `audit-rules.service` when the session had left that to the owner:
+  "I didn't need to run it myself but I just ran it as a courtesy."
+  The rule against acting on the system service manager in the skill `pi-as-subagent` binds the agents a session briefs.
+  Applying anything ZFS-related to the host stays the owner's act.
+- No round runs `mise run toolchain:install`,
+  not even for one tool in its own worktree:
+  it waits for issue 6316,
+  in the owner's words "Because we need to make mpm-shadow prefer system package managers on non-atomic distros first."
+  Issue 6354's round ran it for `cargo-nextest` (it installed nothing).
 - An answer from the owner changes the bar for reviewers that are already running.
   Send it to each of them in the turn it is recorded.
 - A question to the owner blocks the coordinator until it is answered.

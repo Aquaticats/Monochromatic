@@ -480,12 +480,34 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
 ///   The sibling control holds that a start cut at its ceiling is made again,
 /// and the start made again is the one no shortened ceiling may decide
 /// (`cut_the_first_init_attempt_at`).
-///  A second is longer than that control's 700 ms ceiling,
+///  The second is longer than the ceiling the first start is cut at
+/// (`THE_FIRST_START_IS_CUT_AT`,
+/// and the `const _: () = assert!` beside the two constants holds them together),
 /// so a plant that kept the ceiling over the second start fails the control every run,
 /// and the control's first-attempt-only cut is held by the suite and not by a plant run by hand.
 ///  It costs the control this second and no other:
 /// the every-time control's starts all hang six hundred seconds before the line that waits.
 const THE_START_MADE_AGAIN_TAKES: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The ceiling the sibling control cuts its first `init` start at,
+/// and the one the planted-cut control plants for its own first attempt.
+/// Why:
+///   Both are one plant,
+/// so both read one number:
+/// a ceiling written twice drifts from the delay it has to stay under,
+/// and no control would notice.
+const THE_FIRST_START_IS_CUT_AT: std::time::Duration = std::time::Duration::from_millis(700);
+
+/// A check the compiler makes while building:
+/// the start made again takes longer than the ceiling that cuts the first one.
+/// Why:
+///   The sibling control holds window two with that delay,
+/// and a delay shorter than the ceiling finishes inside a ceiling wrongly kept over the second start,
+/// so the suite would hold nothing and pass.
+const _: () = assert!(
+    THE_START_MADE_AGAIN_TAKES.as_millis() > THE_FIRST_START_IS_CUT_AT.as_millis(),
+    "the start made again must take longer than the ceiling that cuts the first one"
+);
 
 /// A reftable repository,
 /// and a Git shim that hangs in the first `hang` starts of `init` after it made a partial shadow directory
@@ -513,9 +535,9 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
     crate::test_support::executable(
         shim.as_path(),
         format!(
-            "#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; if [ \"$argument\" = init ]; then is_init=1; fi; done\nif [ -n \"$is_init\" ]; then\n  if [ \"${variable}\" -le {hang} ]; then mkdir -p \"$last\"; : > \"$last/PARTIAL\"; exec sleep 600; fi\n  if [ \"${variable}\" -ge 2 ]; then sleep {second_start_seconds}; fi\nfi\nexec /usr/bin/git \"$@\"\n",
+            "#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; if [ \"$argument\" = init ]; then is_init=1; fi; done\nif [ -n \"$is_init\" ]; then\n  if [ \"${variable}\" -le {hang} ]; then mkdir -p \"$last\"; : > \"$last/PARTIAL\"; exec sleep 600; fi\n  if [ \"${variable}\" -gt {hang} ]; then sleep {second_start_seconds}; fi\nfi\nexec /usr/bin/git \"$@\"\n",
             variable = crate::shadow_init_attempts::INIT_ATTEMPT_VARIABLE,
-            second_start_seconds = THE_START_MADE_AGAIN_TAKES.as_secs(),
+            second_start_seconds = THE_START_MADE_AGAIN_TAKES.as_secs_f64(),
         )
         .as_bytes(),
     );
@@ -545,7 +567,7 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let root: PathBuf = fixture("shadow-create-init-cut");
     let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1);
     reset_init_attempts();
-    cut_the_first_init_attempt_at(std::time::Duration::from_millis(700));
+    cut_the_first_init_attempt_at(THE_FIRST_START_IS_CUT_AT);
     let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
     clear_the_planted_cut();
     let shadow: PathBuf = made.expect("the second start made the shadow");
@@ -649,9 +671,10 @@ fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
     remove(root.as_path());
 }
 
-/// A planted cut lives in the thread's ceiling and nowhere else,
-/// so it is in force during the attempt it plants
-/// and given back when the control clears it.
+/// A planted cut is stored for the thread and applied to its ceiling,
+/// so it is in force during the attempt it plants,
+/// given back at the attempt after it,
+/// and forgotten along with its ceiling when the control clears it.
 /// Why:
 ///   A plant that outlived its creation would shorten another creation's start on the same thread,
 /// and a shortened ceiling ends a real `git init` at a ceiling production never gives it.
@@ -663,15 +686,16 @@ fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
 /// ```ts
 /// cutTheFirstInitAttemptAt(700); noteInitAttempt(request, 1); expect(stepCeiling()).toBe(700);
 /// clearThePlantedCut(); expect(stepCeiling()).toBe(undefined);
+/// noteInitAttempt(request, 1); expect(stepCeiling()).toBe(undefined);
 /// ```
 #[test]
 fn a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared() {
     let mut request: GitRequest = GitRequest::new(Path::new("."), &Vec::<OsString>::new());
-    cut_the_first_init_attempt_at(std::time::Duration::from_millis(700));
+    cut_the_first_init_attempt_at(THE_FIRST_START_IS_CUT_AT);
     note_init_attempt(&mut request, 1);
     assert_eq!(
         crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get),
-        Some(std::time::Duration::from_millis(700)),
+        Some(THE_FIRST_START_IS_CUT_AT),
         "the plant is in force during the attempt it plants"
     );
     clear_the_planted_cut();
@@ -679,6 +703,14 @@ fn a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared() {
         crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get),
         None,
         "the thread's ceiling is given back, so no creation after this one inherits it"
+    );
+    // The control asks again after clearing: the plant is forgotten, not only given back,
+    // so a first attempt made now is not cut either.
+    note_init_attempt(&mut request, 1);
+    assert_eq!(
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get),
+        None,
+        "the plant is forgotten once it is cleared, so no first attempt after it is cut"
     );
     reset_init_attempts();
 }

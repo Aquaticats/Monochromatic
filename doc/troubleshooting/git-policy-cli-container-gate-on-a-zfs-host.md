@@ -1535,9 +1535,8 @@ and only when what is read there equals what was read before the lock's unlink:
 the same device,
 the same inode,
 the same `ctime_ms`,
-and,
-since this round,
-the same number the file names
+and the same contents,
+which entail the number the file names
 (section The fix says why and what it costs).
 So the file could be gone in one of these ways:
 
@@ -1732,7 +1731,8 @@ as "B:
 also compare bytes (Recommended)",
 whose words were "Before deleting the PID file,
 read it again and delete only if its contents are also unchanged",
-over correcting these words alone and leaving the route open.
+over correcting these words alone and leaving the route open,
+and the record is `doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`.
 The limit the owner was shown with that choice is the one case named under What the comparison is now,
 and why:
 a program that rewrote the very same bytes in place would still lose the file.
@@ -1773,6 +1773,7 @@ and both are recorded here so the next reader does not have to find them:
 - the instant between the last read and the unlink is not closed:
   no system call unlinks a name only when it still holds given contents
   (`service_index_unheld_removal.rs` says the same of the lock's own removal).
+
 ### The fix
 
 `src/native/lock/abandoned_lock_proving.rs` is the file whose comparison changed,
@@ -1788,6 +1789,10 @@ a change time this host's ZFS hands out in jiffies,
 an inode number a file system may hand back to the next file,
 and one change time both reads report,
 so no clock decides what a control holds.
+It tells the removal's judged read from its last look by the phase the removal is in,
+which a control's hook moves at the lock's unlink,
+so a judged read taken after that instant is answered as a later one,
+and a removal that read the file in the wrong place fails its control.
 The contents are always the file's own,
 so a control that writes them writes a state.
 
@@ -1800,7 +1805,7 @@ so a control that writes them writes a state.
   and none of them is the bytes the removal judged.
   Each file stands,
   which is the pin of the comparison of the contents.
-- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
+- `a_pid_file_with_the_very_bytes_it_was_judged_with_goes_with_the_lock`
   has the hook write the very bytes the file was judged with,
   under one change time for both reads:
   all four facts equal the judged ones,
@@ -1817,9 +1822,10 @@ so a control that writes them writes a state.
 - `a_pid_file_of_another_inode_is_left_alone`
   has the hook remove the judged file and write the judged number again,
   a new file with the same bytes,
-  and the arm answers the later read with another inode number:
+  and the arm reports one inode for every read and another for the read taken after the lock's name went:
   the inode is the term that decides,
-  whichever number the file system gives the new file.
+  whichever number the file system gives the new file,
+  and dropping the arm's answer makes the removal compare one inode number with itself and take the file.
 - `a_pid_file_of_another_change_time_is_left_alone`
   arms the later read with a change time one millisecond back and touches nothing else.
 - `a_pid_file_of_another_device_is_left_alone`
@@ -1838,29 +1844,44 @@ then the file was put back:
 
 ```text
 term left out: device            a_pid_file_of_another_device_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1047:5: a PID file of another device is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1053:5: a PID file of another device is left alone
 term left out: inode             a_pid_file_of_another_inode_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:984:5: a PID file of another inode is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:990:5: a PID file of another inode is left alone
 term left out: change time       a_pid_file_of_another_change_time_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1017:5: a PID file whose change time reads another millisecond is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1023:5: a PID file whose change time reads another millisecond is left alone
 contents put back to the number  a_pid_file_whose_number_gained_a_leading_zero_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:871:5: a PID file whose number gained a leading zero is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:876:5: a PID file whose number gained a leading zero is left alone
 contents put back to the number  a_pid_file_with_trailing_padding_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:898:5: a PID file with spaces before its newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:903:5: a PID file with spaces before its newline is left alone
 contents put back to the number  a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:925:5: a PID file with a carriage return before its newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:930:5: a PID file with a carriage return before its newline is left alone
 contents put back to the number  a_pid_file_with_no_newline_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:952:5: a PID file with no newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:957:5: a PID file with no newline is left alone
 unlink planted away              a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared
 panicked at src/native/lock/abandoned_lock_proving_tests.rs:267:5: the PID file of a cleared lock goes with it
 unlink planted away              a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1160:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1167:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
 ```
 
 Each run exited 100,
 every failing control is named,
 and the module was green before the first plant and after the last one
 (`Summary [0.176s] 22 tests run: 22 passed, 8632 skipped`).
+
+The pass after the merge moved the judged metadata read to after the lock's unlink,
+which makes the three metadata terms compare one file with itself,
+and every control passed then:
+the arm answered a control's reads by counting them,
+so a judged read taken in the last look's place was still answered as the judged one.
+The arm answers by the phase of the removal now,
+and that plant fails the three controls whose whole difference is one of those three terms
+(`Summary [0.097s] 22 tests run: 19 passed, 3 failed`):
+`a_pid_file_of_another_inode_is_left_alone`,
+`a_pid_file_of_another_change_time_is_left_alone` and
+`a_pid_file_of_another_device_is_left_alone`.
+Dropping the arm's inode answer alone fails `a_pid_file_of_another_inode_is_left_alone` and nothing else
+(`Summary [0.102s] 22 tests run: 21 passed, 1 failed`),
+which is why that control arms one inode for every file.
 
 ### What the product guarantees here
 
@@ -1901,6 +1922,7 @@ Its Clippy step finished clean
 (``Finished `dev` profile [unoptimized] target(s) in 4m 53s``),
 and the unit ended `Failed with result 'exit-code'`,
 which is the cause-H pair's status and not this section's control.
+
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
 This is neither cause G nor cause H.
@@ -1983,7 +2005,8 @@ and the step it names is a bulk step.
 `CarriedCeiling::ending` writes that sentence into an error of kind `TimedOut`
 (`step_output_read_whole_through_pipes.rs:720`),
 and `checked_from` returns a `TimedOut` outcome's text with no prefix at all
-(`transaction_git.rs:462`);
+(`transaction_git.rs`,
+the arm of `checked_from` that matches `TimedOut`);
 any other kind would have read `could not start`.
 `start_was_cut_or_refused` (`shadow_create_init.rs:120`) reads `TimedOut` as a cut,
 so at attempt 1 the loop took its `continue` and started again
@@ -2058,8 +2081,9 @@ The ceiling is the one the control shortens for its thread,
 (`STEP_CEILING_FOR_THIS_THREAD`,
 `transaction_git_step_bounds.rs:54`),
 and its clock begins once the child is spawned:
-`command.spawn_retrying()` at `child_watch_one_shot_run.rs:175`,
-`watch.begin()` at `:205`,
+`command.spawn_retrying()`,
+then `watch.begin()`,
+both in `child_watch_one_shot_run.rs`,
 and then the wait that carries the rest of the ceiling.
 It ends the whole process tree wherever the work has got to.
 The script reaches its number in three steps:
@@ -2151,9 +2175,9 @@ as the link-question count of `shadow_pool_member.rs` is,
 so no other test's creation reaches it.
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 asserts that count against `SHADOW_CREATION_ATTEMPTS`
-(`shadow_create_tests.rs:593`),
+(`shadow_create_tests.rs:615`),
 and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-asserts the same count for its two starts (`:552`).
+asserts the same count for its two starts (`:574`).
 The shim kept its file in that round,
 because only the shim can know which of its own starts to hang,
 and `reftable_with_hanging_init` no longer returned it.
@@ -2225,13 +2249,13 @@ and the only thing it could look at was a file it wrote itself:
 and `echo $n > '<count>'`,
 with the start hanging when `$n` was at most the control's number to hang
 (`reftable_with_hanging_init`,
-`shadow_create_tests.rs:506`).
+`shadow_create_tests.rs:528`).
 A first start that the ceiling ended before that write leaves no file at all,
 so the second start reads the file's absence as the first attempt,
 writes `1` and hangs too.
 The sibling control
 `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-then fails at `made` (`shadow_create_tests.rs:551`,
+then fails at `made` (`shadow_create_tests.rs:573`,
 `the second start made the shadow`)
 with the cut's own sentence,
 although the product had discarded the partial directory and started again exactly as it should.
@@ -2249,7 +2273,7 @@ counts the attempt,
 and in test builds it also sets `MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT`
 to the loop's `attempt` in the request's environment
 (`shadow_init_attempts.rs:157`).
-The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:516`),
+The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:538`),
 and no file a start writes decides anything.
 The variable exists in test builds alone:
 the constant is `#[cfg(test)]` (`shadow_init_attempts.rs:64`),
@@ -2274,9 +2298,17 @@ with a one second delay inside the first start's work:
 
 The seam is not decorative:
 with the stand-in reading a variable no build sets,
-both controls fail loudly instead of passing,
+both controls fail loudly instead of passing.
+The sibling fails at the count assertion
+(`shadow_create_tests.rs:574`),
 `left: 1`,
-`right: 2` at the count assertion (`shadow_create_tests.rs:552` and `:593`).
+`right: 2`.
+The every-time control fails before that,
+at its `expect_err`
+(`every start was cut`,
+naming the path the start was handed),
+because no start hung and the creation succeeded,
+so its count assertion is never reached.
 
 ### Issue 6344's second window: the real second start had to finish inside the shortened ceiling
 
@@ -2288,11 +2320,15 @@ so a program slower than 700 ms failed the control at `made`
 with the cut's sentence,
 even when the product had done everything the control holds.
 Window two is independent of window one:
-it failed in the same place with the file-based stand-in of the prototype that had already removed window one.
+with window one's fix in place,
+the stand-in deciding from the variable and no file,
+dropping window two's distinction alone still fails the sibling at `made`,
+which is the red run this section records.
 
 The fix plants the cut instead of setting the thread's ceiling:
-`cut_the_first_init_attempt_at(Duration::from_millis(700))`
-(`shadow_create_tests.rs:548`)
+`cut_the_first_init_attempt_at(THE_FIRST_START_IS_CUT_AT)`
+(`shadow_create_tests.rs:570`,
+the 700 ms at `:499`)
 shortens the ceiling of the first attempt alone
 (`shadow_init_attempts.rs:82`),
 and `apply_the_planted_cut` (`:123`)
@@ -2301,9 +2337,11 @@ forgets the plant at that attempt,
 and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
 `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
-holds that clearing:
+holds both halves of that clearing:
 with the function's body emptied it fails at `Some(700ms)` against `None`,
-while the two shadow controls stay green,
+with only the stored plant left behind it fails at the first attempt made after the clear
+(`shadow_create_tests.rs:710`),
+and the two shadow controls stay green either way,
 and nextest runs each test in a process of its own,
 so no gate run could have seen an inherited ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
@@ -2322,15 +2360,27 @@ before the fix:
 `the second start made the shadow: GitFailure("... a bulk step ran for 0 seconds,
 the longest the wrapper lets one step run, and was ended")`.
 The delay is now part of the control's stand-in,
-`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:488`),
+`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:490`),
 so the suite itself holds the fix of window two:
 with the first-attempt-only distinction dropped from `apply_the_planted_cut`,
 the sibling fails at `made` (1.597 s) and the every-time control passes.
-It costs the sibling control its second on every run:
-measured on this host,
-1.872 s to 1.948 s with the second
-against 0.910 s to 0.954 s without it,
-while the every-time control read 1.142 s to 1.205 s in the same runs.
+A build-time check beside the two numbers holds the delay longer than the ceiling it has to outlast
+(`const _: () = assert!(...)`),
+so a later change of either number stops the build rather than the guard.
+It costs the sibling control its second on every run.
+Measured on this host in three interleaved rounds,
+each round the committed build,
+the same tree with the second set to zero,
+and the committed build again:
+the sibling read 1.847 s to 2.245 s with the second
+against 0.876 s to 1.167 s without it,
+a difference of 0.71 s to 1.15 s (mean 0.94 s),
+while the two committed builds of one round differed by up to 0.38 s
+(issue 6344's integration pass,
+`keep/fu-delay-arms-interleaved-three-rounds.txt`).
+The every-time control,
+whose starts hang before the line that waits,
+read the same in both arms.
 Green with the cut planted for the first attempt alone:
 `2 tests run: 2 passed`.
 
@@ -2346,7 +2396,7 @@ because only a program could write it.
 
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 now also asks how long it waited
-(`shadow_create_tests.rs:595`).
+(`shadow_create_tests.rs:617`).
 Every start of that control hangs,
 so each attempt is waited for its 500 ms ceiling and no shorter,
 and an attempt that returned sooner ended before its ceiling.
@@ -2354,10 +2404,10 @@ The bound is derived from the control's own named ceiling and from `SHADOW_CREAT
 Contention only lengthens a wait,
 so the bound cannot flake on a busy host.
 What it rejects is an attempt that returned before its ceiling,
-which is a refusal returned as a finished command:
-the program ran,
-printed the system's words,
-and the start ended at once.
+which is a refusal returned as a finished command,
+where the program ran and printed the system's words,
+or a cut returned at once without a program behind it,
+which is the defect the bound was added to catch.
 Measured:
 a first start that prints the refusal and exits fails the bound at 548.950692ms
 (issue 6344's integration pass,
@@ -2375,7 +2425,7 @@ Red with a plant that makes the second attempt return a cut
 without starting a program or waiting for one:
 `an attempt ended before its ceiling,
 which a cut of this control's plant cannot do: 532.018781ms`
-(`shadow_create_tests.rs:594`).
+(`shadow_create_tests.rs:616`).
 Green with the plant removed:
 `2 tests run: 2 passed`.
 
@@ -2482,12 +2532,30 @@ Read which assertion failed and what it printed.
   A `TimedOut` sentence there is that start ended at production's ceiling,
   and the whole step's ceiling and the host's state decide that,
   not this control.
-  A planted ceiling that outlived the first attempt gives the same sentence,
-  which `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared` holds.
-- The every-time control's lower-bound failure means at least one attempt returned before its ceiling:
-  it was refused rather than cut,
-  and the run did not witness the two programs the control means to count.
-  Run it again on a host with processes to spare before reading it as a product defect.
+  A planted ceiling that stayed over the start made again gives the same sentence.
+  What holds that distinction is the committed delay,
+  `THE_START_MADE_AGAIN_TAKES`:
+  with the first-attempt-only branch of `apply_the_planted_cut` dropped,
+  the sibling fails at `made` and the every-time control passes
+  (the section "Issue 6344's second window").
+  The planted-cut control holds a different fact:
+  that clearing the plant forgets it,
+  so the first attempt of the creation after it is not cut either.
+- The every-time control's lower-bound failure means at least one attempt returned before its ceiling.
+  Two things end an attempt before its ceiling:
+  a refusal returned as a finished command,
+  where the program ran and printed the system's words,
+  so the run did not witness the two programs the control means to count,
+  and a product that returned a cut at once without starting a program,
+  which is the false green the bound was added to close
+  (the section "The witness the count of attempts does not give,
+  and the lower bound that does").
+  The sentence the failure carries says which:
+  the system's own refusal words are the host's,
+  so run it again on a host with processes to spare before reading it as a product defect;
+  the cut's sentence,
+  with no program's words behind it,
+  is the product's.
 
 ## Cause N: the wait a landed removal's control relies on can return while its record is being moved (issue 6345)
 
@@ -2715,8 +2783,13 @@ kept outside the repository):
   and the removal finishes later.
 - The service was not woken:
   the merge prints "the removal of … is recorded and not woken (…)" beside its own line,
+  then says that the next `git commit` there finishes the removal and that `git worktree remove …` of the same path
+  removes it now,
   the record stays `pending`,
   and the worktree stands until a commit.
+  The clause and the correction of the documents' "every commit and every add" are the build of issue 6354
+  (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`,
+  2026-11-23).
 - The service hangs inside the removal:
   the record stays `claimed`,
   the worktree stays,
@@ -2780,8 +2853,11 @@ From the code:
   and the next merge that hands over a removal were not run either;
   they stand on the code.
 
-A removal left `pending` by a missed wake is tracked as issue 6354;
-nothing here changes that behaviour.
+A removal left `pending` by a missed wake was issue 6354;
+what wakes the service is unchanged,
+and the warning a failed wake prints now names the next `git commit` and `git worktree remove <path>`
+(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`,
+2026-11-23).
 
 ### A limit the fix does not close
 

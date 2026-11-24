@@ -646,3 +646,71 @@ this document and the package `README.md` finishes with no finding at this commi
   Moving the source read into the service would add 36 workspace resolutions per add to the queue
   that commits share,
   which is why it stays in the add.
+
+From lines 37227 to 37290 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+One switch runs no repair at all:
+`git worktree add --no-worktree-copy` forwards the add to Git alone,
+so the ignored-state copy,
+the ladder and the repair all do not run
+(`README.md`,
+"Repairing package-manager state in a new worktree" and "Wrapper-only options";
+`SPEC.md`,
+"Package-manager repair of a new worktree"),
+and `no_checkout_and_the_opt_out_start_nothing`
+(`binary_package_repair_tests.rs`) controls it.
+What that gives up is the copy and the snapshot beside the repair.
+Neither a switch nor a key of the settings file skips the repair alone:
+`RepairSwitch` records only the person's `--quiet` and `--no-checkout`
+(a no-checkout add has nothing to repair),
+and no settings key names a repair.
+Whether a switch that skips the repair by itself is wanted has not been decided.
+Not done (proposals for the owner,
+not decided),
+with what each would save measured where it was cheap:
+skip the clone and the clean for a workspace whose source has no build
+state:
+already the code's behaviour
+(`plan_build_state` answers `Nothing` when neither side holds build state,
+`package_repair_cargo.rs`),
+so it saves nothing more,
+and every workspace the measurement of 2026-11-08 in this section recorded did hold state;
+start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot:
+`cargo metadata --offline --no-deps` took 1.36 s cold and 70 ms warm for a 400-member fixture workspace,
+against a `cargo clean` of about 11 s for the same workspace,
+so its ceiling is the metadata part of `repairCargo`,
+hidden only as far as the snapshot lasts (median 360 ms in the fixture's add records,
+162 and 4115 ms in the real repository's records of 2026-11-08);
+overlap
+`repairPnpm` and `repairCargo` with the trash disposal (the overlap that landed):
+that is the first item of the `Done` list in this section;
+it took a median 4504 ms off the critical path;
+a per-workspace snapshot of the build
+directory when it is a subvolume:
+on one 150203-entry tree a `btrfs subvolume snapshot` took 2242 to 12593 ms (median 5270) where a file-by-file reflink
+copy of it,
+  which is what the repair's clone does,
+  took 27136 to 45477 ms (median 42775,
+about an eighth of the copy),
+so against the `cargoCloneTree` 66305 ms of worker time recorded on 2026-11-08 it is an estimated 58 s of worker time saved and
+some wall time,
+since those clones already run beside each other.
+
+Note 2026-11-10T14:46:39-05:00:
+two of those proposals belong to no branch of this one.
+The repair's time on the add's waiting path belongs to the agent
+`worktree-add-package-repair-off-the-waiting-path`,
+running since 2026-11-10,
+whose brief counts the same `cargo metadata` reads,
+so the start of the source's reads waits for that branch.
+The per-workspace build-directory snapshot saves nothing here until the owner decides its precondition:
+a sample of 41 of the 26935 build directories below `/var/mnt/encrypted/cargo-build`
+holds no subvolume
+(`btrfs subvolume show` answers "Not a Btrfs subvolume" for each,
+2026-11-10T14:42:04-05:00),
+so that branch would fire for nobody.
+The stand-in removals and the trash hand-over's review findings belong to
+`worktree-add-placeholders-off-the-waiting-path` and
+`worktree-trash-hand-over-review-findings`.

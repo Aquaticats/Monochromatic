@@ -214,10 +214,15 @@ fn queue_the_removal(common_dir: &Path, item: &WorkItem) -> Result<(), String> {
 ///   A record is read from the queue of the Git directory it names,
 ///  and one instance reads each queue,
 ///  so this is the instance that must be told.
-///   A wake that cannot be made leaves the record for the next command of the worktree,
-/// which is every commit
-///  and every add,
+///   A wake that cannot be made leaves the record for the next `git commit` of the worktree,
+/// which is the command that finishes it,
 /// so the delete happening later is not a failure of the removal.
+///  No other ordinary command wakes this service:
+/// of thirteen run against a record waiting in the queue,
+/// only a commit did
+/// (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+/// "Which commands wake the service"),
+/// and the warning a failed wake prints names both that commit and `git worktree remove`.
 ///  A control replaces this with its own answer,
 /// so no test reaches a service.
 ///
@@ -236,7 +241,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
     }
     // What: The record is written and the directory renamed before this wake, so the wake waits the hand-over's own greeting
     //       bound and never the commit's start wait.
-    // Why:  A person removing a worktree waits for none of what the service does with the record, and every later command of the
+    // Why:  A person removing a worktree waits for none of what the service does with the record, and the next commit of the
     //       repository wakes the same service (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
     let config: ClientConfig = ClientConfig {
         address,
@@ -402,7 +407,7 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Ok(());
     }
     if let Err(why) = told.told(common_dir) {
-        // The record stays, and the next command of this repository wakes the service that reads it.
+        // The record stays, and the next commit of this repository wakes the service that reads it.
         warn(TAG, format!("the delete of {} is recorded and not woken ({why})", target.display()).as_str());
     }
     return Ok(());
@@ -449,6 +454,27 @@ pub(crate) fn recorded_subvolume(oid: &str) -> Option<u64> {
         return None;
     }
     return u64::from_str_radix(oid, 16).ok();
+}
+
+/// What:
+///  The warning a removal prints when the service that reads its record was not told,
+/// naming the two commands that finish the removal and the path the record names.
+/// Why:
+///   A record whose wake failed waits in the queue,
+/// and making the removal happen is a command the person chooses:
+/// the next `git commit` here wakes the service that runs the record,
+/// and `git worktree remove` of the same path removes the worktree now.
+///  The path is printed twice because
+/// the two commands name the same directory:
+/// an abbreviation or the wrong one of the removal's paths would leave a person running a command over another worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the removal of ${target} is recorded and not woken (${why}). Your next \`git commit\` here finishes it; \`git worktree remove ${target}\` removes it now.`
+/// ```
+fn not_woken_warning(target: &Path, why: &str) -> String {
+    let path: String = target.display().to_string();
+    return format!("the removal of {path} is recorded and not woken ({why}). Your next `git commit` here finishes it; `git worktree remove {path}` removes it now.");
 }
 
 /// What:
@@ -502,7 +528,7 @@ pub fn hand_over_worktree_removal(
     enqueue(work_directory(git_dir).as_path(), &item)?;
     debug(TAG, format!("the removal of {} waits for the commit service's own Git at {}", target.display(), pending_record_path(git_dir, &item).display()).as_str());
     if let Err(why) = told(context, git_dir) {
-        warn(TAG, format!("the removal of {} is recorded and not woken ({why})", target.display()).as_str());
+        warn(TAG, not_woken_warning(target, why.as_str()).as_str());
     }
     return Ok(item);
 }

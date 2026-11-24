@@ -455,6 +455,10 @@ fn notice_line_on_route(step: Option<&str>, waited: Duration, plain: Option<&str
 const STEP_SENTENCES: &[(&str, &str)] = &[
     ("recover", "it is settling what interrupted commands left in this repository"),
     ("chooseRung", "it is deciding how to make the worktree"),
+    ("startBesideTheCheck", "it is starting the size read the snapshot rung decides with"),
+    ("abandonRead", "it is ending the size read this rung will not use"),
+    ("abandonTakeTheAnswer", "it is ending the size read this rung will not use"),
+    ("abandonEndTheChild", "it is ending the size read this rung will not use"),
     ("refusals", "it is deciding how to make the worktree"),
     ("checkSource", "it is deciding how to make the worktree"),
     ("claimStage", "it is deciding how to make the worktree"),

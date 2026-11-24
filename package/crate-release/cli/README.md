@@ -298,6 +298,22 @@ The narrowing of the owner's 2026-11-10 choice
 that a wrapper release waits for the btrfs controls
 is in `package/git-policy/cli/README.md` ("Development").
 
+From lines 49571 to 49581 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Release order for the wrapper:
+  gate passes (`gate-exit-status=0` and the nextest summary),
+  except that an alpha ships over known flaky failures.
+  The owner,
+  2026-11-10,
+  after the next alpha had waited a day on one flaky test of 7,192:
+  "It's been a whole day and you still haven't released any of the jam fixes?"
+  and "Standing rule.
+  Alphas don't even have to resolve all flakes."
+  A gate whose only failures are tests already known to fail intermittently does not hold an alpha;
+  each such failure gets its own fix as follow-up work.
+
 ## Starting a release
 
 ```bash
