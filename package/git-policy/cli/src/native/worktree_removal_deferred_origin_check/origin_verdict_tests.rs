@@ -19,8 +19,8 @@
 //! ```
 
 use super::super::fixtures::{
-    Answer, CHECKOUT, CLONE, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, Pool, guid, gone, marked, origin_snapshot_stats, planned, pool_over, refused,
-    refusal, stats, unmarked,
+    Answer, CHECKOUT, CLONE, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, Pool, guid, gone, healthy, marked, origin_snapshot_stats, planned,
+    pool_over, refused, refusal, stats, unmarked,
 };
 use super::super::origin_mark::{MARK_ON, OriginMark, UserHolds};
 use super::super::origin_refusal::OriginRefusal;
@@ -51,6 +51,18 @@ fn a_marked_origin_refuses_with_the_two_counts_a_person_needs() {
     assert_eq!(cause.step(), "origin-mark");
     assert_eq!(cause.form(), RefusalForm::PendingAfterTheUnmount);
     assert_eq!(cause.what_it_leaves(), WhatARefusalLeaves::PendingWithItsRecord, "the removal keeps its intent and its plan");
+}
+
+#[test]
+fn an_unreadable_mark_at_a_check_refuses_rather_than_proceeding() {
+    let unreadable: Pool = healthy(None, Some(0));
+    let cause: OriginRefusal = refusal(check_planned_origin(&unreadable, &planned()));
+    match &cause {
+        OriginRefusal::MarkUnreadable { point, .. } => assert_eq!(*point, RefusalPoint::AtACheck),
+        other => panic!("an unreadable mark must refuse as itself, not {other:?}"),
+    }
+    assert_eq!(cause.form(), RefusalForm::PendingAfterTheUnmount);
+    assert_eq!(cause.what_it_leaves(), WhatARefusalLeaves::PendingWithItsRecord);
 }
 
 #[test]
