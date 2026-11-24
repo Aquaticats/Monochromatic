@@ -5,7 +5,7 @@
 //!  the child's process group,
 //!  the pid descriptor it waits on,
 //!  the kill that ends a group at the deadline,
-//!  and the reaper for a child the kernel will not let go.
+//!  and the ending a wait answers.
 //! Why:
 //!  The parent is the add's own process,
 //!  which is not a thread the runtime polls,
@@ -14,28 +14,21 @@
 //!  (`doc/planning/cli-git-zfs-start-probe-design.md`,
 //!  "The account companion",
 //! "Its deadline").
-//!  A child a signal cannot end is reaped by a thread later rather than waited
-//!  on here,
-//! which is the rule
-//!  `process/stuck_children_reaped_when_the_kernel_lets_go.rs` states for a
-//!  command's child and this module states for a raw pid.
+//!  A child a signal cannot end is handed to the crate's reaper for a child the
+//!  starter holds only as a number, rather than waited on here
+//!  (`process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
+//!  `reap_soon_pid`), which is that file's rule for a command's child applied
+//!  to the raw pid this module forked.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const [read, write] = pipe(); const pid = fork(); setpgid(pid, pid);
-//! poll(pidfd, deadline) ? collect(pid) : { kill(-pid, SIGKILL); reapSoon(pid); };
+//! poll(pidfd, deadline) ? collect(pid) : { kill(-pid, SIGKILL); reapSoonPid(pid); };
 //! ```
 
 use super::companion_calls::CompanionCall;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::time::Duration;
-
-/// The children whose reaper could not be started,
-/// kept until one runs.
-static WAITING_FOR_A_REAPER: std::sync::Mutex<Vec<libc::pid_t>> = std::sync::Mutex::new(Vec::new());
-
-/// The name of the thread that collects a child the kernel has not released.
-pub const REAPER_THREAD_NAME: &str = "cli-git-account-companion-reaper";
 
 /// How a child ended,
 /// as one wait answered.
@@ -212,50 +205,6 @@ fn exit_from(status: libc::c_int) -> Exit {
 pub fn kill_group(pid: libc::pid_t) -> Result<(), std::io::Error> {
     // SAFETY: `kill` reads two numbers and touches no memory of ours, and the group is this child's own.
     return if unsafe { libc::kill(-pid, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
-}
-
-/// What:
-///  Hand one child to a thread that collects it whenever the kernel lets go,
-///  or keep it for the next reaper when no thread can start.
-/// Why:
-///  The parent must not wait for a child asleep in the kernel,
-///  and a process nobody waits for stays a zombie while this process lives.
-pub fn reap_soon(pid: libc::pid_t) {
-    let started = std::thread::Builder::new().name(String::from(REAPER_THREAD_NAME)).spawn(move || {
-        collect(pid);
-        drain_the_registry();
-    });
-    if started.is_err() {
-        keep(pid);
-    }
-}
-
-/// One child collected,
-/// waiting however long the kernel takes.
-fn collect(pid: libc::pid_t) {
-    let mut status: libc::c_int = 0;
-    // SAFETY: the number is this process's own child, and `status` is a live variable of the right type.
-    let _collected: libc::pid_t = unsafe { libc::waitpid(pid, &raw mut status, 0) };
-}
-
-/// Keep one child for a reaper that the next one drains.
-fn keep(pid: libc::pid_t) {
-    match WAITING_FOR_A_REAPER.lock() {
-        Ok(mut waiting) => waiting.push(pid),
-        Err(poisoned) => poisoned.into_inner().push(pid),
-    }
-}
-
-/// Every child a refused start left behind,
-/// collected by the reaper that is running now.
-fn drain_the_registry() {
-    let kept: Vec<libc::pid_t> = match WAITING_FOR_A_REAPER.lock() {
-        Ok(mut waiting) => std::mem::take(&mut *waiting),
-        Err(poisoned) => std::mem::take(&mut *poisoned.into_inner()),
-    };
-    for pid in kept {
-        collect(pid);
-    }
 }
 
 /// What:

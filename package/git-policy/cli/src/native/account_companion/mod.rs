@@ -51,7 +51,7 @@
 //!   the pipe,
 //!   the fork,
 //!   the pid descriptor,
-//!   the kill and the reaper.
+//!   the kill and the ending a wait answers.
 //! - `companion_child_tree.rs`:
 //!   the scratch tree and the walk to the slot.
 //! - `companion_child_controls.rs`:
@@ -104,7 +104,7 @@ pub mod companion_mount_table;
 /// The pipe,
 /// the fork,
 /// the wait,
-/// the kill and the reaper.
+/// the kill and the ending a wait answers.
 pub mod companion_process_calls;
 /// The scratch tree and the walk to the slot.
 pub mod companion_child_tree;

@@ -311,7 +311,7 @@ plan steps 1 to 10 are built and on `main`;
 step 11 is being built (`pi-zfs-step-11-dirty-main-restore`),
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
-which `pi-fix-companion-reaper-thread-source-guard` fixes,
+fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
 and every writer round now runs the `source_guard` module before it reports;
 the gate on `main` at `adcb708071` (run `native-mEmcZt`) gave `10855 tests run: 10843 passed (6 slow), 12 failed, 42 skipped`:
 the cause-H pair, that guard,
@@ -535,9 +535,17 @@ the zedlet's name selects only ZED's no-argument start,
 nothing at the root path reaches Git (probed on 28 starts),
 the guards hold every variant the re-read planted,
 and a disk-cold start in a guest costs the wrapper 1.87 times the handler (+6.06 ms).
+Its read (`read-of-the-second-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/keep/`)
+found the one-name guard admitting other names;
+the third revision merged as `2ad0c2ab7d`,
+with the guard pinned to one comparison line,
+typed Clippy bans on `std::env::args` and `args_os`,
+and the two modes the owner's answers need:
+`record-checkout --checkout <path>` (step 10's option E)
+and `mount-path-descendant --dataset <name>` (step 19's later mounter).
 Running:
-a Sonnet read of that revision's diff
-(`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/`).
+a Sonnet read of it that writes the eight choices for the owner
+(`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).

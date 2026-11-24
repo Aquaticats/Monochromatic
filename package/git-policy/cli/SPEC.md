@@ -13436,8 +13436,9 @@ and the first answer wins:
    measured 0.5 ms mean and 2.1 ms worst over two hundred reads on this host):
    a child that has not answered is ended,
    and one the kernel does not let go is collected by a reaper whenever it does,
-   which is what a command's own stuck child gets
-   (`src/native/process/open_file_of_a_descriptor_in_a_child.rs`).
+   which is the one reaper both a command's own stuck child and this child get
+   (`src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
+   `reap_soon_pid`).
    The ceiling is a process the scan could not identify,
    and none of these is a wait the caller keeps:
    `fuse-overlayfs` is another type,
