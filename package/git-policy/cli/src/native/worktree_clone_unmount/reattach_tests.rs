@@ -246,3 +246,17 @@ fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
     assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
     return false;
 }
+
+/// The rollback refuses a slot whose parent mount is not the recorded one.
+#[test]
+fn a_slot_on_another_parent_refuses_the_rollback() {
+    let fixture = fixture("reattach-slot-parent", 40);
+    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
+    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let identity: StagedFolderIdentity = fixture.identity;
+    let mut request = request(&fixture, &identity, &walk, checkout.as_path());
+    request.slot_parent_mount_id = 999;
+    let result: ReattachResult = roll_back_to_slot(&request);
+    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-parent"), "{result:?}");
+    assert!(!fixture.calls.ran(StagingCall::Move));
+}
