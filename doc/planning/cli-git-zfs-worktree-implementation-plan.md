@@ -1488,9 +1488,12 @@ the wait for the matching mount,
 verified in the caller's namespace;
 the frozen-content comparison inside the clone,
 the omission of the boundaries the design names,
-and the discarded copied Git administration;
-the pointer install,
-the verified fill and the dependency-repair queue;
+and the copied Git administration,
+kept until the pointer's exchange and then left in the wrapper's trash for the disposal;
+the pointer install as that exchange,
+the verified fill and the dependency-repair queue
+(the wording the project chose on 2026-11-23:
+`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`);
 the durable binding record keyed on repository,
 registration and clone GUID;
 the account companion's check code,
