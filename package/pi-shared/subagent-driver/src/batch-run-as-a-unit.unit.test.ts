@@ -30,6 +30,8 @@ import {
   BATCH_UNIT_MEMORY,
   BATCH_UNIT_SECONDS,
   BATCH_UNIT_TASK_COUNT,
+  NEURALWATT_KIMI_FLEX,
+  POOL_LIMITS_VARIABLE,
   checkoutFolderOf,
   batchOutputFileOf,
   batchUnitCommandOf,
@@ -124,6 +126,7 @@ async function runTheCommand({
   folder,
   words,
   log,
+  environment = {},
 }: {
   readonly folder: {
     readonly path: string;
@@ -131,6 +134,7 @@ async function runTheCommand({
   };
   readonly words: readonly string[];
   readonly log: string;
+  readonly environment?: Readonly<Record<string, string>>;
 }): Promise<{
   readonly status: number;
   readonly stdout: string;
@@ -156,6 +160,7 @@ async function runTheCommand({
         PATH: path,
         HOME: folder.path,
         FAKE_LOG: log,
+        ...environment,
       },
       encoding: 'utf8',
       timeout: 60_000,
@@ -250,6 +255,38 @@ await describe({
             ],);
           },
         },),
+        it({
+          name: 'carries the pool limits a caller set into the batch\'s unit, and carries none when the caller set none',
+          fn: async () => {
+            /**
+             What the unit runs when the caller reopened a pool for this batch, which the gate inside the unit reads again.
+             */
+            const reopened = batchUnitCommandOf({
+              batchFile: '/runs/agents-batch-round-231.json',
+              deadlineSeconds: 7_200,
+              outputFile: '/runs/agents-batch-round-231.out',
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              poolLimits: `${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`,
+              node: '/bin/node',
+              batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts',
+              checkoutFolder: '/repo',
+            },);
+            expect(reopened.words,).toContain(`--setenv=${POOL_LIMITS_VARIABLE}=${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`,);
+            // A caller that set no limits gets no such word, so the unit's environment is never a setting of this command's own
+            // making.
+            expect(batchUnitCommandOf({
+              batchFile: '/runs/agents-batch-round-231.json',
+              deadlineSeconds: 7_200,
+              outputFile: '/runs/agents-batch-round-231.out',
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              node: '/bin/node',
+              batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts',
+              checkoutFolder: '/repo',
+            },).words,).not.toContain(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
+          },
+        },),
       ],
     },),
     describe({
@@ -314,6 +351,60 @@ await describe({
             // The unit works in the checkout the command was run in, never in the folder the list lives in: a launcher started
             // outside the checkout cannot read where a run's worktree belongs.
             expect(asked,).toContain(`--working-directory=${await checkoutFolderOf({ from: process.cwd(), },)}`,);
+          },
+        },),
+        it({
+          name: 'gives the batch\'s unit the pool limits a caller set, and gives it none when the caller set none',
+          fn: async () => {
+            /**
+             The limit this caller gives the pool, which is another pool's own limit rather than a number written down here.
+             */
+            const given = `${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`;
+            await using reopened = await makeFolderWithPrograms();
+            /**
+             What the stand-in programs were asked by the command the caller set limits for.
+             */
+            const reopenedLog = join(reopened.path, 'asked.log',);
+            await writeProgram({
+              folder: reopened.bins,
+              name: 'systemd-run',
+              body: `printf '%s\\n' "systemd-run $*" >> "$FAKE_LOG"`,
+            },);
+            await writeProgram({
+              folder: reopened.bins,
+              name: 'mise',
+              body: `printf '%s\\n' '/bin:/usr/bin'`,
+            },);
+            await runTheCommand({
+              folder: reopened,
+              words: [`--batch-file=${join(reopened.path, 'list.json',)}`,],
+              log: reopenedLog,
+              environment: { [POOL_LIMITS_VARIABLE]: given, },
+            },);
+            // The gate the unit starts counts the pools, and a unit inherits nothing: the word is how a pool this caller reopened
+            // is open to the batch at all.
+            expect(await readFile(reopenedLog, 'utf8',),).toContain(`--setenv=${POOL_LIMITS_VARIABLE}=${given}`,);
+            await using bare = await makeFolderWithPrograms();
+            /**
+             What the stood-in programs were asked by a command line that set no limits.
+             */
+            const bareLog = join(bare.path, 'asked.log',);
+            await writeProgram({
+              folder: bare.bins,
+              name: 'systemd-run',
+              body: `printf '%s\\n' "systemd-run $*" >> "$FAKE_LOG"`,
+            },);
+            await writeProgram({
+              folder: bare.bins,
+              name: 'mise',
+              body: `printf '%s\\n' '/bin:/usr/bin'`,
+            },);
+            await runTheCommand({
+              folder: bare,
+              words: [`--batch-file=${join(bare.path, 'list.json',)}`,],
+              log: bareLog,
+            },);
+            expect(await readFile(bareLog, 'utf8',),).not.toContain(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
           },
         },),
         it({

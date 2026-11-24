@@ -69,3 +69,38 @@ moved verbatim on 2026-11-23:
 One more answer, at about 11:34 on 2026-11-16, asked with the morning's measurements beside it (reviews finish at up to about 7 an hour at three places, author runs end at about 6 to 7 an hour, so 49 queued reviews do not shrink):
 
 - **How the 18 agent places are split: "5 reviews, 13 Pi runs (Recommended)".** Five Sonnet reviews at once; the unit that fills Pi places runs at level 13 since 11:34:59 (no going run is stopped). The cap of 18 is unchanged.
+
+From lines 45697 to 45698 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+After a "Pi agent finished" notification came a minute before the coordinator woke, the owner asked "What even is the
+idle window for?" and then "And shouldn't it be defaulted to 0?". Adopted: `--idle-seconds` becomes optional with
+
+From lines 45769 to 45771 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Agent cap:** "The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now.",
+  then, after the session read that as no cap, "I didn't tell you to outright remove the cap. You're meant to bisect for it.",
+  then "Start from 20 instead." The search on the new drive and its readings are in `doc/handover/agents-at-once-on-this-machine.md`.
+
+From lines 45772 to 45776 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Git for agents:** "A: Build wrapper by cargo now (Recommended)": no Pi run could start, because the driver's launcher refuses
+  a session whose `git` is not the wrapper and the wrapper's link comes from the held install.
+  The session first linked it for every shell in the checkout and had told the owner their own shell would keep `/usr/bin/git`,
+  which was wrong: `.config/mise/conf.d/20-env.toml` puts `.cache/monochromatic-git-policy-cli-bin` on PATH for every shell there.
+  The session took the link out and made an agent-only folder; the owner then wrote "Do the owner-wide change anyway."
+
+From lines 46035 to 46039 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Reviews and audits move from Kimi to Claude Sonnet (the owner's message of about 23:27 on 2026-11-15, written here at 2026-11-15T23:36:02-05:00; not asked, the owner wrote it unprompted):
+
+- The owner: "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive. Please use Sonnet for reviews and audits from now on.
+  Close the Kimi pool for now, but let the already running runs finish. Anyway, I'll probably figure out something better in the next week. That's it, going back to sleep now."
+  And, a few minutes later: "Do the AGENTS.md edit too. Yes this decision is probably temporary, but AGENTS.md is expected to change often too."

@@ -892,10 +892,14 @@ a checkout dataset mounted at the configured path with its own mount made
 private,
 a sibling container,
 and a clone of the checkout's `git-worktree-clone-origin-` snapshot.
-The configuration names no dataset,
+The first configuration names no dataset,
 so the run reads the two dataset names through the design's fallback
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"The datasets the sweep acts on").
+"The datasets the sweep acts on"),
+and the shapes that name no checkout at all read them from the guest's own mount
+table
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"With no configuration file").
 
 The arms:
 
@@ -940,8 +944,140 @@ The arms:
   one sweep over one more child than the bound visits stops at the bound,
   says so,
   and prints the milliseconds it took beside the number in
-  `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`.
+  `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`;
+- the four shapes that name no checkout,
+  each on its own sweep run:
+  no file at all,
+  an empty object,
+  a file holding only the start probe's object,
+  and a file naming both datasets and no checkout,
+  each of which has to attach the designed clone,
+  with the mount taken down and the slot's record cleared between them;
+- the `several` a second pool makes:
+  a second file-backed pool holding a dataset named
+  `monochromatic-git-checkout` is a second instance of the leaf name,
+  and the sweep refuses with a status of 2,
+  lists both instances and the leaf name it looked for,
+  and mounts nothing.
+
+The arm's no-configuration lines are its `SWEEP no-configuration` markers,
+one per shape and one for the second pool.
 
 The arms print `MEASUREMENT sweep-attach-ms=` and
 `MEASUREMENT child-bound-listing-ms=` lines beside their assertions,
 and the driver fails a run whose pulled log lacks a line or a marker.
+
+### The delegation arm
+
+`delegation` answers the owner's question of 2026-11-22 by a run rather than by
+reading:
+under the design's own grants
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Scoped delegation"),
+as the guest's `ubuntu`,
+it tries to create a dataset of the checkout's leaf name under the container,
+to create one with a mountpoint of its own,
+to snapshot and clone the checkout,
+to rename onto that leaf name,
+to mount the clone into the host's namespace,
+to set its `mountpoint` and `canmount`,
+to make a pool and to import one,
+and then it runs root's `zfs mount -a`,
+which is what a boot's `zfs-mount.service` does,
+and reads the mount table afterwards.
+Every attempt prints one `DELEGATION` line with its rows,
+and the driver fails a run whose pulled log lacks one.
+
+### The `snapdir` step
+
+`snapdir` shows what each value of the property does,
+which the project's third answer of 2026-11-22 asked for before the setup sets
+it.
+For each of the property's three values it reads the value back,
+lists the checkout's `.zfs` directory as the guest's account under the design's
+grants,
+enters a snapshot's directory by name,
+and counts the kernel's snapshot rows before and after,
+each from a fresh mount because a control directory the kernel already resolved
+stays reachable until the dataset is mounted again.
+It then shows that the account cannot set the property back,
+and that this guest's OpenZFS accepts `disabled`.
+Its lines are the `SNAPDIR` markers,
+and the sweep guest arm reads a locally set value,
+an inherited one and the default through the route's own dataset-stats request
+(`SNAPDIR-REPLY`).
+
+The arm does not test the distro's mount generator:
+the integration pass ran that question with its own positive control,
+found a unit for the checkout dataset and none for a clone-container child,
+and this arm's attempt at the same reading was dropped rather than kept without
+one.
+
+What the run of 2026-11-22 showed:
+the account may clone the checkout to a dataset named
+`monochromatic-git-checkout` inside the container,
+and may do none of the rest.
+The clone inherits `mountpoint=legacy`,
+which the distro's `zfs-mount-generator` and `zfs mount -a` both skip,
+so root mounts that name into the host's namespace only through the route's own
+descriptor attach at a slot.
+A row inside the container is therefore a managed clone and never the checkout,
+and the sweep ignores it
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 8,
+"Where the checkout and the datasets are found").
+
+## The ZFS start-probe arms
+
+`start-probe-guest.ts` runs the root probe's own arms in a guest of the same
+recipe:
+the compatibility gate,
+the private namespace and the scratch tmpfs,
+the exclusive attach of the probe dataset's `ready` snapshot,
+the holder in a second namespace,
+the move and the unmount from a second process,
+and the record under `/run`
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The arms").
+Its `probe-dataset` step makes the fixture a probe needs:
+the file-backed pool,
+the `nosnap` container,
+the probe dataset with its empty `ready` snapshot and its user property,
+an encrypted dataset beside it for the unloaded-key control,
+a checkout that is a mounted dataset of the design's leaf name,
+and the root-owned configuration naming both names.
+
+The no-configuration arm is the project's answer of 2026-11-22 for the probe
+(`doc/decision/cli-git-zfs-start-probe.md`,
+"Answer of 2026-11-22:
+the probe needs no configuration file"):
+
+- with no file the record's verdict passes,
+  and its source is `nosnap/git-worktree-probe` in the pool that holds the
+  checkout,
+  which is the design's own name;
+- the dataset is then renamed away,
+  and the same run leaves the `ENOENT` record,
+  not exercised with `missing-source`,
+  whose mode line names the `zfs create` and `zfs snapshot` commands plan step
+  19's setup runs.
+
+Its lines are the `NO-CONFIGURATION` markers,
+and the driver fails a run whose pulled log lacks one.
+Two of the driver's controls wait on a record rather than on a fixed sleep,
+because a sleep races the probe's own start-up:
+the killed-worker control of `green` waits for the started record,
+and `m7-scan`'s late-mount control waits for the probe's own mount to appear in a
+namespace before it mounts the source a second time.
+The start-probe measurements of steps 6 and 10 run from the same driver's other
+steps;
+this section covers only what the no-configuration answer added.
+
+```sh
+# package/git-policy/cli: one guest of the sweep driver, then the probe's arms
+node e2e/mount-git-worktree-clone-datasets-guest.ts create --name <guest> --log-dir <dir>
+node e2e/mount-git-worktree-clone-datasets-guest.ts prepare --name <guest> --log-dir <dir>
+node e2e/start-probe-guest.ts probe-dataset --name <guest> --log-dir <dir>
+node e2e/start-probe-guest.ts no-configuration --name <guest> --log-dir <dir>
+node e2e/mount-git-worktree-clone-datasets-guest.ts destroy --name <guest> --log-dir <dir>
+```

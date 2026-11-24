@@ -795,7 +795,31 @@ owner @{HOME}/temp/agent/**/hooks/* mix,
 # /etc/apparmor.d/local/ssh and local/git_ssh, seventh batch: the ssh terminal tests' key and known_hosts in their fixture
 # (client_key read 10, client_key.pub read 4, known_hosts create 2, under ssh and under git//ssh alike)
 owner /work/** rwk,
+# /etc/apparmor.d/local/sshd-session (new), eighth batch: OpenSSH's per-connection sshd-session, its own profile, reads the
+# client's authorized_keys in the ssh terminal fixtures (denied once for each of the two ssh_terminal controls)
+owner /work/** r,
+# /etc/apparmor.d/local/git, eighth batch: the wrapper, run as git, reads the cgroup root's controller list (3 denials)
+@{sys}/fs/cgroup/cgroup.controllers r,
 ```
+
+Seen in the same gate and not granted:
+`capability dac_override` for `git` and `git-receive-pack` (nine denials in one second)
+and for `umount` (three),
+since no failing test needs either and the capability lets a program pass every file permission check;
+and three reads by the browser `helium`,
+which is not this work's.
+
+The whole gate on `main` at `6f2b9ef708`,
+after the eighth batch and the stale lock controls' fix
+(run `native-JsS2Gw`,
+2026-11-24T00:50:45Z to 01:09:53Z),
+gave `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`.
+The two are the cause-H pair,
+which fail on a leftover scratch folder and failed on the Btrfs host too
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H"),
+so no test of the gate fails under this enforcement.
+The denials in that window were `umount`'s `dac_override` (three)
+and six reads by `helium`.
 
 `local/git_ssh` belongs to the `ssh` child of the `git` profile,
 so it is loaded with `/etc/apparmor.d/git`.
@@ -804,6 +828,19 @@ and its profiles loaded,
 by `append-a-batch-of-local-rules-and-load.ts` in
 `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`,
 which keeps each local file as it was beside the batch in that folder's `keep/`.
+
+On this machine a denial is in `/var/log/audit/audit.log` and nowhere else a session first looks:
+on 2026-11-23,
+for the 21 minutes of a whole gate,
+`journalctl _TRANSPORT=audit` and `journalctl _TRANSPORT=kernel` held no `apparmor="DENIED"` line,
+and `sudo ausearch --start 19:20:14 --end 19:41:19 --raw` returned 582 records with no AppArmor record among them,
+while the log file itself held 20 denials in that window.
+`list-denials-in-a-window.ts` in the same folder reads the file from standard input
+(`sudo --non-interactive cat /var/log/audit/audit.log | node list-denials-in-a-window.ts <from> <to>`,
+local times of today)
+and prints each denial and a count per profile,
+operation,
+name and mask.
 
 ### Tradeoffs
 
@@ -936,10 +973,52 @@ the session makes itself.
   and the three `stale_ref_lock` controls,
   for which the gate's window logged no denial at all;
   the lost count stayed at 69,301.
-  So their cause is either outside AppArmor or a rule that refuses without logging,
-  and is being looked for by running them alone.
+  Those three are not a denial and not a rule:
+  their own control kills the wrong process,
+  measured on 2026-11-23 (section "The three stale lock controls killed the `timeout` and not the Git").
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
+
+### The three stale lock controls killed the `timeout` and not the Git
+
+Recorded by the round that ran them alone,
+at 2026-11-23T19:32:36-05:00 by the fix commit's time
+(`fix/git-policy-cli-stale-ref-lock-controls-under-apparmor`, fix at `0767a62bbb`).
+Not approved and not final:
+no whole container gate has run with the fix.
+
+`a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`,
+`a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_command` and
+`another_command_gets_no_notice_and_clears_nothing`
+failed at `binary_stale_ref_lock_tests.rs:197`, `:217` and `:250`
+because the lock they meant to leave was not there at all:
+the wrapper's fetch after it exited 0 and printed nothing.
+
+`hold_fetch` started its held fetch through `direct()`,
+which puts `/usr/bin/timeout --signal=KILL <bound>` in front of the real Git
+(`binary_support_native_git_command.rs`),
+so `Held::kill` sent `SIGKILL` to that `timeout`
+and the Git behind it kept running, still waiting on its `reference-transaction` hook.
+Ending the hook then made that Git abort the prepared transaction
+(`fatal: in 'prepared' phase, update aborted by the reference-transaction hook`)
+and remove the reference lock, the packed-refs lock and the `packed-refs.new` staging file,
+so the walk of `ref_lock_candidates` found no candidate,
+the wrapper printed no notice, and the fetch it ran succeeded.
+
+That abort is the difference this profile makes,
+measured inside the gate's own image on 2026-11-23:
+a Git under this profile runs it and removes all three files,
+while the same binary at a path no profile names ends without it and leaves them.
+No read was refused:
+the decision reads the fixture's own files, which `local/git` grants under `~/.cargo/build` and `/work`,
+and the gate's window logged no denial.
+
+So the fix is in the control and not in a rule:
+`hold_fetch` and `hold_transaction` start their Git with `direct_held()`,
+the Git alone, which exists for a control that holds the child.
+Red before and green after, on the host and in the gate image.
+The unconfined Git's silent ending is not explained:
+it is recorded here as measured, not as understood.
 
 ## Upstream filing artifact
 

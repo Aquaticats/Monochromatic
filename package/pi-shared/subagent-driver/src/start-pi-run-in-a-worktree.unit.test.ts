@@ -38,14 +38,20 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   CLOSED_POOL_EXIT_STATUS,
   NEURALWATT_DEEPSEEK_FLEX,
+  NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
+  NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
   POOL_LIMITS_VARIABLE,
+  PROVIDER_POOLS,
   QWEN_PLAN_DEEPSEEK,
   SUMMARY_FILE_NAME,
   WRAPPER_COMMAND,
   entryLineOf,
+  poolTakesNoNewRun,
   reasonInFailedStart,
+  runtimeMaxSecondsOf,
+  wallSecondsOn,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -87,6 +93,11 @@ const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile,
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
+
+/**
+ The wall clock every launch in this file asks for, in seconds, which a pool that answers more slowly stretches.
+ */
+const WALL_SECONDS_OF_A_TEST_RUN = 60;
 
 /**
  Seconds the launcher may take before the test calls it a launch that never ended. A refusal is a few process starts; this only
@@ -239,7 +250,7 @@ async function launch({
       '--cpu=100',
       '--memory=1G',
       '--tasks=100',
-      '--wall=60',
+      `--wall=${String(WALL_SECONDS_OF_A_TEST_RUN,)}`,
       '--turn-cap=10',
       `--runs-folder=${runs}`,
       `--checkout-folder=${checkout}`,
@@ -289,13 +300,13 @@ async function launch({
  fails, and a session whose git is the wrapper and whose Pi prints its help.
 
  @param request - the folder the launcher's own search path finds, the session's own search path, the checkout folder, the prompt
- file, and the marker the unit manager leaves
+ file, the marker the unit manager leaves, and the file it writes the words it was asked with to
 
  @returns nothing, once every program is written
 
  @example
  ```ts
- await standInsThatReachTheUnit({ launcherBin, sessionBin, checkout, prompt, unitMarker });
+ await standInsThatReachTheUnit({ launcherBin, sessionBin, checkout, prompt, unitMarker, unitWords });
  ```
  */
 async function standInsThatReachTheUnit({
@@ -304,12 +315,16 @@ async function standInsThatReachTheUnit({
   checkout,
   prompt,
   unitMarker,
+  unitWords,
+  unitsCannotBeListed = false,
 }: {
   readonly launcherBin: string;
   readonly sessionBin: string;
   readonly checkout: string;
   readonly prompt: string;
   readonly unitMarker: string;
+  readonly unitWords: string;
+  readonly unitsCannotBeListed?: boolean;
 },): Promise<void> {
   await mkdir(
     checkout,
@@ -342,14 +357,21 @@ async function standInsThatReachTheUnit({
     name: 'systemctl',
     body: `sleep 0.2\nprintf '%s\\n' 'not-found'\nexit 0\n`,
   },);
+  if (unitsCannotBeListed) {
+    await writeProgram({
+      folder: launcherBin,
+      name: 'systemctl',
+      body: `printf '%s\\n' 'Failed to connect to bus: No such file or directory' >&2\nexit 1\n`,
+    },);
+  }
   /**
-   The unit manager, which leaves the marker, writes what a driver writes for a run whose Pi left, prints the block systemd-run
-   prints for a failed unit, and ends with a failing status.
+   The unit manager, which writes the words it was asked with, leaves the marker, writes what a driver writes for a run whose Pi
+   left, prints the block systemd-run prints for a failed unit, and ends with a failing status.
    */
   await writeProgram({
     folder: launcherBin,
     name: 'systemd-run',
-    body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' 'the unit started' > '${unitMarker}'\nprintf '%s\\n' '{"endReason":"pi-exited","piExit":{"code":1}}' > "$runFolder/summary.json"\nprintf '%s\\n' 'Pi left before it took the prompt' > "$runFolder/stderr.log"\nexit 1\n`,
+    body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' "$@" > '${unitWords}'\nprintf '%s\\n' 'the unit started' > '${unitMarker}'\nprintf '%s\\n' '{"endReason":"pi-exited","piExit":{"code":1}}' > "$runFolder/summary.json"\nprintf '%s\\n' 'Pi left before it took the prompt' > "$runFolder/stderr.log"\nexit 1\n`,
   },);
   /**
    The git the session would find, which answers the policy namespace help as the wrapper does.
@@ -370,12 +392,61 @@ async function standInsThatReachTheUnit({
 }
 
 /**
+ One launcher another run has going, as the process table lists it.
+ */
+type OtherLauncher = {
+  /**
+   The run's name.
+   */
+  readonly name: string;
+
+  /**
+   The pool the launcher's own command line names, when it names one.
+   */
+  readonly pool?: {
+    readonly provider: string;
+    readonly model: string;
+  };
+};
+
+/**
+ Writes one launcher process into a test's process folder, as the kernel would list it.
+
+ @param request - the process folder, the process's number, and the words the kernel split its command line into
+
+ @example
+ ```ts
+ await writeLauncherProcess({ folder: processes, pid: '101', words: ['node', 'start-pi-run-in-a-worktree.ts', '--name=a',], },);
+ ```
+ */
+async function writeLauncherProcess({
+  folder,
+  pid,
+  words,
+}: {
+  readonly folder: string;
+  readonly pid: string;
+  readonly words: readonly string[];
+},): Promise<void> {
+  await mkdir(join(
+    folder,
+    pid,
+  ), { recursive: true, },);
+  await writeFile(join(
+    folder,
+    pid,
+    'cmdline',
+  ), `${words.join('\0',)}\0`,);
+}
+
+/**
  Launches one run through the stand-ins that reach its unit, in a folder of the test's own that goes when the answer is read.
 
- @param request - the provider and model the run names, when it names them; the environment the launcher runs with; and the
- branch the run works on
+ @param request - the provider and model the run names, when it names them; the environment the launcher runs with; the branch
+ the run works on; the runs another launch has going, which the counts read; and whether the manager lists no unit at all
 
- @returns what the launcher ended with, whether its unit manager was reached, and what its runs and checkout folders hold
+ @returns what the launcher ended with, whether its unit manager was reached, the words that manager was asked with, and what its
+ runs and checkout folders hold
 
  @example
  ```ts
@@ -387,16 +458,21 @@ async function launchThroughTheStandIns({
   model,
   environment = {},
   branch = 'none',
+  otherLaunchers = [],
+  unitsCannotBeListed = false,
 }: {
   readonly provider?: string;
   readonly model?: string;
   readonly environment?: Readonly<Record<string, string>>;
   readonly branch?: string;
+  readonly otherLaunchers?: readonly OtherLauncher[];
+  readonly unitsCannotBeListed?: boolean;
 },): Promise<{
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
   readonly unitWasReached: boolean;
+  readonly unitWords: readonly string[];
   readonly runsFolderHolds: readonly string[];
   readonly checkoutHolds: readonly string[];
 }> {
@@ -443,16 +519,52 @@ async function launchThroughTheStandIns({
     folder.path,
     'unit-started',
   );
+  /**
+   The words the unit manager was asked with, one per line, which is where a control reads what the unit was given.
+   */
+  const unitWords = join(
+    folder.path,
+    'unit-words',
+  );
+  /**
+   The folder the process table is read from, which holds only the launchers this test put there, so no test counts the
+   processes of the machine it runs on.
+   */
+  const processes = join(
+    folder.path,
+    'processes',
+  );
   await mkdir(
     runs,
     { recursive: true, },
   );
+  await mkdir(
+    processes,
+    { recursive: true, },
+  );
+  await Promise.all(otherLaunchers.map(function writesOne(other, index,) {
+    return writeLauncherProcess({
+      folder: processes,
+      pid: String(index + 1,),
+      words: [
+        'node',
+        join(
+          folder.path,
+          'start-pi-run-in-a-worktree.ts',
+        ),
+        `--name=${other.name}`,
+        ...((other.pool === undefined) ? [] : [`--provider=${other.pool.provider}`, `--model=${other.pool.model}`]),
+      ],
+    },);
+  },),);
   await standInsThatReachTheUnit({
     launcherBin,
     sessionBin,
     checkout,
     prompt,
     unitMarker,
+    unitWords,
+    unitsCannotBeListed,
   },);
   /**
    What the launcher ended with.
@@ -466,11 +578,18 @@ async function launchThroughTheStandIns({
     branch,
     ...((provider === undefined) ? {} : { provider, }),
     ...((model === undefined) ? {} : { model, }),
-    environment,
+    environment: {
+      PI_RUNS_PROCESS_FOLDER: processes,
+      ...environment,
+    },
   },);
   return {
     ...ended,
     unitWasReached: existsSync(unitMarker,),
+    unitWords: (await logIn(unitWords,)).split('\n',)
+      .filter(function isAWord(line,) {
+        return line !== '';
+      },),
     runsFolderHolds: await readdir(runs,),
     checkoutHolds: await readdir(checkout,),
   };
@@ -1223,36 +1342,197 @@ await describe({
       },
     },),
     it({
-      name: 'refuses a run whose command line names no provider, and says the pool gate is how a run that names none starts',
+      name: 'takes opencode-go when its command line names no provider, and gives the run that pool\'s provider, model and wall clock',
       fn: async () => {
         const answered = await launchThroughTheStandIns({},);
-        expect(answered.code,).toBe(CLOSED_POOL_EXIT_STATUS,);
-        // The default provider and model name the pool the owner replaced, so the refusal names it and the gate that counts the
-        // runs going before choosing one.
-        expect(answered.stderr,).toContain(NEURALWATT_STANDARD.name,);
-        expect(answered.stderr,).toContain('start-pi-run-when-a-pool-has-room',);
-        expect(answered.stderr,).toContain(`--provider=${OPENCODE_GO.provider} --model=${OPENCODE_GO.model}`,);
-        expect(answered.runsFolderHolds,).toEqual([],);
-        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
+        // The unit's own command line is what the pool gate counts, so the run holds the slot it took for its whole life.
+        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
+        // The pool is named beside the counts a reader weighs, and nothing tells that reader the pool gate chose it.
+        expect(answered.stdout,).toContain(`pool: ${OPENCODE_GO.name},`,);
+        expect(answered.stdout,).toContain('the first open pool a run that names no provider may take',);
+        expect(answered.stderr,).not.toContain('takes no new run',);
+        // A pool that answers more slowly gets more wall clock, as it does when the pool gate moves a run here.
+        expect(answered.unitWords,).toContain(`--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({
+          wallSeconds: wallSecondsOn({
+            wallSeconds: WALL_SECONDS_OF_A_TEST_RUN,
+            wallFactor: OPENCODE_GO.wallFactor,
+          },),
+        },),)}`,);
+        expect(answered.runsFolderHolds.some(function isTheRunsFolder(entry,) {
+          return entry.startsWith('refused-',);
+        },),).toBe(true,);
       },
     },),
     it({
-      name: 'takes a run naming the closed pool once the limits variable gives the pool room, and reaches its unit',
+      name: 'takes Neuralwatt\'s flex pool when opencode-go is closed, and never the closed pool',
       fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          environment: { [POOL_LIMITS_VARIABLE]: `${OPENCODE_GO.name}=0`, },
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
+        expect(answered.unitWords,).toContain(`--provider=${NEURALWATT_DEEPSEEK_FLEX.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
+        expect(answered.stdout,).toContain(`pool: ${NEURALWATT_DEEPSEEK_FLEX.name},`,);
+        // The closed pool is named in the counts beside the pool the run took, and not as the pool it took.
+        expect(answered.stdout,).not.toContain(`pool: ${OPENCODE_GO.name},`,);
+      },
+    },),
+    it({
+      name: 'takes Neuralwatt\'s flex pool when opencode-go is full, counting the runs the pool gate counts',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          environment: { [POOL_LIMITS_VARIABLE]: `${OPENCODE_GO.name}=1`, },
+          otherLaunchers: [
+            {
+              name: 'another-run',
+              pool: OPENCODE_GO,
+            },
+          ],
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.unitWords,).toContain(`--model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
+        expect(answered.stdout,).toContain(`pool: ${NEURALWATT_DEEPSEEK_FLEX.name},`,);
+        // The count the choice was read from is the one the line prints, so a reader sees the pool that was full.
+        expect(answered.stdout,).toContain(`${OPENCODE_GO.name} 1/1`,);
+      },
+    },),
+    it({
+      name: 'refuses a run that names no provider when every pool it may take is closed, naming each pool and why',
+      fn: async () => {
+        /**
+         The pools the run may take, which this test closes the open ones of.
+         */
+        const defaults = PROVIDER_POOLS.filter(function takesDefaultRuns(pool,) {
+          return pool.takesDefaultRuns;
+        },);
+        const answered = await launchThroughTheStandIns({
+          environment: {
+            [POOL_LIMITS_VARIABLE]: defaults.filter(function isOpen(pool,) {
+              return !poolTakesNoNewRun({ pool, },);
+            },)
+              .map(function closedByTheCaller(pool,) {
+                return `${pool.name}=0`;
+              },)
+              .join(',',),
+          },
+        },);
+        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        // Every pool the run may take is named with why it takes no run now, so a reader is not left guessing which was full.
+        for (const pool of defaults) {
+          expect(answered.stderr,).toContain(`${pool.name}:`,);
+        }
+        expect(answered.stderr,).toContain(`${POOL_LIMITS_VARIABLE} set its limit to zero`,);
+        expect(answered.stderr,).toContain(NEURALWATT_STANDARD.closed?.reason ?? '',);
+        expect(answered.stderr,).toContain('No pool a run that names no provider may take has room now:',);
+        // A refused start makes no worktree, no run folder and no unit.
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.checkoutHolds,).toEqual([],);
+        expect(answered.runsFolderHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses a run that names no provider when every pool it may take is full, naming each pool and its count',
+      fn: async () => {
+        /**
+         The pools the run may take, which this test fills with one run each.
+         */
+        const open = PROVIDER_POOLS.filter(function takesDefaultRunsAndIsOpen(pool,) {
+          return pool.takesDefaultRuns && (!poolTakesNoNewRun({ pool, },));
+        },);
+        const answered = await launchThroughTheStandIns({
+          environment: {
+            [POOL_LIMITS_VARIABLE]: open.map(function oneRunOfRoom(pool,) {
+              return `${pool.name}=1`;
+            },)
+              .join(',',),
+          },
+          otherLaunchers: open.map(function aRunOn(pool,) {
+            return {
+              name: `another-${pool.name}`,
+              pool: {
+                provider: pool.provider,
+                model: pool.model,
+              },
+            };
+          },),
+        },);
+        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        for (const pool of open) {
+          expect(answered.stderr,).toContain(`${pool.name}: full: 1 going of the 1 it takes`,);
+        }
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses a run that names no provider when the units going cannot be read, naming the fault rather than guessing a pool',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({ unitsCannotBeListed: true, },);
+        expect(answered.code,).toBe(1,);
+        expect(answered.stderr,).toContain('could not list the Pi units',);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.checkoutHolds,).toEqual([],);
+        expect(answered.runsFolderHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses a run that names only a model, and says which model it kept instead of claiming the command line named nothing',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({ model: NEURALWATT_KIMI_FLEX.model, },);
+        expect(answered.code,).toBe(CLOSED_POOL_EXIT_STATUS,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.name,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.closed?.reason ?? '',);
+        // The command line named a model, so the refusal says which one it kept and what the launcher took for the provider
+        // instead of telling its reader the command line named nothing.
+        expect(answered.stderr,)
+          .toContain(`named no provider, so this command took ${NEURALWATT_STANDARD.provider} and kept the model it named, ${NEURALWATT_KIMI_FLEX.model}`,);
+        expect(answered.stderr,).not.toContain('named no provider and no model',);
+        // The old sentence said the run would have taken the default provider and model, which is not what happened here.
+        expect(answered.stderr,).not.toContain('would have taken this command\'s default provider and model',);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'takes a run naming the closed pool once the limits variable gives the pool room, and hands that variable to its unit',
+      fn: async () => {
+        /**
+         The limit the caller gives the closed pool, which is another pool's own limit rather than a number written down here.
+         */
+        const given = `${NEURALWATT_STANDARD.name}=${String(NEURALWATT_DEEPSEEK_FLEX.limit,)}`;
         const answered = await launchThroughTheStandIns({
           provider: NEURALWATT_STANDARD.provider,
           model: NEURALWATT_STANDARD.model,
-          environment: {
-            [POOL_LIMITS_VARIABLE]: `${NEURALWATT_STANDARD.name}=${String(NEURALWATT_DEEPSEEK_FLEX.limit,)}`,
-          },
+          environment: { [POOL_LIMITS_VARIABLE]: given, },
         },);
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
         expect(answered.stderr,).not.toContain('takes no new run',);
+        // The unit is given the same setting the launcher was: a unit inherits nothing from the shell that asked for it, and the
+        // driver inside it reads the variable again before it starts Pi.
+        expect(answered.unitWords,).toContain(`--setenv=${POOL_LIMITS_VARIABLE}=${given}`,);
         // The run's own folder was made, beside the answer about Pi kept for the starts that follow.
         expect(answered.runsFolderHolds.some(function isTheRunsFolder(entry,) {
           return entry.startsWith('refused-',);
         },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'keeps the owner\'s reason when a caller closes a pool the owner had already closed',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          model: NEURALWATT_KIMI_FLEX.model,
+          environment: { [POOL_LIMITS_VARIABLE]: `${NEURALWATT_KIMI_FLEX.name}=0`, },
+        },);
+        expect(answered.code,).toBe(CLOSED_POOL_EXIT_STATUS,);
+        // Both reasons reach the reader: the caller's zero is what takes no new run now, and the owner's words are why the pool
+        // was set aside before that.
+        expect(answered.stderr,).toContain(`${POOL_LIMITS_VARIABLE} set its limit to zero`,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.closed?.reason ?? '',);
       },
     },),
     it({
@@ -1265,6 +1545,11 @@ await describe({
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
         expect(answered.stderr,).not.toContain('takes no new run',);
+        // A caller who set no limits gets no limits word in the unit, so the unit's environment is never a setting of this
+        // command's own making.
+        expect(answered.unitWords.filter(function isTheLimitsWord(word,) {
+          return word.startsWith(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
+        },),).toEqual([],);
       },
     },),
     it({
@@ -1289,6 +1574,39 @@ await describe({
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
         expect(answered.stderr,).not.toContain('takes no new run',);
+      },
+    },),
+    it({
+      name: 'refuses a run that names a pool when the pool limits setting cannot be read, before the worktree or a unit, naming the setting and its fault',
+      fn: async () => {
+        /**
+         A setting this command cannot read: a limit that is no whole number.
+         */
+        const unreadable = `${OPENCODE_GO.name}=twenty`;
+        const answered = await launchThroughTheStandIns({
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          environment: { [POOL_LIMITS_VARIABLE]: unreadable, },
+        },);
+        expect(answered.code,).toBe(1,);
+        expect(answered.stderr,).toContain(POOL_LIMITS_VARIABLE,);
+        expect(answered.stderr,).toContain(unreadable,);
+        expect(answered.stderr,).not.toContain('\n    at ',);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
+        expect(answered.checkoutHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'takes a run that belongs to no pool even when the pool limits setting cannot be read',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: 'synthetic',
+          model: 'moonshotai/Kimi-K3.1-Pro',
+          environment: { [POOL_LIMITS_VARIABLE]: 'not-a-pool=3', },
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.stderr,).not.toContain(POOL_LIMITS_VARIABLE,);
       },
     },),
   ],

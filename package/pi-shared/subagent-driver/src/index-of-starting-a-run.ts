@@ -81,6 +81,15 @@ export {
   refuseARunOnAClosedPool,
 } from './refusal-of-a-run-on-a-closed-pool.ts';
 export {
+  type PoolOfARunNamingNoProvider,
+  poolOfARunNamingNoProvider,
+} from './pool-of-a-run-naming-no-provider.ts';
+export {
+  NoPoolTakesTheRunError,
+  type WorktreeLaunchPlacement,
+  poolPlacementOfAWorktreeLaunch,
+} from './pool-placement-of-a-worktree-launch.ts';
+export {
   type LauncherArguments,
   launcherArgumentsOf,
   wallSecondsOn,

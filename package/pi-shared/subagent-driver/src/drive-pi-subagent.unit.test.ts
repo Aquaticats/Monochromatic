@@ -2704,6 +2704,8 @@ await describe({
         // The pool it named, why the pool takes no new run, and the open pools a run that names no model of its own may take instead.
         expect(run.standardError,).toContain(NEURALWATT_STANDARD.name,);
         expect(run.standardError,).toContain(reason,);
+        // The driver's command line always names both words, so the refusal never says a default was read in their place.
+        expect(run.standardError,).not.toContain('named no provider',);
         expect(run.standardError,).toContain(`--provider=${OPENCODE_GO.provider} --model=${OPENCODE_GO.model}`,);
         expect(run.standardError,)
           .toContain(`--provider=${NEURALWATT_DEEPSEEK_FLEX.provider} --model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
@@ -2764,6 +2766,45 @@ await describe({
           model: 'moonshotai/Kimi-K3.1-Pro',
         },);
         expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'refuses a run that names a pool when the pool limits setting cannot be read, naming the setting and its fault',
+      fn: async () => {
+        /**
+         A setting this command cannot read: a pair that names no pool of the table.
+         */
+        const unreadable = 'not-a-pool=3';
+        const run = await runDriver({
+          scenario: 'normal',
+          provider: NEURALWATT_STANDARD.provider,
+          model: NEURALWATT_STANDARD.model,
+          environment: { [POOL_LIMITS_VARIABLE]: unreadable, },
+        },);
+        // A setting the caller wrote wrong is no closed pool, so it carries the status of any other failure, not the refusal's.
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.standardError,).toContain(POOL_LIMITS_VARIABLE,);
+        expect(run.standardError,).toContain(unreadable,);
+        // The fault is named in the message, not thrown as a stack a reader has to unpack.
+        expect(run.standardError,).not.toContain('\n    at ',);
+        // Nothing was made and Pi was never started, as for any refusal.
+        expect(run.logWasWritten,).toBe(false,);
+        expect(run.runFolderWasMade,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'leaves a run that belongs to no pool alone when the pool limits setting cannot be read, since the setting touches no pool it names',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: 'synthetic',
+          model: 'moonshotai/Kimi-K3.1-Pro',
+          environment: { [POOL_LIMITS_VARIABLE]: 'not-a-pool=3', },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.standardError,).not.toContain(POOL_LIMITS_VARIABLE,);
         expect(run.summary.endReason,).toBe('idle',);
       },
     },),
