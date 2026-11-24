@@ -11,6 +11,8 @@
  @module
  */
 
+import { homedir, } from 'node:os';
+
 import { literalRmPathFindingsAddedToScriptFile, } from './literal-rm-paths-added-to-script-file.ts';
 import type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
 import {

@@ -24,12 +24,14 @@
  @module
  */
 
+import { homedir, } from 'node:os';
+
 import {
   lineOfOffset,
   readIdentity,
-  readOneSource,
   type SourceRead,
-} from './literal-rm-command-reads.ts';
+} from './deletion-source-read.ts';
+import { readOneSource, } from './literal-rm-command-reads.ts';
 import type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
 
 //region Source walks
@@ -89,27 +91,36 @@ function readSources(pending: readonly SourceRead[],): readonly LiteralRmPathFin
 //region Public reads
 
 /**
- Reads every `rm` in shell source that names its paths at run time.
+ Reads every deletion in shell source that breaks the literal-path rule.
  
  @param source - shell source text to read
+ 
+ @param homeFolder - the account's home folder, defaulting to this process's
  
  @returns one finding per offending command and word
  
  @example
  ```ts
- findLiteralRmPaths({ source: 'rm -rf "$d"', }); // [{ command: 'rm -rf "$d"', word: '"$d"' }]
+ findLiteralRmPaths({ source: 'rm -rf "$d"', }); // [{ command: 'rm -rf "$d"', word: '"$d"', check: 'shell-computes-the-path' }]
  findLiteralRmPaths({ source: `rm -rf '$d'`, }); // []
  ```
  */
-function findLiteralRmPaths({ source, }: { readonly source: string; },): readonly LiteralRmPathFinding[] {
+function findLiteralRmPaths({
+  source,
+  homeFolder = homedir(),
+}: {
+  readonly source: string;
+  readonly homeFolder?: string;
+},): readonly LiteralRmPathFinding[] {
   return readSources([{
     source,
     unwrittenPaths: false,
+    homeFolder,
   },],);
 }
 
 /**
- Reads every `rm` in a script file's whole text that names its paths at run time.
+ Reads every deletion in a script file's whole text that breaks the rule.
  
  The text is read as a file rather than as one command string,
  so each finding names the file and the line its command starts on.
@@ -117,6 +128,8 @@ function findLiteralRmPaths({ source, }: { readonly source: string; },): readonl
  @param path - file path the text came from, reported with every finding
  
  @param source - whole text of that file
+ 
+ @param homeFolder - the account's home folder, defaulting to this process's
  
  @returns one finding per offending command and word
  
@@ -128,9 +141,11 @@ function findLiteralRmPaths({ source, }: { readonly source: string; },): readonl
 function findLiteralRmPathsInScriptFile({
   path,
   source,
+  homeFolder = homedir(),
 }: {
   readonly path: string;
   readonly source: string;
+  readonly homeFolder?: string;
 },): readonly LiteralRmPathFinding[] {
   return readSources([{
     source,
@@ -142,6 +157,7 @@ function findLiteralRmPathsInScriptFile({
       },);
     },
     unwrittenPaths: false,
+    homeFolder,
   },],);
 }
 

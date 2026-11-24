@@ -1,5 +1,5 @@
 /**
- Reads the `rm` commands in one shell source text.
+ Reads the deletion commands in one shell source text.
  
  This module owns everything one source text can answer:
  the command records the parser reports,
@@ -18,19 +18,34 @@
 
 import { analyzeShellCommand, } from './analyzer.ts';
 import { unwrapWrappers, } from './command-wrapper-words.ts';
+import {
+  type DeletionProgram,
+  deletionProgramOf,
+  deletionTargetsOf,
+  type DeletionTarget,
+  FIND_DELETE_ACTION,
+  findDeletesThePathsItFound,
+  NO_DELETION_PROGRAM,
+} from './deletion-programs.ts';
+import {
+  type DeletionFindingDraft,
+  deletionFindingDrafts,
+} from './deletion-target-findings.ts';
 import { lastPathSegment, } from './executable-path-words.ts';
 import type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
+import {
+  heredocLinesFrom,
+  nestedReadOf,
+  nestedReads,
+  type SourceRead,
+  type SourceReadResult,
+} from './deletion-source-read.ts';
 import { rawCommandWordRuns, } from './raw-command-word-runs.ts';
 import { shellScriptPayloads, } from './shell-script-payloads.ts';
 import { shellWordCarriesExpansion, } from './shell-word-carries-expansion.ts';
 import type { ShellCommandInfo, } from './types.ts';
 
 //region Constants
-
-/**
- Program name whose operands this reader inspects.
- */
-const RM_PROGRAM_NAME = 'rm';
 
 /**
  Wrapper that hands its program the paths it read, instead of the program naming them.
@@ -68,204 +83,7 @@ const QUOTE_CHARACTERS: readonly string[] = [
 
 //endregion Constants
 
-//region Types
-
-/**
- One shell source text still to read, and what the reader knows about it.
- */
-type SourceRead = {
-  /**
-   Shell source text to read.
-   */
-  readonly source: string;
-  /**
-   File the source text came from, when it is a file's whole text or a piece of one.
-   */
-  readonly file?: string;
-  /**
-   Maps an offset in {@link source} to a line number, when that is possible.
-   */
-  readonly linesFrom?: (offset: number,) => number;
-  /**
-   Whether every `rm` in this source is a finding whatever its operands spell,
-   because the program running this source supplies the paths.
-   */
-  readonly unwrittenPaths: boolean;
-  /**
-   Command line a finding reports instead of the line it was read from,
-   which names the program that supplied the paths.
-   */
-  readonly origin?: string;
-};
-
-/**
- What reading one shell source text produced.
- */
-type SourceReadResult = {
-  /**
-   Findings this source named.
-   */
-  readonly findings: readonly LiteralRmPathFinding[];
-  /**
-   Sources this source launches, still to read.
-   */
-  readonly reads: readonly SourceRead[];
-};
-
-//endregion Types
-
-//region Line reads
-
-/**
- Counts the lines that end before one offset.
- 
- @param text - source text the offset belongs to
- 
- @param offset - offset to locate
- 
- @returns 1-based line number of that offset
- 
- @example
- ```ts
- lineOfOffset({ text: 'a\nb', offset: 2, }); // 2
- ```
- */
-function lineOfOffset({
-  text,
-  offset,
-}: {
-  readonly text: string;
-  readonly offset: number;
-},): number {
-  /**
-   Lines counted so far, before any line break is added.
-   */
-  let line = 1;
-  for (let index = 0; index < offset; index += 1) {
-    if (text[index] === LINE_BREAK)
-      line += 1;
-  }
-  return line;
-}
-
-/**
- Copies what a nested read keeps from the read that launched it.
- 
- A nested source is a string the shell parses on its own,
- so its offsets count from its own first character and cannot name a line
- in the enclosing file.
- 
- @param read - the read that launched this nested source
- 
- @param extra - what this nested read adds
- 
- @returns read of the nested source
- 
- @example
- ```ts
- nestedReadOf({ read: { source: 'x', unwrittenPaths: false }, extra: { source: 'rm -rf $d', unwrittenPaths: false } });
- ```
- */
-function nestedReadOf({
-  read,
-  extra,
-}: {
-  readonly read: SourceRead;
-  readonly extra: {
-    readonly source: string;
-    readonly unwrittenPaths: boolean;
-    readonly origin?: string;
-  };
-},): SourceRead {
-  return {
-    source: extra.source,
-    ...(read.file === undefined ? {} : { file: read.file, }),
-    ...(extra.origin === undefined ? {} : { origin: extra.origin, }),
-    unwrittenPaths: extra.unwrittenPaths,
-  };
-}
-
-/**
- Maps offsets in a here-document body to lines in the file holding it.
- 
- A body the parser copied unchanged sits at its own offset,
- so a line inside it adds to the line the body starts on.
- A body the parser rewrote (`<<-` drops leading tabs) maps to that first line only.
- 
- @param read - the read that declared the here-document
- 
- @param bodyOffset - offset of the body in the declaring source, when the parser reported one
- 
- @param body - here-document body text
- 
- @returns line-mapping property to spread, empty when no line is readable
- 
- @example
- ```ts
- heredocLinesFrom({ read, bodyOffset: 21, body: 'rm -rf "$d"\n' });
- ```
- */
-function heredocLinesFrom({
-  read,
-  bodyOffset,
-  body,
-}: {
-  readonly read: SourceRead;
-  readonly bodyOffset?: number;
-  readonly body: string;
-},): { readonly linesFrom?: (offset: number,) => number } {
-  if ((read.linesFrom === undefined) || (bodyOffset === undefined))
-    return {};
-  /**
-   Line the body starts on, which every body maps at least to.
-   */
-  const bodyStartLine = read.linesFrom(bodyOffset,);
-  if (!read.source
-    .startsWith(
-    body,
-    bodyOffset,
-    )) {
-    return {
-      linesFrom(): number {
-        return bodyStartLine;
-      },
-    };
-  }
-  return {
-    linesFrom(offset: number,): number {
-      return (bodyStartLine + lineOfOffset({
-        text: body,
-        offset,
-      },)) - 1;
-    },
-  };
-}
-
-//endregion Line reads
-
 //region Predicates
-
-/**
- Reports whether one word names the `rm` program.
- 
- The word is read by its last path segment, so `/usr/bin/rm` and `./rm` are
- the same program.
- A different program that takes `rm` as a subcommand (`git rm`, `cargo rm`)
- is not this program, because only the command word is read here.
- 
- @param word - command word of a parsed record or a raw run
- 
- @returns whether the word runs `rm`
- 
- @example
- ```ts
- isRmProgramWord('/usr/bin/rm'); // true
- isRmProgramWord('git'); // false
- ```
- */
-function isRmProgramWord(word: string,): boolean {
-  return lastPathSegment(word,) === RM_PROGRAM_NAME;
-}
 
 /**
  Reports whether a quote-free raw word carries an expansion.
@@ -289,69 +107,30 @@ function rawWordCarriesExpansion(word: string,): boolean {
 }
 
 /**
- Lists the words of one `rm` command that make its paths unreadable.
+ Reads the words one deletion command would delete, with their spellings.
  
- @param unwrittenPaths - whether the paths come from outside this command
+ @param argSources - the program's own words, without its name
  
- @param programWord - word naming the `rm` program
+ @param optionsWithValue - options whose value is the next word
  
- @param operandSourceTexts - operand words as written, or quote-free raw words
- 
- @param carriesExpansion - decides whether one operand word spells an expansion
- 
- @returns offending words, the program word alone when the paths come from outside
+ @returns targets in source order
  
  @example
  ```ts
- rmOperandFindings({
-   unwrittenPaths: false,
-   programWord: 'rm',
-   operandSourceTexts: ['-rf', '"$d"'],
-   carriesExpansion: shellWordCarriesExpansion,
- }); // ['"$d"']
+ deletionTargetsFromSources({ argSources: [{ value: '-rf', sourceText: '-rf' }, { value: '/x', sourceText: '/x' }], optionsWithValue: new Set() });
  ```
  */
-function rmOperandFindings({
-  unwrittenPaths,
-  programWord,
-  operandSourceTexts,
-  carriesExpansion,
+function deletionTargetsFromSources({
+  argSources,
+  optionsWithValue,
 }: {
-  readonly unwrittenPaths: boolean;
-  readonly programWord: string;
-  readonly operandSourceTexts: readonly string[];
-  readonly carriesExpansion: (sourceText: string,) => boolean;
-},): readonly string[] {
-  if (unwrittenPaths)
-    return [programWord,];
-  return operandSourceTexts
-    .filter(carriesExpansion,);
-}
-
-/**
- Reports whether one source text was already read under the same rule.
- 
- Reading a source once is what ends a source that launches its own text.
- 
- @param source - shell source text being read
- 
- @param unwrittenPaths - whether every `rm` in that source counts
- 
- @returns identity of that read
- 
- @example
- ```ts
- readIdentity({ source: 'rm -rf $d', unwrittenPaths: false });
- ```
- */
-function readIdentity({
-  source,
-  unwrittenPaths,
-}: {
-  readonly source: string;
-  readonly unwrittenPaths: boolean;
-},): string {
-  return `${String(unwrittenPaths,)}${READ_IDENTITY_SEPARATOR}${source}`;
+  readonly argSources: readonly DeletionTarget[];
+  readonly optionsWithValue: ReadonlySet<string>;
+},): readonly DeletionTarget[] {
+  return deletionTargetsOf({
+    words: argSources,
+    optionsWithValue,
+  },);
 }
 
 //endregion Predicates
@@ -422,12 +201,20 @@ function commandRmRead({
     ? undefined
     : read.linesFrom(info.sourceOffset,);
   /**
-   Operand words as written, which are the words after the program word.
+   Program word of the innermost command, which decides what deletes here.
+   */
+  const [programWord = '',] = wrapped.words;
+  /**
+   Program specification when that word names a program that deletes.
+   */
+  const program = deletionProgramOf(programWord,);
+  /**
+   The program's own words, which are the words after the program word.
    
    Unwrapping only drops words in front of the program,
-   so the program's operands are the last words this record spells.
+   so the program's words are the last words this record spells.
    */
-  const operandSourceTexts = info.argSources
+  const programSources = info.argSources
     .slice(info.argSources
       .length
       - Math.max(
@@ -436,33 +223,38 @@ function commandRmRead({
           - 1,
         0,
       ),)
-    .map(function sourceSpelling(arg,): string {
-      return arg.sourceText;
+    .map(function sourceSpelling(arg,): DeletionTarget {
+      return {
+        value: arg.value,
+        sourceText: arg.sourceText,
+      };
     },);
+  /**
+   Drafts the deletion checks named for this record.
+   */
+  const drafts = deletionDraftsOfCommand({
+    program,
+    programWord,
+    programSources,
+    words: wrapped.words,
+    read,
+    wrapsPathsFromOutside: wrapped.wrapperNames
+      .includes(XARGS_WRAPPER_NAME,),
+    carriesExpansion: shellWordCarriesExpansion,
+  },);
 
   return {
-    findings: isRmProgramWord(wrapped.words
-      .at(0,)
-      ?? '',)
-      ? rmOperandFindings({
-        unwrittenPaths: read.unwrittenPaths
-          || wrapped.wrapperNames
-            .includes(XARGS_WRAPPER_NAME,),
-        programWord: wrapped.words
-          .at(0,)
-          ?? RM_PROGRAM_NAME,
-        operandSourceTexts,
-        carriesExpansion: shellWordCarriesExpansion,
-      },)
-        .map(function findingForWord(word,): LiteralRmPathFinding {
-          return {
-            command,
-            word,
-            ...(read.file === undefined ? {} : { file: read.file, }),
-            ...(line === undefined ? {} : { line, }),
-          };
-        },)
-      : [],
+    findings: drafts
+      .map(function findingForDraft(draft,): LiteralRmPathFinding {
+        return {
+          command,
+          word: draft.word,
+          check: draft.check,
+          ...(draft.detail === undefined ? {} : { detail: draft.detail, }),
+          ...(read.file === undefined ? {} : { file: read.file, }),
+          ...(line === undefined ? {} : { line, }),
+        };
+      },),
     reads: [
       ...heredocReads({
         info,
@@ -527,49 +319,8 @@ function heredocReads({
           body: redirect.heredocBody,
         },),
         unwrittenPaths: false,
+        homeFolder: read.homeFolder,
       },];
-    },);
-}
-
-/**
- Collects reads for the sources one command line launches.
- 
- @param read - source text the launching record was read from
- 
- @param sources - shell source strings the record runs
- 
- @param unwrittenPaths - whether the launched program supplies the paths
- 
- @param origin - command line a finding reports instead, when the launching line names more
- 
- @returns one read per launched source
- 
- @example
- ```ts
- nestedReads({ read, sources: ['rm -rf $d'], unwrittenPaths: false });
- ```
- */
-function nestedReads({
-  read,
-  sources,
-  unwrittenPaths,
-  origin,
-}: {
-  readonly read: SourceRead;
-  readonly sources: readonly string[];
-  readonly unwrittenPaths: boolean;
-  readonly origin?: string;
-},): readonly SourceRead[] {
-  return sources
-    .map(function nestedRead(source,): SourceRead {
-      return nestedReadOf({
-        read,
-        extra: {
-          source,
-          unwrittenPaths,
-          ...(origin === undefined ? {} : { origin, }),
-        },
-      },);
     },);
 }
 
@@ -607,6 +358,71 @@ function rawRunIdentity(words: readonly string[],): string {
         );
     },)
     .join(READ_IDENTITY_SEPARATOR,);
+}
+
+/**
+ Reads the deletion drafts one command line produces.
+ 
+ A program that deletes has its own targets judged,
+ and `find` is judged by its `-delete` action instead,
+ because the paths that action deletes are never written in the command.
+ 
+ @param program - program specification when the command word deletes, else the sentinel
+ 
+ @param programWord - word naming that program
+ 
+ @param programSources - the program's own words, with their source spellings
+ 
+ @param words - innermost program words, program first
+ 
+ @param read - source text the command was read from
+ 
+ @param wrapsPathsFromOutside - whether a wrapper hands this program the paths it read
+ 
+ @param carriesExpansion - decides whether one written spelling is computed
+ 
+ @returns drafts the deletion checks named, empty when this command deletes nothing
+ 
+ @example
+ ```ts
+ deletionDraftsOfCommand({ program, programWord: 'rm', programSources: [], words: ['rm'], read, wrapsPathsFromOutside: false, carriesExpansion: shellWordCarriesExpansion });
+ ```
+ */
+function deletionDraftsOfCommand({
+  program,
+  programWord,
+  programSources,
+  words,
+  read,
+  wrapsPathsFromOutside,
+  carriesExpansion,
+}: {
+  readonly program: DeletionProgram | typeof NO_DELETION_PROGRAM;
+  readonly programWord: string;
+  readonly programSources: readonly DeletionTarget[];
+  readonly words: readonly string[];
+  readonly read: SourceRead;
+  readonly wrapsPathsFromOutside: boolean;
+  readonly carriesExpansion: (sourceText: string,) => boolean;
+},): readonly DeletionFindingDraft[] {
+  if (program !== NO_DELETION_PROGRAM) {
+    return deletionFindingDrafts({
+      programWord,
+      targets: deletionTargetsFromSources({
+        argSources: programSources,
+        optionsWithValue: program.optionsWithValue,
+      },),
+      unwrittenPaths: read.unwrittenPaths || wrapsPathsFromOutside,
+      homeFolder: read.homeFolder,
+      carriesExpansion,
+    },);
+  }
+  if (!findDeletesThePathsItFound(words,))
+    return [];
+  return [{
+    word: FIND_DELETE_ACTION,
+    check: 'find-deletes-the-paths-it-found',
+  },];
 }
 
 /**
@@ -651,28 +467,36 @@ function rawSourceRmRead({ read, }: { readonly read: SourceRead; },): SourceRead
      Command line this run writes, used to name what was found.
      */
     const command = words.join(' ',);
-    if (isRmProgramWord(wrapped.words
-      .at(0,)
-      ?? '',)) {
-      for (const word of rmOperandFindings({
-        unwrittenPaths: read.unwrittenPaths
-          || wrapped.wrapperNames
-            .includes(XARGS_WRAPPER_NAME,),
-        programWord: wrapped.words
-          .at(0,)
-          ?? RM_PROGRAM_NAME,
-        operandSourceTexts: wrapped.words
-          .slice(1,),
-        carriesExpansion: rawWordCarriesExpansion,
-      },)) {
-        collected.findings
-          .push({
-            command: read.origin
-              ?? command,
-            word,
-            ...(read.file === undefined ? {} : { file: read.file, }),
-          },);
-      }
+    for (const draft of deletionDraftsOfCommand({
+      program: deletionProgramOf(wrapped.words
+        .at(0,)
+        ?? '',),
+      programWord: wrapped.words
+        .at(0,)
+        ?? '',
+      programSources: wrapped.words
+        .slice(1,)
+        .map(function rawTarget(word,): DeletionTarget {
+          return {
+            value: word,
+            sourceText: word,
+          };
+        },),
+      words: wrapped.words,
+      read,
+      wrapsPathsFromOutside: wrapped.wrapperNames
+        .includes(XARGS_WRAPPER_NAME,),
+      carriesExpansion: rawWordCarriesExpansion,
+    },)) {
+      collected.findings
+        .push({
+          command: read.origin
+            ?? command,
+          word: draft.word,
+          check: draft.check,
+          ...(draft.detail === undefined ? {} : { detail: draft.detail, }),
+          ...(read.file === undefined ? {} : { file: read.file, }),
+        },);
     }
     collected.reads
       .push(
@@ -744,11 +568,8 @@ function readOneSource({ read, }: { readonly read: SourceRead; },): SourceReadRe
 //endregion Command reads
 
 export {
-  isRmProgramWord,
-  lineOfOffset,
+  deletionDraftsOfCommand,
+  deletionTargetsFromSources,
   rawWordCarriesExpansion,
-  readIdentity,
   readOneSource,
-  rmOperandFindings,
 };
-export type { SourceRead, };

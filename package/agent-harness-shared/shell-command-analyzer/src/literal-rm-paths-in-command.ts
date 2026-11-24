@@ -11,6 +11,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { homedir, } from 'node:os';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -81,11 +82,13 @@ async function scriptFileTextOrNone(path: string,): Promise<string | typeof SCRI
 //region Public reads
 
 /**
- Reads every `rm` a Bash tool call would run that names its paths at run time.
+ Reads every deletion a Bash tool call would run that breaks the literal-path rule.
  
  @param command - shell source from an agent harness Bash tool input
  
  @param cwd - working directory the command runs in
+ 
+ @param homeFolder - the account's home folder, defaulting to this process's
  
  @returns one finding per offending command and word
  
@@ -97,9 +100,11 @@ async function scriptFileTextOrNone(path: string,): Promise<string | typeof SCRI
 async function findLiteralRmPathsInCommand({
   command,
   cwd,
+  homeFolder = homedir(),
 }: {
   readonly command: string;
   readonly cwd: string;
+  readonly homeFolder?: string;
 },): Promise<readonly LiteralRmPathFinding[]> {
   /**
    Candidates the command names, each read once.
@@ -112,28 +117,42 @@ async function findLiteralRmPathsInCommand({
    Findings from the command text and from every script file it reads.
    */
   return [
-    ...findLiteralRmPaths({ source: command, },),
+    ...findLiteralRmPaths({
+      source: command,
+      homeFolder,
+    },),
     ...(await Promise.all(candidates
       .map(function scriptFileFindings(candidate,): Promise<readonly LiteralRmPathFinding[]> {
-        return findingsOfScriptFile(candidate,);
+        return findingsOfScriptFile({
+          candidate,
+          homeFolder,
+        },);
       },)))
       .flat(),
   ];
 }
 
 /**
- Reads one candidate script file and reports the `rm` findings it holds.
+ Reads one candidate script file and reports the findings it holds.
  
  @param candidate - file the command names
+ 
+ @param homeFolder - the account's home folder the script's targets are judged against
  
  @returns findings of that file, empty when it is unreadable or is no shell script
  
  @example
  ```ts
- await findingsOfScriptFile({ path: '/repo/clean.sh', shellReadsIt: true });
+ await findingsOfScriptFile({ candidate: { path: '/repo/clean.sh', shellReadsIt: true }, homeFolder: '/home/user' });
  ```
  */
-async function findingsOfScriptFile(candidate: ScriptFileCandidate,): Promise<readonly LiteralRmPathFinding[]> {
+async function findingsOfScriptFile({
+  candidate,
+  homeFolder,
+}: {
+  readonly candidate: ScriptFileCandidate;
+  readonly homeFolder: string;
+},): Promise<readonly LiteralRmPathFinding[]> {
   /**
    Text of the script file, absent when it cannot be read.
    */
@@ -153,6 +172,7 @@ async function findingsOfScriptFile(candidate: ScriptFileCandidate,): Promise<re
   return findLiteralRmPathsInScriptFile({
     path: candidate.path,
     source: text,
+    homeFolder,
   },);
 }
 

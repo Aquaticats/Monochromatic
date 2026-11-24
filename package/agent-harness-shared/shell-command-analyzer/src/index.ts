@@ -54,10 +54,40 @@ export {
   literalRmPathFindingsAddedToScriptFile,
 } from './literal-rm-paths-added-to-script-file.ts';
 export {
+  CHECK_PHRASES,
+  findingReason,
+  findingSentence,
   LITERAL_RM_PATH_BAN_REASON,
   literalRmPathRefusal,
 } from './literal-rm-path-refusal.ts';
-export type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
+export type {
+  LiteralRmPathCheck,
+  LiteralRmPathFinding,
+} from './literal-rm-path-finding.ts';
+export {
+  DELETION_PROGRAMS,
+  deletionProgramOf,
+  deletionTargetsOf,
+  FIND_DELETE_ACTION,
+  findDeletesThePathsItFound,
+  NO_DELETION_PROGRAM,
+} from './deletion-programs.ts';
+export type {
+  DeletionProgram,
+  DeletionTarget,
+} from './deletion-programs.ts';
+export {
+  collapsedTargetReason,
+  isEmptySegmentName,
+  isTopLevelFolder,
+  NOT_COLLAPSED,
+  withoutTrailingSeparators,
+} from './deletion-target-collapse.ts';
+export type { CollapsedTargetReason, } from './deletion-target-collapse.ts';
+export {
+  deletionFindingDrafts,
+} from './deletion-target-findings.ts';
+export type { DeletionFindingDraft, } from './deletion-target-findings.ts';
 export { shellWordCarriesExpansion, } from './shell-word-carries-expansion.ts';
 export {
   fileExtensionOf,

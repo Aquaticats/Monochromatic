@@ -10,6 +10,8 @@
  @module
  */
 
+import { homedir, } from 'node:os';
+
 import { findLiteralRmPathsInScriptFile, } from './literal-rm-paths.ts';
 import type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
 import { isShellScriptFile, } from './shell-script-file.ts';
@@ -41,7 +43,12 @@ const FINDING_IDENTITY_SEPARATOR = '\u0000';
  ```
  */
 function findingIdentity(finding: LiteralRmPathFinding,): string {
-  return `${finding.command}${FINDING_IDENTITY_SEPARATOR}${finding.word}`;
+  return [
+    finding.command,
+    finding.word,
+    finding.check,
+  ]
+    .join(FINDING_IDENTITY_SEPARATOR,);
 }
 
 /**
@@ -107,7 +114,7 @@ function findingsNotPresentBefore({
 //region Public reads
 
 /**
- Reports the `rm` violations a change would add to a shell script.
+ Reports the deletion violations a change would add to a shell script.
  
  A file is judged only when the change leaves it a shell script or found it one,
  so a change to a file a shell never reads costs nothing.
@@ -117,6 +124,8 @@ function findingsNotPresentBefore({
  @param before - file text before the change, or empty text for a file the change creates
  
  @param after - file text the change would leave on disk
+ 
+ @param homeFolder - the account's home folder, defaulting to this process's
  
  @returns the violations the change adds, empty when it adds none
  
@@ -133,10 +142,12 @@ function literalRmPathFindingsAddedToScriptFile({
   path,
   before,
   after,
+  homeFolder = homedir(),
 }: {
   readonly path: string;
   readonly before: string;
   readonly after: string;
+  readonly homeFolder?: string;
 },): readonly LiteralRmPathFinding[] {
   if ((!isShellScriptFile({
     path,
@@ -152,10 +163,12 @@ function literalRmPathFindingsAddedToScriptFile({
     before: findLiteralRmPathsInScriptFile({
       path,
       source: before,
+      homeFolder,
     },),
     after: findLiteralRmPathsInScriptFile({
       path,
       source: after,
+      homeFolder,
     },),
   },);
 }
