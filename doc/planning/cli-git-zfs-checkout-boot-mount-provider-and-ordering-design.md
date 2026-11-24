@@ -1515,8 +1515,8 @@ two's; `restart-provider.log`, `systemd-262-arms.log`, `upholds-arm.log`, `escap
 ## What else on this host touches the checkout's boot
 
 `zfs-space-guard.service` is `After=zfs-mount.service` and its timer runs every five minutes,
-deleting old `/home` snapshots when the pool is over 85 percent full (host read in round three's
-`keep/host-reads.log`).
+deleting old `/home` snapshots when the pool is over 85 percent full, on a five-minute timer
+(`systemctl cat` of both units in this round's `keep/host-reads.log`).
 It has no edge to the boot unit and this design gives it none; what matters for a reader is that a
 service ordered after the provider can run while the checkout is absent, which is another reason a
 provider's own success is not a readiness signal.
@@ -1638,6 +1638,8 @@ What it delivers: nothing to settle here.
 
 What it costs: a conditional in a unit file is not a thing systemd does; a reader cannot audit which
 prerequisite a given boot had; and step 19's own open item asks this design to settle it.
+
+Not run, because there is nothing to run: the text above is not a unit systemd accepts.
 
 #### Ranking of V1
 
@@ -1848,6 +1850,9 @@ What it delivers: nothing to keep in step.
 What it costs: the stop half loses its only statement, and `systemd-analyze verify` cannot check the
 intent.
 
+Not run: the two lines it drops are the ones `RequiresMountsFor=` expands to, and no shutdown arm has
+run in any round.
+
 #### Ranking of V3
 
 Ranking: A > B > C.
@@ -1953,10 +1958,19 @@ that window, which V4 removes.
 
 #### Option B: order each descendant after the gate's propagation step
 
+```ini
+# the per-dataset unit, ordering after the gate's propagation step rather than before sessions
+[Unit]
+After=reconcile-git-worktree-clone-mounts.service
+```
+
 What it delivers: the window closed by ordering rather than by a step.
 
 What it costs: the provider cannot be ordered, so only its own scan can be prevented, which is V4,
 and a per-dataset unit later mounts into whatever propagation the parent has.
+
+Not run: the ordering edge is the one V9's option A already carries, and what it lacks is a step to
+order, which no arm has.
 
 #### Ranking of V5
 
@@ -2019,6 +2033,9 @@ What it delivers: everything the account starts is behind the gate.
 What it costs: no design here for its ordering against `systemd-user-sessions.service`, or for a
 refused boot that would leave the account entirely without a session; and a failed gate would remove
 far more than the checkout.
+
+Not run: dropping a `user@` instance's start on a failed gate is a boot with no session at all, which
+this round did not want to leave a guest in.
 
 #### Option C: rely on login ordering alone
 
@@ -2117,6 +2134,9 @@ What it costs: it reads green on a machine with the wrong `canmount`, no `ExecRe
 ignores, a profile that cannot exec the hook, a disabled ZED, or key lines that name a unit the boot
 does not install.
 
+Not run: this option is one line of the whole-set report, and its own run would say nothing the
+whole-set run does not.
+
 #### Ranking of V7
 
 Ranking: A > B.
@@ -2180,6 +2200,9 @@ What it delivers: no unsourced number and no login hold at all.
 What it costs: while the bound is missing, nothing makes the checkout ready before a session, which is
 the unit's purpose.
 
+Not run: the two lines it removes are what every green arm has, and the failing arms measure what
+their absence costs a session.
+
 #### Option D: no bounds and the ordering kept
 
 The unit with no `TimeoutStartSec=`, whose manager default is `infinity`
@@ -2214,6 +2237,9 @@ sees no checkout until the services that need it fail; and dropping the line fro
 what makes E work at all, so E is **not separable from V6 and V9**: an option that drops one line and
 leaves the others is a hold through the units that kept it.
 The boot unit's own `Before=umount.target` ordering is the only thing left stating the intent.
+
+Not run: E is A's line removed from four units, and the failing arms show sessions starting with the
+checkout absent, which is the state E ships.
 
 #### Ranking of V8
 
@@ -2334,6 +2360,9 @@ What it delivers: the shortest unit text.
 
 What it costs: no verification handshake, so a unit that starts early mounts a descendant under an
 unverified checkout, and the design has two mounters instead of one.
+
+Not run: no arm mounts a descendant without the gate's verification, and the explicit call itself is
+the one the stand-in makes in the green boot.
 
 #### Ranking of V9
 
@@ -2472,19 +2501,22 @@ it. If it may not, V9's option A has no call to make and option B's step is the 
   `is-active`.
 - F4. `zfs-mount.service` runs `/usr/bin/zfs mount -a` with `ConditionPathIsDirectory=/sys/module/zfs`,
   `Before=local-fs.target` and `WantedBy=zfs.target`; `zfs-import-cache.service` runs
-  `zpool import -c /etc/zfs/zpool.cache -aN $ZPOOL_IMPORT_OPTS`; `ZPOOL_IMPORT_OPTS` is empty; the four
-  ZFS units are enabled. Basis: host read.
+  `/usr/bin/zpool import -c /etc/zfs/zpool.cache -aN $ZPOOL_IMPORT_OPTS`; `ZPOOL_IMPORT_OPTS` is empty;
+  the four ZFS units are enabled. Basis: host read, `systemctl cat` of both units and
+  `/etc/default/zfs` in `keep/host-reads.log`.
 - F5. `/usr/lib/systemd/system/zfs-load-key.service` is a `/dev/null` symlink owned by
   `zfs-utils 2.4.4-3`, there is no `zfs-load-key@.service` file, and the unit is `masked`. Basis: host read.
 - F6. The pool's encryption root is `zpcachyos`, its key is a passphrase prompted at import
   (`keylocation=prompt`), and the home dataset reads `encryptionroot=zpcachyos`, `keylocation=none`,
   `keystatus=available`. Basis: host read, `zfs get … encryptionroot,keylocation,keystatus` of
   `zpcachyos`, `zpcachyos/ROOT/cos` and `zpcachyos/ROOT/cos/home` in `keep/host-reads.log`.
-- F7. `home.mount` is learned from the mount table; the checkout's own unit name is `not-found`. Basis: host read.
+- F7. `home.mount` is learned from the mount table (`LoadState=loaded`, `FragmentPath=` empty,
+  `SourcePath=/proc/self/mountinfo`), and the checkout's own unit name is `not-found`.
+  Basis: host read, `systemctl show` for both names in `keep/host-reads.log`.
 - F8. `/home` is root's `0755`, `/home/user` is the account's `0700`, the checkout path is the account's `0755`.
   Basis: host read.
-- F9. `zfs-space-guard.service` is `After=zfs-mount.service` with a five-minute timer. Basis: host read
-  of round three's `keep/host-reads.log`.
+- F9. `zfs-space-guard.service` is `After=zfs-mount.service`, and its timer is `OnCalendar=*:0/5`.
+  Basis: host read, `keep/host-reads.log`.
 - F10. This host runs systemd `262.2-1-arch`, and has no
   `/usr/lib/systemd/system/service.d/10-timeout-abort.conf`. Basis: host read.
 - F11. The guest runs Fedora Linux 43, systemd `258.11-1.fc43`, kernel `6.17.1-300.fc43.x86_64`,
