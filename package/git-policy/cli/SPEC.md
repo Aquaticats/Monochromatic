@@ -4727,6 +4727,7 @@ and every step reads the state a kill at the step before it leaves:
   its sibling clone container,
   the pool,
   the boot's start-time compatibility gate,
+  the account's effective ZFS delegation against the shape the design scopes,
   and a current handler readiness report for this boot,
   pool and checkout,
   and it refuses a repository whose Git does not ignore
@@ -4868,6 +4869,25 @@ names the operation,
 the object and the pool,
 and the next add resumes once space is free.
 
+
+The preflight reads the account's effective delegation over the checkout dataset
+and its sibling clone container,
+the way `doctor`'s own check reads it,
+and refuses before the claim when a permission the design scopes is missing,
+is effective only through a wider ancestor grant,
+reaches the account through a named set,
+is granted to everyone,
+or is one of the lineage-changing grants the route must not have.
+The refusal prints that check's finding,
+which names each failing permission with the `zfs allow` or `zfs unallow`
+command that settles it,
+and the add writes nothing.
+The kernel's `ZFS_IOC_GET_FSACL` needs no privilege for this read:
+OpenZFS `zfs-2.4.4` registers it with `zfs_secpolicy_read`,
+which returns zero in the global zone
+(`module/zfs/zfs_ioctl.c:390` to `:398` and `:7825` to `:7826`),
+so the account reads its own delegation through the device the route already
+holds.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,

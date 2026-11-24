@@ -30,11 +30,13 @@
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
 //! - `add_registration.rs`: the scan of `<common>/worktrees` and what it settles.
 //! - `add_zfs.rs`: the pool's reads, the snapshot, the clone, the inventories and the mount request.
+//! - `add_grants.rs`: the account's effective delegation, refused unless it is the decided one.
 //! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
 //! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
 //! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
 //! - `add_route_steps.rs`: one step per phase, each reading what a kill left.
-//! - `add_route_run.rs`: the entry point, the preflight, the claim, the phase machine and the end.
+//! - `add_preflight.rs`: what A0 proves before the claim writes anything.
+//! - `add_route_run.rs`: the entry point, the claim, the phase machine and the end.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -63,6 +65,8 @@ pub mod add_git_words;
 pub mod add_registration;
 /// The pool's calls.
 pub mod add_zfs;
+/// The account's effective delegation over the route's two datasets.
+pub mod add_grants;
 /// The wait for the mount.
 pub mod add_mount;
 /// The pointer's exchange.
@@ -71,6 +75,8 @@ pub mod add_exchange;
 pub mod add_fill;
 /// One step per phase.
 pub mod add_route_steps;
+/// What A0 proves before the claim writes anything.
+pub mod add_preflight;
 /// The route's entry point and runner.
 pub mod add_route_run;
 
@@ -83,4 +89,5 @@ pub use add_capture::{CapturedEntry, CapturedIndex, CapturedKind, Capture, Captu
 pub use add_capture_record::{CAPTURE_HEADER, capture_bound, encode_capture, parse_capture};
 pub use add_capture_store::{capture_name, marker_name, publish_capture, read_capture, remove_capture};
 pub use add_git_words::{ROUTE_OPTIONS, person_lock_word, the_locked_add_words};
+pub use add_grants::{read_the_grants, refuse_unless_the_decided_ones, refuse_without_the_decided_grants};
 pub use add_registration::{Registration, ScanInput, ScanOutcome, scan_and_settle};

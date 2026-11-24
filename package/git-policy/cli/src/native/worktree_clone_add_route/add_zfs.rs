@@ -165,6 +165,17 @@ impl OpenedDevice {
         return Ok(Some(identity.stats.origin()).filter(|origin| return !origin.is_empty()));
     }
 
+    /// One dataset's delegations and its ancestors',
+    /// as the claim's own check reads them.
+    ///
+    /// # Errors
+    /// The pool refused the read,
+    /// or answered a shape this reader cannot represent.
+    pub fn grants_at(&self, dataset: &str) -> Result<Vec<crate::doctor_zfs_route::Grant>, String> {
+        let reply: NvList = self.device.get_fsacl(dataset).map_err(|error| return format!("the delegations of {dataset} cannot be read ({error})"))?;
+        return crate::doctor_zfs_route::grants_of(&reply).map_err(|reason| return format!("the delegations of {dataset} are not a shape this reader represents ({reason})"));
+    }
+
     /// Ask the handler for the clone's mount.
     ///
     /// # Errors
