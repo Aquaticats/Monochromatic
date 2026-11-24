@@ -232,7 +232,7 @@ impl Fixture {
     fn add_command(&self, name: &str, stop_after: Option<&str>) -> Command {
         let mut command: Command = Command::new(self.root.join("bin").join("git"));
         command
-            .args(["worktree", "add", self.slot(name).to_str().expect("a text path"), "main"])
+            .args(["worktree", "add", self.slot(name).to_str().expect("a text path")])
             .current_dir(self.root.as_path())
             .env("PATH", format!("{}:/usr/bin:/bin", self.root.join("bin").display()))
             .env("HOME", self.root.join("home"))

@@ -240,6 +240,7 @@ fn run_the_git_add(steps: &Steps<'_>, nonce: &crate::worktree_clone_mount_protoc
 /// Take the checkout snapshot, publish its inventory, and move to
 /// `snapshotted`.
 pub fn step_snapshot(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), StepRefusal> {
+    write_the_capture(steps, record)?;
     let origin: ObjectIdentity = match record.origin_snapshot_guid {
         Some(guid) => {
             let live: ObjectIdentity = steps.device.identity_of(record.origin_snapshot.as_str()).map_err(StepRefusal::refused)?;
@@ -280,6 +281,51 @@ pub fn step_snapshot(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<()
     record.phase = Phase::Snapshotted;
     write_the_record(steps, record)?;
     steps.stops.after("origin-inventory");
+    return Ok(());
+}
+
+/// What:
+///  Take and publish the frozen capture before the snapshot,
+///  or use the one an earlier run published.
+/// Why:
+///  The capture must predate the snapshot, so a run that finds a snapshot but no
+///  capture has lost the only proof its clone can be compared with.
+fn write_the_capture(steps: &Steps<'_>, record: &BindingRecord) -> Result<(), StepRefusal> {
+    let standing: Option<super::add_capture::Capture> = super::add_capture_store::read_capture(steps.home_path, steps.route.slot.as_str()).map_err(StepRefusal::refused)?;
+    if standing.is_some() {
+        return Ok(());
+    }
+    if record.origin_snapshot_guid.is_some() {
+        return Err(StepRefusal::refused(format!(
+            "the snapshot {} stands and the frozen capture that proves it is gone, so nothing can compare the clone with the source; Ways forward: inspect the snapshot, remove it and the records, then run the add again",
+            record.origin_snapshot
+        )));
+    }
+    let admin: std::path::PathBuf = match record.registration_path() {
+        Some(found) => found,
+        None => return Err(StepRefusal::refused(String::from("the record names no registration, so the capture has no worktree to read its HEAD from"))),
+    };
+    let index: std::path::PathBuf = steps.source.git_dir.join("index");
+    let bytes: Vec<u8> = std::fs::read(index.as_path()).map_err(|error| return StepRefusal::refused(format!("the source's index {} cannot be read for the capture ({error})", index.display())))?;
+    let metadata: std::fs::Metadata = std::fs::metadata(index.as_path()).map_err(|error| return StepRefusal::refused(format!("the source's index {} cannot be examined ({error})", index.display())))?;
+    let format: crate::repo_read_layout::ObjectFormat = if steps.source.clean.hash_length == 20 { crate::repo_read_layout::ObjectFormat::Sha1 } else { crate::repo_read_layout::ObjectFormat::Sha256 };
+    let head: String = crate::worktree_clean::head_commit(admin.as_path(), steps.route.common_dir.as_path(), format).ok_or_else(|| return StepRefusal::refused(String::from("the new worktree's HEAD names no commit, so the capture cannot record what the add checks out")))?;
+    let source_head: String = steps.source.clean.head_commit.clone();
+    let input: super::add_capture::CaptureInput<'_> = super::add_capture::CaptureInput {
+        source_root: steps.route.source_root.as_path(),
+        repository: steps.route.common_dir.as_path(),
+        index_bytes: bytes.as_slice(),
+        index_mtime: (std::os::unix::fs::MetadataExt::mtime(&metadata), std::os::unix::fs::MetadataExt::mtime_nsec(&metadata) as u32),
+        hash_length: steps.source.clean.hash_length,
+        nonce: &record.nonce,
+        head,
+        source_head,
+        checkout_guid: steps.checkout_guid,
+    };
+    let capture: super::add_capture::Capture = super::add_capture::capture_the_source(&input).map_err(StepRefusal::refused)?;
+    super::add_capture_store::publish_capture(steps.home, steps.route.slot.as_str(), &capture).map_err(|error| {
+        return StepRefusal::refused(format!("the frozen capture cannot be published ({error}); nothing was mutated beyond the registration, and running the add again resumes it"));
+    })?;
     return Ok(());
 }
 
@@ -403,7 +449,6 @@ pub fn step_fill(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<Option
         clone_root: steps.route.destination.as_path(),
         common_dir: steps.route.common_dir.as_path(),
         capture: &capture,
-        index_bytes: steps.source.clean.index_bytes.as_slice(),
         hash_length: steps.source.clean.hash_length,
         pointer: pointer.as_slice(),
         nonce: &record.nonce,

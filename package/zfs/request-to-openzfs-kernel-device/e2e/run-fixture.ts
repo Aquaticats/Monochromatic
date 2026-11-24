@@ -1404,6 +1404,8 @@ function step10Pool(options: Options): void {
     `truncate --size 1G ${STEP10_FIXTURE_ROOT}/pool.img`,
     `head --bytes 32 /dev/urandom > ${STEP10_FIXTURE_ROOT}/raw-key`,
     `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP10_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP10_POOL} ${STEP10_FIXTURE_ROOT}/pool.img`,
+    `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT`,
+    `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
     `zfs create -o mountpoint=${STEP10_CHECKOUT_PATH} ${STEP10_CHECKOUT}`,
     `zfs create -o mountpoint=legacy -o canmount=off ${STEP10_CONTAINER}`,
     `mount --make-rprivate ${STEP10_CHECKOUT_PATH}`,

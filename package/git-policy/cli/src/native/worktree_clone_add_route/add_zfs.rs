@@ -98,7 +98,16 @@ impl OpenedDevice {
     /// The kernel refused the write or reported a per-name failure,
     /// or the clone does not answer afterwards.
     pub fn clone_the_origin(&self, target: &str, origin: &str) -> Result<ObjectIdentity, String> {
-        let reply: Option<NvList> = self.device.clone(target, origin, None).map_err(|error| return format!("the clone {target} was refused ({error}); the pool may be full, and the origin snapshot's identity is recorded"))?;
+        // A clone inherits the origin's `mountpoint` unless it sets its own, and
+        // the design keeps every clone at a legacy mountpoint it never mounts by
+        // itself (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+        // "Dataset and path layout"), so the two properties are written with the
+        // creation: the container's legacy mountpoint does not override the
+        // origin's own.
+        let mut properties: NvList = NvList::new();
+        properties.add_str("mountpoint", "legacy");
+        properties.add_str("canmount", "off");
+        let reply: Option<NvList> = self.device.clone(target, origin, Some(&properties)).map_err(|error| return format!("the clone {target} was refused ({error}); the pool may be full, and the origin snapshot's identity is recorded"))?;
         refuse_any_element(reply.as_ref(), "the clone")?;
         return read_identity(&self.device, target);
     }

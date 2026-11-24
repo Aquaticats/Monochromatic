@@ -21,6 +21,7 @@
 //! ```
 
 use super::add_capture::Capture;
+use crate::private_storage::read_regular_file;
 use super::add_capture_store::{marker_is_ours, publish_marker};
 use super::add_exchange::{PreparedExchange, exchange_the_git_entry, prepare_the_exchange};
 use super::add_frozen_proof::prove_the_clone;
@@ -60,9 +61,6 @@ pub struct FillInput<'a> {
     pub common_dir: &'a Path,
     /// The capture the proof compares with.
     pub capture: &'a Capture,
-    /// The captured index's bytes,
-    /// the seed the fill's own index is written from.
-    pub index_bytes: &'a [u8],
     /// The repository's object name length in bytes.
     pub hash_length: usize,
     /// The bytes Git wrote into the slot's `.git`.
@@ -134,7 +132,12 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
         }
     };
     if !published_stands(input.admin_path) && !pending_stands(input.admin_path) {
-        let bytes: Vec<u8> = index_for_the_fill(input.index_bytes, input.hash_length)?;
+        // The seed is the clone's copied index, which D1 just proved equal to the
+        // capture: a fresh read of the source's index could hold a later write.
+        let seed: Vec<u8> = read_regular_file(input.clone_root.join(".git").join("index").as_path(), input.capture.index.size.saturating_add(1)).map_err(|refusal| {
+            return format!("the clone's copied index cannot be read for the fill ({refusal:?}); Ways forward: run the add again with nothing writing the main checkout");
+        })?;
+        let bytes: Vec<u8> = index_for_the_fill(seed.as_slice(), input.hash_length)?;
         let admin: std::fs::File = open_root(input.admin_path).map_err(|error| return format!("the registration {} cannot be opened ({error})", input.admin_path.display()))?;
         write_the_private_index(&admin, bytes.as_slice())?;
         input.stops.after("index");
