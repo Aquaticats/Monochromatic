@@ -715,6 +715,27 @@ whose round is running.
 Its denials showed `systemd-oomd` refused its cgroup reads,
 fixed by the owner's "Add the read rule now (Recommended)"
 (the account's "systemd-oomd reading the cgroup tree").
+The gate on `main` at `8519c599d0`
+(run `native-bNr3O6`, 2026-11-24T06:18:44Z to 06:46:59Z)
+gave `10745 tests run: 10741 passed (7 slow), 4 failed, 41 skipped`:
+the cause-H pair;
+the source guard `the_release_code_keeps_blocking_work_off_the_runtime`,
+on two `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`, `add_route_plan.rs:265`);
+and the `statmount` control,
+whose call answers `ENOSYS` inside the rootless container though the host kernel has it.
+The end-to-end push program controls passed in about 5 ms each,
+so they declined there too:
+the gate image now holds a real `git-lfs`.
+Its new denials (`git` asking `dac_override`,
+`git//ssh` running `/work/stubs/askpass`,
+`ssh-agent` asking `setgid` and making sockets,
+`ssh` running `true`, `false`, `cat` and `echo`)
+map to no failure and have no rule yet.
+Waiting for the memory stall to ease,
+with prompts ready in their folders under `~/temp/agent/`:
+`zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
+`statmount-control-in-the-gate-container-2026-11-24`
+and `end-to-end-push-program-controls-run-in-the-gate-2026-11-24`.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -788,8 +809,12 @@ The commit pass's L2 is answered,
 (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`),
 and built in `pi-lfs-url-mask-shows-short-segments`.
 Its L4 waits in `doc/handover/questions-for-the-owner.md`,
-with `pi-typed-network-command-next-step-at-a-new-host-key-design` designing its options under the one-program and
-start-name records.
+and its options merged as a proposal,
+`41bdf36a2a`
+(`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+ranked B > D > C > E > A, B being the wrapper as the askpass program),
+with its Sonnet gate review running
+(`~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
