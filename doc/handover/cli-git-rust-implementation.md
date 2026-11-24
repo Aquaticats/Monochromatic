@@ -608,12 +608,11 @@ The Btrfs round D2 asked for merged as `edfd13bd90`
 (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`):
 the clone was no slower than Git's checkout on every Btrfs shape,
 so the record's condition to drop the dirty-tree limit there holds.
-Running:
-`pi-clone-rung-drops-the-dirty-limit-on-btrfs`,
-on `fix/git-policy-cli-clone-rung-drops-the-dirty-limit-on-btrfs`.
+The Btrfs dirty limit is dropped as `ce3f2c8518`,
+shown in a Btrfs guest red with the old choice and green with the new.
 
 Next:
-merge it when it ends.
+nothing until the next release's pass.
 
 
 ### The wrapper's test gate tells the truth
