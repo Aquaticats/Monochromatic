@@ -57,7 +57,7 @@ fn unique_number_of(path: &std::path::Path) -> u64 {
 ///  so the answer has to be read here before a sweep can rest on it.
 #[test]
 fn the_kernel_names_the_source_of_one_mount_by_its_unique_number() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mount_source::tests::the_kernel_names_the_source_of_one_mount_by_its_unique_number",
     ) {
@@ -92,7 +92,7 @@ fn the_kernel_names_the_source_of_one_mount_by_its_unique_number() {
 ///  the mount's root reading `/` is what the call proves instead of assuming.
 #[test]
 fn the_answer_reads_its_strings_at_the_offsets_it_names() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mount_source::tests::the_answer_reads_its_strings_at_the_offsets_it_names",
     ) {

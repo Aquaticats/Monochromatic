@@ -15,6 +15,7 @@ use crate::worktree_clone_mount::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
 use crate::test_support::{fixture, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -629,23 +630,19 @@ fn a_foreign_entry_refuses_the_listing_and_every_staging_form_does_not() {
 ///  which is neither whitespace nor a control character and so passes the name rule;
 ///  the adoption would then refuse `NoSlotRecord` for a name no writer can publish,
 ///  and would send the administrator to the sweep instead of to the entry that stands there.
-///  A filesystem that refuses such a name at creation (this host's own ZFS does,
-///  `EILSEQ`,
-///  which the design's probe met) prints `SKIPPED` and leaves the control to the gate's tmpfs fixture root,
-///  which allows the name.
+///  A filesystem that refuses such a name at creation is given one by the control itself:
+///  it runs inside a namespace of its own with a tmpfs at its fixture root
+///  (`in_a_fixture_root_taking_any_name`),
+///  so the listing is shown the entry wherever this host's own dataset would refuse to hold it.
 #[test]
 fn a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry() {
+    if !in_a_fixture_root_taking_any_name("worktree_clone_mount::slot_identity_store::tests::a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry") {
+        return;
+    }
     let root: PathBuf = fixture("store-non-utf8-entry");
     let (folder, _parent) = store(root.as_path(), 490, &[("one", 491)]);
     let invalid: OsString = OsString::from_vec(vec![b'a', 0xff, b'b']);
-    if let Err(error) = std::fs::write(folder.join(invalid.as_os_str()), b"staged") {
-        if error.raw_os_error() == Some(libc::EILSEQ) {
-            eprintln!("SKIPPED: this filesystem refuses a name that is not UTF-8 ({error}), so the listing's refusal cannot be shown here; the gate's tmpfs fixture root runs this control");
-            remove(root.as_path());
-            return;
-        }
-        panic!("the fixture entry is written: {error}");
-    }
+    std::fs::write(folder.join(invalid.as_os_str()), b"staged").expect("the fixture entry is written");
     let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
     let refused: StoreRefusal = read.slot_names().expect_err("a name that is not UTF-8 is no slot name");
     assert!(matches!(refused, StoreRefusal::ForeignEntry { ref path, .. } if path.starts_with(folder.as_path())), "{refused:?}");
@@ -784,7 +781,7 @@ const ROOT_SIDE_VARIABLE: &str = "SLOT_IDENTITY_STORE_FOLDER_ROOT_SIDE";
 #[cfg(target_os = "linux")]
 #[test]
 fn a_record_this_account_could_rewrite_is_refused() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         ROOT_SIDE_VARIABLE,
         "worktree_clone_mount::slot_identity_store::tests::a_record_this_account_could_rewrite_is_refused",
     ) {

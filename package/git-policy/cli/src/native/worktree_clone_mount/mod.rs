@@ -85,9 +85,6 @@
 //!   the policy a replacement must hold and the state of each binding and slot.
 //! - `parent_adoption_decision.rs`:
 //!   the table that decides whether a recreated parent folder may be recorded.
-//! - `root_namespace_test_support.rs`:
-//!   the user namespace a control needs when the files it judges must be root's,
-//!   never in the release build.
 //! - `attach_arm_tests.rs`:
 //!   step 4's guest arms,
 //!   which mount a real clone at the slot the walk held,
@@ -174,12 +171,6 @@ pub mod parent_adoption_facts;
 
 /// The administrator's decision to record a recreated parent folder.
 pub mod parent_adoption_decision;
-
-/// The user namespace a control needs when the files it judges must be root's,
-/// never in the release build.
-#[cfg(all(test, target_os = "linux"))]
-#[path = "root_namespace_test_support.rs"]
-pub(crate) mod root_namespace_test_support;
 
 /// Step 4's guest arms:
 /// the real mount at a held slot,

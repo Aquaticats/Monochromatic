@@ -106,7 +106,7 @@ fn the_step_is_handed_the_four_names_of_one_clone() {
 ///  "Misplaced attach").
 #[test]
 fn a_rollback_whose_slot_still_holds_a_mount_is_retained() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         "CLI_GIT_SWEEP_ATTACH_ROLLBACK_ROOT",
         "worktree_clone_mount_handler::sweep_attach_step::tests::a_rollback_whose_slot_still_holds_a_mount_is_retained",
     ) {
@@ -197,7 +197,7 @@ fn a_rollback_whose_slot_still_holds_a_mount_is_retained() {
 ///  the mount.
 #[test]
 fn the_real_attach_step_answers_a_retained_mount_as_retained() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         "CLI_GIT_SWEEP_ATTACH_RETAINED_ROOT",
         "worktree_clone_mount_handler::sweep_attach_step::tests::the_real_attach_step_answers_a_retained_mount_as_retained",
     ) {

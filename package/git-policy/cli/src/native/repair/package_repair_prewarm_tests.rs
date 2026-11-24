@@ -7,6 +7,7 @@ use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, common_directory_awaiting, d
 use crate::service_route::Route;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git, git_context, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -187,6 +188,9 @@ fn a_hand_over_of_nothing_writes_no_record() {
 /// and the record's own acceptability check refused every record of such a repository.
 #[test]
 fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
+    if !in_a_fixture_root_taking_any_name("repair::package_repair_prewarm::tests::the_common_directory_of_a_repository_whose_name_is_not_text_is_gits") {
+        return;
+    }
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("prewarm-common-not-utf8");

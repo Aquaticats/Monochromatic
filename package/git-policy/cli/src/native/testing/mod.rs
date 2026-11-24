@@ -27,6 +27,20 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The user namespace a control needs when the files it judges must be root's,
+/// and the inner half that runs the same test there;
+/// never part of the release executable,
+/// and included by path in the binary controls' own crate, which cannot reach this one.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod root_namespace_test_support;
+
+/// Whether the fixture root takes a name that is not UTF-8,
+/// and the tmpfs a control mounts at it inside a namespace of its own when it does not;
+/// never part of the release executable,
+/// and included by path in the binary controls' own crate, which cannot reach this one.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod fixture_root_taking_any_name;
+
 /// A mount table whose text a control writes,
 ///  for the rules that count mounted datasets;
 ///  never part of the release executable.
