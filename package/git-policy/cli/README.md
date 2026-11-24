@@ -823,9 +823,18 @@ Read-only commands,
   the clone is mounted at the slot,
   its copied index and tracked files are compared with a frozen capture taken
   before the snapshot,
+  the capture carrying a SHA-256 of every path its index stat data cannot vouch
+  for and every path written in the index's own millisecond tick,
+  the clone is reset to the commit you asked for through the same restore the
+  snapshot rung uses,
+  with the index the fill owns under a private name,
   the copied Git administration is exchanged with the saved pointer in one
   `renameat2(RENAME_EXCHANGE)`,
   and the result is checked before the record says the worktree is usable.
+  A main checkout with uncommitted edits is served like a clean one,
+  and so is an add whose commit is not the checkout's `HEAD`:
+  the new worktree holds what Git's own checkout of that commit holds,
+  plus the ignored files the snapshot carried.
   A kill at any step leaves the claim,
   the slot and the registration,
   and the next add at the slot resumes from the phase the record names.
