@@ -8743,6 +8743,19 @@ or sign with a key without a passphrase.
 A control at a real pseudo-terminal shows the host-key refusal
 (`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
+A control that reads the terminal and the status cannot tell a program the confinement refused
+from the one that answers nothing,
+because an empty answer and a program that never started are the same refusal to the connection:
+the only trace of the difference is OpenSSH's own line on standard error,
+`ssh_askpass: exec(<program>): Permission denied`,
+which the transcript holds because `run_at` appends the command's standard error to it.
+Both terminal controls therefore fail on that line as well
+(`assert_the_no_answer_program_ran` in `src/native/binary/binary_ssh_terminal_tests.rs`),
+and the four controls that assert a password program was never started
+run the same recorder through the same program and against the same server first,
+proving it logs its question where the rule does not stand in its way
+(`the_recording_program_logs_its_question` in `src/native/binary/binary_lfs_server_tests.rs`,
+`git_logs_the_recorders_question` in `src/native/landing/service_push_retry_tests.rs`).
 Both variables also cover OpenSSH's own password and keyboard-interactive questions and a PKCS#11 token's PIN,
 which read the same function (`sshconnect2.c:1057`,
 `sshconnect2.c:1275`,

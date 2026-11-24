@@ -39,6 +39,34 @@ const TERMINAL_BOUND_SECONDS: &str = "30";
 /// so a run that asks waits until the bound.
 const KEY_PASSPHRASE: &str = "correct horse battery staple";
 
+/// What OpenSSH writes when the program it runs in place of asking a person could not start.
+///  An answer nobody gave and a program nobody could start are the same refusal to the connection,
+/// so the terminal transcript,
+/// the status and the connection's own sentence cannot tell them apart;
+///  this line on standard error is the only trace of the difference
+///  (`readpass.c:74-80` at `V_10_6_P2`,
+///  where the child whose `execlp` failed reports it).
+///  An arm whose transcript holds it proves nothing about the wrapper's no-answer program,
+///  because both an empty answer and a refused program end in the same silence.
+const REFUSED_ASKPASS_LINE: &str = "ssh_askpass: exec(";
+
+/// What:
+///  Fail the control when the transcript shows that the program OpenSSH was given in place of asking a person
+///  could not start.
+/// Why:
+///   Every wrapped arm here reads the terminal and the status,
+///  and a refused askpass program leaves both exactly as an empty answer does,
+///  so an arm that read only those would pass while proving nothing
+///  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+///  "The tests that would pass with their program refused").
+///  The line is in the transcript because [`run_at`] appends the command's standard error to it.
+fn assert_the_no_answer_program_ran(transcript: &str) {
+    assert!(
+        !transcript.contains(REFUSED_ASKPASS_LINE),
+        "the program OpenSSH runs in place of asking a person could not start, so this arm's silence proves nothing: {transcript:?}"
+    );
+}
+
 /// A pseudo-terminal the control keeps open:
 /// the master end,
 /// which the control reads and nothing writes into,
@@ -365,6 +393,9 @@ fn git_through_wrapper(fixture: &Fixture, arguments: &[&str]) -> std::process::O
 ///  which the integration pass measured through the wrapper.
 ///  The key here is protected by a passphrase and no agent holds it,
 ///  so a run that asks waits for an answer that never comes and is the red case this control fails on.
+///  The wrapped arm also fails when OpenSSH could not start the program it runs instead of asking,
+///  which leaves the same silence as an empty answer
+///  ([`REFUSED_ASKPASS_LINE`]).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -425,6 +456,7 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
         "the wrapper's command asked for the key's passphrase at a terminal: {:?}",
         wrapped.transcript
     );
+    assert_the_no_answer_program_ran(wrapped.transcript.as_str());
     assert_eq!(
         wrapped.code,
         Some(128),
@@ -448,6 +480,10 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
 ///  No `SSH_AUTH_SOCK` reaches either child:
 ///  the environment is built from named values only,
 ///  and `-o IdentityAgent=none` keeps OpenSSH from finding an agent by itself.
+///  Neither arm needs the check [`assert_the_no_answer_program_ran`] makes:
+///  this key asks nothing,
+///  so a program that could not start would leave the connection succeeding exactly as no program does,
+///  and both arms assert that success.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -545,6 +581,9 @@ fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
 ///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  The project's answer of 2026-11-20 keeps that refusal and puts the way out in the words the wrapper owns,
 ///  which plain `ssh` at this same terminal still shows a question.
+///  The wrapped arm also fails when OpenSSH could not start the program it runs instead of asking,
+///  which ends in the same refusal
+///  ([`REFUSED_ASKPASS_LINE`]).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -601,6 +640,7 @@ fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
         None,
     );
     assert!(!wrapped.transcript.contains("Are you sure"), "the host key was never asked about: {:?}", wrapped.transcript);
+    assert_the_no_answer_program_ran(wrapped.transcript.as_str());
     assert!(
         wrapped.transcript.contains("Host key verification failed"),
         "OpenSSH's refusal names the host key: {:?}",
