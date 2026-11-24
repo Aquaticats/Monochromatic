@@ -288,3 +288,9 @@ pub fn scratch_refusal(refusal: &ScratchRefusal) -> String {
 #[cfg(test)]
 #[path = "companion_parent_tests.rs"]
 mod tests;
+
+/// The measurement this round's deadline cites,
+/// which is no control and runs only when it is asked for.
+#[cfg(test)]
+#[path = "companion_cost_measurement_tests.rs"]
+mod measurement;

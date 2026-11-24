@@ -34,21 +34,28 @@ use std::time::Duration;
 /// and the slot takes the reflink or
 ///  ordinary Git route.
 ///
-/// Measured 2026-11-24 on this host:
-/// the slowest whole companion run of the round was 2.1 ms,
-/// and the spread between rounds was under one millisecond,
-/// so the shipped bound is the slowest measured run plus this module's margin
-/// (see the measurement record named above for the twenty runs).
-pub const COMPANION_DEADLINE: Duration = Duration::from_millis(1_500);
+/// Measured 2026-11-24 on this host,
+/// over five interleaved rounds of three samples each
+/// (`doc/planning/cli-git-zfs-account-companion-cost.md`):
+/// a companion run's median was 1.62 to 1.79 ms in every round,
+/// its samples ran 1.342 to 2.759 ms,
+/// and a real `git worktree add` through the same build's wrapper took a median
+/// of 11.35 to 14.04 ms,
+/// so the companion is 1.123 to 1.144 of an add.
+/// The bound is the slowest measured run plus the margin below.
+pub const COMPANION_DEADLINE: Duration = Duration::from_millis(100);
 
 /// What:
 ///  What the deadline is raised by over the slowest measured run.
 /// Why:
-///  The measurement states its own spread,
-///  and a bound that sat inside it would refuse adds on noise.
-///  The margin is a multiple of the measured run rather than a second number,
-///  so a slower host moves both together.
-pub const COMPANION_DEADLINE_MARGIN: Duration = Duration::from_secs(1);
+///  A bound that sat inside the spread would refuse adds on noise,
+///  and this host loads heavily and a first sample runs cold:
+///  the same round's first add took 91.4 ms against a 11.4 ms median,
+///  an excursion of about eight times.
+///  97 ms is 68 times the companion's measured spread of 1.42 ms,
+///  so a cold start on a loaded host still answers,
+///  and a wedged mount call is still refused well inside a second.
+pub const COMPANION_DEADLINE_MARGIN: Duration = Duration::from_millis(97);
 
 /// The variable a guest or host control sets to give the run a test deadline,
 /// which no shipped run sets.

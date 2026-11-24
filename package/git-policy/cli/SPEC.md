@@ -3030,7 +3030,9 @@ so the figure describes what the rung copies
 The measurements below were taken on ZFS,
 and the whole-tree limit and the changed-file cut apply on every filesystem until a Btrfs round measures the dirty
 shapes (the same record's "The dirty-tree limit on Btrfs (D2)":
-"Yes, after one Btrfs round", which names no change until that round has run).
+"Yes,
+after one Btrfs round",
+which names no change until that round has run).
 A dirty source of 10,001 files of 2,600 bytes,
 about 26 MB,
 took 1.30 times Git's own checkout on the fenced rung,
@@ -4714,9 +4716,88 @@ because the route takes the named lock itself.
 Every other add,
 including every add in a checkout on another filesystem or on a ZFS dataset of
 another name,
-takes the ladder and copy route described above, unchanged.
+takes the ladder and copy route described above,
+unchanged.
 The dataset name is the gate the route has until plan step 19's one-time
-migration makes it, so no person meets the route before that step.
+migration makes it,
+so no person meets the route before that step.
+
+#### The account companion before each managed add
+
+The route runs one account-side check before its first write,
+after the gate above and before the slot's claim,
+inside the wrapper's own process and never as a second program
+(`doc/decision/cli-git-zfs-start-probe.md`,
+Q6 and Q-a;
+`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The account companion").
+It forks one child on buffers built before the fork,
+gives it a user namespace of its own,
+maps the account's effective user and group to 0 inside it,
+gives it a private mount namespace,
+mounts a scratch tmpfs under
+`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/account-companion/`,
+walks that tmpfs with the product's no-crossing walk,
+attaches a second tmpfs onto the slot's descriptor,
+reads the mount facts back from `/proc/self/mountinfo`,
+runs the four refusal controls,
+and has a second child move the mount and unmount it.
+It reads no ZFS state,
+opens no key,
+touches no `/dev/zfs`,
+and mounts nothing outside its own namespaces,
+so a pass says nothing about the root attach.
+
+What its answers mean for a person:
+
+- A pass prints nothing and the add goes ahead as the managed add.
+- A skip prints one line naming the call and the errno,
+  and then the three settings it read:
+  `user.max_user_namespaces`,
+  `kernel.unprivileged_userns_clone` and
+  `kernel.apparmor_restrict_unprivileged_userns`,
+  with `absent` for a setting the running kernel does not have.
+  The add then goes ahead as the managed add.
+  The skip covers exactly these host refusals:
+  `unshare(CLONE_NEWUSER)` answering `ENOSPC`,
+  `EPERM` or `EACCES`,
+  or `EINVAL` where `/proc/self/ns/user` does not exist;
+  the first mapping write answering `EPERM`,
+  which is what Ubuntu 24.04's default AppArmor profile gives;
+  `unshare(CLONE_NEWNS)` answering `EPERM`;
+  the private propagation answering `EPERM`,
+  or `EACCES` where that propagation was made with `mount`;
+  and the scratch tmpfs's `mount` answering `EPERM` or `EACCES`.
+  A skip is not a pass:
+  nothing was proved about the account's namespaces,
+  and the person sees that in the line.
+- Every other answer refuses that add's managed attach and prints one line:
+  `managed add refused: the account companion's <step> failed: <what failed>;
+  this slot takes the reflink or ordinary Git route.`
+  The same slot then takes the ladder's reflink or Git route,
+  which is the route every other add takes,
+  and no existing binding or intent is touched.
+  A failed `fork` beyond the wrapper's start budget,
+  a status pipe the parent cannot read,
+  and a child that died of a signal are refused the same way and named in the
+  line.
+
+The wait is bounded by `100 ms`,
+sized from this round's measurement
+(`doc/planning/cli-git-zfs-account-companion-cost.md`):
+the slowest measured run was 2.759 ms and a companion run costs 1.12 to 1.14 of
+a real add on this host.
+A run that misses the bound is killed with its process group,
+refused as unproven,
+and reported on the deadline's own line.
+A child a signal cannot end keeps its run directory until the next add proves it
+dead and removes it;
+a run directory of another PID namespace is left alone rather than guessed at.
+
+`doctor`'s print of the companion's own outcome,
+and the `CLI_GIT_TEST_ONLY_ACCOUNT_COMPANION` switch's guest arms,
+are plan step 18's and step 10's own rounds respectively;
+this release runs the companion in the add's preflight only.
 
 The route writes the add's order,
 and every step reads the state a kill at the step before it leaves:
@@ -4757,7 +4838,8 @@ and every step reads the state a kill at the step before it leaves:
   and Git writes it into the registration's `locked` file,
   so the registration is locked from its first moment.
   The wrapper writes no lock of its own and no second reason.
-  The departure from the ladder's `--no-checkout` form, and the lock,
+  The departure from the ladder's `--no-checkout` form,
+  and the lock,
   are the add-time lock design's.
 - The scan of `<common>/worktrees` reads each entry's `locked`,
   its `gitdir` and the slot's pointer,
@@ -4868,17 +4950,22 @@ and the next add resumes once space is free.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,
-  so a path whose `.gitattributes`, `core.autocrlf`, `ident`, encoding or filter
+  so a path whose `.gitattributes`,
+  `core.autocrlf`,
+  `ident`,
+  encoding or filter
   would give Git different bytes keeps the source's bytes in the new worktree
   until plan step 11's fence write lands (issue 6323).
 - It does not restore a dirty main checkout;
-  such a source is not this route's until plan step 11, and it takes the
+  such a source is not this route's until plan step 11,
+  and it takes the
   ladder's rung 3 as the owner decided on 2026-11-19.
 - A failed add does not finish itself with Git's own checkout;
   it keeps what it made and the next add resumes it (plan step 11).
 - A record that says an add is settling,
   the lost-lock installer,
-  removal and the settling command are plan steps 11, 13 and 16.
+  removal and the settling command are plan steps 11,
+  13 and 16.
 - The route checks no effective ZFS grant of its own;
   the first refused snapshot or clone reports the kernel's error with the pool
   already named in the record.
@@ -4914,7 +5001,9 @@ because each reports a fact the pool already committed that no later command
 can rediscover,
 and a power cut that lost one would leave a clone or a snapshot nothing proves
 the wrapper made
-(`doc/planning/cli-git-zfs-add-binding-record-design.md`, "Publication, and what
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"Publication,
+and what
 a kill leaves").
 Everything here concerns the add's other bookkeeping.
 
