@@ -890,8 +890,14 @@ and fix step 19's proposal once its review has ended.
 Issues 6348 to 6352 on GitHub hold them,
 each with the journal text that was kept.
 Nobody is working on them.
-Issue 6399's repair control failed in a second gate on 2026-11-24 (commented there),
-and `pi-repair-control-hand-over-after-the-bound-start-race` is on it.
+Issue 6399's repair control is fixed as `d1af169091` and the issue closed:
+a test-only seam waits for the fixture's first write,
+so the scene is forced rather than raced.
+Its round found issue 6448:
+a control that makes a non-UTF-8 folder name fails on this host,
+whose home dataset is `utf8only`;
+its round waits for the memory stall with the one-program second revision,
+prompt ready in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
 
 ### The desktop stays usable under agent runs
 
