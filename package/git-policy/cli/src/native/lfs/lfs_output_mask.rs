@@ -295,7 +295,7 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 /// a slash written encoded,
 /// is what a token looks like.
 /// An empty label is plain:
-/// `//` and a trailing `/` carry nothing.
+/// it carries nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
