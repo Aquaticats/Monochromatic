@@ -78,7 +78,7 @@ fn an_unreadable_configuration_is_refused_before_anything_is_opened() {
     let Err(said): Result<String, String> = run_at(&places) else {
         panic!("a run with an unreadable configuration answered a report");
     };
-    assert!(said.contains("could not be opened or read"), "{said}");
+    assert!(said.contains("could not be read"), "{said}");
     assert!(said.contains(&format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}")), "{said}");
     assert!(said.contains(&format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}")), "{said}");
     assert!(!PathBuf::from(&places.store).exists(), "a refused run wrote no store");

@@ -20,6 +20,10 @@
 //!  and exits successfully.
 //!  A failed or timed-out probe is a verdict in the record,
 //!  never a failed unit.
+//!  The command line refuses a caller that is not root before the gate is asked
+//!  and before this mode starts,
+//!  because every write here is root's
+//!  (`handler_mode_dispatch`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

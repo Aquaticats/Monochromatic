@@ -306,6 +306,11 @@ pub fn read_configuration(path: &Path, mounts: &dyn MountedDatasets) -> Result<S
         // the project's answer of 2026-11-22 says an empty file is not the same as no file.
         Ok(Some(text)) if text.trim().is_empty() => return Err(ConfigurationRefusal::Empty { path: path.to_path_buf() }),
         Ok(text) => text,
+        // A file that could not be opened or read at all is a read failure and keeps that sentence; a file that is
+        // there and fails a term of root control answers which term, so the two are never worded as one.
+        Err(refusal @ crate::file_only_root_may_write::FileControlRefusal::Open { .. }) => {
+            return Err(ConfigurationRefusal::Unreadable { path: path.to_path_buf(), reason: refusal.reason() });
+        }
         Err(refusal) => return Err(ConfigurationRefusal::NotUnderRootControl { path: path.to_path_buf(), reason: refusal.reason() }),
     };
     return parse_configuration(document.as_deref().unwrap_or(NO_FILE_DOCUMENT), path, mounts);

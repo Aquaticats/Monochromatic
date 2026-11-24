@@ -124,6 +124,11 @@ pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> 
         // the project's answer of 2026-11-22 says an empty file is not the same as no file.
         Ok(Some(text)) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty { path: path.to_path_buf() }),
         Ok(text) => Ok(text),
+        // A file that could not be opened or read at all is a read failure and keeps that word; a file that is there
+        // and fails a term of root control answers which term, so a record never says one for the other.
+        Err(refusal @ crate::file_only_root_may_write::FileControlRefusal::Open { .. }) => {
+            Err(SourceRefusal::ConfigurationUnreadable { path: path.to_path_buf(), reason: refusal.reason() })
+        }
         Err(refusal) => Err(SourceRefusal::ConfigurationNotUnderRootControl { path: path.to_path_buf(), reason: refusal.reason() }),
     };
 }

@@ -423,8 +423,8 @@ fn a_file_that_is_there_and_unreadable_is_refused() {
     std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
     let refusal: ConfigurationRefusal = read_configuration(directory.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET)))
         .expect_err("a folder is not a file");
-    assert!(matches!(refusal, ConfigurationRefusal::NotUnderRootControl { .. }), "{refusal:?}");
-    assert!(refusal.message().contains("could not be opened or read"), "{}", refusal.message());
+    assert!(matches!(refusal, ConfigurationRefusal::Unreadable { .. }), "{refusal:?}");
+    assert!(refusal.message().contains("could not be read"), "{}", refusal.message());
 }
 
 /// What:

@@ -95,10 +95,15 @@ impl FileControlRefusal {
     /// Why the file is not one this program alone may write,
     /// with no sentence about the route and no remedy:
     /// each caller appends what settles the case for it.
+    ///
+    /// A file that could not be opened or read at all is a read failure and
+    /// not a control one,
+    /// and this says what the kernel answered so each caller keeps its own
+    /// sentence for that case.
     pub fn reason(&self) -> String {
         return match self {
             FileControlRefusal::Link { .. } => String::from("the path is a link, and this reader opens the file itself and never follows one"),
-            FileControlRefusal::Open { reason, .. } => format!("it could not be opened or read ({reason})"),
+            FileControlRefusal::Open { reason, .. } => reason.clone(),
             FileControlRefusal::Owner { found, wanted, .. } => format!(
                 "its owner is user {found} and this program runs as user {wanted}, so the account that owns it could rewrite the names this route acts on"
             ),

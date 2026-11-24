@@ -192,8 +192,8 @@ fn a_missing_file_is_no_refusal_and_an_unreadable_one_is() {
     let directory: PathBuf = folder.join("a-directory.jsonc");
     std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
     let refusal: SourceRefusal = read_configuration(directory.as_path()).expect_err("a folder is not a file");
-    assert_eq!(refusal.word(), "configuration-not-under-root-control");
-    assert!(refusal.message(directory.as_path()).contains("could not be opened or read"), "{}", refusal.message(directory.as_path()));
+    assert_eq!(refusal.word(), "configuration-unreadable");
+    assert!(refusal.message(directory.as_path()).contains("could not be read"), "{}", refusal.message(directory.as_path()));
 }
 
 /// What:
