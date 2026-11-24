@@ -10,7 +10,8 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::lfs_pre_push::{World, commit_directly, ref_of, runs, wrapped, world};
-use super::support::{Fixture, Observed, executable, fixture, observe, stderr_of};
+use super::support::{Fixture, Observed, REAL_GIT, executable, fixture, observe, path_of_a_folder_that_links_only, stderr_of};
+use std::ffi::OsString;
 use std::path::Path;
 
 /// The sentence of the failure explanation that no other text of the wrapper contains.
@@ -130,18 +131,30 @@ fn another_configured_pre_push_hook_does_not_run_and_is_not_blamed_on_the_upload
 
 /// With `git-lfs` missing from `PATH` the push is refused before anything starts,
 /// unless it bypasses the upload.
+/// The `PATH` names one fixture folder and nothing else,
+/// because a host or the gate image installs the real program in `/usr/bin`
+/// (L5 of the alpha.45 release pass).
 #[test]
 fn a_missing_program_is_refused_before_anything_starts_unless_the_upload_is_bypassed() {
     let fixture: Fixture = fixture("lfs-parent-missing");
     let world: World = world(&fixture, true, None);
-    let refused: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
+    let only: OsString = path_of_a_folder_that_links_only(
+        &fixture,
+        "programs-a-missing-push-needs",
+        &[("git", Path::new(REAL_GIT)), ("sh", Path::new("/bin/sh"))],
+    );
+    let mut command: std::process::Command = wrapped_commit(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
+    command.env("PATH", &only);
+    let refused: Observed = observe(&mut command, b"");
     let stderr: String = stderr_of(&refused);
     assert_eq!(refused.code, Some(1), "{stderr}");
     assert!(stderr.contains("`git-lfs` was not found in the folders this push searches"), "{stderr}");
-    assert!(stderr.contains(&fixture.root.join("bin").display().to_string()), "the refusal names the folders it searched: {stderr}");
+    assert!(stderr.contains(&fixture.root.join("programs-a-missing-push-needs").display().to_string()), "the refusal names the folders it searched: {stderr}");
     assert!(stderr.contains("The list is this command's own `PATH`"), "{stderr}");
     assert!(!stderr.contains("Writing objects") && !stderr.contains("To "), "nothing started: {stderr}");
-    let bypassed: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "--no-verify", "origin", "main"]);
+    let mut bypassing: std::process::Command = wrapped_commit(&fixture, world.repo.as_path(), &["push", "--no-verify", "origin", "main"]);
+    bypassing.env("PATH", &only);
+    let bypassed: Observed = observe(&mut bypassing, b"");
     assert_eq!(bypassed.code, Some(0), "{}", stderr_of(&bypassed));
     assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent");
     remove_settled(&fixture);
