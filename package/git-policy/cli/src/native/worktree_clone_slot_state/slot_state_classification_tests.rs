@@ -12,7 +12,7 @@ use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, Inte
 use crate::worktree_clone_slot_state::slot_state_test_records::{CLONE_DATASET, POOL, record_at};
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The fixture's slot name.
 fn slot() -> &'static str {
@@ -215,4 +215,15 @@ fn the_state_names_the_records_clone_dataset() {
         found => panic!("expected the fixture record, got {found:?}"),
     }
     assert!(matches!(CloneMount::Nowhere, CloneMount::Nowhere));
+}
+
+/// A path's last component names the slot, and a path no record can be keyed by says why.
+#[test]
+fn a_paths_slot_name_is_its_last_component() {
+    use crate::worktree_clone_slot_state::slot_state_classification::slot_name_of;
+    assert_eq!(slot_name_of(Path::new("/repo/.claude/worktrees/topic")).expect("the slot name reads"), "topic");
+    let root: String = slot_name_of(Path::new("/")).expect_err("a root names no slot");
+    assert!(root.contains("names no folder"), "{root}");
+    let spaced: String = slot_name_of(Path::new("/repo/.claude/worktrees/two words")).expect_err("a name with a space is no slot");
+    assert!(spaced.contains("not a plain slot name"), "{spaced}");
 }
