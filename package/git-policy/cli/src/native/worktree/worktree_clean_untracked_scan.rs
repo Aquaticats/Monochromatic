@@ -38,6 +38,20 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
+///  The words of the run that lists the untracked files no ignore rule covers.
+/// Why:
+///   Both faces of the scan start the same child,
+/// so the words of a failure and the answer are the same for both,
+///  and the route's preflight reads the same names to decline a source whose
+/// copy its clean cannot empty (`add_source_the_restore_cannot_prove.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const UNTRACKED_LISTING_WORDS = ['ls-files', '--others', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
+/// ```
+pub(crate) const UNTRACKED_LISTING_WORDS: [&str; 6] = ["ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z"];
+
+/// What:
 ///  The run that lists the untracked files no ignore rule covers.
 /// Why:
 ///   Both faces of the scan start the same child,
@@ -50,7 +64,7 @@ fn is_nul_byte(byte: &u8) -> bool {
 fn untracked_listing(root: &Path) -> GitRequest {
     return GitRequest {
         cwd: root.to_path_buf(),
-        arguments: ["ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z"].map(Into::into).to_vec(),
+        arguments: UNTRACKED_LISTING_WORDS.iter().copied().map(Into::into).collect(),
         without_prefix: true,
         ..GitRequest::default()
     };

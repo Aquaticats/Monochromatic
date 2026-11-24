@@ -3,9 +3,9 @@
 //!  a command that creates no worktree with a known plan is never the route's,
 //!  a removal's plan that still names the clone refuses the record's first write
 //!  in the plan stop's own sentence,
-//!  and a checkout with uncommitted changes makes the runner decline before the
-//!  claim, so the add reaches the ladder as it does for every checkout the route
-//!  does not serve.
+//!  and a checkout whose source the fill's own restore would refuse makes the
+//!  runner decline before the claim,
+//!  so the add reaches the ladder with nothing of the route's own written.
 //!
 //! Why the plan's refusal is driven here:
 //!  the plan read is the record writer's first statement,
@@ -15,14 +15,16 @@
 
 use super::fresh_the_record;
 use super::run_a_zfs_add;
-use crate::test_support::{fixture, git_context, remove, repository};
+use super::run_the_route;
+use crate::test_support::{REAL_GIT, fixture, git, git_context, remove, repository};
+use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
-use crate::worktree_clone_binding_record::registration_home::plans_folder;
+use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_copy_forward::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
@@ -123,5 +125,61 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
     let message: &str = refusal.message.as_str();
     assert_eq!(message, sentence, "the add prints the plan stop's own sentence: {message}");
     assert!(!message.contains("NamesTheClone") && !message.contains("PlanNamesTheClone"), "no `Debug` rendering of the stop reaches the person: {message}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A main checkout holding an untracked Git repository of its own makes the
+///  route's runner decline,
+///  before it takes the claim,
+///  so every write of the route's own stays unmade.
+/// Why:
+///  The preflight serves such a source up to the pool's read on this machine,
+///  and the claim is the runner's first write after it,
+///  so the runner is where the decline has to happen for the claim,
+///  the locked registration,
+///  the clone and the origin snapshot to stay unwritten
+///  (`SPEC.md`, "What this release does not yet do").
+///  On a machine with the pool,
+///  a run that did not decline would take the claim and then meet the restore's
+///  refusal with nothing to settle it.
+///  No control on this machine can reach that far,
+///  so what this one proves is the answer and the absence of every write before
+///  the pool would have been read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(runTheRoute(nestedRepositoryCheckout, addPlan)).toBeNull();
+/// expect(existsSync(homeFolder(commonDir))).toBe(false);
+/// ```
+#[test]
+fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
+    let root: PathBuf = fixture("route-nested-repository-declines");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let route: RouteFacts = RouteFacts {
+        source_root: repo.clone(),
+        common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
+        destination: repo.join(".claude").join("worktrees").join("topic"),
+        slot: String::from("topic"),
+        checkout_dataset: String::from("tank/checkouts/checkout"),
+        container_dataset: String::from("tank/clones"),
+        pool: String::from("tank"),
+    };
+    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
+    let nested: PathBuf = repo.join("nested");
+    std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+    git(nested.as_path(), &["init", "--quiet"]);
+    std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+    let context: GitContext = git_context();
+    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
+    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(&route, &plan, &context, std::path::Path::new(REAL_GIT), arguments.as_slice(), &[]);
+    match answer {
+        Ok(None) => {}
+        Ok(Some(lines)) => panic!("the route served an add from a source its own restore cannot prove and printed {lines:?}"),
+        Err(refusal) => panic!("the route fails the add instead of leaving it to the ladder: {}", refusal.message),
+    }
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
+    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
     remove(root.as_path());
 }

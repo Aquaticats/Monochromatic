@@ -4837,12 +4837,20 @@ and every step reads the state a kill at the step before it leaves:
   `.claude/cli-git-trash`,
   because the copied Git administration must be left somewhere the disposal
   can prove.
-  A source it refuses only for uncommitted changes makes the whole route decline,
-  so that add takes the ladder's rung 3 as the owner's interim of 2026-11-19 says
-  while step 11 is unlanded
-  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-  lines 1858 to 1862),
-  and every other refusal of the source stops the add with the wrapper's refusal
+  A source holding a path the fill's own restore would refuse makes the whole
+  route decline,
+  so that add takes the ladder,
+  whose own failed restore destroys its stage and finishes with Git's own
+  checkout:
+  an untracked Git repository of the source's own that `git clean --force -d`
+  keeps,
+  which the restore's proof then names as still untracked,
+  and a directory where the index records a file,
+  which the removal before the reset cannot unlink.
+  The decline ends when plan step 14's settle lands and a failed restore at a
+  slot can be cleaned up after
+  (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
+  Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
@@ -5008,11 +5016,10 @@ names the operation,
 the object and the pool,
 and the next add resumes once space is free.
 A continuation needs a source the route can copy:
-an add from a main checkout with uncommitted changes takes the ladder's rung 3
-instead,
-so a record that stands waits for an add whose source is clean
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-lines 1858 to 1862).
+an add from a main checkout holding a path the fill's own restore cannot prove
+takes the ladder instead,
+so a record that stands waits for an add whose source the restore can hold
+(see the preflight's own paragraph above).
 
 
 The preflight reads the account's effective delegation over the checkout dataset
@@ -5060,13 +5067,21 @@ What this release does not yet do:
   is not built,
   so the paths the reset does not rewrite keep the snapshot's bytes
   (plan step 11's remainder, issue 6323).
-- A source holding an untracked directory with its own Git repository is not
-  refused before the snapshot:
-  `git clean --force -d` keeps such a directory,
-  the restore's own proof names it as untracked and refuses,
-  and the add then leaves the pending state the settle above describes,
-  because nothing of this release settles it.
-  The refusal before the snapshot is plan step 11's remainder.
+- A source the restore cannot prove is declined before the claim,
+  not swept up after it:
+  an untracked Git repository of the source's own,
+  which `git clean --force -d` keeps and the proof then names as still
+  untracked,
+  and a directory where the index records a file,
+  which the removal before the reset cannot unlink,
+  both make the whole route decline to the ladder (the preflight's own paragraph
+  above).
+  That decline is the interim until plan step 14's settle lands:
+  once a failed restore at a slot destroys its claim,
+  its locked registration,
+  its clone and its origin snapshot and finishes with Git's own checkout,
+  the route can serve these sources itself instead of leaving them to the
+  ladder.
 - The post-restore check is not built:
   the paths the reset wrote are not compared with the entries Git recorded for
   them,

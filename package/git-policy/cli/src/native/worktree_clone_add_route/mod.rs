@@ -35,6 +35,7 @@
 //! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
 //! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
 //! - `add_route_steps.rs`: one step per phase, each reading what a kill left.
+//! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
 //! - `add_preflight.rs`: what A0 proves before the claim writes anything.
 //! - `add_route_run.rs`: the entry point, the claim, the phase machine and the end.
 //!
@@ -77,6 +78,8 @@ pub mod add_exchange;
 pub mod add_fill;
 /// One step per phase.
 pub mod add_route_steps;
+/// The source shapes the fill's restore would refuse after the clone is made.
+pub mod add_source_the_restore_cannot_prove;
 /// What A0 proves before the claim writes anything.
 pub mod add_preflight;
 /// The route's entry point and runner.

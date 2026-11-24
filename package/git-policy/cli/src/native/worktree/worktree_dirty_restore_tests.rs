@@ -634,3 +634,105 @@ fn a_restore_replaces_a_hidden_edit_when_the_index_recorded_no_nanoseconds() {
     assert_the_stage_holds_the_commits_bytes(repo.as_path(), admin.as_path());
     remove(root.as_path());
 }
+
+/// What:
+///  The source and the target one restore of a copy made from the repository at
+///  `repo` is told about,
+///  with the new worktree's own administrative directory read from the pointer
+///  Git wrote at `destination`,
+///  and the stage's index copied there as the fill installs it.
+/// Why:
+///  A restore reads the new worktree's index,
+///  its target commit and the configuration of the source,
+///  and the controls that refuse a copy need only those three facts;
+///  the stage is the repository itself,
+///  which is what a snapshot of it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { source, target } = theSourceAndTargetOf({ root, repo, destination });
+/// ```
+fn the_source_and_target_of((root, repo, destination): (&Path, &Path, &Path)) -> (SnapshotSource, Target) {
+    let admin: PathBuf = admin_of(destination);
+    std::fs::copy(repo.join(".git/index"), admin.join("index")).expect("the stage's index");
+    let commit: String = commit_of(repo, "HEAD");
+    let elsewhere_git: PathBuf = elsewhere_git_dir(root);
+    let elsewhere: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
+    let source = SnapshotSource {
+        root: elsewhere,
+        git_dir: elsewhere_git.clone(),
+        common_dir: elsewhere_git,
+        clean: crate::worktree_clean::CleanSource { head_commit: commit.clone(), head_tree: Vec::new(), tracked: 1, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: std::fs::read(repo.join(".git/index")).expect("the source's index") },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let target: Target = Target { admin, index: None, pointer: Vec::new(), commit, differs: false, line: String::new() };
+    return (source, target);
+}
+
+/// What:
+///  A copy holding an untracked Git repository of its own ends the restore with
+///  the proof's refusal,
+///  after the clean kept the repository.
+/// Why:
+///  This is the failure the route's preflight declines before the claim:
+///  `git clean --force -d` keeps a directory that holds a `.git` entry,
+///  the proof lists it as still untracked,
+///  and a slot that reached this far keeps its claim,
+///  its clone and its origin snapshot,
+///  because nothing of this release settles them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(restoreDirty(source, target, stage)).toContain('still untracked');
+/// expect(existsSync('nested/.git')).toBe(true);
+/// ```
+#[test]
+fn a_restore_refuses_a_copy_that_holds_an_untracked_repository() {
+    let root: PathBuf = fixture("restore-untracked-repository");
+    let repo: PathBuf = committed(root.as_path());
+    let nested: PathBuf = repo.join("nested");
+    std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+    git(nested.as_path(), &["init", "--quiet"]);
+    std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--no-checkout", "--quiet", destination.to_string_lossy().as_ref(), "HEAD"]);
+    let (source, target) = the_source_and_target_of((root.as_path(), repo.as_path(), destination.as_path()));
+    let mut steps = real_steps(root.as_path());
+    let refusal: String = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the proof names the repository as untracked");
+    assert!(refusal.contains("nested") && refusal.contains("still untracked"), "{refusal}");
+    assert!(nested.join(".git").exists(), "the clean kept the repository, which is why the proof refused");
+    remove(root.as_path());
+}
+
+/// What:
+///  A copy whose tracked file has become a directory ends the restore where the
+///  file is removed for the reset,
+///  and says what stands there.
+/// Why:
+///  The restore removes the files its reset cannot see as files or links,
+///  and `unlinkat` without `AT_REMOVEDIR` refuses a directory,
+///  so the copy is never proven and the slot keeps what it made.
+///  Git's own checkout would simply write the commit's file there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(restoreDirty(source, target, stage)).toContain('a.txt');
+/// ```
+#[test]
+fn a_restore_refuses_a_copy_whose_tracked_file_is_a_directory() {
+    let root: PathBuf = fixture("restore-directory-at-a-file");
+    let repo: PathBuf = committed(root.as_path());
+    std::fs::remove_file(repo.join("a.txt")).expect("the tracked file goes");
+    std::fs::create_dir(repo.join("a.txt")).expect("the directory takes its name");
+    std::fs::write(repo.join("a.txt").join("inside.txt"), b"inside\n").expect("a file inside it");
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--no-checkout", "--quiet", destination.to_string_lossy().as_ref(), "HEAD"]);
+    let (source, target) = the_source_and_target_of((root.as_path(), repo.as_path(), destination.as_path()));
+    let mut steps = real_steps(root.as_path());
+    let refusal: String = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the removal cannot unlink a directory");
+    assert!(refusal.contains("a.txt") && refusal.contains("directory"), "{refusal}");
+    remove(root.as_path());
+}
