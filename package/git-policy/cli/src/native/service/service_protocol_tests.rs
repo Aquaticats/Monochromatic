@@ -121,13 +121,17 @@ fn a_request_carries_the_names_whose_value_could_not_travel_and_refuses_anything
     let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
     let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))), "the names travel whole");
+    // Built without `serde_json::json!`: the macro's expansion calls `Result::unwrap`,
+    // which this crate's `disallowed_methods` lint refuses
+    // (`doc/troubleshooting/serde-json-macro-clippy-disallowed-unwrap.md`).
+    let outside_the_five: serde_json::Value =
+        serde_json::Value::Array(vec![serde_json::Value::from("SSH_AUTH_SOCK")]);
+    let not_text_number: serde_json::Value = serde_json::Value::Array(vec![serde_json::Value::from(7)]);
+    let not_text_string: serde_json::Value = serde_json::Value::from("PATH");
     for (why, not_text) in [
-        // Built with the value constructors rather than `serde_json::json!`, whose expansion of a non-literal value is
-        // `to_value(..).unwrap()` and so trips this repository's ban on `Result::unwrap`
-        // (`doc/troubleshooting/serde-json-macro-clippy-disallowed-unwrap.md`).
-        ("a name outside the five", serde_json::Value::Array(vec![serde_json::Value::from("SSH_AUTH_SOCK")])),
-        ("a name that is not text", serde_json::Value::Array(vec![serde_json::Value::from(7)])),
-        ("a name that is not text", serde_json::Value::from("PATH")),
+        ("a name outside the five", outside_the_five),
+        ("a name that is not text", not_text_number),
+        ("a name that is not text", not_text_string),
     ] {
         let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
         let programs: &mut serde_json::Map<String, serde_json::Value> =

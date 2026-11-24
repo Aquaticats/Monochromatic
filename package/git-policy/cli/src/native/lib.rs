@@ -268,6 +268,24 @@ pub mod worktree_clone_unmount;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_unmount::*;
 
+/// The snapshot half of a ZFS worktree clone's removal:
+///  the verified set submitted as one `ZFS_IOC_DESTROY_SNAPS` request that
+///  names no `defer` key,
+///  the kernel's per-name outcome kept,
+///  the skip for an empty set,
+///  and the split by largest fitting prefix against a budget the caller passes
+///  in.
+/// It is Linux only,
+/// like the `/dev/zfs` requests it sends,
+/// and no command calls it yet:
+/// step 16's wiring is what reaches it.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_snapshot_batch;
+
+/// The same re-export for `worktree_clone_snapshot_batch`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_snapshot_batch::*;
+
 /// The registration half of the ZFS add route:
 ///  the add's claim and durable binding record,
 ///  the two snapshot inventories,
