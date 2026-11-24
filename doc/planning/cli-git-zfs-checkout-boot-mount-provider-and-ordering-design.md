@@ -2693,6 +2693,9 @@ one more unit for every new dataset.
 Against C it buys the two rules C cannot express, the refusal of a dataset outside the checkout and the
 already-mounted answer, and it pays for them with a mode, which C does not need.
 
+Not run: the mode does not exist, and the stand-in that ran in its place ignores its arguments, so
+nothing measures the refusal this option's cost line names.
+
 #### Option B: the boot unit's own pass mounts them, one explicit `zfs mount` each
 
 The pass mounts each dataset after it verifies the checkout, in the same process, with no per-dataset
@@ -2726,9 +2729,11 @@ it starts.
 What it costs: **the step does not exist** (`boot-reconcile` has no such call), and it needs a dataset
 list, a failure rule for the readiness record and the exit status, and idempotence on `ExecReload=`;
 a consumer cannot require one descendant's readiness, only the whole pass's; a consumer that names a
-per-dataset unit anyway gets nothing, silently, measured in `evidence-v9b.log`; and the pass's start
-bound then has to
-cover every descendant's mount.
+per-dataset unit anyway gets nothing, silently, measured in round three's `evidence-v9b.log`; and the
+pass's start bound then has to cover every descendant's mount.
+
+Not run: the step does not exist, and what round three booted in its place is a stand-in whose exit
+status is an `echo`'s, so nothing measures the failure rule this option has to invent.
 
 #### Option C: one unit per dataset running `zfs mount <dataset>` directly, after the gate
 
@@ -2804,6 +2809,11 @@ drift and no new mode, against both of them.
 
 What ships while it is open, and the truth about this host: **nothing mounts a dataset under the
 checkout path**, unless C is taken. C needs no new code, so "nothing ships" describes A and B only.
+
+Separable: not from V4, whose property each option needs to stop the provider mounting these datasets
+itself, and not from V6, because a consumer that requires the per-dataset unit needs that unit to
+exist. A is also not separable from the root-modes design's answer about `--dataset`, and C is not
+separable from a wrapper for the explicit mount if a provider restart must not fail it.
 
 #### What V4 and V9 do to this host's one dataset under the path
 
