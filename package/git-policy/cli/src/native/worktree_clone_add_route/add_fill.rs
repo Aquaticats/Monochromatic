@@ -159,8 +159,10 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
         write_the_private_index(&admin, bytes.as_slice())?;
         input.stops.after("index");
     }
-    restore_the_clone(input)?;
-    input.stops.after("restore");
+    if the_restore_still_runs(input.admin_path, input.clone_root, already_exchanged) {
+        restore_the_clone(input)?;
+        input.stops.after("restore");
+    }
     let prepared: PreparedExchange = prepare_the_exchange(input.clone_root, input.pointer, manifest)?;
     input.stops.after("trash-entry");
     let admin: std::fs::File = open_root(input.admin_path).map_err(|error| return format!("the registration {} cannot be opened ({error})", input.admin_path.display()))?;
@@ -177,6 +179,28 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
     return Ok(Filled {
         trash: Some(PendingTrash { destination: input.clone_root.to_path_buf(), common_dir: input.common_dir.to_path_buf(), manifest: prepared.manifest, taken_over: 0, quiet: input.quiet }),
     });
+}
+
+/// What:
+///  Whether the fill's restore still has to run.
+/// Why:
+///  The restore edits the private index and the tree,
+///  and the publication takes that index's name away,
+///  so a resume that finds the worktree's own index already standing was
+///  past the restore and must not run it again:
+///  a restored tree needs no second restore, and a Git run pointed at the
+///  gone private name would read an empty index
+///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+///  "What a resume finds",
+///  the rows for a mounted clone with the real-name index and for the saved
+///  pointer).
+///  A run resumed after the exchange is past the restore for the same reason.
+pub(super) fn the_restore_still_runs(admin_path: &Path, clone_root: &Path, already_exchanged: bool) -> bool {
+    if already_exchanged || published_stands(admin_path) {
+        return false;
+    }
+    // The restore only runs against a private name that stands.
+    return pending_stands(admin_path) || clone_root.join(".git").is_dir();
 }
 
 /// What:
