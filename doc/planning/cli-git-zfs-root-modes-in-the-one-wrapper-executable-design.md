@@ -16,7 +16,7 @@ about the boot mount provider and the ordering of plan step 19 in
 and about which checkouts the route serves in
 [the step 10 record](../decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md).
 Every claim about a program this repository does not own is read from that program's source,
-and every claim about this repository's code is re-read on `main` at `28267d769d`,
+and every claim about this repository's code is re-read on `main` at `f3d81e0910`,
 the commit this round merged into its branch.
 The decision records and the handover are untouched by this round.
 
@@ -49,7 +49,7 @@ in one parenthesized label:
   replayed by this round with an identical result;
 - (source PATH:LINE),
   a file in this repository,
-  read on `main` at `28267d769d`;
+  read on `main` at `f3d81e0910`;
 - (upstream PATH:LINE),
   another program's source,
   read through `gh`;
@@ -133,20 +133,21 @@ and two of them fail the typed ban independently
   and the third pinned line of `main`.
 - M5,
   citations that do not hold:
-  every line number in this design is re-derived with `rg` on `28267d769d`,
+  every line number in this design is re-derived with `rg` on `f3d81e0910`,
   and each moved one is given its current value.
-  `SPEC.md`'s sentence is at `:19248`,
+  `SPEC.md`'s sentence is at `:19261`,
   not `:19101`,
-  and the read's own `:19235` was that read's main (`2d9fa02ea5`),
-  which the askpass change then moved.
+  and the read's own `:19235` was that read's main (`2d9fa02ea5`);
+  the askpass change moved it to `:19248`,
+  and `30c3037046` to `:19261`.
   The second `[[bin]]` is `:46` to `:48` and its comment is `:39` to `:45`;
   `:35` to `:37` are the wrapper's own table,
   which a literal delete of `:34` to `:45` would remove.
-  `add_zfs.rs:68` is reached from `add_preflight.rs:88`.
+  `add_zfs.rs:68` is reached from `add_preflight.rs:113`.
   The README's five hits are `:11`,
-  `:1905`,
-  `:7181`,
-  `:7188` and `:8031`.
+  `:1912`,
+  `:7188`,
+  `:7195` and `:8038`.
   `lib.rs`'s "second executable" paragraph is `:415` to `:428`.
   The replay excerpt is regenerated from this round's run.
 - M6,
@@ -207,7 +208,7 @@ and two of them fail the typed ban independently
   the grammar has `holder-scan` beside them,
   and this design adds two more.
 - The occurrence count is this round's:
-  122 lines in 54 files without this proposal and 143 in 55 with it.
+  122 lines in 54 files without this proposal and 148 in 55 with it.
 - No relative pointer survives:
   each one names the heading,
   the path or the symbol.
@@ -323,7 +324,7 @@ collects the environment,
 and hands everything to `invocation::entry::run_process` (`main.rs:72`),
 then waits for the log lines it handed to their own threads
 (`end_after_the_log`).
-Every line number here is re-read on `28267d769d`
+Every line number here is re-read on `f3d81e0910`
 (source package/git-policy/cli/src/native/main.rs).
 
 `package/git-policy/cli/src/native/mount_git_worktree_clone_datasets/main.rs` is the second program's entry,
@@ -423,7 +424,7 @@ The wrapper already carries the ZFS code.
 and the wrapper runs the same compatibility gate before its first request,
 which plan step 7 added:
 `worktree_clone_add_route/add_zfs.rs:68` calls `LiveGate.verdict()` inside `OpenedDevice::open()`,
-reached from `add_preflight.rs:88`,
+reached from `add_preflight.rs:113`,
 both release code.
 The call arrived in `b01af8c3bd` (2026-11-23T20:54:55-05:00),
 which was not yet merged into the line the first gate review read
@@ -440,7 +441,7 @@ and `worktree_clone_mount_handler` is already `#[cfg(target_os = "linux")]`
 Three places say the wrapper never reads its start name,
 and the answer changes all three for exactly one name:
 
-- `SPEC.md:19248`,
+- `SPEC.md:19261`,
   in "#### External hooks":
   "and the executable does not read the name it was started under".
 - `src/native/source_guard/hook_self_invocation_tests.rs:74`,
@@ -1441,7 +1442,7 @@ The second revision's own replay still passes its text and still fails today's f
 which is how this round knows the harness reads the guards and not the file names
 (run keep/revision2-harness-over-every-text.log).
 
-`SPEC.md:19248` becomes:
+`SPEC.md:19261` becomes:
 
 > Git never starts the wrapper for a hook:
 > the wrapper writes no hook entry,
@@ -2898,9 +2899,9 @@ Changed:
 ### The two programs' sizes, at one commit
 
 Built from the merge commit this round began at,
-`package/git-policy/cli/target/release/monochromatic-git-policy-cli` is 29,182,440 bytes
-and `.../mount-git-worktree-clone-datasets` is 3,425,080,
-which is 8.52 times
+`package/git-policy/cli/target/release/monochromatic-git-policy-cli` is 29,168,472 bytes
+and `.../mount-git-worktree-clone-datasets` is 3,418,256,
+which is 8.53 times
 (the log also holds the build's own `ls`;
 run:
 keep/handler-usage.log).
@@ -3037,32 +3038,33 @@ arms interleaved
 run).
 
 - `w`:
-  median 0.96 ms,
+  median 1.17 ms,
   no major faults;
 - `h`:
-  median 0.63 ms,
+  median 0.65 ms,
   no major faults;
 - `w - h` per round:
-  median **+0.34 ms**,
-  range -5.40 to 1.25 ms;
+  median **+0.48 ms**,
+  range 0.08 to 3.67 ms;
 - `w / h` per round:
-  median **1.58**,
-  range 0.19 to 3.13;
+  median **1.72**,
+  range 1.09 to 3.26;
 - the control,
   `h` against itself:
-  median -0.01 ms,
-  ratio 0.98,
-  range 0.45 to 2.81,
-  whose range is wider than the arm's own difference in milliseconds.
+  median +0.01 ms,
+  ratio 1.02,
+  range 0.50 to 1.83.
 
 What that means for the decision:
 
 - a warm per-event start,
   which is what each history event pays,
-  costs both programs less than a millisecond on this host,
-  and this round cannot tell them apart:
-  the pair's 0.34 ms median sits inside the control's own spread,
-  so no figure for the proposed start is claimed from it;
+  costs both programs about a millisecond on this host,
+  and this round does not resolve the gap between them:
+  the pair's 0.48 ms median is smaller than the control's own per-round spread,
+  though every one of the pair's rounds was positive,
+  so the warm gap is at most about half a millisecond,
+  and no figure for the proposed start is claimed from it;
 - a root start after boot,
   or the first after an eviction,
   is where the difference lives:
@@ -3092,16 +3094,16 @@ is the finding.
 ### Lost
 
 - the smaller program:
-  8.52 times the bytes,
+  8.53 times the bytes,
   and one more file in every page cache;
 - a release that can pin or roll back the root side separately from the wrapper,
   which is the accepted cost of the placement the project already chose.
 
 ## What changes, and in which step
 
-Every path in this section is re-read on `main` at `28267d769d` with `rg`,
+Every path in this section is re-read on `main` at `f3d81e0910` with `rg`,
 and the line numbers are that commit's.
-`rg -c "mount-git-worktree-clone-datasets"` finds 143 lines in 55 files,
+`rg -c "mount-git-worktree-clone-datasets"` finds 148 lines in 55 files,
 of which the crate's `doc/` records and one `perf/` measurement are history and stay as they are,
 and this proposal is one of the 55;
 without it the count is 122 lines in 54 files
@@ -3146,9 +3148,9 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   and the e2e task named for the second program (`:268` to `:270`);
 - `package/git-policy/cli/README.md`:
   `:11`,
-  `:1905`,
-  `:7181`,
-  `:7188` and `:8031`;
+  `:1912`,
+  `:7188`,
+  `:7195` and `:8038`;
 - `package/git-policy/cli/e2e/README.md`:
   `:833`,
   `:863`,
@@ -3161,9 +3163,9 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   "## The two executables and shipped policies" (`:249`) becomes
   "## The single executable and shipped policies" and says how the root modes are reached;
   `:255` and `:266` name the family through the words or the one file;
-  `:7639`,
-  `:21799` and `:21979` name a mode's command and become the words;
-  `:19248`'s sentence is rewritten as "The guard change,
+  `:7652`,
+  `:21812` and `:21992` name a mode's command and become the words;
+  `:19261`'s sentence is rewritten as "The guard change,
   exactly" gives it;
 - `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md`:
   a note under its status that the second program was removed by this decision,
@@ -3377,8 +3379,8 @@ after the entry and its tests:
   and its "What it builds" gains the one name and the words;
   `:1000`'s "The gate both binaries run" becomes one gate;
   step 10 gains the record's reader and its format;
-  step 18's `doctor` (`:2432`) gains the installation check "Steps 18 and 19" states;
-  step 19 (`:2551`) names the one file,
+  step 18's `doctor` (`:2464`) gains the installation check "Steps 18 and 19" states;
+  step 19 (`:2583`) names the one file,
   the symlink and the words,
   and its acceptance arm links the name and reads `--version`;
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`:
