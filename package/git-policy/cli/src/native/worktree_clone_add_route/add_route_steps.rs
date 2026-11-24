@@ -203,6 +203,11 @@ pub fn step_git(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), Ste
                 if !cleared.is_empty() {
                     steps.out.borrow_mut().push(format!("monochromatic-git-policy-cli: cleared an incomplete registration at {} ({}).\n", steps.route.slot, cleared.join(", ")));
                 }
+                // Git is about to run, so the slot must be the empty folder its
+                // own add requires, with its identity recorded before the mount
+                // can cover it. A slot Git already wrote to is the scan's
+                // business above and never this step's.
+                step_slot(steps, record)?;
                 run_the_git_add(steps, &record.nonce)?;
                 steps.stops.after("git-add");
             }
@@ -216,6 +221,11 @@ pub fn step_git(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), Ste
 
 /// Record the adopted registration's facts and move to `registered`.
 fn adopt(steps: &Steps<'_>, record: &mut BindingRecord, registration: &Registration) -> Result<(), StepRefusal> {
+    // A registration adopted at phase `claimed` was made without A4's write, and
+    // every later reader needs the identity of the folder it names.
+    if record.slot_identity.is_none() {
+        record.slot_identity = Some(FolderIdentity::of_folder(steps.route.destination.as_path()).map_err(|error| return StepRefusal::refused(format!("the slot {} cannot be identified ({error})", steps.route.destination.display())))?);
+    }
     record.registration = Some(registration.path.as_os_str().as_encoded_bytes().to_vec());
     record.registration_identity = Some(registration.identity);
     record.pointer = Some(registration.pointer.clone());

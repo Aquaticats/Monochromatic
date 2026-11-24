@@ -330,7 +330,7 @@ impl Fixture {
         }
         let clone: String = self.clone(name);
         let _destroyed: Output = self.zfs(&["destroy", clone.as_str()]);
-        let snapshots: Output = self.zfs(&["list", "-H", "-o", "name", "-d", "1", "-t", "snapshot", self.checkout().as_str()]);
+        let snapshots: Output = self.zfs(&["list", "-H", "-o", "name", "-t", "snapshot", self.checkout().as_str()]);
         for snapshot in String::from_utf8_lossy(snapshots.stdout.as_slice()).lines() {
             if snapshot.contains("git-worktree-clone-origin-") {
                 let _gone: Output = self.zfs(&["destroy", snapshot]);
@@ -375,7 +375,7 @@ fn the_add_makes_a_verified_clone_and_a_second_add_refuses() {
     // T22: the origin inventory is the checkout's snapshots as `zfs list` reads them.
     let home: PathBuf = fixture.home();
     let origin: git_policy_cli::InventoryRecord = git_policy_cli::read_inventory(home.as_path(), "whole", git_policy_cli::InventoryKind::Origin).expect("the origin inventory reads");
-    let snapshots: Output = fixture.zfs(&["list", "-H", "-o", "name", "-d", "1", "-t", "snapshot", fixture.checkout().as_str()]);
+    let snapshots: Output = fixture.zfs(&["list", "-H", "-o", "name", "-t", "snapshot", fixture.checkout().as_str()]);
     let listed_names: Vec<String> = String::from_utf8_lossy(snapshots.stdout.as_slice()).lines().map(|line| return line.rsplit('@').next().unwrap_or("").to_string()).filter(|name| return !name.is_empty()).collect();
     let recorded: Vec<String> = origin.entries.iter().filter(|entry| return entry.kind == git_policy_cli::EntryKind::Snapshot).map(|entry| return entry.name.clone()).collect();
     assert_eq!(recorded.len(), listed_names.len(), "the inventory counts the checkout's snapshots");

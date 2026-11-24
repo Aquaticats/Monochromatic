@@ -22,7 +22,7 @@
 
 use super::add_route_gate::{RouteFacts, the_routes_add};
 use super::add_route_plan::{AddNames, Stops, name_the_add, request_of};
-use super::add_route_steps::{StepRefusal, Steps, step_clone, step_fill, step_git, step_mount, step_snapshot, step_slot, write_the_record};
+use super::add_route_steps::{StepRefusal, Steps, step_clone, step_fill, step_git, step_mount, step_snapshot, write_the_record};
 use super::add_zfs::{ObjectIdentity, OpenedDevice};
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun};
 use crate::subvolume_command::REFUSED_EXIT_CODE;
@@ -130,7 +130,10 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
     };
     let phase_before: Phase = record.phase;
     match phase_before {
-        Phase::Claimed | Phase::Slot => step_slot(&steps, &mut record)?,
+        // The scan decides first: at phase `claimed` or `slot` Git's own add may
+        // already have run and left a registration, and only a scan that finds
+        // nothing lets the slot be verified and Git run again.
+        Phase::Claimed | Phase::Slot => {},
         // Before the intent is written the slot must be the underlay the
         // registration names; from the intent on, a handler may have mounted the
         // clone there, and the design compares the mount's source instead.
