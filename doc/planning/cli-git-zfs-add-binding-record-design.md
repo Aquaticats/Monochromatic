@@ -2110,7 +2110,8 @@ this design for its place in the order.
 The build takes the capture at A6's end,
 after Git's registration and before the snapshot request,
 publishes it once and flushed,
-and refuses a snapshot that stands while the capture is gone (`add_route_steps.rs`:253 and :304;
+and refuses when the record already names the snapshot's identity and the capture is gone (`add_route_steps.rs`:253 and
+:304;
 `add_capture_store.rs`:77;
 `bee6531780`,
 2026-11-24T00:51:32-05:00).
