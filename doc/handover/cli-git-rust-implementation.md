@@ -413,7 +413,11 @@ and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
 `pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`
-(the companion is built, about 0.13 of an add, and back in `pi-zfs-step-10-account-companion-clippy` for 18 Clippy findings the package's task reports),
+(the companion merged as `8ce60ff4f5`:
+it runs after the route gate and before the claim with a 100 ms deadline,
+about 0.12 to 0.14 of an add's time,
+with its guest arm,
+the whole add after a skip and `doctor`'s print still to come once a guest reaches the route),
 whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
 the first also writes up what widening the gate would need, for the owner.
 Running too,
