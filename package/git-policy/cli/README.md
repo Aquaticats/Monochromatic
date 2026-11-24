@@ -1831,7 +1831,7 @@ no argument at all is the clone-mount sweep the installed ZED event starts,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 and `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names plan step 9 when it is run.
+which is not built yet and, when it is run, names the unit that runs it.
 `adopt-worktree-parent` is the administrator's decision to record a replacement
 `.claude/worktrees` folder.
 The sweep and `boot-reconcile` are described in `SPEC.md` under the section

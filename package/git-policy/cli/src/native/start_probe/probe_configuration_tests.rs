@@ -192,7 +192,32 @@ fn a_missing_file_is_no_refusal_and_an_unreadable_one_is() {
     let directory: PathBuf = folder.join("a-directory.jsonc");
     std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
     let refusal: SourceRefusal = read_configuration(directory.as_path()).expect_err("a folder is not a file");
-    assert_eq!(refusal.word(), "configuration-unreadable");
+    assert_eq!(refusal.word(), "configuration-not-under-root-control");
+    assert!(refusal.message(directory.as_path()).contains("could not be opened or read"), "{}", refusal.message(directory.as_path()));
+}
+
+/// What:
+///  A configuration file another account could write is refused with its own
+///  word,
+///  and the same file with no such bit is read,
+///  so the refusal is the rule and not a reader that never reads.
+/// Why:
+///  The record must carry a closed word for this cause like every other file
+///  refusal,
+///  and the file names the datasets the probe acts on.
+#[test]
+fn a_configuration_another_account_could_write_is_refused_with_its_own_word() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder: PathBuf = crate::test_support::fixture("probe-configuration-writable-by-others");
+    let file: PathBuf = folder.join("git-worktree-clone-mounts.jsonc");
+    std::fs::write(file.as_path(), both(PROBE_DATASET, CHECKOUT).as_str()).expect("the fixture configuration is written");
+    assert!(read_configuration(file.as_path()).is_ok(), "a file this account alone may write is the positive control");
+    std::fs::set_permissions(file.as_path(), std::fs::Permissions::from_mode(0o666)).expect("the fixture mode is set");
+    let refusal: SourceRefusal = read_configuration(file.as_path()).expect_err("a write bit for another account is refused");
+    assert_eq!(refusal.word(), "configuration-not-under-root-control");
+    let said: String = refusal.message(file.as_path());
+    assert!(said.contains("0666"), "the refusal names the mode it found: {said}");
+    assert!(said.contains("chmod go-w"), "the refusal names what to run: {said}");
 }
 
 /// A file that is there and holds nothing is refused,

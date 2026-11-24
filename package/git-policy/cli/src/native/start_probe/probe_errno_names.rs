@@ -131,7 +131,7 @@ pub fn errno_of(number: i32) -> Option<&'static str> {
 }
 
 /// The reason words a step that did not run may carry.
-pub const REASON_WORDS: [&str; 16] = [
+pub const REASON_WORDS: [&str; 17] = [
     "earlier-arm-failed",
     "source-held",
     "exclusive-create-unsupported",
@@ -139,6 +139,7 @@ pub const REASON_WORDS: [&str; 16] = [
     "no-checkout-path",
     "configuration-missing",
     "configuration-unreadable",
+    "configuration-not-under-root-control",
     "configuration-unparsable",
     "name-absent",
     "name-not-text",

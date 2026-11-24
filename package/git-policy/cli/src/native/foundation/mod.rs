@@ -49,6 +49,9 @@ pub mod jsonc_member_text;
 /// which both executables read.
 pub mod handler_configuration_keys;
 
+/// Reading a file only the account this program runs as may write.
+pub mod file_only_root_may_write;
+
 /// Random identifiers in the layout of the incumbent's `randomUUID`.
 pub mod random_id;
 
