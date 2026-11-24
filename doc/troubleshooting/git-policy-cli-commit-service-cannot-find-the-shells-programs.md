@@ -106,11 +106,14 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   and reads the marker each push's environment carries:
   the command's list is searched and named for the record whose values the service holds,
   and the service's own list and its own name for a record it holds nothing for.
-- `a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command` kills a committing wrapper after it promoted
-  its push record,
-  starts a service that holds nothing,
+- `a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command` kills a committing wrapper once its gate
+  approved the push and before it promoted the record,
+  stops the service that holds the settings while the record waits where no round looks,
+  promotes the record as the killed command would have,
+  starts the next instance,
   reads the words on the next command,
   and runs the command they print against a real bare remote.
+  `doc/troubleshooting/git-policy-cli-a-control-stops-a-service-no-command-reaches.md` says why it does each step.
 - `the_missing_program_message_names_the_list_the_command_that_asked_gave` reads the refusal of a push whose values came
   with the request and proves it names the shell's folders and the shell's own `PATH` as the one to install the program
   on,
