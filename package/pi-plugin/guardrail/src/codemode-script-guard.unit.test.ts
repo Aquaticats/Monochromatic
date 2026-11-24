@@ -43,6 +43,34 @@ const run = await tools.bash({ command });
 `,
     word: 'rm',
   },
+  {
+    code: `const d = "x";
+const command = \`rmdir -p \${d}\`;
+const run = await tools.bash({ command });
+`,
+    word: 'rmdir',
+  },
+  {
+    code: `const f = "x";
+const command = "unlink " + f;
+const run = await tools.bash({ command });
+`,
+    word: 'unlink',
+  },
+  {
+    code: `const f = "x";
+const command = \`shred -u \${f}\`;
+const run = await tools.bash({ command });
+`,
+    word: 'shred',
+  },
+  {
+    code: `const root = "x";
+const command = \`find \${root} -delete\`;
+const run = await tools.bash({ command });
+`,
+    word: 'find',
+  },
 ];
 
 /**
@@ -74,6 +102,8 @@ const INNOCENT_SCRIPTS: readonly string[] = [
   `const name = \`file-\${index}.txt\`;\nconst run = await tools.read({ path: name });\n`,
   "const run = await tools.bash({ command: 'find . -name build -delete' });\n",
   "const run = await tools.bash({ command: 'git rm --cached a.txt' });\n",
+  "const run = await tools.bash({ command: 'rmdir --parents /home/user/temp/agent/x' });\n",
+  "const run = await tools.bash({ command: 'find /home/user/temp/agent/x -print' });\n",
   `const text = 1;\nconst file = \`\${text}.txt\`;\n`,
 ];
 
@@ -193,7 +223,7 @@ await describe({
             },);
             if (decision === GUARDRAIL_NOT_BLOCKED)
               throw new Error('expected the script to be blocked',);
-            expect(decision.reason,).toContain('builds an `rm` command at run time',);
+            expect(decision.reason,).toContain('builds a deletion command at run time',);
             expect(decision.reason,).toContain('`rm --recursive /home/user/temp/agent/<folder>/scratch`',);
           },
         },),

@@ -39,9 +39,24 @@ const parentLogger = tagged({ tag: 'pi-guardrail-codemode', },);
 //region Constants
 
 /**
- Program name this guard looks for in command position.
+ Programs whose deletions the literal-path rule covers, as this guard reads them.
  */
-const RM_PROGRAM_NAME = 'rm';
+const DELETING_PROGRAM_NAMES: ReadonlySet<string> = new Set([
+  'rm',
+  'rmdir',
+  'shred',
+  'unlink',
+]);
+
+/**
+ Program whose expression can delete the paths it matched.
+ */
+const FIND_PROGRAM_NAME = 'find';
+
+/**
+ Word that asks `find` to delete what it matched.
+ */
+const FIND_DELETE_ACTION = '-delete';
 
 /**
  Program word this guard reads when none stands where a command can begin.
@@ -84,7 +99,7 @@ const CODE_FIELD = 'code';
 /**
  Sentence naming what this guard found, put in front of the shared refusal.
  */
-const SCRIPT_BUILDS_COMMAND_SENTENCE = 'Blocked: this code-mode script builds an `rm` command at run time.';
+const SCRIPT_BUILDS_COMMAND_SENTENCE = 'Blocked: this code-mode script builds a deletion command at run time.';
 
 //endregion Constants
 
@@ -159,25 +174,72 @@ function programInCommandPosition({
 }
 
 /**
- Reports whether one literal builds an `rm` command at run time.
+ Reports whether one command word names a program that deletes what it names.
  
- @param literal - literal the script spells
+ `find` counts only when the same text asks it to delete,
+ because the paths that action deletes are never written.
  
- @returns whether the literal holds an `rm` in command position and computes part of it
+ @param programName - command word read by its last path segment
+ 
+ @param text - text of the command line that word stands on
+ 
+ @returns whether that program deletes the paths its command names
  
  @example
  ```ts
- buildsRmAtRunTime({ isTemplate: true, text: 'rm -rf  ', holdsSubstitution: true, joinedWithPlus: false }); // true
+ deletesPaths({ programName: 'rm', text: 'rm -rf x' }); // true
+ deletesPaths({ programName: 'find', text: 'find . -print' }); // false
  ```
  */
-function buildsRmAtRunTime(literal: ScriptLiteral,): boolean {
+function deletesPaths({
+  programName,
+  text,
+}: {
+  readonly programName: string;
+  readonly text: string;
+},): boolean {
+  if (DELETING_PROGRAM_NAMES.has(programName,))
+    return true;
+  return (programName === FIND_PROGRAM_NAME)
+    && text.includes(FIND_DELETE_ACTION,);
+}
+
+/**
+ Reports whether one literal builds a deletion command at run time.
+ 
+ A template with a substitution or a plus-joined string computes part of its
+ text, so the command it names does not exist until the script runs.
+ `find` counts when the literal also asks it to delete,
+ because the paths that action deletes are never written.
+ 
+ @param literal - literal the script spells
+ 
+ @returns whether the literal names a deletion in command position and computes part of it
+ 
+ @example
+ ```ts
+ buildsDeletionAtRunTime({ isTemplate: true, text: 'rm -rf  ', holdsSubstitution: true, joinedWithPlus: false }); // true
+ ```
+ */
+function buildsDeletionAtRunTime(literal: ScriptLiteral,): boolean {
   /**
    Program word this literal puts in command position.
    */
   const program = programInCommandPosition({ text: literal.text, },);
   if (program === NO_PROGRAM_WORD)
     return false;
-  if (commandProgramName(program,) !== RM_PROGRAM_NAME)
+  /**
+   Name of that program, read by its last path segment.
+   */
+  const programName = commandProgramName(program,);
+  /**
+   Whether that program deletes the paths this command names.
+   */
+  const deletes = deletesPaths({
+    programName,
+    text: literal.text,
+  },);
+  if (!deletes)
     return false;
   return (literal.isTemplate && literal.holdsSubstitution)
     || literal.joinedWithPlus;
@@ -188,7 +250,7 @@ function buildsRmAtRunTime(literal: ScriptLiteral,): boolean {
 //region Public reads
 
 /**
- Lists the `rm` commands one code-mode script builds at run time.
+ Lists the deletion commands one code-mode script builds at run time.
  
  @param source - script text a model asked code mode to run
  
@@ -201,7 +263,7 @@ function buildsRmAtRunTime(literal: ScriptLiteral,): boolean {
  */
 function findRmCommandsBuiltAtRunTime({ source, }: { readonly source: string; },): readonly LiteralRmPathFinding[] {
   return scriptLiterals(source,)
-    .filter(buildsRmAtRunTime,)
+    .filter(buildsDeletionAtRunTime,)
     .map(function findingOf(literal,): LiteralRmPathFinding {
       /**
        Program word the literal puts in command position.
@@ -212,6 +274,7 @@ function findRmCommandsBuiltAtRunTime({ source, }: { readonly source: string; },
       return {
         command: literal.text,
         word,
+        check: 'shell-computes-the-path',
       };
     },);
 }
@@ -266,7 +329,7 @@ function evaluateCodemodeScriptGuard({
 //endregion Public reads
 
 export {
-  buildsRmAtRunTime,
+  buildsDeletionAtRunTime,
   commandProgramName,
   evaluateCodemodeScriptGuard,
   findRmCommandsBuiltAtRunTime,

@@ -28,6 +28,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import { mismatch, } from './pi-runtime-verifier-literal-rm-error.ts';
 import {
+  COLLAPSED_SCRIPT_NAME,
   disposeSession,
   LITERAL_SCRIPT_NAME,
   openLiteralRmSession,
@@ -498,8 +499,11 @@ async function verifyLiteralRmGuardAtPiBoundary({
   const [
     deniedBashResult,
     allowedBashResult,
+    deniedFamilyBashResult,
+    deniedCollapsedBashResult,
     deniedWriteResult,
     allowedWriteResult,
+    deniedCollapsedWriteResult,
     commandFileResult,
     literalCodemodeResult,
     buildingCodemodeResult,
@@ -507,8 +511,11 @@ async function verifyLiteralRmGuardAtPiBoundary({
   ] = results;
   if ((deniedBashResult === undefined)
     || (allowedBashResult === undefined)
+    || (deniedFamilyBashResult === undefined)
+    || (deniedCollapsedBashResult === undefined)
     || (deniedWriteResult === undefined)
     || (allowedWriteResult === undefined)
+    || (deniedCollapsedWriteResult === undefined)
     || (commandFileResult === undefined)
     || (literalCodemodeResult === undefined)
     || (buildingCodemodeResult === undefined)
@@ -525,9 +532,25 @@ async function verifyLiteralRmGuardAtPiBoundary({
     );
   }
   requireRefusal({
+    result: deniedFamilyBashResult,
+    label: 'rmdir call',
+  },);
+  requireRefusal({
+    result: deniedCollapsedBashResult,
+    label: 'top-level-folder bash call',
+  },);
+  requireRefusal({
     result: deniedWriteResult,
     label: 'computed-path write call',
   },);
+  requireRefusal({
+    result: deniedCollapsedWriteResult,
+    label: 'collapsed-target write call',
+  },);
+  await requireAbsent(join(
+    workspaceRoot,
+    COLLAPSED_SCRIPT_NAME,
+  ),);
   await requireAbsent(join(
     workspaceRoot,
     VIOLATING_SCRIPT_NAME,
@@ -584,6 +607,9 @@ async function verifyLiteralRmGuardAtPiBoundary({
       'ran the code-mode script with a literal-path bash call',
       'refused the code-mode script that builds its command',
       'refused the nested bash call of a code-mode script that reads its command from a file',
+      'refused `rmdir -p "$d"` on bash',
+      'refused `rm -rf /home` on bash as a top-level folder',
+      'refused a write of a script that deletes the filesystem root',
     ].join('; ',),
     recordedCalls: await recordedToolCalls(recorderLog,),
   };

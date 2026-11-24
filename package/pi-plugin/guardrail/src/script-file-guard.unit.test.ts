@@ -84,7 +84,7 @@ await describe({
                 },
                 cwd: fixtureCwd,
               },),),
-            ).toContain('(word `"$d"`)',);
+            ).toContain('(word `"$d"`;',);
           },
         },),
         it({
@@ -99,7 +99,39 @@ await describe({
                 },
                 cwd: fixtureCwd,
               },),),
-            ).toContain('(word `"$d/$n"`)',);
+            ).toContain('(word `"$d/$n"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a new script whose rmdir computes its path',
+          fn: async function testWriteRmdirScript() {
+            expect(
+              reasonOf(await evaluateScriptFileGuard({
+                toolName: 'write',
+                input: {
+                  path: 'cleanup.sh',
+                  content: '#!/bin/sh\nrmdir -p "$d"\n',
+                },
+                cwd: fixtureCwd,
+              },),),
+            ).toContain('(word `"$d"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a new script whose target collapsed to the filesystem root',
+          fn: async function testWriteCollapsedScript() {
+            /**
+             Reason the guard gave for a script that deletes the filesystem root.
+             */
+            const reason = reasonOf(await evaluateScriptFileGuard({
+              toolName: 'write',
+              input: {
+                path: 'wipe.sh',
+                content: '#!/bin/sh\nrm -rf /\n',
+              },
+              cwd: fixtureCwd,
+            },),);
+            expect(reason,).toContain('the filesystem root',);
           },
         },),
         it({
@@ -170,7 +202,7 @@ await describe({
                 },
                 cwd: fixtureCwd,
               },),),
-            ).toContain('(word `"$new"`)',);
+            ).toContain('(word `"$new"`;',);
           },
         },),
         it({
@@ -199,7 +231,7 @@ await describe({
                 },
                 cwd: fixtureCwd,
               },),),
-            ).toContain('(word `"$split"`)',);
+            ).toContain('(word `"$split"`;',);
           },
         },),
         it({
