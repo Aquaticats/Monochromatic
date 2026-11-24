@@ -339,16 +339,25 @@ set by step 19 and reported by step 18
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "What hiding comes to,
 answered 2026-11-23").
-Running:
-`pi-zfs-no-configuration-second-pass-findings`,
-on B1,
+The round on B1,
 B2,
-B4 and the lows,
-with that answer in its inbox.
+B4,
+the lows and that answer ended with every item done
+(`keep/report-pi-zfs-no-configuration-second-pass-findings.md` in
+`~/temp/agent/zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/`).
+Its merge into `main` stopped on two conflicts with step 9's unmount:
+`package/git-policy/cli/src/native/lib.rs` and `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`.
+The SPEC now says the probe with no file costs about 25 ms once per boot (1.14 times),
+spread over three look-ups,
+with the cause not found.
+Running:
+`pi-zfs-no-configuration-merge-main-after-step-9-unmount`,
+merging `main` and resolving both.
 
 Next:
-read its diff;
-then merge.
+merge it;
+then a fresh round that removes the probe's 25 ms,
+or moves it off the path a person waits on.
 
 #### Step 8's follow-up: the recheck's findings and the sweep's cost
 
