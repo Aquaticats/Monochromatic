@@ -6552,6 +6552,10 @@ and any test suite.
   its round's to change) and
   N8 (the restore's steps cited to the accepted allocation,
   with steps 6 and 7 running empty for a clean source).
+- 2026-11-23T19:28:02-05:00 (`91861e8fbf`)
+  and 2026-11-23T19:29:15-05:00 (`cddb3c87f5`):
+  the round's Revisions entry,
+  and the plan design's section cited as it now reads beside the five readers.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
