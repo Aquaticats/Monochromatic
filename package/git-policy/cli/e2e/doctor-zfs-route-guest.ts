@@ -169,7 +169,8 @@ function arm(chosen: Options): void {
   const script = [
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'export PATH=/root/.cargo/bin:$PATH',
+    'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
+    'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
     `export ${POOL_VARIABLE}=${POOL}`,
     'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +

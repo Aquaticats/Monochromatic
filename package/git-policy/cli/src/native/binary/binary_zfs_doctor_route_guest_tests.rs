@@ -175,6 +175,7 @@ fn install_layout() {
     }
     record_the_store();
     install_the_handlers();
+    enable_zed();
     publish_the_records();
     make_the_staging_folder();
     allow_the_decided_grants();
@@ -220,6 +221,30 @@ fn install_the_handlers() {
     );
     std::fs::write(CONFIGURATION_PATH, document).expect("the configuration");
     std::fs::set_permissions(CONFIGURATION_PATH, std::fs::Permissions::from_mode(0o644)).expect("the configuration's mode");
+}
+
+/// The ZED unit the guest's OpenZFS install wrote,
+/// which a source build puts in the prefix and a package in one of the two
+/// system folders,
+/// linked into the wants folder so the route's wiring is enabled as an install
+/// would enable it.
+fn enable_zed() {
+    let found: Option<&str> = [
+        "/lib/systemd/system/zfs-zed.service",
+        "/usr/lib/systemd/system/zfs-zed.service",
+        "/opt/openzfs-2.4.4/lib/systemd/system/zfs-zed.service",
+    ]
+    .into_iter()
+    .find(|unit| return Path::new(unit).exists());
+    let Some(unit) = found else {
+        panic!("the guest holds no zfs-zed.service; the recipe's OpenZFS install should have written one");
+    };
+    let wants: &str = "/etc/systemd/system/multi-user.target.wants";
+    std::fs::create_dir_all(wants).expect("the wants folder");
+    let link: String = format!("{wants}/zfs-zed.service");
+    if !Path::new(link.as_str()).exists() {
+        std::os::unix::fs::symlink(unit, link.as_str()).expect("the wants link");
+    }
 }
 
 /// This boot's readiness record and the clone's receipt,
@@ -481,7 +506,14 @@ fn handler_facts() -> (
             zedlets.push(name);
         }
     }
-    let zed_unit: &str = if Path::new("/lib/systemd/system/zfs-zed.service").exists() { "/lib/systemd/system/zfs-zed.service" } else { "/usr/lib/systemd/system/zfs-zed.service" };
+    let zed_unit: &str = [
+        "/lib/systemd/system/zfs-zed.service",
+        "/usr/lib/systemd/system/zfs-zed.service",
+        "/opt/openzfs-2.4.4/lib/systemd/system/zfs-zed.service",
+    ]
+    .into_iter()
+    .find(|unit| return Path::new(unit).exists())
+    .expect("the guest holds the zfs-zed unit this arm enabled");
     let wiring: HandlerWiringFacts = HandlerWiringFacts {
         zed_unit: path(zed_unit),
         zed_enabled: Path::new("/etc/systemd/system/multi-user.target.wants/zfs-zed.service").exists() || Path::new("/etc/systemd/system/zfs-zed.service.wants").exists(),
