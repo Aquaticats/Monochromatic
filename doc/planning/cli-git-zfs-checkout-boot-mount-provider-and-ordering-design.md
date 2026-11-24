@@ -30,7 +30,8 @@ This round's folder is `~/temp/agent/zfs-step-19-fifth-revision-2026-11-24/`.
 "Round one" means `~/temp/agent/zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23/`,
 "round two" means `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`,
 "round three" means `~/temp/agent/zfs-step-19-third-revision-2026-11-24/`,
-and "round four" means `~/temp/agent/zfs-step-19-fourth-revision-2026-11-24/`.
+"round four" means `~/temp/agent/zfs-step-19-fourth-revision-2026-11-24/`,
+and "round five" means this folder's own first half, the fifth revision's round.
 A log named without a round is this round's.
 Where a fact rests only on an earlier round's log, the round is named with it.
 
