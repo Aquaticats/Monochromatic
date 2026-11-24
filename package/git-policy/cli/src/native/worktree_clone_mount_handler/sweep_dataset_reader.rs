@@ -39,36 +39,42 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  bound are left unattached rather than half swept.
 ///  The measurements beside the number are the mounted shape a parent of
 ///  clones holds,
-///  measured again 2026-11-23 after the standing answer began polling the
-///  mount table,
-///  in the throwaway guest `zfs-step-8-followup-guest`
+///  measured again 2026-11-23T19:50-05:00 after the standing answer began asking
+///  the kernel for one mount's source by its unique number,
+///  in the throwaway guest `zfs-step-8-sweep-timing-2026-11-23`
 ///  (Ubuntu 24.04,
-///  kernel 6.8.0-147-generic,
+///  kernel 6.14.0-37-generic,
 ///  OpenZFS 2.4.4,
 ///  four vCPUs and 7,941 MB),
 ///  interleaved,
 ///  so no arm carries the machine's mood:
-///  main's handler,
 ///  this branch's handler,
-///  and main again as an identical-binary control,
+///  main's handler,
+///  and this branch again as an identical-binary control,
 ///  each round rotated,
 ///  and a one-child control beside every many-child sweep.
 ///  Every figure is a median of one arm's sweeps in that run,
-///  and the raw lines are `perf/sweep-cost-2026-11-23-poll-interleaved.json`.
-///  Steady sweeps over standing mounts were 285 ms against main's 297 and its
-///  repeat's 293 at 64 children (ratio 0.96,
-///  0.95 to 0.99,
-///  control spread 0.82 to 1.29),
-///  and 3,089 ms against 9,129 and 9,971 at 1,024 (ratio 0.37,
-///  0.28 to 0.45,
-///  control spread 1.05 to 1.18).
-///  Cold sweeps that attach every clone were 957 against 1,193 and 990 at 64
-///  (ratio 1.00,
-///  0.78 to 1.23) and 27,328 against 22,690 and 24,762 at 1,024
-///  (ratio 1.29,
-///  0.87 to 1.72,
-///  control 0.99 to 1.22);
-///  the 1,024 cold arm is the one figure whose range lies outside the control.
+///  and the raw lines are
+///  `perf/sweep-cost-2026-11-23-statmount-interleaved.json`.
+///  Steady sweeps over standing mounts were 0.34 of main's time at 1,024
+///  children (0.19 to 0.42,
+///  identical-binary control 0.65 to 1.65),
+///  which the other run kept beside it measured as 0.36 (0.30 to 0.58,
+///  control 0.71 to 1.10);
+///  at 64 children the ratio was 0.89 (0.68 to 1.00) and 1.07 (0.92 to 1.30),
+///  and at 8 children 1.14 in both runs,
+///  each inside its control's spread,
+///  because a sweep that small is mostly the run's fixed cost either way.
+///  Cold sweeps that attach every clone were 0.97, 1.03 and 1.02 of main across
+///  three interleaved passes at 1,024 children (identical-binary control 0.92,
+///  0.90 and 1.04),
+///  and each arm opened the mount table 3,073 and 3,074 times there,
+///  so the attach path is not the standing answer's.
+///  A sweep whose mount table changed before every answer was 1.05 to 1.47 of
+///  main,
+///  inside the identical-binary spread measured beside it.
+///  The added call costs 3.1 to 4.4 microseconds on that guest,
+///  so 1,024 standing answers pay 3 to 5 ms of a sweep that takes 3 to 4 s.
 ///  No 2,048 or 4,096 figure is cited here because no raw line for that shape
 ///  is kept for this build;
 ///  the earlier 4,097-child figure counted children the origin check refuses,

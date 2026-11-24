@@ -6292,6 +6292,21 @@ where the kernel cannot answer (`statmount(2)` before Linux 6.13,
 or a failed call),
 the sweep reads the live table for that mount,
 which is what this route did before it kept a copy.
+What that one question costs is measured in the guest:
+`statmount(2)` answers each standing answer at 3.1 to 4.4 microseconds there,
+so 1,024 standing answers pay 3 to 5 milliseconds of a sweep that takes 3 to 4
+seconds,
+and the walk's own `statx(2)` carries the unique number,
+so no second `statx` is made.
+A steady sweep over standing mounts was 0.34 of `main`'s time at 1,024 clones
+(0.19 to 0.42,
+identical-binary control 0.65 to 1.65),
+the other run kept beside it measured 0.36,
+and at 8 and 64 clones the two handlers were inside each other's spread,
+as a sweep that small is mostly the run's fixed cost either way.
+A sweep whose mount table changed before every answer stayed inside the
+identical-binary spread it was measured beside
+(`perf/sweep-cost-2026-11-23-statmount-interleaved.json`).
 A standing clone whose `done` receipt is already the one this request would
 file is answered without writing anything.
 A slot holding another dataset's mount is refused as the walk refuses it.
