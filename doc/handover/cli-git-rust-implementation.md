@@ -452,39 +452,27 @@ puts it back when the unmount is refused,
 and finishes after a kill.
 
 State:
-merged as `931d6a2c9c`,
-after its round on the integration pass
-(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`)
-fixed the handle reopen,
-wired the recovery after a kill at four kill points,
-and built the owner's `cancelled` answer
+done on `main` as `5d93d9cfd7`,
+behind the pin plan step 19 writes,
+so none reaches a user:
+the handle reopen,
+the recovery after a kill at four kill points and over a reboot,
+the owner's `cancelled` answer
 (`doc/decision/cli-git-zfs-staging-under-cache.md`,
 "The answer a stopped unmount files,
-answered 2026-11-23").
-All of it sits behind the pin plan step 19 writes,
-so none reaches a user.
-The round after it merged as `534000d680`:
-the busy branch's check shown against the pass's A12 arm,
+answered 2026-11-23"),
+the busy branch's check against the integration pass's A12 arm,
 the A10 arm,
-M1 and M2,
 ten host controls each red without its guard,
-and the reboot phase of the kill points run in a guest
-(`keep/report-pi-zfs-step-9-unmount-what-the-last-round-left.md` in
-`~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
-The pass's M3 to M9 merged as `0576c39994`,
-seven guest arms built and run,
-each matching its finding,
-with no code fault found
-and `223 tests run: 223 passed` on the host.
-Not yet shown:
-M3's positive reader control,
-which printed an empty row.
-Running:
-`pi-zfs-step-9-unmount-m3-positive-reader-control`,
-on the same branch.
+and the pass's M1 to M9 as guest arms,
+none of which found a code fault,
+with M3's positive reader control showing the bind's slave copy and a leak caught.
+Rounds and logs:
+`~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/`.
 
 Next:
-merge when it ends.
+nothing until step 17 or step 19 calls it;
+its Sonnet pass is the next release's.
 
 #### Step 10: the add route from registration to a verified fill
 
