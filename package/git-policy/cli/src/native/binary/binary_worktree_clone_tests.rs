@@ -19,7 +19,7 @@
 //! ```
 
 /// Import the shared fixtures and the helpers of the snapshot controls.
-use super::support::{Fixture, Observed, fixture, first_physical_extent, git, remove, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, first_physical_extent, git, on_a_reflink_capable_fixture, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{add_pair, age, commit_all, tracked, tracked_content};
 use git_policy_cli::fs_kind::is_subvolume_root;
@@ -101,21 +101,53 @@ fn an_older_target_commit_is_cloned_and_updated() {
     remove(&fixture);
 }
 
-/// A dirty source is cloned from by nothing:
-/// Git's checkout runs and the data blocks are not shared.
+/// A source whose only change is a tracked edit and whose tree is below the whole-tree limit is cloned from by
+/// nothing:
+/// Git's checkout runs and the log names no clone.
+/// The control needs a root the rung could serve on, so its answer is the limit's and not a filesystem's refusal.
 #[test]
-fn a_dirty_ordinary_source_is_not_cloned() {
+fn a_dirty_ordinary_source_below_the_whole_tree_limit_is_not_cloned() {
     let fixture: Fixture = fixture("clone-dirty");
-    if !on_btrfs_or_acknowledged(&fixture, "clone-dirty") {
+    if !on_a_reflink_capable_fixture(&fixture, "a_dirty_ordinary_source_below_the_whole_tree_limit_is_not_cloned") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = ordinary_repository(&fixture);
+    // A tracked change, which is the shape the whole-tree limit was measured on: the tree's few hundred kilobytes sit
+    // far below the limit's bytes, so the add takes Git's own checkout.
+    std::fs::write(repo.join("shared.txt"), b"the person's edit\n").expect("the edit");
+    let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "plain", "../plain"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    assert!(!stderr_of(&created).contains("clones served"), "the whole-tree limit sent the add to Git's own checkout: {}", stderr_of(&created));
+    let plain: PathBuf = fixture.root.join("plain");
+    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "control", "../control"]);
+    assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
+    assert_eq!(tracked_content(&fixture, plain.as_path()), tracked_content(&fixture, fixture.root.join("control").as_path()), "Git's own checkout wrote the worktree");
+    assert_eq!(git(&fixture, plain.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]).stdout, b"", "clean on the first status");
+    remove(&fixture);
+}
+
+/// A source whose only difference is an untracked file is cloned:
+/// the untracked file is no tracked change, so the rule for a source with no tracked change judges it,
+/// the log names the clone,
+/// and the new worktree holds Git's own bytes.
+#[test]
+fn an_untracked_only_source_is_cloned() {
+    let fixture: Fixture = fixture("clone-untracked-only");
+    if !on_a_reflink_capable_fixture(&fixture, "an_untracked_only_source_is_cloned") {
         remove(&fixture);
         return;
     }
     let repo: PathBuf = ordinary_repository(&fixture);
     std::fs::write(repo.join("untracked.txt"), b"u").expect("untracked");
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "plain", "../plain"]);
+    let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    let plain: PathBuf = fixture.root.join("plain");
-    assert_ne!(first_physical_extent(plain.join("big.bin").as_path()), first_physical_extent(repo.join("big.bin").as_path()));
-    assert!(is_subvolume_root(plain.as_path()).expect("probe"));
+    let topic: PathBuf = fixture.root.join("topic");
+    assert!(stderr_of(&created).contains(format!("clones served {}", topic.display()).as_str()), "the clone rung served the add: {}", stderr_of(&created));
+    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "control", "../control"]);
+    assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
+    assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, fixture.root.join("control").as_path()), "the bytes are Git's own checkout's");
+    assert_eq!(git(&fixture, topic.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]).stdout, b"", "clean on the first status");
+    assert!(!topic.join("untracked.txt").exists(), "an untracked file of the source reaches no worktree");
     remove(&fixture);
 }
