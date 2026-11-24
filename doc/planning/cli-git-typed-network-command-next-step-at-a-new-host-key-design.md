@@ -699,7 +699,8 @@ and the repository exists.
 ```
 
 ```text
-# git clone ssh://root@probe-host.test:2222/work/served.git     (a differing key for the address, CheckHostIP=yes)
+# git clone ssh://root@probe-host.test:2222/work/served.git     (a differing key for the address, CheckHostIP=yes;
+#                                                               keep/run5.log, arm b-differing-key)
 Cloning into '/work/clone'...
 monochromatic-git-policy-cli: this machine holds a different SSH host key for the address of `[probe-host.test]:2222` than the server sent (the offending key is in /work/out/kh-differing:2), and no command the wrapper runs asks whether to continue. If that key is old, remove that line from `known_hosts`, then run this command again.
 Host key verification failed.
@@ -722,7 +723,7 @@ which the earlier wording was not.
 What it does **not** cover,
 each measured:
 
-- a changed host key: no question, so nothing (`b-changed-key`);
+- a changed host key: no question, so nothing (`keep/run5.log`, arm `b-changed-key`);
 - `BatchMode=yes`: no question, so nothing (`b-batchmode`);
 - `StrictHostKeyChecking=yes`: OpenSSH's own strict sentence and nothing from B (`b-strict-yes`);
 - a keyboard-interactive prompt that is itself a bare word (`Password`) and carries no `SSH_ASKPASS_PROMPT`:
