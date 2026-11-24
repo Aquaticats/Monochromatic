@@ -788,11 +788,10 @@ A start is the mode when both hold:
   its nested Git starts and OpenSSH's askpass start alike.
   The design keeps `GIT_ASKPASS` empty and reads it as well,
   so a later decision to cover Git's own credential questions needs no second selector.
-- **exactly one argument, and it cannot be a Git invocation.**
+- **exactly one argument, and it holds a space.**
   The argument does not start with `-`,
-  and it is not a bare word:
-  a bare word uses only `A` to `Z`, `a` to `z`, `0` to `9` and `-`.
-  Or OpenSSH set `SSH_ASKPASS_PROMPT`, which it does for a permission question and a notification.
+  and it holds at least one space,
+  or OpenSSH set `SSH_ASKPASS_PROMPT`, which it does for a permission question and a notification.
 
 Why that shape holds, corrected:
 
@@ -800,14 +799,15 @@ Why that shape holds, corrected:
   including a keyboard-interactive prompt,
   which is built as `(%s@%s) %s` around the server's text
   (source, the list under "What OpenSSH does with an askpass program").
-  So there is no bare-word question for the test to miss,
-  and the second round's "the one askpass start the shape still misses" is withdrawn.
-- no valid one-argument Git invocation gets past that shape:
+  So the space test is enough,
+  and the second round's bare-word rule and its "one askpass start the shape still misses" are both withdrawn.
+- no one-argument Git invocation puts a space inside the argument:
   with one argument, the argument is the subcommand,
-  and an external Git subcommand is not a bare word but does hold no space,
+  and a subcommand's name is one word,
   so a nested `git status`, `git foo_bar` or `git foo.sh` that a forwarded command starts is never the mode.
-  An alias whose name holds punctuation would be taken for the mode only if it arrived as one argument;
-  a one-word alias call is run by Git itself before this.
+  The one shape the test can still take is a one-argument call to an alias whose name holds a space,
+  which answers with the generic sentence and exits 2 instead of running Git:
+  bounded, and the same class of breakage the second round accepted for a punctuated alias name.
 - a question the mode does not recognise still gets an answer:
   the generic sentence in "The words", never a fall-through to Git.
   Only a start whose environment does not name the wrapper falls through,
@@ -879,7 +879,7 @@ The wording is true in both cases,
 which the second round's wording was not.
 
 What it does **not** cover,
-each measured in this round's log:
+each one measured this round or read from the source:
 
 - a changed host key: no question, so nothing, and OpenSSH's banner alone (`b-changed-key`);
 - `BatchMode=yes`: no question, so nothing (`b-batchmode`);
