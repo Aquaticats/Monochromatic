@@ -215,6 +215,32 @@ The maintainer's "no pinning" wording is recorded as:
 - `mise watch` call sites until the watching row of
  `doc/planning/mise-removal-coverage.md` selects its owner.
 
+From lines 49059 to 49066 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### Tooling and repository policy
+
+- Lockfiles are never hand-edited:
+  "You're not meant to manually edit lockfiles!
+  You're meant to fix the mpm set of tools we control and run it!
+  And it is meant to follow pnpm!"
+  (2026-11-03T05:15:12-05:00);
+  `AGENTS.md` rule FOT and LFW.
+
+From lines 49134 to 49142 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+mpm-shadow and crates outside this repository:
+"mpm-shadow should still be able to compile tools that are not controlled by this repo."
+then,
+"It should still BE ABLE TO compile tools this repo doesn't control when needed."
+with the question-tool picks "Rewrite CM7 (Recommended)" (`5f03ec99b3`)
+and "one flag,
+our crates (Recommended)",
+the second quoted in `package/mpm-shadow/cli/README.md`.
+
 ## Tool plan and generated artifacts
 
 Amended at the cutover:
@@ -319,6 +345,23 @@ The maintainer extended this decision to the machine-global toolchain
  (a `_.path` entry in the global Mise config).
 - Old Mise installs stay as the rollback,
  pruned in a later decision.
+
+From lines 49092 to 49103 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  global tool environment "Repository only (Recommended)";
+  the owner is "migrating away from mise soon TM"
+  (the hint fix of 2026-11-03 removed a mise task name from a user-facing remedy).
+  Mise is a task runner here,
+  not a package or tool manager;
+  the repository's package managers are pnpm,
+  Cargo,
+  Gradle,
+  uv,
+  Bun,
+  npm,
+  Zig and the `mpm-shadow` toolchain wrapper.
 
 ## Pruning the repository's own crates (2026-10-29)
 

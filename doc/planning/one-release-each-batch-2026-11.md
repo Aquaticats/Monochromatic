@@ -1343,6 +1343,17 @@ proved the Wayland library step.
   0.1.3 and 0.6.3 (crate order of "Yank step");
   the yank still waits for the `Wrapper 0.6.0 live` check under `Steps after the batch`.
 
+From lines 39706 to 39711 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The batch agent started after merge `73173e0f41` with the 15 crates;
+  "go wrapper" waits for the background-prompt fix below.
+  It runs on the default subagent model because an `opus` override was refused by a permission rule;
+  the owner,
+  asked,
+  answered "Keep it running (Recommended)".
+
 ### Steps after the batch
 
 Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout,

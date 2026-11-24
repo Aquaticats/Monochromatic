@@ -4649,6 +4649,31 @@ Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
 
+From lines 49296 to 49316 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
+
+Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
+(inside an unprivileged user namespace,
+found by integration pass 41),
+with three courses
+(keep refusing;
+stop counting the command's own chain of parents;
+stop counting every process it cannot read),
+the owner chose "Skip own parent chain".
+
+- The guard that refuses to remove a worktree a process works in leaves out the wrapper's own process and each of its parents,
+  and no other process.
+- What stays:
+  a process that is not one of those parents and whose working folder cannot be read still keeps its worktree.
+- The cost that was put to the owner with the option:
+  a parent whose working folder is the worktree loses that folder when the removal goes through.
+- Sent to the branch's author at 18:21:27
+  (`~/temp/agent/notes-to-send/note-for-the-author-of-the-removal-that-refuses-a-busy-worktree-the-owners-decision-on-the-commands-own-parents-2026-11-14T1822.md`),
+  who writes it into the guard's own doc.
+
 ### The records an add writes for itself
 
 An add's own bookkeeping is published whole and flushed by nobody.
@@ -7878,6 +7903,20 @@ so the pushes an earlier service promised are tried without waiting for a start 
 That pause doubles with each attempt whose job outlasted its ceiling,
 because such a job still holds a place of the blocking bound until the journal answers,
 while an attempt the pool gave no thread for promised that nothing ran and is made again at the same pause.
+
+From lines 49427 to 49435 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
+
+Each of these was asked in the question tool and answered; the questions file kept them until their subjects
+had a record. The record is named beside each answer.
+
+- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
+  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
+  owner's explicit exception to "Commits should never fail." for such an index. Record:
+  `package/git-policy/cli/SPEC.md`.
 
 #### Git steps, tools and checks end only on no progress
 
@@ -12592,6 +12631,17 @@ so a file older than the margin that is still the same
 file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
+
+From lines 46733 to 46738 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Reference-lock removal (the ninth design review's R9-S):
+  "Keep narrowed removal (Recommended)":
+  0.5.28's removal on a proof about the holder,
+  with the second identity check just before the move,
+  stays until the new commit protocol (whose X1 never removes a reference lock) replaces it;
+  the rare two-holders race is accepted for that time.
 
 #### Rejected rule: a reused number proven by a scan of the open descriptors
 

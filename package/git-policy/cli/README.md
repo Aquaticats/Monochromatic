@@ -1906,6 +1906,37 @@ which is the same way out that the paragraph above describes.
 The wrapper adds one namespace to Git.
 
 ```sh
+
+From lines 37869 to 37893 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Open:
+the 8 unmapped instances have neither a note nor a journal record that hashes to them
+(units of worktrees that never landed a commit before this release,
+or whose repository was deleted whole),
+so they stay.
+An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
+and neither the unit file nor the running process names that directory,
+so nothing can map one of them back;
+the three answers open to the owner,
+with the coordinator's ranking:
+leave them (`doctor` counts them and names them,
+no live service is ever cut;
+today's answer),
+stop the units of an unmapped instance whose socket file is older than a bound
+(a live but idle worktree's socket is just as old,
+because a socket unit has no idle exit,
+so this is a blind stop that cuts a live worktree's service mid-commit),
+or stop every unmapped instance's units once
+(the same risk,
+now,
+with no age to argue from).
+Ranking:
+leave > age-out > stop once,
+because everything past the first interrupts a commit somebody asked for,
+and 8 leftovers are a small price for never failing one.
+
 # Check or fix the whole repository, or the named pathspecs.
 git monochromatic-git-policy-cli check --all
 git monochromatic-git-policy-cli fix -- docs/ README.md
@@ -5674,6 +5705,19 @@ monochromatic-git-policy-cli: git add is waiting for the commit service to finis
 this waits for at most 600 seconds in all, and then git add runs and reports what Git says.
 ```
 
+From lines 48070 to 48077 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  - Signing is not the slow part.
+    The coordinator's probe on the same day with the owner's real signing setup in a throwaway repository:
+    signed commits 16,
+    13 and 13 ms,
+    unsigned 9,
+    9 and 8 ms.
+    Hooks are not it either:
+    the step runs with `core.hooksPath` at a directory that cannot exist and every commit event switched off.
+
 #### Compiled rules are warmed off the commit path
 
 The forbidden-strings rules are compiled once per text of the rules files and kept in a cache shared by every worktree
@@ -5752,6 +5796,45 @@ so a copy a crash tore is rejected and recompiled,
 and forcing the bytes to the device made the writer wait for a file that is derived data
 (6.7 s and 3.0 s of `fsync` in one measured commit,
 and 1.5 s in its `rename`).
+
+From lines 47990 to 48024 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Rules warm:
+  the service warms the compiled forbidden-strings rules after the first landing of a repository,
+  after a landing that changes a rules path,
+  after a restart (the repository is remembered),
+  and on a client `warm` message
+  sent after a worktree-moving command changed the rules text.
+  Measured with a 30-file fixture holding the repository's real rules and configuration,
+  five samples per arm,
+  paired against the binary from before the change (release builds):
+  - first commit after a checkout that changed the rules text:
+    before 1313 ms and 1293 ms (medians of two runs),
+    after with the warm settled 45 ms,
+    immediately after the checkout 1401 ms;
+  - first commit after a fresh cache and a service restart:
+    before 1253 ms and 1263 ms,
+    after with the warm settled 45 ms,
+    immediately after the service started 1376 ms.
+  - The commit that races the warm is about 100 ms slower than before (both compile),
+    which is larger than the spread of the unchanged binary (10 to 20 ms between medians).
+    Neither first commit exceeded 5 s here;
+    the earlier 20 s was observed under load.
+    Next step if a commit that races a warm is over the owner's bound:
+    the client waits for the warm under way instead of compiling a second time.
+  - Wrapped `checkout` that leaves the rules unchanged:
+    7.9,
+    8.2,
+    8.2 and 8.0 ms (before,
+    after,
+    before,
+    after;
+    same-binary spread 0.3 ms mad).
+    A checkout that changes the rules text costs 10 to 15 ms more (config load,
+    hash,
+    one connection).
 
 ## Reading the repository in process
 
@@ -6735,6 +6818,40 @@ until the coordinator has switched over;
 nothing in this package reads them.
 
 ```sh
+
+From lines 49317 to 49345 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The wrapper's full gate runs after each release (2026-11-14, answered by 15:15:27-05:00)
+
+Asked through the question tool whether the package's full container gate
+(`native:test:container`:
+the whole suite and Clippy in bounded containers)
+runs for each alpha release,
+with three options
+(after each merge without blocking,
+as now with no gate,
+before every release)
+and what was so by then:
+`0.6.1-alpha.28` to `0.6.1-alpha.32` went out on each integration pass's own checks,
+and three library tests are red on `main`,
+so the gate does not pass today.
+
+- The owner's answer,
+  typed and not one of the three:
+  "Gate after release."
+- What this session does by it:
+  a release is dispatched,
+  awaited and installed as before,
+  on the pass's report;
+  then `mise run //package/git-policy/cli:native:gate:main-tip` starts the gate on the commit `main` points at,
+  which holds the release's bump,
+  and `native:gate:verdict` reads its verdict.
+  The verdict is recorded with the release in this file.
+  A failure the red list of `main` does not explain goes to an author as a finding;
+  it does not hold the next release.
+
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:gate -- <worktree name or full path> <label>
 mise run //package/git-policy/cli:native:gate:main-tip
@@ -8827,3 +8944,17 @@ the measurements and the migration plan are in `doc/planning/cli-git-resident-se
   refused,
   and the message says how many files it selected."
   Ordinary named paths skip the check.
+
+## Moved from the old handover
+
+From lines 49582 to 49588 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
+  on nine failing tests outside its three btrfs controls;
+  since `50161f7161` it refuses only when a required control fails,
+  is missing or did not run,
+  or the run timed out,
+  was stopped or failed without naming a test,
+  and prints other failing tests as notices above the pass.

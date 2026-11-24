@@ -113,3 +113,41 @@ and go on as before.
   "Mutation runs don't block publish and release."
   So reviews and mutation campaigns never block a merge or a publish;
   their findings become follow-up fixes and later releases.
+
+## Moved from the old handover
+
+From lines 49602 to 49606 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Owner (2026-11-02T21:58:07-05:00):
+  "This is expected and fine,
+  the correct answer is to release again combining all the
+  changes."
+  So merge gated work as it passes and dispatch again with everything combined.
+
+From lines 49645 to 49656 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Reviews and merging:
+  "If we have already decided on something just do it.
+  Treat reviews as async."
+  (2026-11-01T07:21:50-05:00);
+  decided work merges after its gate,
+  review findings become follow-up fixes.
+  "Figure it out amongst yourselves who should own or do what.
+  You have the tools."
+  "You should (almost) never be waiting.
+  There is always more work."
+  and
+  "Avoid wasting compute on stuff that would be shortly superseded."
+
+From lines 49698 to 49701 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Keep all lines going:
+  the owner chose "Keep all lines" (2026-11-03T07:38:56-05:00):
+  continue the parallel lines and release
+  whenever a gate passes.

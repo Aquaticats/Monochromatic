@@ -104,6 +104,14 @@ and each stays in force until the owner changes it.
   the skill `pi-as-subagent`,
   section "Who writes and who reviews".
 
+From lines 39306 to 39308 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Owner:
+  "Do whatever you need to do,
+  but don't abandon any work."
+
 ## The restart the owner announced on 2026-11-23
 
 The owner,
