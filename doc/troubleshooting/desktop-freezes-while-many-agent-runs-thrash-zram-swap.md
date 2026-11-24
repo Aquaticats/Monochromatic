@@ -648,6 +648,59 @@ not rates over a comparable load.
 It shows the settings held under this load without a stall.
 It does not show they caused it.
 
+A heavier load began at 2026-11-23T20:33:24-05:00,
+when the owner allowed up to 64 rounds at once
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`)
+and five more build rounds started beside seven,
+with six Claude agents building in their own worktrees.
+Both settings were in force
+(`min_ttl_ms` 1000,
+`watermark_scale_factor` 125).
+Its start read is `counters-before-the-build-ahead-wave.txt`,
+and a read 137 seconds later is `counters-after-twelve-rounds-and-six-claude-agents.txt`,
+both in the folder above.
+Over those 137 seconds,
+with three guests up and no whole gate:
+
+- kswapd did 98.1% of the scans
+  (`pgscan_kswapd` 32,420 per second);
+- `allocstall_normal` rose by 13 and `allocstall_movable` by 1,048;
+- `kswapd_low_wmark_hit_quickly` rose by 446 and `kswapd_high_wmark_hit_quickly` by 0;
+- `pgsteal_kswapd` ran at 29,226 per second against `pgsteal_direct` 497;
+- memory `full` stalled 3.31% of the interval and `some` 3.38%;
+- `pswpin` and `pswpout` ran at 4,792 and 24,662 per second;
+- `oom_kill` did not move,
+  and the kernel log since 20:30 holds no "blocked for more than" line.
+
+The interval is short and the load had not reached six guests or a whole gate,
+so it is not the comparison either.
+
+A read when the memory stall had eased
+(`full` avg60 0.4,
+at 2026-11-23T20:50:18-05:00)
+is `counters-when-the-wave-stall-eased.txt` beside the others.
+Over the 1,014 seconds from the start read,
+with twelve to thirteen rounds,
+two or three guests and no whole gate:
+
+- kswapd did 97.9% of the scans
+  (`pgscan_kswapd` 37,570 per second);
+- `allocstall_normal` rose by 25 and `allocstall_movable` by 2,098;
+- `kswapd_low_wmark_hit_quickly` rose by 7,236 and `kswapd_high_wmark_hit_quickly` by 0;
+- `pgsteal_kswapd` ran at 25,437 per second against `pgsteal_direct` 123;
+- memory `full` stalled 2.56% of the interval and `some` 2.60%;
+- `pswpin` and `pswpout` ran at 10,667 and 17,689 per second;
+- `oom_kill` did not move,
+  and the kernel log since 20:30 holds no "blocked for more than" line.
+
+Against the 908-second read of the lighter load,
+kswapd's share of the scans rose from 72.4% to 97.9%
+and direct reclaim's steal fell from 9,472 to 123 pages a second,
+the direction the settings are for.
+It is still not the comparison:
+no arm ran without the settings,
+and six guests and a whole gate did not run in it.
+
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
 whole container gates of `package/git-policy/cli`,
