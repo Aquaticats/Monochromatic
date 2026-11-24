@@ -12,13 +12,13 @@ From lines 23597 to 23652 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### Issue 6300: `mpm-shadow install` takes a tool, with the owner's three answers; two reviews with defects go back to their authors (2026-11-13T18:39:31-05:00)
+### Issue 6300: `mpm-shadow install` takes a tool, with the owner's three answers; two reviews with defects go back to their authors (2026-11-13T18:39:31-05:00)
 
 Not final and not approved:
 written by the coordinating session from the issue,
 the owner's answers and the reviews' own text.
 
-##### Issue 6300
+#### Issue 6300
 
 The owner sent the issue's address at about 18:35 and nothing else.
 The issue is mpm-shadow's,

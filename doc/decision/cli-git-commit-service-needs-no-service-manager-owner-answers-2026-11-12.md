@@ -12,7 +12,7 @@ From lines 25974 to 25993 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
+### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
 
 - "Also regarding systemd answer:
   We're also supposed to workaround systemd issues."

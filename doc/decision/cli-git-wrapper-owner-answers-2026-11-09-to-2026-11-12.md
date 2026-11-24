@@ -19,7 +19,7 @@ From lines 29468 to 29484 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### A nested subvolume that the wrapper did not make
+### A nested subvolume that the wrapper did not make
 
 Branch `fix/git-policy-cli-worktree-removal-finishes-with-a-nested-subvolume`,
 tip `34af1df537`,

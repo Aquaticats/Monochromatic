@@ -12,7 +12,7 @@ From lines 23831 to 23853 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-##### The author pool is full, and the owner keeps it at one
+### The author pool is full, and the owner keeps it at one
 
 - A run that names no model goes to the first default pool with room,
   and one is open,
@@ -40,7 +40,7 @@ From lines 24372 to 24387 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### The owner: one pass carries every reviewed branch; pass 21 has the jam fix, file mode and kept-references (2026-11-13T16:14:18-05:00)
+### The owner: one pass carries every reviewed branch; pass 21 has the jam fix, file mode and kept-references (2026-11-13T16:14:18-05:00)
 
 Not complete,
 and written by the coordinating session:
@@ -82,7 +82,7 @@ From lines 24489 to 24496 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### The owner: one agent, one thing; pass 20 started with the first branch whose review found nothing (2026-11-13T15:38:11-05:00)
+### The owner: one agent, one thing; pass 20 started with the first branch whose review found nothing (2026-11-13T15:38:11-05:00)
 
 Not complete,
 and written by the coordinating session:
@@ -104,7 +104,7 @@ From lines 24516 to 24527 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### Four more runs ended by 15:31:30; the upstream project already has the rate-limit classification reported (2026-11-13T15:34:05-05:00)
+### Four more runs ended by 15:31:30; the upstream project already has the rate-limit classification reported (2026-11-13T15:34:05-05:00)
 
 Not complete,
 and written by the coordinating session:
@@ -132,7 +132,7 @@ From lines 24740 to 24753 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-##### The owner's decisions of 2026-11-13, answered between 13:56 and 14:37
+#### The owner's decisions of 2026-11-13, answered between 13:56 and 14:37
 
 - **An ignored file in the way of a discarding command** (`git reset --hard <other>`,
   `git checkout --force` and the like,

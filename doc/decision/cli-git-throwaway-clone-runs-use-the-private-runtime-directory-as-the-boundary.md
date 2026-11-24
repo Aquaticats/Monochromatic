@@ -12,7 +12,7 @@ From lines 2311 to 2335 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### Issue 6293, filed by the other session at 10:55:20
+### Issue 6293, filed by the other session at 10:55:20
 
 A throwaway clone run with its own `HOME` and `XDG_RUNTIME_DIR` still got a commit-service unit in the account's real manager,
 with its journal under the real `~/.local/state`,

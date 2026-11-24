@@ -44,7 +44,7 @@ From lines 25115 to 25146 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies` (2026-11-13T13:08:25-05:00)
+### The cargo lock agents wait on is taken by every lint, through `fetch:rust-dependencies` (2026-11-13T13:08:25-05:00)
 
 Not complete:
 the cause of the one long wait is not found and no remedy is chosen.

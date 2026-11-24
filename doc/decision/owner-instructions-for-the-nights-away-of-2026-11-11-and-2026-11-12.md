@@ -12,7 +12,7 @@ From lines 29295 to 29298 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### Decided while the owner is away, each open to veto
+### Decided while the owner is away, each open to veto
 
 The owner,
 about 20:03:

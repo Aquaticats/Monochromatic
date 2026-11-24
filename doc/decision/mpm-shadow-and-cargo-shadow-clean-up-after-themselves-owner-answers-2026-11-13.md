@@ -12,7 +12,7 @@ From lines 23727 to 23747 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-##### The owner's answers
+### The owner's answers
 
 - Asked at about 18:28 whether the folders of 2026-11-10 and 2026-11-11 may be deleted
   (both watched,
