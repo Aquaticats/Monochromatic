@@ -5082,6 +5082,14 @@ What this release does not yet do:
   its clone and its origin snapshot and finishes with Git's own checkout,
   the route can serve these sources itself instead of leaving them to the
   ladder.
+  A step of the restore that fails is not one of these shapes and is not
+  declined:
+  a `git clean --force -d` that cannot unlink a path the account has no write
+  permission on,
+  or a reset a conversion driver or a full disk stops,
+  is a failure of the filesystem or of a tool that no read of the source can
+  rule out,
+  and the settle below is its answer.
 - The post-restore check is not built:
   the paths the reset wrote are not compared with the entries Git recorded for
   them,
