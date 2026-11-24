@@ -161,3 +161,18 @@ fn a_folder_without_a_claim_is_kept() {
     assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "claim"), "{outcome:?}");
     assert!(fixture.folder.exists());
 }
+
+/// A claim whose owner is still alive keeps the folder.
+#[test]
+fn a_folder_whose_owner_lives_is_kept() {
+    let fixture = fixture("cleanup-owner-live");
+    // The test process owns the claim, so its token names a live owner.
+    let owner = crate::worktree_copy_owner::current_copy_owner().expect("this process's owner token");
+    let no_mounts = || return Vec::new();
+    let mut request = request(&fixture, &no_mounts);
+    let token = owner.token();
+    request.owner_token = Some(token.as_str());
+    let outcome: CleanupOutcome = clean_up_staging_folder(&request);
+    assert!(matches!(outcome, CleanupOutcome::Kept { ref step, .. } if step == "owner"), "{outcome:?}");
+    assert!(fixture.folder.exists());
+}
