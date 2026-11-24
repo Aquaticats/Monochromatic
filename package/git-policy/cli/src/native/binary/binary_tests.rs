@@ -1034,6 +1034,13 @@ mod mount_git_worktree_clone_datasets;
 #[path = "binary_zfs_adoption_guest_tests.rs"]
 mod zfs_adoption_guest;
 
+/// Plan step 10's add route in the throwaway guest:
+/// the whole add,
+/// a kill at each phase and its resume,
+/// and the pool's full answer at the clone.
+#[path = "binary_zfs_add_guest_tests.rs"]
+mod zfs_add_guest;
+
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 

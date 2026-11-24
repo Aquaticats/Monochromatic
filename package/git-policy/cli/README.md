@@ -808,6 +808,26 @@ Read-only commands,
    words,
   and what makes the next add quick (each step leaves a line in the diagnostic log,
   `MONOCHROMATIC_VERBOSE=true`):
+  On a checkout that is the mount of the ZFS dataset named
+  `monochromatic-git-checkout`,
+  an add at `.claude/worktrees/<name>` takes a different route before any rung:
+  the slot is registered in Git first and locked with one sentence computed from
+  the add's random nonce,
+  the checkout is snapshotted and cloned with `mountpoint=legacy`,
+  the clone is mounted at the slot,
+  its copied index and tracked files are compared with a frozen capture taken
+  before the snapshot,
+  the copied Git administration is exchanged with the saved pointer in one
+  `renameat2(RENAME_EXCHANGE)`,
+  and the result is checked before the record says the worktree is usable.
+  A kill at any step leaves the claim,
+  the slot and the registration,
+  and the next add at the slot resumes from the phase the record names.
+  `SPEC.md`,
+  "The add that registers a ZFS clone before it fills the slot",
+  states every step,
+  what each kill leaves,
+  and what this release does not do yet.
   1. A btrfs snapshot of the worktree the command is run from (the main checkout included) when it is a clean subvolume
      on the destination's filesystem.
      Real Git runs with `--no-checkout`,
