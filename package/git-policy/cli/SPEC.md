@@ -5047,6 +5047,13 @@ What this release does not yet do:
   is not built,
   so the paths the reset does not rewrite keep the snapshot's bytes
   (plan step 11's remainder, issue 6323).
+- A source holding an untracked directory with its own Git repository is not
+  refused before the snapshot:
+  `git clean --force -d` keeps such a directory,
+  the restore's own proof names it as untracked and refuses,
+  and the add then leaves the pending state the settle above describes,
+  because nothing of this release settles it.
+  The refusal before the snapshot is plan step 11's remainder.
 - The post-restore check is not built:
   the paths the reset wrote are not compared with the entries Git recorded for
   them,
