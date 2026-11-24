@@ -795,7 +795,19 @@ owner @{HOME}/temp/agent/**/hooks/* mix,
 # /etc/apparmor.d/local/ssh and local/git_ssh, seventh batch: the ssh terminal tests' key and known_hosts in their fixture
 # (client_key read 10, client_key.pub read 4, known_hosts create 2, under ssh and under git//ssh alike)
 owner /work/** rwk,
+# /etc/apparmor.d/local/sshd-session (new), eighth batch: OpenSSH's per-connection sshd-session, its own profile, reads the
+# client's authorized_keys in the ssh terminal fixtures (denied once for each of the two ssh_terminal controls)
+owner /work/** r,
+# /etc/apparmor.d/local/git, eighth batch: the wrapper, run as git, reads the cgroup root's controller list (3 denials)
+@{sys}/fs/cgroup/cgroup.controllers r,
 ```
+
+Seen in the same gate and not granted:
+`capability dac_override` for `git` and `git-receive-pack` (nine denials in one second)
+and for `umount` (three),
+since no failing test needs either and the capability lets a program pass every file permission check;
+and three reads by the browser `helium`,
+which is not this work's.
 
 `local/git_ssh` belongs to the `ssh` child of the `git` profile,
 so it is loaded with `/etc/apparmor.d/git`.
@@ -804,6 +816,19 @@ and its profiles loaded,
 by `append-a-batch-of-local-rules-and-load.ts` in
 `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`,
 which keeps each local file as it was beside the batch in that folder's `keep/`.
+
+On this machine a denial is in `/var/log/audit/audit.log` and nowhere else a session first looks:
+on 2026-11-23,
+for the 21 minutes of a whole gate,
+`journalctl _TRANSPORT=audit` and `journalctl _TRANSPORT=kernel` held no `apparmor="DENIED"` line,
+and `sudo ausearch --start 19:20:14 --end 19:41:19 --raw` returned 582 records with no AppArmor record among them,
+while the log file itself held 20 denials in that window.
+`list-denials-in-a-window.ts` in the same folder reads the file from standard input
+(`sudo --non-interactive cat /var/log/audit/audit.log | node list-denials-in-a-window.ts <from> <to>`,
+local times of today)
+and prints each denial and a count per profile,
+operation,
+name and mask.
 
 ### Tradeoffs
 
@@ -944,7 +969,8 @@ the session makes itself.
 
 ### The three stale lock controls killed the `timeout` and not the Git
 
-Recorded 2026-11-23T19:45:00-05:00 by the round that ran them alone
+Recorded by the round that ran them alone,
+at 2026-11-23T19:32:36-05:00 by the fix commit's time
 (`fix/git-policy-cli-stale-ref-lock-controls-under-apparmor`, fix at `0767a62bbb`).
 Not approved and not final:
 no whole container gate has run with the fix.
