@@ -101,6 +101,14 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     if let Some(reason) = snapshot_blocker(&source) {
         return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));
     }
+    if !source.trash_ignored {
+        return Err(StepRefusal::refused(String::from(
+            "the place the add sets the copied Git administration aside in, `.claude/cli-git-trash`, is not ignored by this repository's Git, so the new worktree would carry an untracked folder. Ways forward: add that path to `.gitignore` or `.git/info/exclude`, then run the add again",
+        )));
+    }
+    let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
+        .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
+    verify_the_slot_parent(route)?;
     // What:
     //  A source whose copy the fill's restore would end after the clone is made
     //  makes the route decline instead of failing the add.
@@ -114,6 +122,9 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  (`super::add_source_the_restore_cannot_prove`).
     //  A question that could not be answered declines the same way:
     //  an unproven source is not this route's either.
+    //  The checks above come first so every refusal a person can act on keeps its
+    //  sentence;
+    //  the device is opened after this, so a declined add asks it nothing.
     match super::add_source_the_restore_cannot_prove::reasons_the_restore_cannot_prove((context, &source)) {
         Ok(reasons) if reasons.is_empty() => {}
         Ok(reasons) => {
@@ -125,14 +136,6 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             return Ok(None);
         }
     }
-    if !source.trash_ignored {
-        return Err(StepRefusal::refused(String::from(
-            "the place the add sets the copied Git administration aside in, `.claude/cli-git-trash`, is not ignored by this repository's Git, so the new worktree would carry an untracked folder. Ways forward: add that path to `.gitignore` or `.git/info/exclude`, then run the add again",
-        )));
-    }
-    let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
-        .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
-    verify_the_slot_parent(route)?;
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
     let pool: ObjectIdentity = device.identity_of(route.pool.as_str()).map_err(StepRefusal::refused)?;
