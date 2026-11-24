@@ -6523,6 +6523,32 @@ and any test suite.
 - 2026-11-23T18:47:09-05:00 (`522ebf225b`):
   the plan row names which command accepts a plan beside a `settling` binding,
   which K7 of the tenth asked for by name.
+- 2026-11-23T19:20:03-05:00 (`57d1e966f6`),
+  2026-11-23T19:24:39-05:00 (`3d58569eb2`)
+  and 2026-11-23T19:26:46-05:00 (`196b940682`):
+  answered the eleventh add-side read and the eleventh removal-side read:
+  N2 (the `snapshotted` gloss says what a resume does,
+  cited to "What the writer confirms before each write" and
+  T23,
+  and the fallback's entry from `snapshotted` is its own list's matter),
+  N1 and K11 (`doctor` names one command per state as the plan row does:
+  the removal for head `requested` or `unknown`,
+  the settling command for `present` or `refused` or an unprovable absence,
+  and "the add again" only while no plan stands),
+  K14 (the row and `doctor`'s line for `cloned` or `mounted` cover a clone whose absence cannot be proved,
+  and T33 and T35 gain that arm),
+  N3 (V24's refusal names the cancel command where the plan's tuples are all `planned`),
+  N4 (step 14 builds the add's read of the plan folder),
+  N5 (T35's two arms),
+  N6 and K12 (the pointers to A22,
+  the fallback's entry list and the plan design's paragraph,
+  the tips at `cf51d140af`,
+  the add's refusal for a plan beside a binding of any phase,
+  and V24's cost),
+  N7 (the plan design's heading,
+  its round's to change) and
+  N8 (the restore's steps cited to the accepted allocation,
+  with steps 6 and 7 running empty for a clean source).
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
