@@ -37,6 +37,10 @@ import {
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
 import {
+  POOL_LIMITS_VARIABLE,
+  PoolLimitsError,
+} from './pool-limits.ts';
+import {
   CLOSED_POOL_EXIT_STATUS,
   ClosedPoolRefusalError,
   refuseARunOnAClosedPool,
@@ -104,16 +108,24 @@ try {
   refuseARunOnAClosedPool({
     provider: options.provider,
     model: options.model,
-    namesItsOwnPool: options.namesItsOwnProvider,
+    namedByTheCommandLine: options.namedByTheCommandLine,
     environment: env,
   },);
 }
 catch (error) {
-  if (!(error instanceof ClosedPoolRefusalError)) {
+  if (error instanceof ClosedPoolRefusalError) {
+    console.error(`${options.name}: refusing to start: ${error.message}`,);
+    process.exit(CLOSED_POOL_EXIT_STATUS,);
+  }
+  // A pool limit this command cannot read is refused the same way and before the same work: it names the setting and its fault,
+  // and a run outside every pool never reaches this, so a broken setting refuses only the runs it could have touched.
+  else if (error instanceof PoolLimitsError) {
+    console.error(`${options.name}: refusing to start: ${error.message}`,);
+    process.exit(1,);
+  }
+  else {
     throw error;
   }
-  console.error(`${options.name}: refusing to start: ${error.message}`,);
-  process.exit(CLOSED_POOL_EXIT_STATUS,);
 }
 
 /**
@@ -309,6 +321,10 @@ const unit = unitCommandOf({
   wallSeconds: options.wallSeconds,
   pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
+  // The unit inherits nothing, so a pool this command reopened through the variable is reopened for the driver inside the unit
+  // only by this word. Without it the driver reads the shipped table, finds the pool closed and refuses the run the launcher let
+  // through, telling its reader to set the variable they already set.
+  ...((env[POOL_LIMITS_VARIABLE] === undefined) ? {} : { poolLimits: env[POOL_LIMITS_VARIABLE] }),
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
     command: 'mise',

@@ -607,6 +607,46 @@ what it does not show is that they prevent a repeat.
 
 No such comparison has been made.
 This is the one that would settle it.
+A start read of a lighter load was taken at 2026-11-23T19:26:55-05:00,
+with both settings in force:
+four guests,
+one whole container gate,
+and Rust builds inside several Pi rounds
+(`counters-at-the-start-of-the-load-of-2026-11-23-evening.txt` in
+`~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`).
+Its end read was taken at 2026-11-23T19:42:03-05:00,
+just after the gate ended,
+with both settings still in force
+(`counters-at-the-end-of-the-load-of-2026-11-23-evening.txt` beside the start read;
+the rates by `compare-two-reads-as-rates.ts` in the folder above,
+kept as `rates-between-the-two-reads-of-2026-11-23-evening.txt`).
+Over the 908 seconds:
+
+- kswapd did 72.4% of the scans
+  (`pgscan_kswapd` 37,438 per second against `pgscan_direct` 14,249);
+- `allocstall_normal` rose by 45 and `allocstall_movable` by 77;
+- `kswapd_low_wmark_hit_quickly` rose by 7,109 and `kswapd_high_wmark_hit_quickly` by 1;
+- `pgsteal_kswapd` ran at 24,440 per second against `pgsteal_direct` 9,472;
+- memory `full` stalled 3.02% of the interval and `some` 3.17%;
+- `pswpin` and `pswpout` ran at 19,862 and 27,012 per second;
+- `oom_kill` did not move,
+  and none of the kernel log's 8 lines in the window is a "blocked for more than" line;
+  no positive control was possible,
+  since the journal keeps only the current boot (`journalctl --list-boots` lists one,
+  from 2026-11-23T16:38:50-05:00),
+  so 2026-11-22's lines,
+  which held such lines,
+  are gone.
+
+This is not the comparison that would verify the change.
+The load was lighter than 2026-11-22's
+(four guests,
+not six),
+no arm without the settings ran beside it,
+and the baseline's figures are totals since that boot,
+not rates over a comparable load.
+It shows the settings held under this load without a stall.
+It does not show they caused it.
 
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
@@ -647,9 +687,15 @@ These would not count as success:
 ## Workarounds applied at runtime and measured once without verification
 
 Nothing in this document is a verified workaround.
-The two settings were applied at runtime on 2026-11-22 and are still in force
-(`sysctl vm.watermark_scale_factor` reads 125 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` reads 1000,
-both read on 2026-11-23 on the same boot).
+The two settings were applied at runtime on 2026-11-22.
+The machine's restarts on 2026-11-23 returned them to their boot values
+(the last boot began at 2026-11-23T16:38:50-05:00,
+by `journalctl --list-boots`):
+at 2026-11-23T19:2x-05:00 `sysctl vm.watermark_scale_factor` read 10 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` read 100.
+The coordinating session applied both again with the commands under each heading,
+since the owner's answer keeps both in force until a load like 2026-11-22's has been seen,
+and read them back at 2026-11-23T19:26:27-05:00:
+125 and 1000.
 They have been measured once,
 under a lighter load,
 and the comparison that would show their effect does not exist.
@@ -707,9 +753,24 @@ Revert with `echo 100 | sudo --non-interactive tee /sys/kernel/mm/lru_gen/min_tt
 
 This is a runtime value under `/sys` rather than a sysctl key,
 and a reboot starts it again from the kernel's boot value.
-With no writer in `/usr/lib` or `/etc`,
-the boot value is the documented default of 0,
-so reverting to 100 is not reverting to the boot value.
+That boot value is 100 on this kernel,
+not the documented default of 0:
+it read 100 after the restarts of 2026-11-23.
+What sets it is not found.
+The kernel command line names no `lru_gen` parameter.
+`/proc/config.gz` carries no default for it:
+its only matching lines are `CONFIG_LRU_GEN=y`,
+`CONFIG_LRU_GEN_ENABLED=y`
+and `CONFIG_LRU_GEN_WALKS_MMU=y`.
+A search for `min_ttl_ms` found no file in
+`/etc`,
+`/usr/lib/systemd`,
+`/usr/lib/udev`,
+`/usr/share`
+or `/usr/bin`,
+though it skipped files it could not read.
+A patch in the distribution's kernel is the place not yet read.
+So reverting to 100 is reverting to the boot value.
 At 100 the machine's valve was a tenth of a second;
 at 1000 the kernel documentation's sentence applies:
 "The OOM killer is triggered if this working set cannot be kept in memory",
@@ -909,6 +970,24 @@ Each of these is a question with the measurement that answers it.
     That is one reading late in a run,
     not the gate's peak,
     and how many gates ran at the freeze is not recorded here.
+    Read across a whole run on 2026-11-23
+    (run `native-klGxVR` on `main` at `25d719bc6f`,
+    from 2026-11-24T00:20:14Z to 00:41:19Z,
+    every 30 seconds,
+    30 reads,
+    with four guests and the Pi rounds' builds running beside it):
+    the gate's two containers peaked at 2,184 MiB resident together,
+    1,855 MiB of it anonymous,
+    169 MiB file and none `shmem`,
+    with 956 MiB more in swap at that read;
+    the most swapped at once was 1,724 MiB,
+    at 2,165 MiB resident
+    (`gate-container-memory-native-klGxVR-across-the-run.jsonl` in the same `keep/`,
+    written by `sample-a-gate-runs-container-memory-until-it-ends.ts` beside it).
+    So one gate asks for about 3.9 GiB at its peak,
+    resident and swapped,
+    and its fixtures' `tmpfs` was not a visible part of it at the peak.
+    The guests stopped is the half of the measurement still owed.
 5.  Where did `min_ttl_ms = 100` come from?
     Measure:
     search every source that can set it (`/usr/lib` and `/etc` `tmpfiles.d`,
@@ -917,6 +996,13 @@ Each of these is a question with the measurement that answers it.
     units;
     a search of those on 2026-11-22 found no writer),
     then the shell history of the session that wrote it.
+    Partly answered on 2026-11-23:
+    it read 100 again after the restarts of 2026-11-23,
+    so it is this kernel's boot value,
+    and nothing a session wrote;
+    a wider search found no writer
+    (under the heading that names `/sys/kernel/mm/lru_gen/min_ttl_ms`).
+    The distribution's kernel patch set is the place not yet read.
 6.  Where did `vm.watermark_boost_factor = 0` come from,
     when the kernel [documents a default of 15,000][vm-boost]?
     Measure:

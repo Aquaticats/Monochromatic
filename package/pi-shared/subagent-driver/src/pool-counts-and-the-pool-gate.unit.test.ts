@@ -711,6 +711,11 @@ await describe({
               },) ?? NEURALWATT_STANDARD;
             expect(roomIn(closed,),).toBe(0,);
             expect(closed.closed?.reason,).toContain(POOL_LIMITS_VARIABLE,);
+            // The owner closed this pool before the caller did, so the reason a reader gets names both: a mistyped zero is never
+            // taken for the whole story of why no run may take the pool.
+            expect(closed.closed?.reason,).toContain(NEURALWATT_STANDARD.closed?.reason ?? '',);
+            // A pool the owner left open says only what the caller's zero says.
+            expect(spent.closed?.reason,).toBe(`${POOL_LIMITS_VARIABLE} set its limit to zero`,);
             /**
              A pool the caller named nothing about.
              */
