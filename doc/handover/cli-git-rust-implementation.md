@@ -13,15 +13,19 @@ Until commit `c84e2f1dbf` (2026-11-23T04:39:44-05:00) this path held 49,707 line
 run logs from 2026-11-09 on,
 the owner's decisions,
 open findings and working rules.
-That text is moved,
+That text was moved,
 unchanged,
 to `doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md`.
-A document that points at a heading of this page that is no longer here means that file.
+A document that points at a heading of this page that is no longer here means that file,
+which `git show c84e2f1dbf:doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` still prints.
 
-The old file is being sorted,
+The old file was sorted,
 range by range,
 into the places such facts belong,
-and it is deleted when its last range is sorted:
+and deleted as `f0f870e305` (2026-11-23T20:56:00-05:00) when its last range was sorted.
+Every moved entry names its lines and the commit at which the file held them;
+the sorting's ledgers and scripts are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/`.
+The sorting put:
 
 - the owner's decisions go to records under `doc/decision/`;
 - root causes and workarounds go to `doc/troubleshooting/`;
@@ -467,12 +471,16 @@ ten host controls each red without its guard,
 and the reboot phase of the kill points run in a guest
 (`keep/report-pi-zfs-step-9-unmount-what-the-last-round-left.md` in
 `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
+The pass's M3 to M9 merged as `0576c39994`,
+seven guest arms built and run,
+each matching its finding,
+with no code fault found
+and `223 tests run: 223 passed` on the host.
 Not yet shown:
-the pass's M3 to M9,
-whose arms must be built,
-not only run.
+M3's positive reader control,
+which printed an empty row.
 Running:
-`pi-zfs-step-9-unmount-m3-to-m9-guest-arms`,
+`pi-zfs-step-9-unmount-m3-positive-reader-control`,
 on the same branch.
 
 Next:
@@ -551,35 +559,29 @@ quoted to the owner on 2026-11-23.
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
 Outcome:
-the owner accepts the two designs.
+the forced design's text carries the owner's V10 answer.
 
 State:
-both are on `main` as proposals
-(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
-`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`).
-The owner confirmed the direction on 2026-11-23:
-unmount by the marker inside a holder's namespace,
-and go ahead and report for both sandbox cases
-(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
-"The unmount inside a holder's namespace,
-confirmed as a direction on 2026-11-23").
-That rests on Tier 0 on kernel 6.8 and in a rootless container on 7.3 over ZFS,
-and Tier 1 on a guest pool
-(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
-read against the logs in `review-second-probe-round.md` in
-`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`).
+the owner accepted both designs on 2026-11-23
+and answered V10 "Stop that unit (Recommended)":
+a locked holder that is a unit of the account's own user manager is stopped through that manager and the removal proceeds,
+while a locked holder that is not such a unit is still refused,
+as the session's reading of the answer's scope
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
+The question rested on T0-14 in a guest with systemd 255
+(a `PrivateMounts=yes` user unit there is not locked;
+an `unshare --user --mount` holder is,
+with `EINVAL` for the move and the unmount)
+and on a read on this machine under systemd 262,
+where such a unit's mount namespace is owned by a user namespace of its own.
+T0-10 showed that root lists and enters a mount namespace no task holds.
 Tier 2 needs step 17's code.
 Running:
-`pi-zfs-forced-removal-probe-arms-second-read-findings`,
-on the read's faults in the measurements section
-(which program ran where,
-the heading's time,
-a user-namespace holder named as unshown,
-one misleading T0-10 line).
+the forced design's round on V10's answer (`continuation-v10-answered-stop-the-unit.md`).
 
 Next:
 merge it;
-then the acceptance question for the two designs.
+the designs then wait for step 17 under "Accepted designs that wait for their build steps".
 
 #### Accepted designs that wait for their build steps
 
@@ -749,38 +751,61 @@ and add rules for what this work meets;
 cause H is its own work
 (the account's "Cause H").
 
-#### The wrapper's `0.6.1-alpha.45`
+#### The wrapper's `0.6.1-alpha.45` and what its release passes found
 
 Outcome:
-the week of merges since `alpha.44` (2026-11-16) reaches installs as an alpha,
-which the owner lets agents dispatch unasked (standing directions).
+the release passes' findings are fixed for the next alpha.
 
 State:
-the dry run (GitHub Actions run 45303365282) failed before any push,
-at `pnpm install --frozen-lockfile` on a clean checkout of `main`:
-`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`,
-the "catalogs" configuration not matching the lock,
-since the daily update `aead90ed51` changed both.
-The same error is what a new worktree's relink prints,
-so it is likely issue 6339's cause too.
-A release note holds at most 200 characters.
-Running:
-`pi-pnpm-lock-out-of-step-with-the-catalog`,
-on `fix/mise-daily-update-leaves-the-pnpm-lock-out-of-step-with-the-catalog`;
-and three Sonnet release passes over `alpha.44..main`
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`):
-the clone rung,
-the commit,
+`monochromatic-git-policy-cli-v0.6.1-alpha.45` is published
+(release run 45308756772,
+publish run 45308886552,
+archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
+an alpha is not published to crates.io).
+It ships the second program `mount-git-worktree-clone-datasets`,
+by the owner's "Let it finish (Recommended)";
+the owner's "One program only, ever" removes it from later releases
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+and `pi-zfs-root-modes-in-the-one-wrapper-executable-design` designs how the root modes join the wrapper.
+The first dry run failed at `pnpm install --frozen-lockfile`
+(`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`);
+the fix merged as `7703a307ea`:
+`toolchain:update:daily` now ends with that frozen install,
+and the lock was regenerated with no version moved.
+The commit that left the pair out of step,
+`aead90ed51`,
+came from a run that did not finish,
+not from a misordered task.
+A release note holds at most 200 characters,
+and the dispatch refuses while `origin/main` lags the local `main`.
+The second dry run passed (run 45308464804),
+and the release was dispatched as run 45308756772 at `0576c39994`.
+The ZFS route's release pass found it fit to ship,
+with two medium findings on the handler's words and its `start-probe`'s missing root check
+(`zfs-route-reach/keep/review.md` in
+`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`).
+For its `start-probe` the owner chose "Refuse non-root, exit 2 (Recommended)";
+its `--help` paths are left to the fold.
+The commit,
 push,
-LFS and lock paths,
-and what of the ZFS code reaches a person today.
+LFS and lock pass (`commit-push-lfs-lock/keep/review.md` beside the ZFS one)
+found nothing that loses work;
+its medium finding is that the 22 controls using the real `git-lfs` skip in the gate,
+whose image has none,
+and its Decision 1,
+`git-lfs` in the image with a skip made a failure there,
+is adopted with the owner's veto open.
+Its L2 and L4 wait in `doc/handover/questions-for-the-owner.md`.
+Running:
+the clone rung's release pass,
+`pi-zfs-handler-words-true-of-the-release` on the ZFS pass's findings,
+and `pi-wrapper-lfs-gate-and-push-environment-fixes` on the commit pass's M1,
+L5,
+L1 and L3.
 
 Next:
-merge the lock fix,
-dispatch the release with `mise run //package/git-policy/cli:native:release -- 0.6.1-alpha.44 0.6.1-alpha.45 <note>`
-(dry run first),
-follow it with `native:release:wait`,
-and turn the passes' findings into fixes.
+merge each fix when it ends,
+and turn the clone rung pass's findings into fixes.
 
 #### Tests that failed once and are not diagnosed
 
@@ -823,73 +848,6 @@ for the owner to apply.
 A gate's fixture file system is a `tmpfs` capped at 768 MiB,
 so one gate's fixtures hold at most that
 (the freeze account's question 4 has the one reading so far).
-
-### The handover holds only open work
-
-Why:
-the owner asked on 2026-11-23 for this page and the task list to be cut down to what is relevant.
-
-State:
-this page is rewritten,
-and the old text is frozen in the file named under "Where the rest of this page went".
-The sorting's working files,
-and the ledger of which range went where,
-are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
-The held backlog is on GitHub
-("Held work").
-Ranges applied so far:
-lines 34,867 to 49,707 of the old file,
-committed as `a2b4fca7c8`.
-Five sorters gave each range a disposition,
-and `apply-the-cut-moves-to-their-targets.ts` in that folder moved 187 entries verbatim into 73 targets
-(41 existing files and 32 new records,
-each new one saying in its status that it holds moved text only),
-each after a line naming its lines in the old file;
-one entry was already held and was skipped.
-Before that,
-every quotation of the owner's inside a `delete` item was made a `move`
-(`quotations-the-ended-ledgers-would-delete/keep/` and `ledgers-keep-every-owner-quotation/keep/` in that folder),
-because the first check of quotations read them by alternation and by their opening characters and missed some
-(its controls and flaws:
-`keep/quotation-check-controls-2026-11-23.md`).
-Among the owner's words the rewrite had lost are
-"Treat reviews as async."
-and "You should (almost) never be waiting.
-There is always more work.",
-now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
-
-That audit read only `delete` items,
-so the owner's words inside `issue`,
-`home` and `open` items were never checked;
-"Move hall-monitor to package-paused altogether.",
-at old-file line 45973 in an `issue` item,
-is held by no tracked file but the frozen one.
-The run logs,
-lines 153 to 34,866,
-were sorted by five Sonnet sorters
-(`brief-sorter-run-logs.md`)
-and their 98 moves applied into 42 targets as `98d8601c93`,
-188 entries already held being skipped.
-The first five ranges' 35 issue drafts are filed as issues 6401 to 6427,
-with comments on 13 others
-(`filing-of-the-sorters-issue-drafts/keep/ledger.jsonl`).
-The harness refuses a subagent's write of a report file:
-"Subagents should return findings as text,
-not write report files."
-So a sorter's report is its final message,
-saved by the coordinator as `keep/report-as-returned-to-the-coordinator.md`.
-Running:
-two agents scanning every non-move item for the owner's words,
-one for lines 34,867 to 49,707
-(`brief-owner-quotations-in-every-non-move-item.md`)
-and one for the run logs
-(`brief-owner-quotations-in-the-run-log-ledgers-non-move-items.md`);
-and an agent filing the run-log sorters' 31 drafts
-(`brief-file-the-run-log-sorters-issue-drafts.md`).
-
-Next:
-apply the two scans' amended ledgers' new moves the same way;
-then delete the old file.
 
 ## Held work
 

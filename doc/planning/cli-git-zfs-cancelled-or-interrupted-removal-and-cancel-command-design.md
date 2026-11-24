@@ -2,26 +2,29 @@
 
 Non-final,
 unapproved design proposal by an agent.
-The project has not reviewed it,
-no other agent or model has reviewed it,
-and nothing in it is final.
-A gate review by a reviewer from another vendor than the author read this text three times.
-The first pass found a high,
-the second gave "fit after the listed fixes,
-with one high that must be fixed first (N1)",
-and the third,
-written after the project's four further answers of 2026-11-22,
-gave "fit after the listed fixes" with nothing high:
-its R2's second half,
-R4,
-R7 and the stale statements are what this revision applies.
-That review is a finding,
-not an approval,
+Nothing in it is final,
 and only the project declares work complete.
+A gate review by one reviewer from another vendor than the author read this text at each of its revisions,
+nine times,
+and every one of those reads is a finding and not an approval.
+Its verdicts moved from a high in the first pass,
+through "fit after the listed fixes,
+with one high that must be fixed first",
+to "fit after the listed fixes" with nothing high at the sixth and seventh.
+The third read after the probe rounds,
+written 2026-11-23T20:52:05-05:00,
+found this document fit to put to the owner once its front matter and its citations were refreshed,
+which is what this revision does (its P7),
+along with its P3,
+P6 and P8.
 The project's answers of 2026-11-22 decide one thing this text once listed as a question:
 a cancellation after part of the history is gone attaches the clone again and reports each snapshot it destroyed.
 The record is [the forced-removal record][forced-record],
-whose "Four further answers" hold it.
+whose "Four further answers",
+"One more answer:
+a unit whose main process is a script"
+and "The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23" hold what is decided.
 It designs three open items of the accepted ZFS worktree design that describe one thing,
 the state a removal leaves when it does not finish and the way back from it:
 "What a cancelled removal restores",
@@ -53,8 +56,8 @@ the implementation plan's steps 9 and 14 to 18,
 its open-item list and its gap list,
 `package/git-policy/cli/SPEC.md` in the sections it names below,
 the code under `package/git-policy/cli/src/native/` that the route already has,
-the sibling design documents at their branch tips,
-read with `git show <branch>:<path>`,
+the sibling design documents,
+now on `main`,
 the gate review's findings and the material it kept beside them,
 and three source clones it made in its scratch folder:
 Git at `v2.56.1`,
@@ -241,11 +244,21 @@ The record's second acceptance
 decides four things.
 Two shape what a forced removal's refusal leaves,
 and the forced arm builds both:
-a holder in a namespace whose mounts are shared is reached by designing an unmount there,
-"for example by making its parent mount private first,
-so that the service keeps running and the removal finishes" (its "A holder in a namespace whose mounts are shared"),
-as a direction the forced arm's design now states ways for,
-still to be measured;
+a holder in a namespace whose mounts are shared is reached by an unmount inside that namespace,
+and the project confirmed that direction on 2026-11-23 ([forced-record][forced-record],
+"The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23"):
+the copy comes out by the marker where the marker exists and its mount shares with a group of its own,
+and otherwise by stopping that one mount sharing,
+moving the copy onto a short-lived `0700` folder and unmounting it there,
+with the sandbox cases reported and not refused.
+The forced arm's design states the ways ([forced][forced],
+"Ranking and the recommended way",
+"The recommended ways,
+step by step" and V5),
+and the Tier 0 arms that ran on two kernels and a ZFS pool support them;
+what still waits is the act itself,
+which needs step 17's code.
 and the signal is "`SIGTERM`,
 a wait for the process to exit,
 then `SIGKILL` if it has not" (its "The signal"),
@@ -1318,8 +1331,7 @@ still holding the removal claim:
     as the plan design's one rule gives both the cancelling removal and the cancel command
     ([plan-record][plan-record],
     "A cancellation,
-    and the plan it leaves",
-    read at `28c590b4c4`);
+    and the plan it leaves");
     every automatic arm does this,
     and a plan that records a destroyed snapshot stays untouched;
 5.  releases the removal claim and prints the report,
@@ -1502,7 +1514,7 @@ The forced arm's five refusal words are its own and this design uses them
 ([forced][forced],
 "The refusal,
 and what it leaves",
-read at `b62601213f`):
+on `main`):
 `caller-protected-holds`,
 `holder-unendable`,
 `holder-unseen`,
@@ -1526,10 +1538,21 @@ before anything is changed:
     a second mount of the dataset,
     a namespace whose root mount is the copy,
     a parent mount that is not the checkout's own,
+    a holder whose copy is locked because its namespace was made with a new user namespace,
+    which the forced arm names as a bubblewrap or rootless-container sandbox or a unit with `PrivateUsers=yes`,
     or no destination or no room for one.
     The report names the check that failed and the namespace,
     and says that nothing was ended and no signal clears the cause.
     `holder-unendable` is its word too.
+    The forced arm gives a locked copy no separate word of its own:
+    it says the refusal carries "the refusal word the structural stage uses" ([forced][forced],
+    "Who ends each kind of holder"),
+    while the refusal itself is the preflight's,
+    made before any act,
+    and that design's own reasons under `holder-unendable` do not list a locked copy.
+    This design files it with `holder-unendable` here,
+    because it is a preflight refusal that ends nothing,
+    and records the difference so a later pass can settle which word the forced arm means.
     A kept receiver with a mount at the slot outside the namespaces the act handles is not a refusal:
     it means way 8 is not used and the act falls to way 7,
     which reports the namespace and what it stops
@@ -1745,8 +1768,7 @@ The design's answer is that the records a removal leaves have four different fat
   as the plan design's one rule has both the cancelling removal and the cancel command do
   ([plan-record][plan-record],
   "A cancellation,
-  and the plan it leaves",
-  read at `28c590b4c4`).
+  and the plan it leaves").
   A later removal of the same clone adopts a kept plan,
   keeps every tuple and outcome,
   carries the loss forward and ends it,
@@ -1955,8 +1977,10 @@ which is a cancellation's first act,
 or when the cancel command does.
 No timer and no cap is added here;
 the coalescing of nudges is the lost-last-event design's.
-What a holder working in the clone sees while the slot's mount moves out and back is unmeasured (L9,
-M10).
+What a holder working in the clone sees while the slot's mount moves out and back is unmeasured (L9),
+and M6 is the arm that would show it:
+the arm ends the wrapper at the deadline and fires a real trigger,
+so the holder's own view can be read between the two.
 
 A forced request that outlives its wrapper is the same state with one more hazard:
 the force word could end holders that attached after the person gave up.
@@ -1977,7 +2001,7 @@ so a reader tells the abandoned case from a live removal without trusting the pr
 While a forced act is running,
 the handler and the wrapper each need to know the other lives,
 and the forced arm states that rule under "The act's liveness" ([forced][forced],
-read at `b62601213f`):
+on `main`):
 the handler writes a root-owned progress file beside the scan file,
 named `<guid>.removal-progress`,
 carrying the request's nonce,
@@ -2318,7 +2342,7 @@ In every other state it:
 6.  releases the removal claim on every path out,
     including the paths that refuse.
 
-The plan design's one rule at `28c590b4c4` is that both the removal that cancels itself and this command remove a
+The plan design's one rule is that both the removal that cancels itself and this command remove a
 plan whose every tuple is `planned` and whose head is `present`,
 and that neither removes a plan that records a destroyed snapshot
 ([plan-record][plan-record],
@@ -2601,20 +2625,23 @@ and this design writes none of its fields:
   because "a settle is not an outcome" ([plan-record][plan-record],
   "The finish pass that settles a registration");
 - the plan design's one rule for a cancellation is that both the removal that cancels itself and the cancel command
-  remove a plan whose every tuple is `planned` and whose head is `present`,
+  remove a plan whose every name is `planned` and whose head is `present`,
   and that neither removes a plan that records a destroyed snapshot
   ([plan-record][plan-record],
   "A cancellation,
-  and the plan it leaves",
-  read at `28c590b4c4`);
+  and the plan it leaves");
 - a later removal of the same clone rewrites it whole,
-  keeping every tuple and outcome
+  keeping every name's history
   ([plan-record][plan-record],
   "The removal intent").
 
-So a cancellation leaves a plan that records a destroyed snapshot as the removal last wrote it,
-and the loss is the tuples it marks `destroyed`,
-with their names and GUIDs.
+The plan records each attempt of a snapshot on a line of its own,
+so a name's current state is the outcome on the line carrying that name's highest attempt number,
+and `destroyed` is final ([plan-record][plan-record],
+"The grammar").
+A cancellation leaves a plan that records a destroyed snapshot as the removal last wrote it,
+and the loss is the names whose current state is `destroyed`,
+with their GUIDs and groups.
 Where nothing was destroyed it removes the empty plan,
 as that design states.
 `doctor` reads the cancellation from three facts beside a kept plan:
@@ -2648,8 +2675,7 @@ By state:
   after proving the clone and the plan and before releasing the claim
   ([plan-record][plan-record],
   "A cancellation,
-  and the plan it leaves",
-  read at `28c590b4c4`).
+  and the plan it leaves").
   Both actors here are this design's,
   so this design removes it in the automatic arm and in the command,
   writes no outcome,
@@ -2693,7 +2719,7 @@ That command prints the snapshot names the plan recorded as destroyed,
 then removes the plan with the other records and frees the slot,
 and the plan design's "A clone gone whose absence cannot be proved" states it in the same words
 ([plan-record][plan-record],
-read at `28c590b4c4`),
+"A clone gone whose absence cannot be proved"),
 with a plan whose head is `gone` left to the finish pass.
 So the kept plan ends either at the clone's next removal,
 which reads and proves it,
@@ -2713,7 +2739,7 @@ and the deferred-destroy design's early look runs in only the first of them,
 because the look "runs only when the clone carries no removal intent and no plan exists for it"
 ([deferred][deferred],
 "The look before the unmount").
-The plan design's text at `28c590b4c4` gives each state's rule,
+The plan design's text gives each state's rule,
 and where it does not,
 this design says so and asks it.
 State by state:
@@ -2744,7 +2770,7 @@ State by state:
   The same adoption:
   the retry re-proves everything,
   adopts the plan under its own nonce,
-  keeps every tuple and outcome,
+  keeps every name's history,
   carries the loss forward,
   and proceeds to the first deferred check.
   The look does not run.
@@ -2752,9 +2778,8 @@ State by state:
   and any later refusal carries the plan's history,
   which the plan design's words decide.
 - A plan is kept with an `unknown` outcome.
-  The plan design answers where that tuple is settled ([plan-record][plan-record],
-  "The removal intent",
-  read at `28c590b4c4`):
+  The plan design answers where that name is settled ([plan-record][plan-record],
+  "The removal intent"):
   the nonce rule rewrites the plan once any `unknown` tuple has been settled by the head-present arm,
   and the head-present arm settles it against the live inventory,
   a live snapshot carrying its GUID making it `intact` and an absent GUID making it `destroyed`.
@@ -2763,18 +2788,26 @@ State by state:
   a pool that cannot be read,
   which "ends when it answers,
   and the removal is run again",
-  so the person is told the
-  tuple's name and GUID and the read that failed,
+  so the person is told the name and GUID and the read that failed,
   and runs the removal again;
   and
   a live snapshot carrying the GUID with another `createtxg`,
   which is a permanent refusal:
-  the run names the tuple,
+  the run names the snapshot,
   its recorded GUID and group and the live snapshot's,
-  `doctor` prints the same,
-  nothing rewrites the tuple,
-  no command settles it,
-  and the plan stays as the evidence of what was destroyed for a person to decide.
+  and `doctor` prints that name,
+  GUID and group and that it is unsettled.
+  No wrapper command settles it,
+  and the plan design leaves two things to a person:
+  a read,
+  comparing the two identities with `zfs get` of the name `doctor` prints against the plan's recorded GUID and
+  group;
+  and a decision with two ends,
+  taking the line as describing an object the pool no longer holds and ending that snapshot with the pool's own
+  `zfs destroy <name>`,
+  after which the next removal writes `destroyed` for it by the absence rule and finishes,
+  or keeping the history with the plan standing as the evidence of what was destroyed ([plan-record][plan-record],
+  "The removal intent").
   The look does not run because a plan exists.
 
 The look's own answer,
@@ -2801,7 +2834,7 @@ which the deferred design's section now also says.
 What this design needs of the plan design,
 and does not define:
 the all-`planned` plan's fate at a cancellation is one action in both of its sections,
-and its text at `28c590b4c4` states it as both the cancelling removal and the cancel command;
+and its text states it as both the cancelling removal and the cancel command;
 the kept plan's lifetime is the record's,
 not this design's,
 with the settling command as its second end when the clone is gone ("The plan's lifetime,
@@ -2809,8 +2842,9 @@ what each actor does in each state,
 and what a retry finds");
 and its reader must accept the state this design leaves,
 which is a plan whose owner is dead beside an intent that asks for a mount.
-The ordering of the `unknown` tuple's settling step and the command that follows its refusal are that design's
-answers at `28c590b4c4`,
+The ordering of the `unknown` name's settling step,
+and what follows its refusal,
+are that design's answers in its "The removal intent",
 and this design asks it nothing further.
 
 ### The answer a stopped unmount files
@@ -3680,10 +3714,22 @@ as the plan's own arms do.
 
 Each is a probe a later round can run,
 and none is run here.
+Each says what it waits for,
+in the way the forced arm labels its arms:
+a guest round,
+which needs a guest and no code of the route's;
+the built handler,
+which is plan step 17's code;
+or nothing beyond the pool and the account.
+Where an arm needs more than one,
+it names each.
 
 - M1.
   The busy unmount's reattach,
   as a ratio.
+  Waits for:
+  a guest round with the route's staging and reattach,
+  which is plan step 9's code.
   In one guest round,
   alternate a holder-blocked unmount that reattaches with an undisturbed unmount of a clone of the same shape,
   both in the same session,
@@ -3693,12 +3739,18 @@ and none is run here.
   and an absolute time is context and not a finding.
 - M2.
   The fresh attach of an unmounted clone.
+  Waits for:
+  a guest round with the handler's fresh attach,
+  and the built wrapper for the wait.
   The same interleaved round with a fresh attach of an unmounted clone as the tested arm and a fresh attach of a
   clone at its slot after a clean unmount as the control,
   reported as a ratio with its range.
   This sizes the cancel command's wait.
 - M3.
   The destroy settlement's read.
+  Waits for:
+  a guest round with a ZFS pool;
+  no handler and no wrapper.
   On one clone,
   with its snapshot count recorded,
   read the inventory the settlement needs,
@@ -3708,6 +3760,9 @@ and none is run here.
   This sizes the settlement the command runs before any attach.
 - M4.
   The delegated inherit.
+  Waits for:
+  a guest round with a pool and the delegated account;
+  no handler and no wrapper.
   As the account with only the proposed grants,
   run the property inherit on a clone and read the property back.
   Assert the request succeeds and that the read reports no local value;
@@ -3715,6 +3770,9 @@ and none is run here.
   which must succeed.
 - M5.
   The head destroy's two causes.
+  Waits for:
+  a guest round with a pool;
+  no handler and no wrapper.
   With a clone whose snapshots are all destroyed,
   destroy the head while a holder keeps the dataset busy and assert `EBUSY` and an empty live snapshot list;
   then create one own snapshot and destroy the head again and assert `EBUSY` with a non-empty list.
@@ -3722,29 +3780,48 @@ and none is run here.
   which succeeds.
 - M6.
   The standing intent after a deadline.
+  Waits for:
+  a guest round and the built handler;
+  no wrapper is needed after the kill.
   End the wrapper at the deadline,
   then fire a real trigger and assert the handler acts on the standing intent exactly as the design says:
   a completed unmount where the folder stands,
   a repeated move out and back while a holder stays,
   and a refusal where no folder stands.
+  A task working in the clone records what it sees across each move out and back,
+  which is the fact L9 leaves unmeasured.
   The control is the same removal with no trigger fired,
   which changes nothing.
 - M7.
   The forced arm.
+  Waits for:
+  the forced arm's own measurement,
+  which waits for step 17's code and two guest arms of theirs.
   The plan's own owed measurement:
   end holders in each namespace kind with `--force`,
   record what each holder sees,
   and assert the caller and its session's other jobs live through it.
 - M8.
-  The reattach's receipt field.
+  The stopped unmount's answer,
+  whatever fields step 9's proposal gives it.
+  Waits for:
+  step 17's built handler at least,
+  and the reattach itself,
+  which is plan step 9's.
   Against the built handler,
-  run the blocked unmount and read the receipt:
-  assert the `bind` field is `gone`,
-  and on a fresh attach that it is `none`.
+  run the blocked unmount and read what it files for the fourth outcome word:
+  assert the answer carries the clone's place at its slot and says the staging bind is gone,
+  and on a fresh attach that it says there was no staged state.
   The control is the account-mount arm,
-  whose `bind` field must be `standing`.
+  whose answer must say the bind stands.
+  The field names are step 9's to propose,
+  so this arm asserts the facts it needs,
+  not a spelling.
 - M9.
   What an unprivileged signal answers.
+  Waits for:
+  a guest round only;
+  no code of the route's.
   In the throwaway guest,
   as the account with only the proposed grants,
   send a signal to another account's process and to a process of a system unit,
@@ -3760,6 +3837,9 @@ and none is run here.
   and the two design documents share it.
 - M10.
   An `unmount` request for a clone mounted nowhere.
+  Waits for:
+  the built handler,
+  which is plan step 17's code.
   Against the built handler,
   request the unmount of a clone that is mounted nowhere and assert the answer is `done`
   with no mount identity,
@@ -3770,6 +3850,9 @@ and none is run here.
   This is the arm A7 needs.
 - M11.
   The scan's coverage of a mount namespace with no visible task.
+  Waits for:
+  a guest round with a kernel that answers `listns` for its taskless half,
+  and no code of the route's.
   In the throwaway guest,
   pin a mount namespace with an open namespace file handle and no task in it,
   mount a copy of a mounted clone inside it,
@@ -3794,9 +3877,9 @@ and none is run here.
 
 Each dependency is stated with the assumption this design made,
 so a later pass can reconcile the two.
-Every sibling document was read at its branch tip,
-and each is unreviewed:
-nothing below adopts a sibling's answer as decided.
+Every sibling document is now on `main` and was read there,
+and where one is still a proposal this says so:
+nothing below adopts an unapproved sibling's answer as decided.
 
 - The add's binding record (A1):
   this design's slot-to-clone proof reads it,
@@ -3822,7 +3905,7 @@ nothing below adopts a sibling's answer as decided.
   and what a retry finds":
   a plan that records a destroyed snapshot is never removed at a cancellation;
   the all-`planned` plan's fate at a cancellation is one action in both of its sections,
-  which its text at `28c590b4c4` now states as both the cancelling removal and the cancel command;
+  which its text now states as both the cancelling removal and the cancel command;
   the record is readable while the clone is unmounted and after a reboot;
   and its `owner` names the same process the removal claim names.
   Its own list of end states has no cancelled value,
@@ -3830,8 +3913,8 @@ nothing below adopts a sibling's answer as decided.
   The deferred-destroy design's requirement on a retry after a cancel
   ([deferred][deferred],
   "A retry after a cancel") is answered under "A retry after a cancel is one of four states",
-  in that section's current words,
-  which that design has since reworded.
+  in the accepted design's words,
+  which are the ones it now carries.
 - The add-time Git lock:
   this design's unmounted window between a kill and the next command relies on that lock keeping `git worktree prune`
   from deleting the registration (F3).
@@ -3849,13 +3932,16 @@ nothing below adopts a sibling's answer as decided.
   The project decided the reach,
   the ways out of a shared namespace,
   the signal,
-  the protection and the session case on 2026-11-22 ([forced-record][forced-record],
-  and its "One more answer"):
+  the protection and the session case ([forced-record][forced-record],
+  and its "One more answer",
+  with the ways confirmed as a direction on 2026-11-23 in its "The unmount inside a holder's namespace,
+  confirmed as a direction on 2026-11-23"):
   the handler unmounts the clone inside the holder's namespace and ends only what blocks that unmount,
   including a namespace whose mounts are shared,
-  through the ways its design now states ([forced][forced],
-  "The ways out of a namespace whose mounts are shared"),
-  still to be measured;
+  through the ways its design states ([forced][forced],
+  "Ranking and the recommended way" and "The recommended ways,
+  step by step"),
+  whose Tier 0 arms have run on two kernels and a ZFS pool and whose act still waits for step 17's code;
   a namespace it cannot enter,
   a structural check,
   an unendable holder or a blind read refuses at its preflight,
@@ -3913,10 +3999,11 @@ and this section is where a later pass reconciles them.
   ([forced][forced],
   "Dependencies on sibling designs");
   it keeps only its own preflight,
-  its three refusal words `caller-protected-holds`,
+  its five refusal words `caller-protected-holds`,
   `holder-unendable`,
   `holder-unseen`,
   `holder-blind` and `holder-structural`,
+  the word it gives the locked copy (below),
   and the fact that it never writes the intent.
   This design's "The forced arm's failure path" gives the restored state for the preflight's refusals,
   which leave nothing ended,
@@ -3962,16 +4049,19 @@ and this section is where a later pass reconciles them.
   `holder-unseen`,
   `holder-blind` and `holder-structural` ride in the receipt's free
   `failed-step` field,
-  which fits its 64-byte bound;
-  this design adds one `bind` key,
-  last.
+  which fits its 64-byte bound,
+  and so does the word the forced arm gives a locked copy.
+  This design asks for the fourth outcome word the project chose for a stopped unmount,
+  and leaves the word itself and the fields that answer carries to plan step 9's proposal
+  ("The answer a stopped unmount files").
+  A `bind` key on every receipt is one proposal for those fields and no more;
+  this design's veto entry weighs it against fields only on the fourth answer.
   The two are compatible,
-  because the free step word and the new key are different fields,
-  but both change the same record's contract and the step 7 owner must accept both together.
-  This design's veto list carries its key;
-  the forced arm's words are its own.
+  because the free step word and any field of the fourth answer are different places,
+  but both change the same record's contract and the step 7 owner must accept them together.
+  The forced arm's words are its own.
 - The kept plan's one rule.
-  The plan design at `28c590b4c4` states one rule for a cancellation in both of its sections,
+  The plan design states one rule for a cancellation in both of its sections,
   so the disagreement this design reported between its "The cancel command" and "A cancellation,
   and the plan it leaves" is settled:
   both the cancelling removal and the cancel command remove an all-`planned`,
@@ -4084,10 +4174,9 @@ In this repository:
   an add whose own unmount is refused as busy",
   the same merge.
 - The gate review of the two step 17 designs,
-  all three passes,
-  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review.md`,
-  `review-second-pass.md`,
-  `review-after-the-owners-answers.md` and `review-after-the-further-answers.md`,
+  all nine reads of this text,
+  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`,
+  `review.md` first and `review-third-read-after-the-probe-rounds.md` last,
   with the material kept beside them.
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   the sections this file quotes and the whole of "Removal and recovery",
@@ -4124,18 +4213,20 @@ In this repository:
 - The code named in "What the wrapper already has",
   read at the lines this file cites.
 
-At a branch tip,
-with `git show <branch>:<path>`:
+On `main`,
+read at their paths:
 
-- `cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design`,
-  read at `b62601213f`,
+- `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
   whole enough to state the split and the disagreements,
-  with its "The act's liveness",
+  with its "Who ends each kind of holder",
   "The preflight",
-  "What is still refused" and "The refusal,
-  and what it leaves".
-- `cli-git-zfs-removal-destruction-plan-record-design`,
-  read at `28c590b4c4`,
+  "The act's liveness",
+  "What is still refused",
+  "The refusal,
+  and what it leaves" and "Choices this design marks for the project's veto".
+- `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+  last changed at `0a0d8fda40`,
+  which records each attempt of a snapshot on a line of its own:
   the grammar,
   the states,
   the order,
@@ -4145,17 +4236,20 @@ with `git show <branch>:<path>`:
   and the plan it leaves",
   "A clone gone whose absence cannot be proved",
   the readers and "Its end".
-- `cli-git-zfs-add-binding-record-design`,
+- `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+  from "The unmount inside a holder's namespace,
+  confirmed as a direction on 2026-11-23":
+  the owner's confirmation that the copy comes out by the marker where the marker exists and its mount shares with a
+  group of its own,
+  and otherwise by the second route,
+  with the sandbox cases reported and not refused.
+- `doc/planning/cli-git-zfs-add-binding-record-design.md`,
   its home,
   format and readability.
-- `cli-git-zfs-add-time-git-lock-design`,
+- `doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
   what the lock is and when it is written.
-- `cli-git-zfs-origin-cleanup-record-design`,
+- `doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
   what the head-gone refusal leaves owed.
-
-Accepted and on `main`,
-read at their paths:
-
 - `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
   "The look before the unmount",
   "A retry after a cancel" and "What a refusal leaves".
@@ -4213,8 +4307,8 @@ and the local rules under `/etc/polkit-1/rules.d` are unreadable from this accou
 [waiting-and-refusal]: cli-git-zfs-worktree-design-proposal.md#waiting-and-refusal
 [vm-15]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
 
-The two sibling designs linked above are on their own branches until they merge into `main`,
-so they are read at their tips with `git show <branch>:<path>`.
+The two sibling designs linked above are on `main` as proposals,
+and this design reads them there.
 
 ## Revisions
 
@@ -4469,3 +4563,30 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-23T05:02:11-05:00:
   add the entries for `43bc5b8fda` and `bb0ea79c97`.
+- `620165ad2c`,
+  2026-11-23T20:56:30-05:00:
+  merges `main` into this branch after the design itself merged as a proposal,
+  so the forced design,
+  the plan record design and the owner's confirmation of 2026-11-23 are read on `main`.
+  It changes nothing in this document.
+- The commit that carries this entry,
+  written 2026-11-23T21:03:59-05:00:
+  answers the third read after the probe rounds.
+  It refreshes the front matter (one reviewer's nine reads,
+  its last verdict,
+  and the two statements that contradicted each other),
+  and the count of refusal words.
+  It reads both siblings on `main` instead of at branch tips and cites them by path and heading,
+  with the plan record at its one-line-per-attempt shape and its permanent refusal's read and two-ended choice,
+  and adds the owner's confirmation of 2026-11-23 to what it read.
+  It gives a locked copy,
+  in a user namespace of its own,
+  its place in failure 2 in the forced arm's own words,
+  points the standing request's unmeasured fact at M6,
+  which is the arm that shows it,
+  makes the receipt's `bind` key a proposal everywhere rather than an addition the design makes,
+  rewrites M8 to assert the facts rather than a spelling,
+  and labels every measurement by what it waits for.
+- The commit that carries this entry-list update,
+  written 2026-11-23T21:03:59-05:00:
+  adds the entries above.

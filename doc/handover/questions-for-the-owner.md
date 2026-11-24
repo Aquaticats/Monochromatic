@@ -691,6 +691,31 @@ picked) yourself from now on for this session."
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
 
+## Open: two wrapper behaviours the alpha.45 release pass left to the owner, recorded 2026-11-23T21:08:00-05:00
+
+They wait while the ZFS route is the priority.
+The pass is `~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`.
+
+### What a relayed git-lfs error line hides (the pass's L2)
+
+The relayed URL mask keeps a path segment only when it is lower-case letters and `-._~`,
+so `https://github.com/Org/Repo.git/info/lfs` loses `Org` and `Repo.git` and the line no longer names the repository
+(`package/git-policy/cli/src/native/lfs/lfs_output_mask.rs`; the test at `lfs/lfs_output_mask_tests.rs:343` asserts it).
+The owner's earlier answer for the mask was "Hide long words only".
+The choice is whether a segment with a capital or a digit stays shown.
+
+### Words for a typed command at an unknown host key or a missing passphrase (the pass's L4)
+
+A typed `git clone`,
+`fetch`,
+`pull` or non-LFS `push` that meets a new SSH host key ends with OpenSSH's "Host key verification failed." and no next step,
+because the no-prompt rule of 2026-11-20 sets `SSH_ASKPASS` to `false` and the wrapper hands the command to Git.
+The pass ranked "ship a small askpass program" over "stop handing network commands to Git" over "leave it";
+the owner's later answer "One program only, ever"
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`)
+rules out a separate program,
+so the first option would become a mode of the wrapper that `SSH_ASKPASS` names.
+
 ## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
 
 Both wait for the owner's word, because `AGENTS.md` changes are the owner's to accept;
