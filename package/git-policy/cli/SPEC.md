@@ -5755,7 +5755,9 @@ crosses a mount only at the slot itself:
 the last hop keeps `RESOLVE_BENEATH`,
 `RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS` and omits `RESOLVE_NO_XDEV`,
 while every folder above the slot still refuses a crossing.
-The unmount route's own final hop is the plan's step 9;
+The unmount route's own final hop is built in `worktree_clone_unmount/slot_walk_calls.rs`
+and described under "Unmount,
+staging and reattach of a ZFS worktree clone";
 this section owns only the hop the post-attach check reads.
 
 A slot is opened twice:
@@ -6367,7 +6369,8 @@ The code is `package/git-policy/cli/src/native/worktree_clone_mount_protocol/`
 for both sides and `per_slot_root_claim.rs` in
 `worktree_clone_mount_handler/` for the root claim.
 The sweep that reads the intent and publishes a result is step 8's,
-the unmount is step 9's,
+the unmount is built by step 9 and described under "Unmount,
+staging and reattach of a ZFS worktree clone",
 the add route that writes the intent is step 10's,
 and the removal intent is step 14's.
 
@@ -6442,7 +6445,8 @@ the dataset GUID,
 the request's nonce,
 operation and boot,
 the outcome (`done`,
-`refused` or `failed`),
+`refused`,
+`failed` or `cancelled`),
 the mount identity a done mount observed (mount id,
 device,
 inode,
@@ -6647,11 +6651,13 @@ and a caller learns of it at its deadline.
 The one exception is an unavailable key,
 which files a `refused` receipt naming `key-unavailable`,
 because it is the one refusal a waiting command can act on.
-A local `unmount` intent is answered by the sweep's line naming
-`unmount-awaits-step-9`,
-since the unmount is step 9's,
-and it files no receipt under the same rule;
-the intent stays on the clone unchanged.
+A local `unmount` intent is answered by the unmount turn described under
+"Unmount,
+staging and reattach of a ZFS worktree clone":
+a `done` receipt when it worked,
+a `refused` receipt naming `misplaced-rolled-back` after a successful rollback,
+and a `cancelled` receipt when it stopped short,
+and the durable intent stays on the clone unchanged.
 
 A run reports one summary line and one line per clone it reached,
 beginning `attached`,
@@ -6697,6 +6703,209 @@ which records the guest rounds that exist now;
 step 22 sizes it from the acceptance workload and replaces the value.
 The wait polls once every 50 milliseconds,
 which is a bounded interval and not a measured latency.
+
+### Unmount, staging and reattach of a ZFS worktree clone
+
+This section states what plan step 9 builds for the unmount half of the ZFS worktree route
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 9:
+Unmount from a fresh process,
+the staging folder and reattach";
+`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+"Answers of 2026-11-19" and "What a writer can settle without asking";
+`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"Decision").
+The code is `package/git-policy/cli/src/native/worktree_clone_unmount/`,
+and the sweep reaches it through one dispatch arm in
+`worktree_clone_mount_handler/sweep_one_clone_answers.rs`.
+
+#### The staging names and the record
+
+One removal's staging folder is
+`monochromatic-git-policy-cli-staging-<guid>` under the account's `~/.cache`,
+where `<guid>` is the clone's canonical numeric dataset GUID.
+The folder's staged-folder record is the same component with `.json`,
+and the repository's staging claim is `<guid>.staged` under
+`<common>/monochromatic-git-policy-cli-worktree-copy/staging/`.
+No request and no receipt carries any of these names,
+and no nonce is a file name.
+
+The record is one JSON object holding the folder's component,
+the clone's dataset and GUID,
+the folder's identity (device,
+inode,
+birth time,
+owner and mode),
+its file handle and handle type,
+the nonce of the intent it last served,
+the handler's mount-namespace device and inode,
+and the boot those belong to.
+The handler writes it atomically through the `~/.cache` descriptor before the first bind,
+by a temporary name created exclusively and renamed over the final name,
+and it is read bounded and without following a link.
+A reader tests the boot id first and on its own,
+then the handle:
+`ESTALE` with no row naming the folder path in the reader's mount table voids the record,
+`ESTALE` with such a row refuses rather than voiding,
+and any other handle failure refuses.
+Only a record that passes both tests reaches the identity comparison,
+where a mismatch refuses.
+
+#### The unmount turn
+
+The handler reopens the recorded parent from the verified checkout with the no-crossing walk,
+opens only the final slot with `O_PATH | O_DIRECTORY`,
+`RESOLVE_BENEATH`,
+`RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS`,
+omitting `RESOLVE_NO_XDEV` for that one hop,
+and compares the mount ID from `fdinfo`,
+device and inode from `fstat`,
+the slot's observed path,
+its source,
+filesystem type and root from the handler's `mountinfo`,
+its parent mount ID,
+the source's live dataset GUID,
+and a second canonical lookup's mount ID.
+Every mismatch refuses before any mount call.
+It then opens the staging folder without crossing a mount,
+checks the `user-cache` pin,
+writes or replaces the record,
+binds the folder and makes the bind private,
+moves the clone onto it,
+and proves the topmost mount at the folder is the clone with the bind as its parent row.
+The slot descriptor is dropped before the unmount,
+because a descriptor on the clone holds it busy.
+The clone is unmounted through the held descriptor with no force and no lazy detach,
+then the bind,
+with a topmost check before each call and a transition check after it.
+
+A mount the account stacks on the folder before the move receives the clone,
+so the clone's parent row is not the bind.
+The handler rolls the exact mount back once to its recorded slot:
+the slot is opened with `RESOLVE_NO_XDEV`,
+its identity and parent mount are checked against the record,
+one `move_mount` is issued,
+and the placement is proved by the clone's source and root at the slot's topmost row,
+that row's parent being the slot parent's mount,
+and a fresh walk finding the same mount at the canonical slot.
+A refused destination or a proof that cannot pass leaves the clone staged and reports the step,
+and nothing is retried.
+A mount the account stacks on the clone itself refuses without a rollback,
+because a move would carry that mount to the slot.
+
+A busy unmount (`EBUSY`) takes the same checked move back when the slot's proof passes,
+then unbinds the bind only where the recorded bind is topmost.
+Otherwise the clone and the bind stay and the receipt names the retained state.
+No other path remounts a clone:
+a failure,
+a restart or a sweep never moves a mount back implicitly.
+
+#### Receipts an unmount files
+
+The accepted decisions give two unmount receipts.
+A successful unmount files `done` under its nonce,
+with `none` in every mount field,
+because the wrapper's cleanup reads that receipt.
+`done` means the clone and its bind are gone from the handler's own mount
+namespace only;
+a holder in another namespace can keep the dataset busy,
+which the all-namespace holder scan reports and a `zfs destroy` still refuses.
+A successful rollback of a clone that landed on a stacked mount files a
+`refused` receipt naming the outcome in `failed-step` as
+`misplaced-rolled-back`,
+which is the one refusal receipt the staging record gives
+(`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"When the move lands on a mount the account stacked on the folder":
+"the removal writes a refusal receipt naming the outcome").
+Every other unmount refusal files no receipt,
+under step 8's decision
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Receipts for refusals":
+"a refusal files no receipt,
+except an unavailable key").
+A busy unmount that reattaches,
+a retained staged mount,
+and a refusal before the turn builds its request therefore answer through the
+sweep's line and the handler's journal.
+The receipt format's outcomes are `done`,
+`refused` and `failed`;
+this build adds no fourth word and the outcome bound stays seven bytes.
+
+#### A later run finishes an interrupted unmount
+
+An `unmount` intent's sweep first reads the staged-folder record and finishes what an
+interrupted run left,
+before its own turn:
+a clone still staged on the folder is unmounted there,
+a bind left over the folder is unbound (and the turn then proceeds,
+because the clone
+stands at its slot),
+a folder with nothing mounted and a current record files the `done` receipt the waiting
+command never got,
+and a mount that is neither the clone nor the cache's own bind refuses and is reported.
+The wrapper creates and removes the folder;
+the handler never does.
+The record is written before the first bind of every turn,
+and on a later turn it is
+replaced under the same rule.
+
+The bind's own descriptor is taken from the mount table's row for the mount the bind call
+made:
+the cache mount's child,
+carrying the cache's source,
+with a mount id of its own.
+A mount stacked in the gap between the bind call and that open is refused,
+and the bind
+this call made is taken down again before the refusal returns,
+so a refused bind leaves no
+mount behind.
+
+#### The interface later steps call
+
+`worktree_clone_unmount::staged_unmount::unmount_the_staged_mount` takes a held folder descriptor,
+the cache descriptor,
+the folder's name and the clone's source,
+and unmounts the clone then the bind with the checks above.
+`worktree_clone_unmount::staged_unmount::recover_a_staged_unmount` is the call the
+`unmount` arm makes before its own turn,
+and it is what a later run uses to finish an
+interrupted one.
+`worktree_clone_unmount::staged_unmount::finish_a_staged_unmount` takes the cache,
+its path,
+the GUID,
+this boot and the pin,
+opens the folder from the record's handle and makes the same calls.
+Steps 14,
+16 and 17 call the first where they hold a descriptor and the second where a fresh process must finish.
+Both return the step and words a report prints,
+and neither deletes a folder.
+
+#### The wrapper's side
+
+The wrapper creates the folder with mode `0700` only after the `user-cache` pin check,
+and it makes no second folder while one stands for the same GUID.
+Its cleanup reads the repository's claim,
+proves the owner dead,
+compares the folder's identity with the claim,
+stops at any mount row naming the folder path,
+lists the folder and keeps it when it holds any entry,
+and then removes it with one `rmdir`,
+unlinks the record beside it and releases the claim.
+It never deletes recursively,
+never changes a mode,
+and never removes a folder its claim does not describe.
+A folder whose claim names no folder is released with a notice.
+A folder from another boot is settled by the wrapper's own mount-table read and `rmdir`'s `EBUSY`,
+without a handler receipt.
+
+#### The deadline
+
+This build ships no new numeric unmount limit.
+The wrapper's existing receipt wait bounds how long a caller waits,
+and the turn itself makes no unbounded wait.
+Sizing the unmount's own deadline is step 22's,
+with the acceptance workload's measurement;
+no number is taken from another machine's rule of thumb.
 
 ### Post-commit
 

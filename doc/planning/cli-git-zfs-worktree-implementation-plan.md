@@ -1402,6 +1402,72 @@ Steps 2,
 4,
 6 and 8.
 
+#### Notes of the first build, 2026-11-22
+
+The unmount half is built in
+`package/git-policy/cli/src/native/worktree_clone_unmount/`,
+reached from one dispatch arm in
+`sweep_one_clone_answers.rs`.
+It holds the per-removal staging name and record,
+the `user-cache` pin,
+the identity comparisons and the turn that binds,
+moves,
+proves and unmounts from the held descriptor,
+the checked reattach,
+the later sweep from the record's handle,
+the staging claim and the wrapper's `rmdir`-only cleanup.
+The interface steps 14,
+16 and 17 call is
+`staged_unmount::unmount_the_staged_mount` for a held descriptor and
+`staged_unmount::finish_a_staged_unmount` for a fresh process.
+Step 16 will find the retained clone and bind named by the turn's `cancelled` receipt,
+and it must still mount the all-namespace holder scan before its snapshot requests.
+Step 17 will find the reattach's `cancelled` receipt,
+whose failed step names whether the bind is gone,
+which its cancel path reuses.
+Step 18 will find the folder,
+record and claim under the names the SPEC section states,
+and the record's boot id and namespace pair for its print.
+
+The four interrupted states a kill leaves are finished by a later run in the guest
+(2026-11-23):
+a staged clone,
+a left bind,
+a bind over the slot's clone,
+and nothing mounted
+but the record,
+each ending `unmounted` with its `done` receipt and no row at the slot.
+The file handle round trip is a guest arm too:
+one process writes the record,
+a second
+reopens the folder from it.
+The acceptance round of 2026-11-23 gave a stopped unmount its own answer:
+a `cancelled`
+receipt,
+with the clone's mount fields when it is back at its slot and the bind's state in
+the failed step.
+
+Guest arms run on the design's dataset layout in a throwaway guest on 2026-11-22:
+the plain unmount by a handler that did not attach,
+its `done` receipt,
+the clone's destroy after it,
+a holder's `EBUSY` and the checked reattach back to the slot,
+the same clone's unmount after the holder ended,
+and two removals at once.
+The arm's output is in the round's keep folder.
+Still owed by this step:
+the all-namespace holder scan is another round's,
+built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
+the stacked-mount rollback in the guest,
+a reboot with a staged record,
+the repeat of VM items 3,
+4 and 15,
+and M1's stacking arms and M3 to M9 stay owed;
+the unmount's own deadline is unsized here and remains step 22's.
+The `user-cache` pin is read from
+`/var/lib/monochromatic-git-policy-cli/user-cache-pin`,
+which step 19's setup must write before the first removal binds.
+
 ### Step 10: The add route from registration to verified fill
 
 #### What it builds

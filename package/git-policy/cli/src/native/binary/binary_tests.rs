@@ -1036,3 +1036,7 @@ mod zfs_adoption_guest;
 
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
+
+/// Plan step 9's staging mechanics in the throwaway guest.
+#[path = "binary_zfs_unmount_guest_tests.rs"]
+mod zfs_unmount_guest;
