@@ -936,10 +936,51 @@ the session makes itself.
   and the three `stale_ref_lock` controls,
   for which the gate's window logged no denial at all;
   the lost count stayed at 69,301.
-  So their cause is either outside AppArmor or a rule that refuses without logging,
-  and is being looked for by running them alone.
+  Those three are not a denial and not a rule:
+  their own control kills the wrong process,
+  measured on 2026-11-23 (section "The three stale lock controls killed the `timeout` and not the Git" below).
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
+
+### The three stale lock controls killed the `timeout` and not the Git
+
+Recorded 2026-11-23T19:45:00-05:00 by the round that ran them alone
+(`fix/git-policy-cli-stale-ref-lock-controls-under-apparmor`, fix at `0767a62bbb`).
+Not approved and not final:
+no whole container gate has run with the fix.
+
+`a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`,
+`a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_command` and
+`another_command_gets_no_notice_and_clears_nothing`
+failed at `binary_stale_ref_lock_tests.rs:197`, `:217` and `:250`
+because the lock they meant to leave was not there at all:
+the wrapper's fetch after it exited 0 and printed nothing.
+
+`hold_fetch` started its held fetch through `direct()`,
+which puts `/usr/bin/timeout --signal=KILL <bound>` in front of the real Git
+(`binary_support_native_git_command.rs`),
+so `Held::kill` sent `SIGKILL` to that `timeout`
+and the Git behind it kept running, still waiting on its `reference-transaction` hook.
+Ending the hook then made that Git abort the prepared transaction
+(`fatal: in 'prepared' phase, update aborted by the reference-transaction hook`)
+and remove the reference lock, the packed-refs lock and the packing staging file,
+so the walk of `ref_lock_candidates` found no candidate,
+the wrapper printed no notice, and the fetch it ran succeeded.
+
+That abort is the difference this profile makes,
+measured inside the gate's own image on 2026-11-23:
+a Git under this profile runs it and removes all three files,
+while the same binary at a path no profile names ends without it and leaves them.
+No read was refused:
+the decision reads the fixture's own files, which `local/git` grants under `~/.cargo/build` and `/work`,
+and the gate's window logged no denial.
+
+So the fix is in the control and not in a rule:
+`hold_fetch` and `hold_transaction` start their Git with `direct_held()`,
+the Git alone, which exists for a control that holds the child.
+Red before and green after, on the host and in the gate image.
+The unconfined Git's silent ending is not explained:
+it is recorded here as measured, not as understood.
 
 ## Upstream filing artifact
 
