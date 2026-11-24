@@ -1229,7 +1229,16 @@ the third pass's are `arm-<arm>-round3-zfs-probe-third-round-handle-and-quota.lo
 The drivers' own lines are in `guest-tier0-round2-driver.log`,
 `container-driver-kernel73.log`,
 `guest-round3-driver.log` and `container-driver-round3.log`,
-and `container-confinement.log` records what the container's confinement is.
+and `container-confinement-round3.log` records what the container's confinement is,
+read from the files that
+hold it (`uid_map`,
+`/proc/self/status`,
+the root's mount row and `/sys/module/zfs/version`),
+by the kept
+`confinement-round3.py`;
+the second pass's log of the same name was made by a script that is not kept and
+mis-parsed two values,
+so this section cites only the third pass's.
 
 Two kept checkers produce the agreement this section reports,
 and both were run on the third pass's logs:
@@ -2418,7 +2427,7 @@ and no line of that kernel's source was compiled or traced here.
   `O_DIRECTORY` is needed on 7.3 only by a caller that is not root in the initial user namespace,
   which the container is and the handler is not:
   T0-5a's two attempts,
-  `container-confinement.log`,
+  `container-confinement-round3.log`,
   and the flags bullet above.
 - A receiver without a copy is not refused:
   T0-5b,
