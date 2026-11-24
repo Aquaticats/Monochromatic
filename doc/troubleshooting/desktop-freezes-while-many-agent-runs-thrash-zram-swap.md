@@ -607,6 +607,14 @@ what it does not show is that they prevent a repeat.
 
 No such comparison has been made.
 This is the one that would settle it.
+A start read of a lighter load was taken at 2026-11-23T19:26:55-05:00,
+with both settings in force:
+four guests,
+one whole container gate,
+and Rust builds inside several Pi rounds
+(`counters-at-the-start-of-the-load-of-2026-11-23-evening.txt` in
+`~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`).
+Its end read is owed when the gate ends.
 
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
@@ -647,9 +655,13 @@ These would not count as success:
 ## Workarounds applied at runtime and measured once without verification
 
 Nothing in this document is a verified workaround.
-The two settings were applied at runtime on 2026-11-22 and are still in force
-(`sysctl vm.watermark_scale_factor` reads 125 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` reads 1000,
-both read on 2026-11-23 on the same boot).
+The two settings were applied at runtime on 2026-11-22.
+The machine's restarts on the morning of 2026-11-23 returned them to their boot values:
+at 2026-11-23T19:2x-05:00 `sysctl vm.watermark_scale_factor` read 10 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` read 100.
+The coordinating session applied both again with the commands under each heading,
+since the owner's answer keeps both in force until a load like 2026-11-22's has been seen,
+and read them back at 2026-11-23T19:26:27-05:00:
+125 and 1000.
 They have been measured once,
 under a lighter load,
 and the comparison that would show their effect does not exist.
@@ -707,9 +719,17 @@ Revert with `echo 100 | sudo --non-interactive tee /sys/kernel/mm/lru_gen/min_tt
 
 This is a runtime value under `/sys` rather than a sysctl key,
 and a reboot starts it again from the kernel's boot value.
-With no writer in `/usr/lib` or `/etc`,
-the boot value is the documented default of 0,
-so reverting to 100 is not reverting to the boot value.
+That boot value is 100 on this kernel,
+not the documented default of 0:
+it read 100 after the restarts of 2026-11-23.
+What sets it is not found.
+The kernel command line names no `lru_gen` parameter,
+`/proc/config.gz` carries no default for it (only `CONFIG_LRU_GEN=y`, `CONFIG_LRU_GEN_ENABLED=y` and
+`CONFIG_LRU_GEN_WALKS_MMU=y`),
+and a search for `min_ttl_ms` in `/etc`, `/usr/lib/systemd`, `/usr/lib/udev`, `/usr/share` and `/usr/bin`
+found no file (the search skipped files it could not read).
+A patch in the distribution's kernel is the place not yet read.
+So reverting to 100 is reverting to the boot value.
 At 100 the machine's valve was a tenth of a second;
 at 1000 the kernel documentation's sentence applies:
 "The OOM killer is triggered if this working set cannot be kept in memory",
