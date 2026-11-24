@@ -16,6 +16,7 @@ use super::{branch_commit, deletion_facts, merged_into_head};
 use crate::discard_audit_facts::AuditFact;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
 use crate::transaction_git::GitContext;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
@@ -219,6 +220,9 @@ fn real_git_records_only_the_remote_tracking_mark_a_deletion_expands() {
 #[cfg(unix)]
 #[test]
 fn real_git_records_a_branch_name_that_is_not_utf8() {
+    if !in_a_fixture_root_taking_any_name("command::branch_delete_audit::tests::real_git_records_a_branch_name_that_is_not_utf8") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("branch-delete-non-utf8");
     let repo: PathBuf = repository(root.as_path(), "repo");

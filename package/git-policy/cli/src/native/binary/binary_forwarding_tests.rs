@@ -18,6 +18,7 @@ use super::support::{
     Fixture, Observed, REAL_GIT, bounded, direct, executable, fixture, git, observe, remove,
     repository, wrapped,
 };
+use super::support::in_a_fixture_root_taking_any_name;
 /// The handle that makes a signal reach one process and never its successor.
 use super::supervisor_pin::{Delivered, Pin};
 /// One process's start time,
@@ -198,6 +199,9 @@ fn is_raw_marker(window: &[u8]) -> bool {
 /// A non-UTF-8 directory in the global prefix and a non-UTF-8 path in output are preserved.
 #[test]
 fn non_utf8_paths_select_and_report_exactly() {
+    if !in_a_fixture_root_taking_any_name("forwarding::non_utf8_paths_select_and_report_exactly") {
+        return;
+    }
     let fixture: Fixture = fixture("bytes");
     let name: OsString = OsString::from_vec(b"repo-\xff\xfe".to_vec());
     let repo: PathBuf = repository(&fixture, name.as_os_str());

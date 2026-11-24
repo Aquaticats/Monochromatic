@@ -22,6 +22,7 @@ use super::support::{
     Fixture, Observed, REAL_GIT, executable, fixture, git, observe, observe_raw, porcelain, remove, repository,
     run_direct, run_wrapped, stderr_of, stub_manual_viewer, wrapped,
 };
+use super::support::in_a_fixture_root_taking_any_name;
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
@@ -1952,6 +1953,9 @@ fn a_forced_form_keeps_an_ignored_directory_the_target_replaces_with_a_file() {
 #[cfg(unix)]
 #[test]
 fn a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit() {
+    if !in_a_fixture_root_taking_any_name("discard::a_deletion_of_a_branch_name_that_is_not_utf8_records_its_commit") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let fixture: Fixture = fixture("audit-non-utf8-branch");
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));

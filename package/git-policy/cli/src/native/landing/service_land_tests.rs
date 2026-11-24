@@ -12,6 +12,7 @@ use crate::service_journal::{DONE_EXTENSION, Recovery, batch_path, parse_intent}
 use crate::service_protocol::{ALLOWED_MODES, Change};
 use crate::service_index_lock::Announce;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
@@ -180,6 +181,9 @@ fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
 /// which is the route that answers late and the route that must never fail.
 #[test]
 fn the_changes_of_a_worktree_hold_a_name_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::the_changes_of_a_worktree_hold_a_name_that_is_not_text") {
+        return;
+    }
     use crate::private_index_request::CaptureIndexes;
     use crate::service_prepare_changes_config_and_pathspec_steps::changes_of;
     use std::ffi::OsStr;
@@ -1528,6 +1532,9 @@ fn names_in(listing: &[u8]) -> Vec<&[u8]> {
 /// or none.
 #[test]
 fn a_changed_path_that_is_not_text_lands_as_itself() {
+    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::a_changed_path_that_is_not_text_lands_as_itself") {
+        return;
+    }
     let world: World = world("service-land-bytes");
     let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
     land_batch(&world.context, 1, &[landed]).expect("landed");
@@ -1546,6 +1553,9 @@ fn a_changed_path_that_is_not_text_lands_as_itself() {
 /// and the person's next commit would stage the wrong file.
 #[test]
 fn a_restart_finishes_the_index_of_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::a_restart_finishes_the_index_of_a_path_that_is_not_text") {
+        return;
+    }
     let world: World = world("service-land-bytes-restart");
     let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
     land_with_failed_index(&world, 1, &[landed]);

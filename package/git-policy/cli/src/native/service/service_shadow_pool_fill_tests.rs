@@ -6,6 +6,7 @@ use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
 use crate::shadow_pool::{take, pool_root};
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// A repository with one commit on `main` and one tracked file.
@@ -117,6 +118,9 @@ fn capture_layout(repo: &Path) -> crate::capture_invocation::InvocationLayout {
 /// and the member's alternates named a store that does not exist.
 #[test]
 fn the_facts_of_a_repository_whose_name_is_not_text_are_the_captures() {
+    if !in_a_fixture_root_taking_any_name("service::service_shadow_pool_fill::tests::the_facts_of_a_repository_whose_name_is_not_text_are_the_captures") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("service-pool-fill-not-utf8");
     let repo: PathBuf = initialize(root.join(OsString::from_vec(b"rep\xefo".to_vec())));

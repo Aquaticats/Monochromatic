@@ -89,7 +89,7 @@ fn a_filesystem_type_the_kernel_does_not_have_is_refused_at_fsopen() {
 ///  own and fails the read on purpose.
 #[test]
 fn a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         "CLI_GIT_ATTACH_TAKE_DOWN_ROOT",
         "worktree_clone_mount::attach_the_clone::tests::a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down",
     ) {

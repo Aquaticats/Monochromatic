@@ -13,6 +13,7 @@ use crate::work_item::WorkItem;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, remove};
 use crate::work_item::enqueue;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
@@ -120,6 +121,9 @@ fn the_records_of_a_removed_worktree_are_shown_to_the_next_command() {
 /// so the records of a worktree that never went away would be promoted and its snapshot deleted.
 #[test]
 fn a_snapshot_of_a_directory_that_is_not_text_is_judged_by_that_directory() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_removal_rescue::tests::a_snapshot_of_a_directory_that_is_not_text_is_judged_by_that_directory") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("rescue-non-utf8");
@@ -152,6 +156,9 @@ fn a_snapshot_of_a_directory_that_is_not_text_is_judged_by_that_directory() {
 /// and the snapshot of a refused removal is kept for a removal that will never come.
 #[test]
 fn the_checkout_of_a_directory_that_is_not_text_is_found_by_the_bytes_git_wrote() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_removal_rescue::tests::the_checkout_of_a_directory_that_is_not_text_is_found_by_the_bytes_git_wrote") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("rescue-non-utf8-checkout");

@@ -5,6 +5,7 @@
 use super::*;
 use crate::path_bytes::os_from_path_bytes;
 use crate::test_support::{fixture, git, git_text, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// Names of every length from one character up,
@@ -119,6 +120,9 @@ fn odd_names(repo: &Path) -> Vec<Vec<u8>> {
 /// and clearing it makes the index plain again.
 #[test]
 fn an_intent_to_add_entry_marks_the_index_with_its_paths() {
+    if !in_a_fixture_root_taking_any_name("index::index_flags::tests::an_intent_to_add_entry_marks_the_index_with_its_paths") {
+        return;
+    }
     let root: PathBuf = fixture("index-flags-intent");
     let repo: PathBuf = populated_repository(root.as_path());
     let paths: Vec<Vec<u8>> = odd_names(repo.as_path());
@@ -139,6 +143,9 @@ fn an_intent_to_add_entry_marks_the_index_with_its_paths() {
 /// so it answers that the index is marked even where an intent-to-add entry is there too.
 #[test]
 fn a_hidden_entry_wins_over_an_intent_to_add_one() {
+    if !in_a_fixture_root_taking_any_name("index::index_flags::tests::a_hidden_entry_wins_over_an_intent_to_add_one") {
+        return;
+    }
     let root: PathBuf = fixture("index-flags-intent-hidden");
     let repo: PathBuf = populated_repository(root.as_path());
     odd_names(repo.as_path());

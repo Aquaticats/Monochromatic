@@ -25,6 +25,7 @@ use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -806,6 +807,9 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
 ///  "the Git directory cannot be resolved".
 #[test]
 fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("invocation::management::tests::a_status_asked_of_git_keeps_a_git_directory_that_is_not_text") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("management-status-not-utf8");
     let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));

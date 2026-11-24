@@ -15,6 +15,7 @@ use super::the_pathspec_file;
 use crate::command_commit::parse_commit_region;
 use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use crate::test_support::{fixture, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -30,6 +31,9 @@ use std::path::{Path, PathBuf};
 /// ```
 #[test]
 fn a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it() {
+    if !in_a_fixture_root_taking_any_name("landing::service_prepare_changes_config_and_pathspec_steps::tests::a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it") {
+        return;
+    }
     let root: PathBuf = fixture("pathspec-file-name-bytes");
     let cwd: &Path = root.as_path();
     let scratch: PathBuf = root.join("scratch");

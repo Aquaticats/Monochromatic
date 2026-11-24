@@ -29,6 +29,7 @@ use super::service_commit::{Running, start};
 use super::service_landing_selection::base_repository;
 use super::service_landing_support::{Case, case, compare, copy_beside, finished, run_native, run_served, text_of_within};
 use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, executable, fixture, git, native_git_output};
+use super::support::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -447,6 +448,9 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
 /// and a file replaced by a directory.
 #[test]
 fn awkward_change_lists_land_as_native_git_commits_them() {
+    if !in_a_fixture_root_taking_any_name("service_landing_state::awkward_change_lists_land_as_native_git_commits_them") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let fixture: Fixture = fixture("landing-odd");
     let base: PathBuf = base_repository(&fixture);

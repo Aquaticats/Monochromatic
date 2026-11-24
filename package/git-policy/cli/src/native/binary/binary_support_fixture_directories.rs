@@ -133,6 +133,27 @@ pub fn fixture(name: &str) -> Fixture {
 }
 
 /// What:
+///  Whether this run may go on to make a fixture whose name is not valid UTF-8,
+///  starting the same test inside a namespace of its own where this run's fixture root refuses such a name.
+/// Why:
+///   A control that writes such a name proves nothing where the file system refuses it,
+///  and it must not pass by returning early either,
+///  so the decision and the tmpfs both live in one place
+///  (`fixture_root_taking_any_name`,
+///  whose doc says how the re-execution works);
+///  this wrapper only supplies the root the binary controls use,
+///  which is `CARGO_TARGET_TMPDIR`,
+///  or the directory `CLI_GIT_TEST_ROOT` names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!inAFixtureRootTakingAnyName('event_path::events_carry_the_exact_bytes_of_a_name_that_is_not_utf8')) return;
+/// ```
+pub fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
+    return crate::fixture_root_taking_any_name::in_a_root_taking_any_name(fixture_root().as_path(), test);
+}
+
+/// What:
 ///  What is known about a fixture root that could not be used,
 /// so the failure names the folder that went:
 /// whether the root exists,

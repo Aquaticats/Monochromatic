@@ -3,6 +3,7 @@
 use super::*;
 use crate::service_timing::capture::Captured;
 use crate::service_instance::instance_of;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::FileTypeExt;
 
@@ -300,6 +301,9 @@ fn a_path_redirected_to_another_repository_is_not_followed() {
 /// is kept exactly and found again.
 #[test]
 fn a_path_is_kept_byte_for_byte() {
+    if !in_a_fixture_root_taking_any_name("landing::service_claim_watch::tests::a_path_is_kept_byte_for_byte") {
+        return;
+    }
     let root: PathBuf = scratch("bytes");
     let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
     let odd: PathBuf = root.join(OsString::from_vec(vec![b'o', 0xff, b'd', b'\n']));

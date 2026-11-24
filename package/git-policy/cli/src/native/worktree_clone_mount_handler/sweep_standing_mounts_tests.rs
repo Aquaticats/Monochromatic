@@ -204,7 +204,7 @@ impl ShapedSlot {
 ///  this is the control of the check that closes it.
 #[test]
 fn a_copy_that_calls_a_mount_own_is_refused_when_the_kernel_names_another_source() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_copy_that_calls_a_mount_own_is_refused_when_the_kernel_names_another_source",
     ) {
@@ -228,7 +228,7 @@ fn a_copy_that_calls_a_mount_own_is_refused_when_the_kernel_names_another_source
 ///  refuses everything.
 #[test]
 fn a_copy_that_calls_a_mount_own_is_accepted_when_the_kernel_names_the_clones_own_source() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_copy_that_calls_a_mount_own_is_accepted_when_the_kernel_names_the_clones_own_source",
     ) {
@@ -253,7 +253,7 @@ fn a_copy_that_calls_a_mount_own_is_accepted_when_the_kernel_names_the_clones_ow
 ///  not refuse a mount that stands.
 #[test]
 fn a_kernel_that_cannot_name_a_source_is_answered_from_the_live_table() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_kernel_that_cannot_name_a_source_is_answered_from_the_live_table",
     ) {
@@ -282,7 +282,7 @@ fn a_kernel_that_cannot_name_a_source_is_answered_from_the_live_table() {
 #[test]
 fn a_call_the_filter_refuses_is_answered_from_the_live_table() {
     let control: &str = "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_call_the_filter_refuses_is_answered_from_the_live_table";
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         control,
     ) {
@@ -327,7 +327,7 @@ fn a_call_the_filter_refuses_is_answered_from_the_live_table() {
 ///  so the source clause has to be enforced there too.
 #[test]
 fn the_live_fallback_refuses_a_mount_the_table_does_not_call_the_clones_own() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mounts::tests::the_live_fallback_refuses_a_mount_the_table_does_not_call_the_clones_own",
     ) {
@@ -408,7 +408,7 @@ fn a_watch_whose_descriptor_the_kernel_lost_counts_as_a_change() {
 ///  reads) or never says it (which would keep a wrong copy).
 #[test]
 fn the_real_poll_is_quiet_until_a_change_and_quiet_again_after_it() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         "worktree_clone_mount_handler::sweep_standing_mounts::tests::the_real_poll_is_quiet_until_a_change_and_quiet_again_after_it",
     ) {

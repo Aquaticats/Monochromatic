@@ -21,6 +21,7 @@ use crate::standards_review_source::{read_landed_commit, read_message, read_name
 use crate::standards_review_text::commit_subject;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_git::GitContext;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// A fixed clock,
@@ -152,6 +153,9 @@ fn a_changed_name_with_a_line_feed_never_sends_another_committed_file() {
 #[cfg(unix)]
 #[test]
 fn a_changed_name_git_cannot_decode_never_sends_another_committed_file() {
+    if !in_a_fixture_root_taking_any_name("standards_review::standards_review_run::request_provenance_tests::a_changed_name_git_cannot_decode_never_sends_another_committed_file") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStringExt as _;
     let directory: PathBuf = fixture("provenance-native-bytes");

@@ -93,10 +93,33 @@ investigation folder named at the end of this doc.
 
 Positive control: all 108 pass once the fixture root is a tmpfs (the workaround below).
 
+### Cause A is answered by the controls themselves
+
+Since 2026-11-24 a control that writes such a name no longer depends on the root the run happened to
+give it. It asks its own fixture root whether the name can be made there
+(`src/native/testing/fixture_root_taking_any_name.rs`), and where the answer is no it starts the same
+test inside a user and mount namespace of its own, mounts a tmpfs at that fixture root, and runs there.
+The root stays the run's own, nothing is written under `/tmp` or `/dev/shm`, and no mount of this run
+reaches the host's namespace, because the mount lives in the namespace the control made for itself.
+Where the root already takes the name, which is the gate's answer, the control runs as it always did
+and starts no namespace at all. A host that lets no unprivileged user namespace fails such a control
+unless the run acknowledges it with `CLI_GIT_TEST_NO_USER_NAMESPACES=1`, and then prints one line
+naming the control that did not run, so a run in which it never ran is visible.
+
+Measured on 2026-11-24 on this host, one process per test: the 69 unit controls and the 17 binary
+controls of this cause that failed before the change passed after it (`keep/per-test-before`,
+`keep/per-test-after`, `keep/binary-per-test-before` and `keep/binary-per-test-after` in
+`~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`). One control of the cascade,
+`worktree_clone_mount::slot_identity_store::tests::a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`,
+had printed `SKIPPED` and passed without running; it now runs and proves the refusal.
+
 ## Cause A2: one test writes through a scratch helper the fixture root does not move (1 test)
 
-`landing::service_claim_watch::tests::a_path_is_kept_byte_for_byte` still fails with `errno` 84 under
-the tmpfs workaround, because its own helper bypasses the knob:
+This was a defect of ours, and it is fixed: the helper now builds its directory under the run's own
+fixture root, so `CLI_GIT_TEST_ROOT` moves it with every other test's fixtures. As it stood:
+
+`landing::service_claim_watch::tests::a_path_is_kept_byte_for_byte` failed with `errno` 84 under
+the tmpfs workaround too, because its own helper bypassed the knob:
 
 ```rust
 // package/git-policy/cli/src/native/landing/service_claim_watch_tests.rs:77
@@ -107,8 +130,9 @@ fn scratch(name: &str) -> PathBuf {
 Every other test file builds its root from `fixture_root()`
 (`src/native/testing/test_support.rs`, `FIXTURE_ROOT_VARIABLE`), or from the binary face's
 `fixture_root()` (`src/native/binary/binary_support_fixture_directories.rs`), and both read
-`CLI_GIT_TEST_ROOT`. This one writes under the crate's `target/`, which stays on the dataset. It is a
-defect of ours, of one line, and no host change removes it.
+`CLI_GIT_TEST_ROOT`. This one wrote under the crate's `target/`, which stays on the dataset. The
+tmpfs workaround landed as `ddec538f27` and carried the helper with it, and the control now runs on
+either root, inside a namespace of its own where the root refuses the name.
 
 ## Cause B: the mount records no birth time (29 tests)
 

@@ -26,6 +26,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use super::support::in_a_fixture_root_taking_any_name;
 use git_policy_cli::service_fault::QUEUED_DIRECTORY_VARIABLE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::{OsStr, OsString};
@@ -318,6 +319,9 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
 /// behind the commit that landed first.
 #[test]
 fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another() {
+    if !in_a_fixture_root_taking_any_name("service_replay::a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let scene: Scene = scene("replay-non-utf8", false);
     let name: OsString = OsString::from_vec(b"caf\xe9.txt".to_vec());

@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{executable, fixture, git, git_context, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::io::ErrorKind;
 
 /// Names of the paths in a list,
@@ -681,6 +682,9 @@ fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
 #[cfg(unix)]
 #[test]
 fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
+    if !in_a_fixture_root_taking_any_name("health::doctor::tests::a_hooks_path_that_is_not_utf8_is_read_as_bytes") {
+        return;
+    }
     use std::ffi::{OsStr, OsString};
     use std::os::unix::ffi::OsStrExt as _;
     let root: PathBuf = fixture("doctor-non-utf8");
@@ -1004,6 +1008,9 @@ fn the_doctor_reports_the_saved_copies_of_both_folders() {
 #[cfg(unix)]
 #[test]
 fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
+    if !in_a_fixture_root_taking_any_name("health::doctor::tests::a_hook_whose_path_is_not_utf8_is_named_by_its_bytes") {
+        return;
+    }
     use std::ffi::{OsStr, OsString};
     use std::os::unix::ffi::OsStrExt as _;
     let root: PathBuf = fixture("doctor-non-utf8-exact");
@@ -1048,6 +1055,9 @@ fn a_hook_whose_path_is_not_utf8_is_named_by_its_bytes() {
 #[cfg(unix)]
 #[test]
 fn a_shim_whose_path_is_not_utf8_is_explained_by_its_bytes() {
+    if !in_a_fixture_root_taking_any_name("health::doctor::tests::a_shim_whose_path_is_not_utf8_is_explained_by_its_bytes") {
+        return;
+    }
     use std::ffi::{OsStr, OsString};
     use std::os::unix::ffi::OsStrExt as _;
     let root: PathBuf = fixture("doctor-shims-non-utf8");

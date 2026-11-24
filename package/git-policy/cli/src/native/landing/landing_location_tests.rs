@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git_context, isolated_overlay, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// Each answer is one pathname with its own terminating line feed.
 #[test]
@@ -170,6 +171,9 @@ fn a_layout_keeps_the_path_bytes_git_printed() {
 ///  which is the input the parser receives.
 #[test]
 fn the_query_answers_for_a_repository_whose_name_is_not_utf8() {
+    if !in_a_fixture_root_taking_any_name("landing::landing_location::tests::the_query_answers_for_a_repository_whose_name_is_not_utf8") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("landing-location-bytes");
     let named: std::ffi::OsString = std::ffi::OsString::from_vec(b"rep\xefo".to_vec());

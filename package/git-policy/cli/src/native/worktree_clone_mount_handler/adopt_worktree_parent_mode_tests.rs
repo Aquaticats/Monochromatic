@@ -243,7 +243,7 @@ const ROOT_SIDE_LISTINGS_VARIABLE: &str = "ADOPT_ROOT_SIDE_TWO_LISTINGS";
 #[cfg(target_os = "linux")]
 #[test]
 fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         ROOT_SIDE_LISTINGS_VARIABLE,
         "worktree_clone_mount_handler::adopt_worktree_parent_mode::tests::a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption",
     ) {

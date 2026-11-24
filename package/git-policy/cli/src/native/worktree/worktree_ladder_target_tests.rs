@@ -12,6 +12,7 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::path_bytes::path_bytes_of;
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// Bind the add and read the target,
 /// as the ladder does.
@@ -306,6 +307,9 @@ fn standard_lfs_entries(attributes: Vec<u8>) -> Vec<ConfigEntry> {
 ///  the conversion would have been called equal without reading the rules that change it.
 #[test]
 fn an_attributes_file_whose_path_is_not_text_is_read() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_ladder_target::tests::an_attributes_file_whose_path_is_not_text_is_read") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("target-attributes-not-text");
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");

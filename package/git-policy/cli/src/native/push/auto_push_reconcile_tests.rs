@@ -14,6 +14,7 @@ use crate::auto_push_reconcile_merge_commit::PushRunner;
 use crate::merge_second_pass::GitRunner;
 use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, git, git_output, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -1133,6 +1134,9 @@ fn the_fast_forward_moves_a_clean_checkout_to_the_target() {
 ///  and a kill between Git's checkout and its ref update leaves a merge with no intent.
 #[test]
 fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("push::auto_push_reconcile::tests::the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text") {
+        return;
+    }
     use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, list_merge_intents};
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;

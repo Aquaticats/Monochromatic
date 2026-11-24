@@ -16,7 +16,7 @@
 
 use super::{SweepRun, sweep};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
-use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
+use crate::testing::root_namespace_test_support::in_a_root_namespace;
 use crate::worktree_clone_mount::CloneFolderIdentity;
 use crate::worktree_clone_mount::publish_parent_identity_under_root_control;
 use crate::worktree_clone_mount::{MountIdentity, SlotIdentityStore};

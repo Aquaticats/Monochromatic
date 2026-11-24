@@ -428,7 +428,7 @@ fn the_route_refuses_a_store_this_account_could_rewrite_before_it_walks() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_route_holds_a_slot_whose_store_root_wrote() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         ROOT_SIDE_VARIABLE,
         "worktree_clone_mount::clone_slot_walk::tests::the_route_holds_a_slot_whose_store_root_wrote",
     ) {

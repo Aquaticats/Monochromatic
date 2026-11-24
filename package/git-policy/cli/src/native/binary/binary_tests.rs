@@ -115,6 +115,21 @@ mod support_process_cpu_counters;
 #[path = "binary_support_package_filling.rs"]
 mod support_package_filling;
 
+/// The user namespace a control needs when the files it judges must be root's,
+/// and the inner half that runs the same test there;
+/// the same file the unit tests use,
+/// which this crate includes because the library's own modules are private to it.
+#[cfg(target_os = "linux")]
+#[path = "../testing/root_namespace_test_support.rs"]
+mod root_namespace_test_support;
+
+/// Whether this crate's fixture root takes a name that is not UTF-8,
+/// and the tmpfs a control mounts at it inside a namespace of its own when it does not;
+/// the same file the unit tests use.
+#[cfg(target_os = "linux")]
+#[path = "../testing/fixture_root_taking_any_name.rs"]
+mod fixture_root_taking_any_name;
+
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]

@@ -17,6 +17,7 @@ use super::{
 };
 use crate::config_schema::CliGitConfig;
 use crate::policy_registry::{PolicyId, Severity};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// Create one empty fixture directory owned by this test process and test name.
@@ -305,6 +306,9 @@ fn unreadable_file_is_an_error() {
 #[cfg(unix)]
 #[test]
 fn non_utf8_repository_root_is_supported() {
+    if !in_a_fixture_root_taking_any_name("config::config_file::tests::non_utf8_repository_root_is_supported") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let parent: PathBuf = fixture("non-utf8-root");
     let root: PathBuf = parent.join(std::ffi::OsString::from_vec(b"repo-\xff".to_vec()));

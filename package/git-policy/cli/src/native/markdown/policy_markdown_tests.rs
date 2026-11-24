@@ -31,6 +31,7 @@ use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 use crate::policy_test_support::{ScriptedFacts, outside_worktree, scripted_facts};
 use crate::policy_trigger::Trigger;
 use crate::test_support::{executable, fixture, git, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -216,6 +217,9 @@ fn correction(path: &[u8], mode: CandidateMode, before: &[u8]) -> Correction {
 ///  and corrected only by a direct fix.
 #[test]
 fn each_eligible_candidate_reaches_the_linter_once_in_order() {
+    if !in_a_fixture_root_taking_any_name("markdown::policy_markdown::tests::each_eligible_candidate_reaches_the_linter_once_in_order") {
+        return;
+    }
     let root: PathBuf = fixture("markdown-eligible");
     let repo: PathBuf = mixed_repository(root.as_path());
     let (mut state, log) = scripted_state(rewrite, &["excluded/"]);
