@@ -161,8 +161,10 @@ and none of them is visible in the gate:
   `the_designs_datasets_in_the_mount_table.rs`:157),
   and publishes nothing at all when that fails
   (`boot_reconcile_mode.rs`:131 returns before any publish);
-- the handler that mounts the clone is a root-installed second copy of this build,
-  started by a systemd unit and a ZED history event the plan builds in step 19,
+- the handler that mounts the clone is the second executable this build ships
+  (plan step 5),
+  which root installs and starts from a systemd unit and a ZED history event
+  (plan step 19),
   so no attach happens on a machine without that install.
 
 The load-bearing consequence is this:
@@ -201,12 +203,24 @@ Only the add and the start probe still apply the leaf name.
 Nothing changes in the wrapper.
 The route serves a checkout only after root moves it onto its own dataset.
 
-What the person sees for the example:
-no line from the wrapper about the route,
-the gate's answer is dropped silently (`add_route_gate.rs`:202),
-and the add is the ladder's,
-which for a clean tree of this size is the reflink copy and for a dirty one is
-Git's own checkout.
+What the person sees for the example,
+measured in a throwaway repository on this host
+(the heading "What was probed,
+and what was not" names the run):
+no line about the route,
+because the gate's answer is dropped silently (`add_route_gate.rs`:202);
+the add succeeds,
+and the wrapper prints the ladder's own two lines,
+`copied 0 ignored filesystem entries ... into 1 new worktree`
+and,
+for a source the clone rung served,
+`this worktree was not made as a snapshot, so it took longer, because
+<the source> is not a btrfs subvolume`;
+and no record folder appears,
+so the route wrote no claim,
+no binding and no plan folder.
+For a clean tree of this size the add is the clone rung's,
+and for a dirty one it is Git's own checkout.
 If they also run the boot unit,
 `boot-reconcile` fails with the sentence quoted at "What decides reach today",
 and `doctor` reports nothing about the route,
@@ -638,7 +652,8 @@ in V24's own example
 the removal,
 which is the right command.
 
-What the person sees whenever the clone does not stand:
+What the person meets whenever the clone does not stand,
+which this option cannot tell:
 the same sentence,
 and then the removal refuses.
 Where the clone is proved gone and the plan's head is `present` or `refused`,
@@ -1118,6 +1133,29 @@ and the only parts that are not are the add's gate and the probe's fallback.
 That is worth knowing before the project weighs C:
 the choice is narrower than it looks.
 
+### Finding 5: the fallback's line names btrfs to a ZFS checkout
+
+The line an add prints when the snapshot route did not serve it is
+`this worktree was not made as a snapshot, so it took longer, because
+<the source> is not a btrfs subvolume`,
+and the reason behind it is `snapshot_refusal`
+(`worktree_snapshot_source.rs`:231 to :243),
+which knows two causes:
+the source is no subvolume root,
+and the source and the destination are not on one btrfs filesystem.
+On a ZFS checkout both answers are beside the point:
+the design's snapshot route is step 10's,
+and what kept it away there is the dataset leaf name or the dataset names a
+root-owned file would carry.
+So the one line a person on ZFS reads about the missing snapshot names a
+filesystem they are not on,
+and `DGT` asks a diagnostic to name the cause the person can act on.
+This round changes no wrapper code,
+so the fix belongs to the round that takes this line,
+and option A2's idea does not settle it either:
+a second line saying the ZFS route declined would still have to name a remedy
+that works.
+
 ## What was probed, and what was not
 
 Run on this host,
@@ -1160,18 +1198,32 @@ The controls that carry this document's claims about the example:
   which are the only
   places `command_for` and the constant sentence run.
 
+One add of this worktree's own build also ran,
+in a throwaway repository under this round's `scratch/`:
+
+- the build was `mise run //package/git-policy/cli:native:build`,
+  whose `Finished dev profile` line is at `keep/native-build.txt`;
+- `git worktree add .claude/worktrees/probe-one` exited zero and printed the
+  ladder's lines (`keep/probe-add-one.txt`);
+- afterwards `.git/monochromatic-git-policy-cli/` held `work` and no
+  `worktree-clones` folder,
+  so the route wrote no claim,
+  no binding and no plan folder,
+  and the slot was an ordinary directory on `zpcachyos/ROOT/cos/home`;
+- a second add with `MONOCHROMATIC_VERBOSE=true` after a `git status` printed
+  `clones served` for the slot and the snapshot line quoted in the option that
+  keeps the gate (`keep/probe-add-three-verbose.txt`),
+  and one before that `git status` printed the slow route's full reason
+  (`keep/probe-add-two-verbose.txt`).
+
 Not probed,
 and why:
 
 - no live run of the route anywhere.
   This machine has no dataset named the design's,
-  the round may run no
-  ZFS-changing command on the host and no guest,
-  and no build of this worktree's source exists to run
-  (`target/debug` is empty,
-  and `target/release`'s binary carries no `zfs`
-  string at all and a `.d` file naming the main checkout's paths,
-  so it is a leftover and no evidence about `main`);
+  and this round ran no ZFS-changing command and no guest,
+  so the route's own steps have still never run on any machine,
+  and every claim about them here is from the code and the designs;
 - no guest arm.
   Choice 3's split would be settled by one,
   with the six granted and one of the other three withheld,
