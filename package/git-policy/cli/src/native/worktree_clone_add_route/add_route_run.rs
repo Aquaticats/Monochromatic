@@ -67,6 +67,11 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
             return Some(ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: {reason}\n"), code: REFUSED_EXIT_CODE });
         }
     };
+    // The account companion runs in this add's own process, after the gate above and before the claim,
+    // so a refusal leaves no managed object (`doc/decision/cli-git-zfs-start-probe.md`, Q-a and Q6).
+    if !crate::account_companion::the_managed_attach_may_go_ahead() {
+        return None;
+    }
     let context: GitContext = GitContext { real_git: real_git.to_path_buf(), overlay: overlay.to_vec(), global_prefix: Vec::new(), common_dir: Some(common_dir.clone()) };
     return match run_the_route(&route, plan, &context, real_git, arguments, overlay) {
         Ok(lines) => {
