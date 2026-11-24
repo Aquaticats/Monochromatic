@@ -137,7 +137,8 @@ fn world(name: &str) -> World {
 }
 
 /// What:
-///  A fixture, its repository and bare origin,
+///  A fixture,
+///  its repository and bare origin,
 ///  and the folders the lists a push is handed name.
 /// Why:
 ///   No list names `/usr/bin` or `/bin`,
@@ -197,7 +198,8 @@ fn world_with(name: &str, stand_in_on_the_services_path: bool, service_variables
 }
 
 /// What:
-///  The fixture's own service, which every wrapped command of this fixture reaches.
+///  The fixture's own service,
+///  which every wrapped command of this fixture reaches.
 /// Why:
 ///   The request's list lives in the memory of the service the command spoke to,
 /// so a control that takes it away has to stop that service.
