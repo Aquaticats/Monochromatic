@@ -152,7 +152,8 @@ struct ShapedSlot {
     checkout: PathBuf,
     /// The slot's folder.
     slot: PathBuf,
-    /// The mount, taken down when the control ends.
+    /// The mount,
+    /// taken down when the control ends.
     _guard: MountedSlot,
 }
 
@@ -208,8 +209,8 @@ fn a_copy_that_calls_a_mount_own_is_refused_when_the_kernel_names_another_source
 }
 
 /// What:
-///  Where the kernel names the clone's own source, the answer is the mount at
-///  the slot.
+///  Where the kernel names the clone's own source,
+///  the answer is the mount at the slot.
 /// Why:
 ///  A control that only proves refusals cannot tell the check from one that
 ///  refuses everything.
@@ -299,8 +300,10 @@ fn a_reread_that_fails_does_not_keep_the_stale_copy() {
 ///  so the sweep keeps reading the table rather than trusting a copy nothing
 ///  watches.
 /// Why:
-///  This is the fail-open path the second pass found:
-///  without a descriptor the answer must be `main`'s, not the copy's.
+///  This is the fail-open path:
+///  a call that could not be made proves nothing about the table,
+///  so without a descriptor the answer must be `main`'s,
+///  not the copy's.
 #[test]
 fn a_watch_with_no_descriptor_counts_as_a_change() {
     let watch: LiveMountTableSource = LiveMountTableSource::without_a_descriptor();

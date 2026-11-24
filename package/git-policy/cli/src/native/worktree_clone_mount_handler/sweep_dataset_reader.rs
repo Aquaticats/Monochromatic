@@ -46,7 +46,8 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  kernel 6.8.0-147-generic,
 ///  OpenZFS 2.4.4,
 ///  four vCPUs and 7,941 MB),
-///  interleaved, so no arm carries the machine's mood:
+///  interleaved,
+///  so no arm carries the machine's mood:
 ///  main's handler,
 ///  this branch's handler,
 ///  and main again as an identical-binary control,

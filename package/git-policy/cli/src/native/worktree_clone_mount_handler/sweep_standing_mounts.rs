@@ -277,6 +277,7 @@ impl LiveMountTableSource {
 ///  mount,
 ///  which is `main`'s call.
 ///  A column of the table is rebuilt as a map only when a second answer needs
+///  it,
 ///  the same read,
 ///  so a table that changes between every answer costs a scan per answer
 ///  where `main` pays a whole parse.
@@ -419,9 +420,11 @@ impl LiveStandingMounts {
     /// Why:
     ///  The copy's source is the one field a rename moves without an event,
     ///  so the kernel is asked about the one mount at the slot by that mount's
-    ///  unique number;
-    ///  an answer it cannot give, a kernel without the call and an answer that
-    ///  disagrees with the walk all fall back to the live table for that mount,
+    ///  unique number,
+    ///  which the kernel never reuses;
+    ///  an answer it cannot give,
+    ///  a kernel without the call and an answer that disagrees with the walk all
+    ///  fall back to the live table for that mount,
     ///  which is `main`'s call and its answer.
     ///
     /// In TS you'd write (pseudocode):
