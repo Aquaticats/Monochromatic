@@ -759,9 +759,16 @@ not its regression:
 issue 6447,
 with `pi-push-control-restarted-service-scene` on it.
 
+The next alpha waits for the one-program build round:
+the record says "alpha.45 shipped with the second program,"
+and "the change starts with the release after it"
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+so a release cut before the second `[[bin]]` is gone would ship it again.
+
 Next:
 merge each round when it ends;
-put L4's options to the owner.
+put L4's options to the owner;
+release the next alpha once the one-program build has merged.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
