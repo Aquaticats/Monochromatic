@@ -76,9 +76,19 @@ parsed by the same `parse_holder_scan` a later step reads it with.
   table when that table was read from the handler's namespace,
   and the scan reported the namespace as an unreadable table rather than as a
   holder or as empty.
-  That is the measurement `SPEC.md` states,
-  and this guest would not make the
-  arm's task under a process root of its own in the last two rounds.
+  That is what this round measured,
+  and this guest would not make the arm's task under a process root of its own
+  in the last two rounds.
+  (Corrected 2026-11-23:
+  the integration pass showed that a task chrooted
+  after its mount was made answers a table that is short rather than
+  unreadable,
+  and that `EINVAL` is what the kernel answers for a task that is going.
+  The fix round's chrooted-lowest arm shows the short table,
+  and its
+  leader-ended arm shows `EINVAL`'s case as an unreadable link,
+  which is what
+  `SPEC.md` states now.)
 - The measurement line is below.
 
 ## What one scan costs
