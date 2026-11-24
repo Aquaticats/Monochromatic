@@ -4588,6 +4588,25 @@ the questions section is the decided record.
   T0-12's state named as a sandbox that holds no copy,
   the covered-copy policy as V9,
   and what the host's own mount rests on.
+- `f76b327831`,
+  2026-11-23T19:11:07-05:00:
+  the merge of `main` with the accepted marker-in-place answer.
+- `93f7b4378d`,
+  2026-11-23T19:15:29-05:00:
+  the second probe read's Q2 and Q5 and its remaining design edits:
+  V9's example on the folder where the clone is mounted,
+  the lower mount as the refused case,
+  the stale `7.3` clause,
+  V9's and V5's status and the intro's after the owner's answer,
+  the locked holder as a sixth kind with F59,
+  the preflight's lock check and the refused bullet,
+  T0-13's arm and T0-14's,
+  the host's own mount as measured,
+  T0-10's descriptor and control,
+  T0-3's unrun delivery control,
+  F53's `O_DIRECTORY` note,
+  both records cited,
+  and L18's tiers.
 
 ## What this revision left as it was
 
