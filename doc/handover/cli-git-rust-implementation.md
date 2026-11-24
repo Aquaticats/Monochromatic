@@ -742,7 +742,12 @@ the cause-H pair;
 the source guard `the_release_code_keeps_blocking_work_off_the_runtime`,
 on two `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`, `add_route_plan.rs:265`);
 and the `statmount` control,
-whose call answers `ENOSYS` inside the rootless container though the host kernel has it.
+whose call answers `ENOSYS` inside the rootless container though the host kernel has it:
+podman's default seccomp profile lists neither `statmount` nor `listmount`
+(`doc/troubleshooting/podman-default-seccomp-blocks-statmount-in-a-container.md`);
+fixed as `ada7a937b0`,
+the gate deriving its profile from the host's with those two calls added
+and the controls proving the fallback under a real seccomp refusal.
 The end-to-end push program controls passed in about 5 ms each,
 so they declined there too:
 the gate image now holds a real `git-lfs`.
@@ -762,9 +767,8 @@ the ssh-terminal and askpass controls passing when their askpass program is refu
 which `pi-askpass-controls-see-a-refused-program` fixes.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
-`zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
-`statmount-control-in-the-gate-container-2026-11-24`
-and `end-to-end-push-program-controls-run-in-the-gate-2026-11-24`.
+`end-to-end-push-program-controls-run-in-the-gate-2026-11-24` (the other two merged:
+`a80675a4af` and `ada7a937b0`).
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
