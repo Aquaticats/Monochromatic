@@ -10602,3 +10602,77 @@ and each shown to fail against the shape it replaces:
   (`lfs::lfs_interactive::tests::a_configuration_question_that_never_answers_is_stopped_and_reported`)
   and the guard whose list shrank
   (`source_guard::blocking_code_off_the_runtime_tests::every_listed_exception_still_matches_code`).
+
+## The add route's two pauses are named in the guard's exceptions, 2026-11-24T02:09:14-05:00
+
+- Where the finding came from:
+  the whole container gate on `main` at `8519c599d0`
+  (run `native-bNr3O6`,
+  2026-11-24T06:18:44Z to 06:46:59Z)
+  failed `the_release_code_keeps_blocking_work_off_the_runtime`
+  on two `std::thread::sleep` calls step 10's add route brought,
+  `worktree_clone_add_route/add_mount.rs` and
+  `worktree_clone_add_route/add_route_plan.rs`.
+  The gate's account is `doc/handover/cli-git-rust-implementation.md`,
+  "The gate on `main` at `8519c599d0`".
+- What each pause waits for,
+  and which thread holds it:
+  `wait_for_the_mount` looks at the caller's own mount table every 50 ms
+  until the slot shows the clone's mount,
+  bounded by `MOUNT_WAIT` (the protocol's provisional 30 s request deadline),
+  and the mount handler's attach in its own process is what answers it.
+  `Stops::hold` is the interval a control takes between two of the add's steps,
+  which `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP` and
+  `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL` arm,
+  bounded by `HOLD_BOUND` (120 s),
+  and the control's release file is what ends it.
+  Both hold the add's own thread:
+  `main` reaches them through `entry::run_process`,
+  `run_forwarded_git_with_unit_stop`,
+  `run_served` and `run_a_zfs_add`,
+  and the six files that take that call
+  (`invocation/entry.rs`,
+  `worktree_copying/worktree_copy_forward.rs`,
+  and the route's `add_route_run.rs`,
+  `add_route_steps.rs`,
+  `add_mount.rs` and
+  `add_route_plan.rs`)
+  hold no `async fn`,
+  no `.await`,
+  no `run_on_runtime` and
+  no `block_on`.
+  So no worker of the runtime waits on either pause,
+  and `tokio::time::sleep` could not end one there:
+  it needs a runtime,
+  as the entry for `foundation/lazy_runtime.rs` already says of that file's two pauses.
+  The search reads those six files only,
+  so it does not by itself prove that no callee of a deeper file ever built a runtime;
+  a runtime built elsewhere in the process would still leave these two pauses on the command's own thread.
+- Why they are named rather than converted:
+  a runtime would buy nothing on a thread that polls no task,
+  and entering one for the pause would add a runtime-start refusal
+  (`run_on_runtime`'s `CouldNotStart`)
+  to a path that needs no runtime today.
+  A job of the blocking pool needs that same runtime entry
+  and would hold a pool thread instead of the command's own.
+  So both join the list of pauses on a synchronous face,
+  each entry naming what ends its wait and what removes it:
+  the add path's own conversion to a task,
+  where an awaited `tokio::time::sleep` ends the pause.
+- What changed, and what did not:
+  two `ALLOWED` entries in
+  `source_guard/blocking_code_off_the_runtime_rules_tests.rs`,
+  and one sentence in each wait's own doc saying why it pauses where it does.
+  No bound,
+  no look interval and no control behaviour moved,
+  so each wait a kill or resume arm meets is the wait it met before.
+- The guard's own answer in this round:
+  with the entries removed it failed on exactly the two sleeps and nothing else,
+  `wait_for_the_mount`'s in `worktree_clone_add_route/add_mount.rs` and
+  `Stops::hold`'s in `worktree_clone_add_route/add_route_plan.rs`
+  (the gate named the same two sites at its own line numbers, 70 and 265,
+  before the sentences added above each sleep moved them),
+  so the entries cover the finding and nothing more.
+  With the entries in place its twenty tests passed,
+  `every_listed_exception_still_matches_code` among them,
+  and the fifty-nine library controls of `worktree_clone_add_route` passed beside them.
