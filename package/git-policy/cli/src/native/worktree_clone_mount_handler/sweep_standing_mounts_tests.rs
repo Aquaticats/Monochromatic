@@ -282,7 +282,7 @@ fn a_kernel_that_cannot_name_a_source_is_answered_from_the_live_table() {
 #[test]
 fn a_call_the_filter_refuses_is_answered_from_the_live_table() {
     let control: &str = "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_call_the_filter_refuses_is_answered_from_the_live_table";
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
         INSIDE,
         control,
     ) {
