@@ -44,8 +44,8 @@ fn planted_store(name: &str) -> (PathBuf, Vec<u8>, Vec<u8>) {
 /// with its bytes.
 fn surviving(path: &Path) -> Vec<(String, Vec<u8>)> {
     let mut names: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(path).expect("the store lists") {
-        let entry = entry.expect("one entry");
+    for listed in std::fs::read_dir(path).expect("the store lists") {
+        let entry = listed.expect("one entry");
         names.push(entry.file_name().to_string_lossy().into_owned());
     }
     names.sort();

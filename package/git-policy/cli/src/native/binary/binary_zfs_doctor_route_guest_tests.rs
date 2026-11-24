@@ -426,8 +426,8 @@ fn store_facts() -> StoreListingFacts {
     let mut slots: Vec<SlotRecordFacts> = Vec::new();
     let mut parent: RecordFacts = RecordFacts::Absent;
     let now: std::time::SystemTime = std::time::SystemTime::now();
-    for entry in std::fs::read_dir(store_path()).expect("the store lists") {
-        let entry = entry.expect("one entry");
+    for listed in std::fs::read_dir(store_path()).expect("the store lists") {
+        let entry = listed.expect("one entry");
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let age: Option<u64> = entry.metadata().ok().and_then(|metadata| return metadata.modified().ok()).and_then(|modified| return now.duration_since(modified).ok()).map(|elapsed| return elapsed.as_secs());
         entries.push(git_policy_cli::doctor_zfs_route::ListedEntry { name: name.clone(), modified_seconds_ago: age });
@@ -518,8 +518,8 @@ fn request_facts() -> Vec<RequestFacts> {
         requests.push(RequestFacts {
             clone: name,
             intent_nonce,
-            receipt_nonce: receipt.as_ref().map(|held| return String::from(held.nonce.as_str())),
-            receipt_boot: receipt.map(|held| return held.boot),
+            receipt_nonce: receipt.as_ref().map(|answered| return String::from(answered.nonce.as_str())),
+            receipt_boot: receipt.map(|answered| return answered.boot),
         });
     }
     return requests;
@@ -650,32 +650,47 @@ fn report_of<'a>(reports: &'a [CheckReport], name: &str) -> &'a CheckReport {
 }
 
 /// Every broken fact this arm can make,
-/// each with the answer that must name it.
+/// each in its own function so no local outlives the answer it read.
 fn break_each_fact() {
-    // A container that could mount itself.
+    breaks_container_canmount();
+    breaks_clone_setuid();
+    breaks_unloaded_key();
+    breaks_nested_row();
+    breaks_misfiled_record();
+    breaks_staging_forms();
+    breaks_rename_grant();
+    breaks_readiness_boot();
+    breaks_missing_slot();
+}
+
+/// A container that could mount itself is a finding naming `canmount`.
+fn breaks_container_canmount() {
     zfs(&[ "set", "canmount=on", container_dataset().as_str() ]);
     let datasets: Vec<DatasetFacts> = dataset_facts();
     let container: &DatasetFacts = datasets.iter().find(|dataset| return dataset.name == container_dataset()).expect("the container is read");
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_dataset(container);
-    let CheckOutcome::Finding { field, .. } = outcome else {
-        panic!("a container that can mount is a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_dataset(container);
+    let CheckOutcome::Finding { field, .. } = answer else {
+        panic!("a container that can mount is a finding: {answer:?}");
     };
     assert_eq!(field, "canmount");
     println!("DOCTOR-GUEST container-canmount-is-a-finding");
     zfs(&[ "set", "canmount=off", container_dataset().as_str() ]);
+}
 
-    // A clone carrying setuid,
-    // which it inherits from the container's setting.
+/// A clone carrying setuid is a finding naming `setuid`.
+fn breaks_clone_setuid() {
     zfs(&[ "set", "setuid=on", clone_dataset().as_str() ]);
     let clones: Vec<DatasetFacts> = dataset_facts().into_iter().filter(|dataset| return matches!(dataset.role, DatasetRole::Clone)).collect();
-    let outcome: CheckOutcome = check_clone_properties(&clones);
-    let CheckOutcome::Finding { field, .. } = outcome else {
-        panic!("a clone carrying setuid is a finding: {outcome:?}");
+    let answer: CheckOutcome = check_clone_properties(&clones);
+    let CheckOutcome::Finding { field, .. } = answer else {
+        panic!("a clone carrying setuid is a finding: {answer:?}");
     };
     assert_eq!(field, "setuid");
     zfs(&[ "set", "setuid=off", clone_dataset().as_str() ]);
+}
 
-    // A clone whose key is not loaded.
+/// A clone whose key is not loaded is a finding naming `keystatus`.
+fn breaks_unloaded_key() {
     let key_file: String = format!("{FIXTURE}/key");
     std::fs::write(key_file.as_str(), "correct horse battery staple").expect("the key file");
     let encrypted: String = format!("{}/home/encrypted", pool());
@@ -685,26 +700,29 @@ fn break_each_fact() {
     zfs(&[ "clone", "-o", "mountpoint=legacy", format!("{encrypted}@ready").as_str(), encrypted_clone.as_str() ]);
     zfs(&[ "unload-key", encrypted.as_str() ]);
     let unloaded: Vec<DatasetFacts> = vec![ DatasetFacts { role: DatasetRole::Clone, name: encrypted_clone.clone(), reading: reading(encrypted_clone.as_str()) } ];
-    let outcome: CheckOutcome = check_key(&unloaded);
-    let CheckOutcome::Finding { field, .. } = outcome else {
-        panic!("an unloaded key is a finding: {outcome:?}");
+    let answer: CheckOutcome = check_key(&unloaded);
+    let CheckOutcome::Finding { field, .. } = answer else {
+        panic!("an unloaded key is a finding: {answer:?}");
     };
     assert_eq!(field, "keystatus");
     println!("DOCTOR-GUEST unloaded-key-is-a-finding");
     zfs(&[ "load-key", encrypted.as_str() ]);
     zfs(&[ "destroy", "-r", "-f", encrypted_clone.as_str() ]);
     zfs(&[ "destroy", "-r", "-f", encrypted.as_str() ]);
+}
 
-    // A nested dataset whose row hangs from the tree the checkout replaced.
+/// A nested dataset whose row hangs from the tree the checkout replaced is a
+/// finding naming the path's reachability.
+fn breaks_nested_row() {
     zfs(&[ "unmount", checkout_dataset().as_str() ]);
     std::fs::create_dir_all(CHECKOUT).expect("the underlay path");
     let output: String = format!("{}/home/vm-builder-output", pool());
     zfs(&[ "create", "-o", format!("mountpoint={CHECKOUT}/output").as_str(), output.as_str() ]);
     zfs(&[ "mount", checkout_dataset().as_str() ]);
     let mounts: MountCheckFacts = mount_facts();
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_nested_reachability(&mounts);
-    let CheckOutcome::Finding { field, detail } = outcome else {
-        panic!("a row hanging from the replaced tree is a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_nested_reachability(&mounts);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a row hanging from the replaced tree is a finding: {answer:?}");
     };
     assert_eq!(field, "reachability");
     assert!(detail.contains("vm-builder-output"), "{detail}");
@@ -713,31 +731,36 @@ fn break_each_fact() {
     zfs(&[ "unmount", output.as_str() ]);
     zfs(&[ "destroy", "-r", "-f", output.as_str() ]);
     zfs(&[ "mount", checkout_dataset().as_str() ]);
+}
 
-    // A slot record filed under another name.
+/// A slot record filed under another name is a finding naming both.
+fn breaks_misfiled_record() {
     let misfiled: String = format!("{}/two", store_path());
     std::fs::copy(format!("{}/one", store_path()), misfiled.as_str()).expect("the misfiled copy");
     let store: StoreListingFacts = store_facts();
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_store_entries(&store);
-    let CheckOutcome::Finding { field, detail } = outcome else {
-        panic!("a misfiled record is a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_store_entries(&store);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a misfiled record is a finding: {answer:?}");
     };
     assert_eq!(field, "record");
     assert!(detail.contains("two"), "{detail}");
     println!("DOCTOR-GUEST misfiled-record-is-a-finding");
     std::fs::remove_file(misfiled.as_str()).expect("the misfiled copy goes");
+}
 
-    // Both staging forms and a dot name nobody accounts for,
-    // then the removal and the bytes that must survive.
+/// Both staging forms and a stranger's dot name:
+/// the forms are reported and removed,
+/// and every other byte stays.
+fn breaks_staging_forms() {
     let parent_before: Vec<u8> = std::fs::read(format!("{}/{PARENT_RECORD_NAME}", store_path())).expect("the parent bytes");
     let slot_before: Vec<u8> = std::fs::read(format!("{}/one", store_path())).expect("the slot bytes");
     for planted in [ ".0123456789abcdef0123456789abcdef", "..parent.0123456789abcdef.partial", ".partial-write" ] {
         std::fs::write(format!("{}/{planted}", store_path()), b"left by a killed writer").expect("a planted entry");
     }
     let store: StoreListingFacts = store_facts();
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_staging_forms(&store);
-    let CheckOutcome::Finding { field, detail } = outcome else {
-        panic!("two staging forms are a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_staging_forms(&store);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("two staging forms are a finding: {answer:?}");
     };
     assert_eq!(field, "staging");
     assert!(detail.contains('2'), "{detail}");
@@ -749,34 +772,39 @@ fn break_each_fact() {
     assert!(Path::new(format!("{}/.partial-write", store_path()).as_str()).exists(), "the stranger's name stays");
     println!("DOCTOR-GUEST staging-forms-are-removed-and-nothing-else-is");
     std::fs::remove_file(format!("{}/.partial-write", store_path())).expect("the planted stranger goes");
+}
 
-    // A lineage-changing grant.
+/// A lineage-changing grant is a finding naming the permission.
+fn breaks_rename_grant() {
     zfs(&[ "allow", "-d", "-u", ACCOUNT.to_string().as_str(), "rename", container_dataset().as_str() ]);
     let delegation: DelegationFacts = delegation_facts();
-    let outcome: CheckOutcome = check_delegation(&delegation);
-    let CheckOutcome::Finding { field, detail } = outcome else {
-        panic!("a rename grant is a finding: {outcome:?}");
+    let answer: CheckOutcome = check_delegation(&delegation);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a rename grant is a finding: {answer:?}");
     };
     assert_eq!(field, "permission");
     assert!(detail.contains("rename"), "{detail}");
     println!("DOCTOR-GUEST rename-grant-is-a-finding");
     zfs(&[ "unallow", "-d", "-u", ACCOUNT.to_string().as_str(), "rename", container_dataset().as_str() ]);
+}
 
-    // A readiness record from another boot,
-    // which is the same record judged against a boot that is not this one.
+/// A readiness record judged against another boot is a finding naming the boot.
+fn breaks_readiness_boot() {
     let (_, _, _, _, readiness) = handler_facts();
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_readiness(&readiness, OTHER_BOOT);
-    let CheckOutcome::Finding { field, .. } = outcome else {
-        panic!("another boot's record is a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_readiness(&readiness, OTHER_BOOT);
+    let CheckOutcome::Finding { field, .. } = answer else {
+        panic!("another boot's record is a finding: {answer:?}");
     };
     assert_eq!(field, "boot");
     println!("DOCTOR-GUEST readiness-from-another-boot-is-a-finding");
+}
 
-    // The walk that refuses names the component.
+/// A slot the walk cannot reach is a finding naming the component.
+fn breaks_missing_slot() {
     let missing: SlotIdentityFacts = slot_facts("no-such-slot");
-    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(&missing);
-    let CheckOutcome::Finding { field, detail } = outcome else {
-        panic!("a missing slot is a finding: {outcome:?}");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(&missing);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a missing slot is a finding: {answer:?}");
     };
     assert!(field.contains("no-such-slot"), "{field}");
     assert!(detail.contains("not there"), "{detail}");
