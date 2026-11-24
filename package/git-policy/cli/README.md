@@ -453,11 +453,15 @@ Read-only commands,
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
    of every URL replaced by `<credentials>`:
   the userinfo,
-  every path segment that is not a plain label (the letters `a` to `z` and `-`,
+  every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark
+  (a shorter segment of letters,
+  digits and `-`,
   `.`,
-  `_` and `~` alone,
+  `_` and `~` alone prints,
    which is what `lfs`,
-  `objects` and `batch` are),
+  `objects`,
+  `batch`,
+  `Org` and `Repo.git` are),
   and every query and fragment value,
   with a key kept only while it is a plain label.
   The punctuation that ends a URL in a sentence stays after the mask.
@@ -465,7 +469,9 @@ Read-only commands,
   quoted:
   "Never print or commit secrets".
   The same mask covers the wrapper's own diagnostic lines and the service's journal,
-  and a token made only of lowercase letters reads as a label and is not hidden.
+  and a token of 20 characters or fewer with no percent sign reads as a label and is not hidden,
+  which the owner accepted on 2026-11-24
+  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`).
   It covers a typed `git push` (including the merge push of a lost race),
   the auto-push after a commit and its
    reconcile pushes.
@@ -4821,7 +4827,7 @@ The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MON
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.
  The userinfo of any URL in such a line,
-every path segment that is not a plain label,
+every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
 
@@ -8889,7 +8895,7 @@ Every line ends with `at_ms=<milliseconds since the epoch>`,
 the time of its event,
 on both paths.
 The userinfo of any URL in a line,
-every path segment that is not a plain label,
+every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`.
 
 The lines,
