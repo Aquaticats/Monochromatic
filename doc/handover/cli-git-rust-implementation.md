@@ -556,35 +556,44 @@ the records are built in steps 14 and 16;
 the owner may read the no-clone clause,
 quoted to the owner on 2026-11-23.
 
-#### Step 17's designs: forced removal, and a cancelled or interrupted removal
+#### One program only: the root modes join the wrapper
 
 Outcome:
-the forced design's text carries the owner's V10 answer.
+the release holds one executable,
+and the ZFS route's root modes are modes of `monochromatic-git-policy-cli`.
 
 State:
-the owner accepted both designs on 2026-11-23
-and answered V10 "Stop that unit (Recommended)":
-a locked holder that is a unit of the account's own user manager is stopped through that manager and the removal proceeds,
-while a locked holder that is not such a unit is still refused,
-as the session's reading of the answer's scope
-(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
-The question rested on T0-14 in a guest with systemd 255
-(a `PrivateMounts=yes` user unit there is not locked;
-an `unshare --user --mount` holder is,
-with `EINVAL` for the move and the unmount)
-and on a read on this machine under systemd 262,
-where such a unit's mount namespace is owned by a user namespace of its own.
-T0-10 showed that root lists and enters a mount namespace no task holds.
-Tier 2 needs step 17's code.
+the owner answered "One program only, ever" on 2026-11-23
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`);
+alpha.45 shipped the second program by the owner's "Let it finish (Recommended)".
+The design merged as a proposal,
+`eee444cc0b`
+(`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`),
+with four choices each ranked A over B:
+the selector (the installed name plus a word),
+what the names point at (links to a root-owned copy under `/usr/libexec/monochromatic-git-policy-cli/`),
+where the dispatch sits (the first statement of `main`,
+before the panic hook and the environment),
+and whether the account's `PATH` keeps a short name for the modes (no,
+with `doctor` printing the whole command).
 Running:
-the forced design's round on V10's answer (`continuation-v10-answered-stop-the-unit.md`).
+its Sonnet gate review
+(`~/temp/agent/gate-review-zfs-root-modes-in-the-one-wrapper-executable-2026-11-24/`).
 
 Next:
-merge it;
-the designs then wait for step 17 under "Accepted designs that wait for their build steps".
+fold the review in,
+put the four choices to the owner,
+then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
 
+- The forced removal and the cancelled or interrupted removal,
+  for plan step 17,
+  accepted on 2026-11-23 with V10 answered "Stop that unit (Recommended)"
+  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`;
+  the forced design carries the answer since `3464f1b4ee`,
+  and its edits of that round are read by no reviewer yet).
+  Tier 2 and the wait's length need step 17's code.
 - The deferred-destroy checks,
   for plan step 16:
   `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`.
