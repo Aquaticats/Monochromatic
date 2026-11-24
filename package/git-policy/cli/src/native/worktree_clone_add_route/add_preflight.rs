@@ -1,7 +1,7 @@
 //! What:
 //!  The route's preflight:
 //!  everything A0 proves before the claim writes anything,
-//!  and the one source it declines the whole route for.
+//!  and the sources it declines the whole route for.
 //! Why:
 //!  A0 is one step with no write,
 //!  so its checks live together and the runner calls them once and hands what
@@ -13,13 +13,15 @@
 //!  and the delegation is read here because a granted permission no later step
 //!  can repair
 //!  (`super::add_grants`).
-//!  A source refused only for its uncommitted changes is not this route's yet:
-//!  the owner's interim of 2026-11-19 is that such an add takes rung 3 while plan
-//!  step 11's verified dirty restore is unlanded
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  lines 1858 to 1862),
-//!  so the preflight answers nothing and the add reaches the ladder as it does
-//!  for a checkout the route does not serve.
+//!  A source the fill's own restore would refuse is not this route's yet:
+//!  nothing of this release settles a failed restore at a slot,
+//!  so the claim,
+//!  the clone and the snapshot would stay
+//!  (`super::add_source_the_restore_cannot_prove`,
+//!  and `SPEC.md`, "What this release does not yet do").
+//!  The preflight answers nothing for such a source and the add reaches the
+//!  ladder, which settles its own failed restore and falls back to Git's own
+//!  checkout.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -71,12 +73,14 @@ pub(super) struct Preflight {
 /// the source,
 /// the datasets,
 /// the account's delegation,
-/// the handler's readiness and the destination.
+/// the handler's readiness and the destination,
+/// or answer nothing when the source holds a path the fill's restore would
+/// refuse.
 ///
 /// # Errors
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
-pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Preflight, StepRefusal> {
+pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
     if let Some(word) = person_lock_word(arguments) {
         return Err(StepRefusal::refused(format!(
             "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
@@ -105,6 +109,33 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
         .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
     verify_the_slot_parent(route)?;
+    // What:
+    //  A source whose copy the fill's restore would end after the clone is made
+    //  makes the route decline instead of failing the add.
+    // Why:
+    //  Nothing of this release settles a failed restore at a slot,
+    //  so the claim,
+    //  the locked registration,
+    //  the mounted clone and the origin snapshot would stay;
+    //  the ladder's own restore destroys its stage and lets Git's checkout make
+    //  the worktree
+    //  (`super::add_source_the_restore_cannot_prove`).
+    //  A question that could not be answered declines the same way:
+    //  an unproven source is not this route's either.
+    //  The checks above come first so every refusal a person can act on keeps its
+    //  sentence;
+    //  the device is opened after this, so a declined add asks it nothing.
+    match super::add_source_the_restore_cannot_prove::reasons_the_restore_cannot_prove((context, &source)) {
+        Ok(reasons) if reasons.is_empty() => {}
+        Ok(reasons) => {
+            crate::diagnostic_log::debug("addPreflight", format!("the route declines a source its own restore cannot prove ({} reasons, the first {:?})", reasons.len(), reasons.first()).as_str());
+            return Ok(None);
+        }
+        Err(reason) => {
+            crate::diagnostic_log::debug("addPreflight", format!("the route declines a source whose shapes it could not read ({reason})").as_str());
+            return Ok(None);
+        }
+    }
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
     let pool: ObjectIdentity = device.identity_of(route.pool.as_str()).map_err(StepRefusal::refused)?;
@@ -117,7 +148,7 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
-    return Ok(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings });
+    return Ok(Some(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings }));
 }
 
 /// Verify the folder the slot goes in,

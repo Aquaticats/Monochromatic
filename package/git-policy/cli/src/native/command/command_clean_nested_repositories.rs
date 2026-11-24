@@ -199,7 +199,11 @@ pub fn nested_repositories_the_clean_deletes(
 /// ```ts
 /// function repositoriesBeneath(root: string, start: string[]): string[][]; // throws
 /// ```
-fn repositories_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsString>>, String> {
+///
+/// The route's preflight asks it of a main checkout before its first write, to
+/// decline a source whose copy the fill's clean would leave unproven
+/// (`add_source_the_restore_cannot_prove.rs`).
+pub(crate) fn repositories_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsString>>, String> {
     let mut found: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
     let mut start_path: PathBuf = worktree_root.to_path_buf();
     for name in start {

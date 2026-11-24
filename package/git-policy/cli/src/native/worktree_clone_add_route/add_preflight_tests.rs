@@ -3,11 +3,12 @@
 //!  that read answers before the claim is taken,
 //!  a removal's plan that still names the clone refuses the preflight
 //!  in the plan stop's own sentence,
-//!  and a checkout refused only for its uncommitted changes makes the preflight
-//!  decline, so the add takes the ladder's rung 3 as the owner's interim says
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  lines 1858 to 1862),
-//!  while every other refusal of the source still fails the add.
+//!  a checkout whose source the fill's own restore would refuse makes the
+//!  preflight decline, so the add takes the ladder and nothing of the route's is
+//!  written,
+//!  a checkout with an ordinary uncommitted change is served,
+//!  and a sparse checkout,
+//!  a worktree-scope configuration and an unfinished merge still fail the add.
 //!
 //! Why the source's answers are driven on fixtures:
 //!  the source check, the plan read and the slot's parent stand before the device
@@ -196,6 +197,78 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
     assert!(refusal.message.contains("does not answer the pool"), "the refusal is the fixture's own missing pool: {}", refusal.message);
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
     assert!(!route.destination.exists(), "the slot stays empty before the claim");
+    remove(root.as_path());
+}
+
+/// What:
+///  A checkout holding an untracked Git repository of its own makes the preflight
+///  decline the whole route, before the claim,
+///  so nothing of the route's own is written.
+/// Why:
+///  The fill's `git clean --force -d` keeps such a repository and the restore's
+///  proof then names it as still untracked,
+///  so the restore would end after the clone and the origin snapshot were made,
+///  and nothing of this release settles a failed restore at a slot
+///  (`SPEC.md`, "What this release does not yet do").
+///  The ladder settles the same refusal in its own stage and finishes with Git's
+///  own checkout.
+///  On this machine the pool's read is what stops a served source,
+///  so a control that read a refusal here would pass with the defect in place;
+///  what it reads instead is the preflight's own decline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(preflight(nestedRepositoryCheckout)).toBeNull();
+/// expect(existsSync(homeFolder(commonDir))).toBe(false);
+/// ```
+#[test]
+fn an_untracked_repository_declines_the_preflight() {
+    let (root, route, plan) = a_checkout_the_route_serves("preflight-nested-repository");
+    let nested: PathBuf = route.source_root.join("nested");
+    std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+    git(nested.as_path(), &["init", "--quiet"]);
+    std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+    match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+        Ok(None) => {}
+        Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read"),
+        Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove: {}", refusal.message),
+    }
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
+    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    remove(root.as_path());
+}
+
+/// What:
+///  A checkout whose tracked file has become a directory makes the preflight
+///  decline the whole route, before the claim.
+/// Why:
+///  The restore removes the files its reset cannot see as files or links,
+///  and a directory cannot be removed that way,
+///  so the restore would end after the clone and the origin snapshot were made,
+///  with nothing of this release to settle it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(preflight(directoryAtATrackedPath)).toBeNull();
+/// expect(existsSync(homeFolder(commonDir))).toBe(false);
+/// ```
+#[test]
+fn a_directory_where_the_index_records_a_file_declines_the_preflight() {
+    let (root, route, plan) = a_checkout_the_route_serves("preflight-directory-at-a-file");
+    let tracked: PathBuf = route.source_root.join("tracked.txt");
+    std::fs::write(tracked.as_path(), b"first\n").expect("the tracked file");
+    git(route.source_root.as_path(), &["add", "--", "tracked.txt"]);
+    git(route.source_root.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::remove_file(tracked.as_path()).expect("the file goes");
+    std::fs::create_dir(tracked.as_path()).expect("the directory takes its name");
+    std::fs::write(tracked.join("inside.txt"), b"inside\n").expect("a file inside it");
+    match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+        Ok(None) => {}
+        Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read"),
+        Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove: {}", refusal.message),
+    }
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
+    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
     remove(root.as_path());
 }
 

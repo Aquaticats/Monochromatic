@@ -839,12 +839,15 @@ Read-only commands,
   A kill at any step leaves the claim,
   the slot and the registration,
   and the next add at the slot resumes from the phase the record names.
-  A main checkout with uncommitted changes takes the ordinary ladder's rung 3
-  instead of this route,
-  as the owner's interim of 2026-11-19 says while plan step 11 is unlanded
-  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-  lines 1858 to 1862),
-  and every other source the route cannot copy stops the add before it writes
+  A main checkout holding an untracked Git repository of its own,
+  which the restore's `git clean --force -d` keeps,
+  or a directory where its index records a file,
+  which the restore cannot unlink,
+  takes the ordinary ladder instead of this route,
+  because this release has no way to clean up after a restore that fails at a
+  slot;
+  that decline ends when plan step 14's settle lands.
+  Every other source the route cannot copy stops the add before it writes
   anything.
   `SPEC.md`,
   "The add that registers a ZFS clone before it fills the slot",
