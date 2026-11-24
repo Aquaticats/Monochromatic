@@ -441,7 +441,7 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
 /// What:
 ///  A source below the size limit gets the clone rung on a filesystem whose whole-tree rule does not apply,
 ///  runs Git without a checkout,
-///  and declines nothing.
+///  and is declined by no limit.
 /// Why:
 ///   The guest round that measured the dirty shapes on btrfs found the clone no slower than Git's own checkout on
 ///   every shape it ran,
@@ -450,13 +450,16 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
 /// The fixture is the one `a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes` declines,
 /// so this control is red without the change:
 /// it expects the clone rung where that control expects Git's checkout,
-/// and no sentence,
-/// because a cloned add has nothing to decline
+/// and no limit sentence,
+/// because a cloned add declines no rule
 /// (`worktree_slow_route::explain_decline`).
+/// The snapshot rung's own line can still be there,
+/// since an ordinary directory is no btrfs subvolume,
+/// and it names no limit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(ladder.rung).toBe('clone'); expect(ladder.slow).toBeUndefined();
+/// expect(ladder.rung).toBe('clone'); expect(ladder.slow?.word).not.toBe('declines');
 /// ```
 #[test]
 fn a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule() {
@@ -485,7 +488,13 @@ fn a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tre
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "the clone rung runs Git without a checkout on a tree this small");
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the rung is the clone rung");
-    assert!(ladder.slow.is_none(), "a cloned add declines nothing, so no sentence says a rule applied: {:?}", ladder.slow);
+    // The snapshot rung's own sentence can still be there (an ordinary directory is no btrfs subvolume), but no limit
+    // decline is: the whole-tree rule has no value here to name.
+    let route_word: Option<&str> = ladder.slow.as_ref().map(|route| { return route.word(); });
+    assert_ne!(route_word, Some("declines"), "no limit declines this add: {:?}", ladder.slow);
+    if let Some(route) = ladder.slow.as_ref() {
+        assert!(!route.line().contains("would copy"), "the whole-tree rule says nothing here: {}", route.line());
+    }
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung records the add durably");
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
