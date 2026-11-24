@@ -25,6 +25,7 @@ import {
   startedLineOf,
 } from './batch-run-as-a-unit.ts';
 import { optionIn, } from './option-in.ts';
+import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 import {
   requiredOutputOf,
 } from './required-output-of-a-command.ts';
@@ -158,6 +159,9 @@ const command = batchUnitCommandOf({
     ],
   },),
   home: env.HOME ?? '',
+  // The unit inherits nothing, and the gate it starts counts the pools: a pool this command reopened, or closed, is only that for
+  // the batch when the unit is given the same setting.
+  ...((env[POOL_LIMITS_VARIABLE] === undefined) ? {} : { poolLimits: env[POOL_LIMITS_VARIABLE] }),
   node: process.execPath,
   batchEntry: await siblingCommandEntry({
     folder: import.meta.dirname,
