@@ -1943,7 +1943,8 @@ Cons:
   which is one more path to an escalation this design does not need;
 - the toolchain's plan expresses one post-install link per tool
   (`mpm-shadow`'s `postinstall.link` takes `sourceBin`, `linkName` and `linkDir`),
-  so a second link needs that package's schema to change first.
+  so a second link needs that package's schema to change first,
+  which is a cost to state and not the reason the ranking puts B second.
 
 ### Ranking of choice 6
 
@@ -2030,10 +2031,11 @@ Pros:
 Cons:
 
 - a second build shape,
-  so the guest arms would test a different binary from the released one;
+  so the guest arms would test a different binary from the released one,
+  which is the reason the ranking puts B second;
 - the crate already has one such precedent (`--features measurement-routes`),
   and a second would need its own tasks and lint passes,
-  for no measured behaviour at root.
+  which is a cost to state beside that reason.
 
 ### Ranking of choice 7
 
