@@ -58,6 +58,39 @@ pub enum TransportGone {
 }
 
 /// What:
+///  Why a push that chose its transport must stop here,
+///  or nothing when it may run.
+/// Why:
+///   The record on disk is the only thing left that says the command chose a transport,
+/// so the answer is read from it and from the list this service holds for it:
+/// a service that was started again holds no list,
+/// and a value that is not text never reached it,
+/// while a list that holds the chosen value lets the push run.
+/// The decision sits beside the words it chooses,
+/// so both are read together and neither has to be reconstructed where the push is run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gone = (held, transport) => !transport ? undefined : held === undefined ? 'theServiceWasStartedAgain' : held.notText.some(isTransportName) ? 'theValueCouldNotTravel' : undefined;
+/// ```
+pub fn gone(
+    held: Option<&crate::service_push_programs_held_in_memory::PushPrograms>,
+    transport: bool,
+) -> Option<TransportGone> {
+    if !transport {
+        return None;
+    }
+    let Some(programs) = held else {
+        return Some(TransportGone::TheServiceWasStartedAgain);
+    };
+    let unspellable: bool = programs
+        .not_text
+        .iter()
+        .any(|name| { return crate::service_push_programs_held_in_memory::TRANSPORT.contains(&name.as_str()); });
+    return if unspellable { Some(TransportGone::TheValueCouldNotTravel) } else { None };
+}
+
+/// What:
 ///  The words a push is skipped with,
 ///  because the transport settings of the command that asked for it are gone.
 /// Why:

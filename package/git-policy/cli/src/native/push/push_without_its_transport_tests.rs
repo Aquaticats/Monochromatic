@@ -153,3 +153,36 @@ fn the_words_name_a_value_that_could_not_travel_apart_from_a_restart() {
     assert!(last.starts_with(&format!("Run this in {}: ", world.repo.display())), "the command is printed: {last}");
     crate::test_support::remove(world.root.as_path());
 }
+
+/// What:
+///  The reason a push stops is read from the record and from the list this service holds:
+///  a command that chose no transport may run,
+///  one whose list is gone stops for a restart,
+///  and one whose chosen value could not travel stops for that.
+/// Why:
+///   The decision used to sit inline where the push runs,
+/// and the two reasons it picks between owe a person different next steps;
+///  a wrong answer would blame a restart that never happened or let the manager's transport speak.
+#[test]
+fn the_reason_a_push_stops_is_read_from_the_record_and_the_list_it_holds() {
+    use crate::service_push_programs_held_in_memory::{PushPrograms, of};
+    let chosen: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+        vec![(std::ffi::OsString::from("GIT_SSH_COMMAND"), std::ffi::OsString::from("ssh -i /nowhere/key"))];
+    let carried: PushPrograms = of(chosen.as_slice());
+    assert_eq!(super::gone(None, false), None, "a command that chose no transport never stops here");
+    assert_eq!(super::gone(Some(&carried), false), None, "a list alone does not stop a push");
+    assert_eq!(super::gone(None, true), Some(TransportGone::TheServiceWasStartedAgain), "a service that holds no list took the choice away");
+    assert_eq!(super::gone(Some(&carried), true), None, "the list holds the chosen value, so the push runs with it");
+    let unspellable: PushPrograms = of(&[(
+        std::ffi::OsString::from("GIT_SSH_COMMAND"),
+        {
+            use std::os::unix::ffi::OsStringExt;
+            std::ffi::OsString::from_vec(b"ssh -i /nowhere/\xff".to_vec())
+        },
+    )]);
+    assert_eq!(
+        super::gone(Some(&unspellable), true),
+        Some(TransportGone::TheValueCouldNotTravel),
+        "the name travelled and the value could not, which is its own reason"
+    );
+}
