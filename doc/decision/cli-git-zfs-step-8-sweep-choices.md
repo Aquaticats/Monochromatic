@@ -328,6 +328,31 @@ trust the clone's receipt";
 and "A:
 state the limit".
 
+### Measured after the build, 2026-11-24
+
+The round `pi-zfs-step-8-merge-main-and-the-sweep-timing` measured the built choice in one guest
+(Ubuntu 24.04,
+OpenZFS 2.4.4,
+kernel 6.14),
+interleaved with `main`'s handler and an identical-binary control,
+and the branch merged as `c099c069a8`
+(`keep/report-pi-zfs-step-8-merge-main-and-the-sweep-timing.md` in
+`~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`).
+Two figures in this section do not hold as written:
+
+- The steady sweep was 0.36 (0.30 to 0.58) and 0.34 (0.19 to 0.42) of `main`'s time at 1,024 clones,
+  and inside the control's spread at 8 and 64 clones,
+  so the "0.20 to 0.79 ... from 8 to 1,024 clones" quoted in this section is not reproduced:
+  the gain is real at 1,024 and absent at 8 and 64,
+  where a sweep is mostly the run's fixed cost.
+  Nothing measured was slower than `main`.
+- The kernel's answer the choice needs,
+  a mount's source through `statmount(2)`'s `STATMOUNT_SB_SOURCE`,
+  arrives in Linux 6.13,
+  not the 6.8 the option's text names,
+  so on 6.8 to 6.12 the sweep takes the fallback;
+  a guest that measures this path needs 6.13 or later.
+
 ## Adopted with the project's veto open
 
 These were not asked;

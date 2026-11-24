@@ -306,143 +306,21 @@ The design is decided in `doc/decision/cli-git-zfs-worktree-design.md`
 and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
 
 State:
-plan steps 1 to 8 are built and on `main`.
-Step 9 is in two branches.
-Ten open items of the plan needed a design before their steps can be built;
-four are accepted and on `main`,
-and six are in review.
+plan steps 1 to 10 are built and on `main`,
+step 10's add route gated on a checkout dataset that only step 19 makes,
+so no person's add takes it yet.
+Pieces of steps 13,
+15,
+16 and 18 are built ahead and on `main`,
+unwired.
 Nothing of the route is installed on this machine,
-and nothing is published.
+and the release after alpha.45 is the first to carry steps 9 and 10.
 
 The designs' rounds keep their files under `~/temp/agent/<design name>-2026-11-22/`
 and their reviews under `~/temp/agent/gate-review-<name>-2026-11-22/keep/`.
 Build rounds keep theirs under `~/temp/agent/<round name>-2026-11-22/`,
 and their integration passes under `~/temp/agent/integration-*-2026-11-22/keep/`.
 The scripts that start a round are in `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`.
-
-#### The sweep and the start probe need no configuration file
-
-Outcome:
-with no configuration file the root handler finds the checkout,
-the clone container and the probe dataset by their names.
-
-State:
-branch `feat/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file` at `ae7e91e94b`,
-after a fix round on its first integration pass.
-The owner's answers are in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"Four further answers on the look-up with no configuration file".
-Its second Sonnet pass
-(`review-second-pass.md` in
-`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/`)
-found it fit after two fixes:
-the documents say the route cannot read `snapdir`,
-which it can (B1),
-and the probe's refusal prints the sweep's remedy,
-which does not settle the probe (B2).
-Told what hiding snapshot directories comes to,
-the owner chose `snapdir=disabled` on the checkout and the clone container,
-set by step 19 and reported by step 18
-(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"What hiding comes to,
-answered 2026-11-23").
-The round on B1,
-B2,
-B4,
-the lows and that answer ended with every item done
-(`keep/report-pi-zfs-no-configuration-second-pass-findings.md` in
-`~/temp/agent/zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/`).
-Its merge into `main` stopped on two conflicts with step 9's unmount:
-`package/git-policy/cli/src/native/lib.rs` and `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`.
-The SPEC now says the probe with no file costs about 25 ms once per boot (1.14 times),
-spread over three look-ups,
-with the cause not found.
-Running:
-`pi-zfs-no-configuration-merge-main-after-step-9-unmount`,
-merging `main` and resolving both.
-
-Next:
-merge it;
-then a fresh round that removes the probe's 25 ms,
-or moves it off the path a person waits on.
-
-#### Step 8's follow-up: the recheck's findings and the sweep's cost
-
-Outcome:
-the attaching sweep's cost per mounted child is flat,
-and the recheck's findings on the merged step 8 are closed.
-
-State:
-branch `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `c87a50a09b`.
-Its second Sonnet pass
-(`~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`)
-found the first pass's two cases closed and the steady sweep at 0.20 to 0.79 of `main`'s time,
-and the branch not fit on P2-H1:
-renaming a mounted `legacy` dataset fires no mount-table event,
-so after a swap by name the sweep answers `attached` and files a false `done` receipt where `main` refuses.
-The owner chose to read a standing mount's source with `statmount(2)` by its mount number,
-falling back to the live table on older kernels,
-and said the question was framed wrong in ranking the easier option first
-(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"A standing mount's source is read by its mount number";
-the ranking rule is now `AGENTS.md`'s `RBE`).
-The round on that,
-P2-M1 to P2-M3 and the lows ended with each done and a control red without its guard
-(`keep/report-pi-zfs-step-8-sweep-second-pass-findings.md` in
-`~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`),
-but its context ran out before the timing set,
-so the cost of the added `statx` and `statmount` is unmeasured.
-Its merge into `main` stopped on a conflict with step 9's unmount in `sweep_one_clone_tests.rs`.
-Its corrective sentence for `f334d1db60`'s message is posted as a commit comment.
-Running:
-`pi-zfs-step-8-merge-main-and-the-sweep-timing`,
-a fresh round on the same branch
-(folder `~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`):
-merge `main`,
-then the timing set interleaved with `main`.
-
-Next:
-merge when it ends.
-
-#### Step 9: the holder scan across mount namespaces
-
-Outcome:
-a removal learns which processes in any mount namespace hold a clone.
-
-State:
-branch `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` at `1b574285f3`.
-Its Sonnet pass
-(`~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`)
-found it not fit:
-under intent `unmount` the scan sets aside every copy of the clone and answers clear while four namespaces hold it,
-and four medium findings.
-Nothing `main` does got worse.
-The owner answered its three questions
-(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
-no set-aside,
-read every thread and root,
-and the wrapper names the holders before each destroy.
-The fix round ended at `9969232138`:
-no set-aside,
-an unreadable namespace link named as an incomplete read,
-a nonce per scan,
-every thread and root read with four guest arms,
-25 plants each red without its guard,
-and `299 tests run: 299 passed` on the host
-(`keep/report-pi-zfs-step-9-holder-scan-integration-pass-findings.md` in
-`~/temp/agent/zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/`).
-A holder on a detached mount is found by no scan of processes;
-`SPEC.md` names it as a limit.
-Its merge stopped on conflicts with the unmount,
-which merged first,
-in `SPEC.md`,
-the guest end-to-end file and `binary_tests.rs`.
-Running:
-`pi-zfs-step-9-holder-scan-merge-main`,
-on the same branch.
-
-Next:
-merge it when it ends;
-its Sonnet pass is the release's.
 
 #### Step 9: the unmount, staging and reattach
 
@@ -498,29 +376,32 @@ left two fixes to the binding,
 neither step 10's:
 a wrong sentence about a `snapshotted` resume,
 and `doctor` naming two commands for one plan state.
-The registration half merged as `cde8ad55a8`:
-the add's record family,
-the lock's words,
-the finder,
-the recipe,
-the resume states and the plan-folder read,
-in `package/git-policy/cli/src/native/worktree_clone_binding_record/`,
-with 70 unit controls and nothing wired into the add yet.
-Its round decided seven points the designs leave open
+The registration half merged as `cde8ad55a8`
+(`package/git-policy/cli/src/native/worktree_clone_binding_record/`),
+and the execution half as `bee6531780`
+(`package/git-policy/cli/src/native/worktree_clone_add_route/`):
+the route in the binding design's write order,
+asked by `run_served` before the ladder,
+and served only for an add whose source is the main checkout on a ZFS dataset whose leaf is `monochromatic-git-checkout`,
+which only step 19's migration makes;
+every other add answers `None` and keeps its route
+(`SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot").
+Its guest run of 2026-11-24T00:12-05:00 passed three tests:
+the whole add with a second add refused,
+a kill at each of nine phases with its resume,
+T22,
+T25 and T26;
+three guards were shown red,
+not every one.
+T27 (a record across a reboot) and T28 (a flushed write after a power loss) did not run.
+Both rounds decided points the designs leave open
 (`keep/state-so-far.md` in
-`~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`),
-which the binding design's writer is to put into its text.
-Running:
-`pi-zfs-step-10-execution-half`,
-on the same branch:
-the route from the claimed slot to a verified fill,
-its wiring,
-kills and resumes,
-and the guest tests.
+`~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`).
 
 Next:
-merge it when it ends;
-then a round putting both rounds' decisions into the binding design.
+a round putting both rounds' decisions into the binding design;
+T27 and T28 with step 8's boot arms and M6's power arm.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
 
@@ -564,13 +445,26 @@ where the dispatch sits (the first statement of `main`,
 before the panic hook and the environment),
 and whether the account's `PATH` keeps a short name for the modes (no,
 with `doctor` printing the whole command).
+Its Sonnet gate review
+(`review-of-the-one-program-design.md` in
+`~/temp/agent/gate-review-zfs-root-modes-in-the-one-wrapper-executable-2026-11-24/keep/`)
+found that the name selector reverses `SPEC.md`'s "the executable does not read the name it was started under"
+and two source guards,
+that a root-owned file under the wrapper's own name runs Git as root for a mistyped mode,
+and an incomplete change list.
+Asked first,
+the owner answered "Lift it for the ZED hook only (Recommended)"
+(`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`):
+only the zedlet's file name selects a root mode,
+and units,
+adoption and a person use words.
 Running:
-its Sonnet gate review
-(`~/temp/agent/gate-review-zfs-root-modes-in-the-one-wrapper-executable-2026-11-24/`).
+`pi-zfs-root-modes-after-the-start-name-answer`,
+revising the proposal to that answer and the review
+(folder `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
 
 Next:
-fold the review in,
-put the four choices to the owner,
+put the choices it re-poses to the owner,
 then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
@@ -607,28 +501,32 @@ pieces of later steps that need only work on `main` are merged as code no person
 so their steps wait only for their wiring.
 
 State:
-started 2026-11-23 evening,
-one round each,
+built one round each,
 under `rules-for-a-build-ahead-round-from-2026-11-23.md` in
-`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`:
-`pi-zfs-step-15-deferred-origin-check-built-ahead`,
-`pi-zfs-step-16-snapshot-batch-request-built-ahead`,
-`pi-zfs-step-12-move-refusal-and-unmounted-report-built-ahead`,
-`pi-zfs-step-13-managed-lock-distinction-built-ahead`
-and `pi-zfs-step-18-doctor-checks-for-steps-2-to-9-built-ahead`,
-each on the branch of the same name under `feat/git-policy-cli-`.
-Step 19's two open design parts,
-the unit that mounts the checkout and the boot ordering's proof,
-run as `pi-zfs-step-19-checkout-boot-mount-provider-and-ordering`
-(`zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23`),
-started at 2026-11-24T01:50Z once the memory stall the wave raised had eased
-(the freeze document,
-"The comparison that would verify the change").
+`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`,
+and merged:
+step 15's deferred-origin check (`54c10a0435`),
+step 16's one-request snapshot delete (`ca9d947b71`),
+step 13's managed lock distinction (`915aa6638b`)
+and step 18's `doctor` checks for steps 2 to 9 (`fcfda032e3`).
+Each round's report under its folder's `keep/` says what the wiring step should know.
+Step 12's move refusal and unmounted report is built;
+its merge stopped on conflicts in `mise.toml`,
+`binary_tests.rs` and `lib.rs`,
+and `pi-zfs-step-12-merge-main-after-the-night-merges` is merging `main`.
+Step 19's two open design parts merged as a proposal,
+`9ab8cd0055`
+(`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:
+`zfs-mount.service` mounts the checkout on this host,
+with the ordering and its failure control shown in a guest over unattended reboots).
+Running:
+its Sonnet gate review
+(`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/`),
+asked also whether its units still hold under the one-program and start-name records.
 
 Next:
-merge each when it ends,
-step 19's as a proposal;
-the freeze document still owes a read across six guests and a whole gate.
+merge step 12 when it ends;
+fold step 19's review in and put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
 
@@ -636,6 +534,25 @@ Why:
 the owner's bar for a worktree add,
 restated on 2026-11-23:
 a declined add costs what `main` paid for the same source.
+
+State:
+the alpha.45 release pass's clone rung findings and the owner's four answers
+(`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`)
+merged as `5c84ab3368`:
+the one-turn arm clones the entries it was handed (H2),
+an untracked-only source takes the clean rule (D1),
+the whole-tree limit sums only what the clone copies (D3),
+and the equal-length earlier conversion is documented as a limit (D4).
+The Btrfs round D2 asked for merged as `edfd13bd90`
+(`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`):
+the clone was no slower than Git's checkout on every Btrfs shape,
+so the record's condition to drop the dirty-tree limit there holds.
+Running:
+`pi-clone-rung-drops-the-dirty-limit-on-btrfs`,
+on `fix/git-policy-cli-clone-rung-drops-the-dirty-limit-on-btrfs`.
+
+Next:
+merge it when it ends.
 
 
 ### The wrapper's test gate tells the truth
@@ -732,6 +649,19 @@ which is not AppArmor's
 Its only denials were `umount`'s `dac_override` (no test needs it)
 and the browser's.
 So AppArmor enforcement costs `main` no test now.
+The gate on `main` at `0576c39994`
+(run `native-TtGef4`, 2026-11-24T01:57:53Z to 02:51:53Z, beside six guests and a dozen rounds)
+gave `10219 tests run: 10215 passed (10 slow), 4 failed, 37 skipped`:
+the cause-H pair,
+the size read's child control
+(the clone rung pass's L1,
+fixed after that tip in `5c84ab3368`:
+the kernel clears the parent-death signal on an AppArmor profile change at exec),
+and issue 6399's repair control,
+whose round is running.
+Its denials showed `systemd-oomd` refused its cgroup reads,
+fixed by the owner's "Add the read rule now (Recommended)"
+(the account's "systemd-oomd reading the cgroup tree").
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -792,17 +722,28 @@ whose image has none,
 and its Decision 1,
 `git-lfs` in the image with a skip made a failure there,
 is adopted with the owner's veto open.
-Its L2 and L4 wait in `doc/handover/questions-for-the-owner.md`.
-Running:
-the clone rung's release pass,
-`pi-zfs-handler-words-true-of-the-release` on the ZFS pass's findings,
-and `pi-wrapper-lfs-gate-and-push-environment-fixes` on the commit pass's M1,
+The fixes merged:
+the ZFS pass's handler words and checks as `08b87aa69b`,
+the commit pass's M1,
 L5,
-L1 and L3.
+L1 and L3 as `075241a8b2`,
+and the clone rung pass's as `5c84ab3368`.
+The commit pass's L2 is answered,
+"Show any segment under 20 chars (Recommended)"
+(`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`),
+and built in `pi-lfs-url-mask-shows-short-segments`.
+Its L4 waits in `doc/handover/questions-for-the-owner.md`,
+with `pi-typed-network-command-next-step-at-a-new-host-key-design` designing its options under the one-program and
+start-name records.
+The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
+failing 4 of 8 on the host,
+not its regression:
+issue 6447,
+with `pi-push-control-restarted-service-scene` on it.
 
 Next:
-merge each fix when it ends,
-and turn the clone rung pass's findings into fixes.
+merge each round when it ends;
+put L4's options to the owner.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
@@ -839,6 +780,8 @@ and fix the two left-out files by hand.
 Issues 6348 to 6352 on GitHub hold them,
 each with the journal text that was kept.
 Nobody is working on them.
+Issue 6399's repair control failed in a second gate on 2026-11-24 (commented there),
+and `pi-repair-control-hand-over-after-the-bound-start-race` is on it.
 
 ### The desktop stays usable under agent runs
 
@@ -846,35 +789,31 @@ Why:
 the desktop froze for minutes on 2026-11-22 under this session's runs.
 
 State:
-two kernel settings were changed at runtime,
-their effect is unverified,
-and no limit on runs was set.
-The account is `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
-and what a session does is in `doc/handover/agents-at-once-on-this-machine.md`,
-"The freeze of 2026-11-22 set no limit on runs".
-Two later readings are in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`,
-both under lighter loads than the freeze's.
-The machine's restarts on 2026-11-23 cleared both settings,
-which are runtime values;
-the session applied them again at 2026-11-23T19:26:27-05:00,
-since the owner's answer keeps them until the comparison.
-After any restart,
-read both and apply them again
-(the commands are in the freeze account).
-Running:
-a start read at 19:26:55 under four guests,
-the batch gate and the Pi rounds' builds,
-and a sampler of the batch gate's container memory every 30 seconds
-(scope `sample-gate-container-memory-second-evening-batch-20261123-b`).
+two kernel settings,
+`vm.watermark_scale_factor` 125 and `lru_gen` `min_ttl_ms` 1000,
+are in force and,
+by the owner's "Install both files (Recommended)" of 2026-11-24,
+kept across reboots by `/etc/sysctl.d/90-vm-watermark-scale-factor.conf` and `/etc/tmpfiles.d/lru-gen-min-ttl.conf`
+(`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`).
+No limit on runs was set
+(`doc/handover/agents-at-once-on-this-machine.md`,
+"The freeze of 2026-11-22 set no limit on runs").
+The first read under a load of the freeze's shape,
+six guests,
+a whole gate and Rust builds,
+held with memory `full` at 5.99% and no blocked task,
+while direct reclaim still did 82% of the scanning
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+"The comparison that would verify the change").
+No arm without the settings has run,
+so their effect is still not shown.
+`systemd-oomd` was blind under AppArmor until 2026-11-24
+and reads the cgroups again.
 
 Next:
-the end read when the batch gate ends,
-and the rates between the two reads;
-then the persistent form of the two settings,
-for the owner to apply.
-A gate's fixture file system is a `tmpfs` capped at 768 MiB,
-so one gate's fixtures hold at most that
-(the freeze account's question 4 has the one reading so far).
+nothing is owed.
+After the next reboot,
+read both values once to confirm the files applied them.
 
 ## Held work
 
