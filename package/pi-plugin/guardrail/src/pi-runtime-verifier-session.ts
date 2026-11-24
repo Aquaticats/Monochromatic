@@ -35,9 +35,9 @@ import {
 } from './pi-runtime-verifier-repository.ts';
 import {
   CLOSING_TEXT,
-  registerScriptedGitGuardProvider,
-  type ScriptedBashCall,
+  registerScriptedToolCallProvider,
   type ScriptedGitGuardProvider,
+  type ScriptedToolCall,
 } from './pi-runtime-verifier-scripted-provider.ts';
 
 //region Constants
@@ -269,23 +269,35 @@ async function openGuardedSession({
   /**
    Bash calls the scripted model asks for, in the order the guardrail must see them.
    */
-  const calls: readonly ScriptedBashCall[] = [
+  const calls: readonly ScriptedToolCall[] = [
     {
-      command: `${JSON.stringify(realGitPath,)} commit -m ${JSON.stringify(DENIED_COMMIT_MESSAGE,)}`,
+      toolName: BASH_TOOL_NAME,
+      arguments: {
+        command: `${JSON.stringify(realGitPath,)} commit -m ${JSON.stringify(DENIED_COMMIT_MESSAGE,)}`,
+      },
     },
-    { command: `${JSON.stringify(realGitPath,)} status --short`, },
     {
-      command: `git commit -m ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} ${repository.stagedFileName}`,
+      toolName: BASH_TOOL_NAME,
+      arguments: { command: `${JSON.stringify(realGitPath,)} status --short`, },
     },
     {
-      command: `PATH=${JSON.stringify(dirname(realGitPath,),)}:$PATH git commit `
-        + `-m ${JSON.stringify(DENIED_PATH_ASSIGNMENT_COMMIT_MESSAGE,)}`,
+      toolName: BASH_TOOL_NAME,
+      arguments: {
+        command: `git commit -m ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} ${repository.stagedFileName}`,
+      },
+    },
+    {
+      toolName: BASH_TOOL_NAME,
+      arguments: {
+        command: `PATH=${JSON.stringify(dirname(realGitPath,),)}:$PATH git commit `
+          + `-m ${JSON.stringify(DENIED_PATH_ASSIGNMENT_COMMIT_MESSAGE,)}`,
+      },
     },
   ];
   /**
    Scripted provider and its model.
    */
-  const provider = registerScriptedGitGuardProvider({
+  const provider = registerScriptedToolCallProvider({
     modelRuntime,
     calls,
   },);
@@ -510,9 +522,9 @@ async function verifyAbsoluteGitGuardAtPiBoundary({
    Every tool result the real session produced, in the order Pi finished them.
    */
   const results = toolResultsOf(session.messages,);
-  if (results.length !== provider.commandCount) {
+  if (results.length !== provider.callCount) {
     throw mismatch(
-      `expected ${String(provider.commandCount,)} Bash tool results, `
+      `expected ${String(provider.callCount,)} tool results, `
         + `Pi produced ${String(results.length,)}`,
     );
   }

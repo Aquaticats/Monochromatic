@@ -20,6 +20,11 @@ import { resolveRealGit, } from '@monochromatic-dev/git-executable-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  callSentence,
+  verifyLiteralRmGuardAtPiBoundary,
+  type LiteralRmSessionOutcome,
+} from './pi-runtime-verifier-literal-rm.ts';
+import {
   createThrowawayRepository,
   type ThrowawayRepository,
 } from './pi-runtime-verifier-repository.ts';
@@ -152,16 +157,42 @@ async function verifyPiGuardrailRuntime({
    */
   const realGitPath = await resolveRealGit();
   /**
-   What the real session showed.
+   What the real Git session showed.
    */
-  const outcome = await verifyAbsoluteGitGuardAtPiBoundary({
+  const gitOutcome = await verifyAbsoluteGitGuardAtPiBoundary({
     packageDirectory,
     agentDirectory,
     sessionDirectory,
     repository,
     realGitPath,
   },);
-  return outcome.summary;
+  /**
+   Workspace the literal-path session writes its scripts in.
+   */
+  const literalWorkspace = join(
+    temporaryRoot,
+    'literal-rm-workspace',
+  );
+  await mkdir(
+    literalWorkspace,
+    { recursive: true, },
+  );
+  /**
+   What the literal-path session showed, and the tool calls it dispatched.
+   */
+  const literalOutcome: LiteralRmSessionOutcome = await verifyLiteralRmGuardAtPiBoundary({
+    packageDirectory,
+    agentDirectory,
+    sessionDirectory,
+    workspaceRoot: literalWorkspace,
+  },);
+  return [
+    gitOutcome.summary,
+    literalOutcome.summary,
+    `tool calls Pi dispatched: ${literalOutcome.recordedCalls
+      .map(callSentence,)
+      .join('; ',)}`,
+  ].join('\n',);
 }
 
 //endregion Verification

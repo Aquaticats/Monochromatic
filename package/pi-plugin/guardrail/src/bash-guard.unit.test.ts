@@ -9,6 +9,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   evaluateBashGuard,
   GUARDRAIL_NOT_BLOCKED,
@@ -28,9 +29,17 @@ const FIXTURE_REAL_GIT_PATH = '/usr/bin/git';
 const FIXTURE_REAL_GIT_BASENAME = 'git';
 
 /**
- Injected executable names that keep fixture commands independent of the host.
+ Working directory fixture commands run in, which holds no script file.
  */
-const FIXTURE_OPTIONS = { realGitBasenames: [FIXTURE_REAL_GIT_BASENAME,], };
+const FIXTURE_CWD = scratchRoot();
+
+/**
+ Injected executable names and working directory that keep fixture commands independent of the host.
+ */
+const FIXTURE_OPTIONS = {
+  realGitBasenames: [FIXTURE_REAL_GIT_BASENAME,],
+  cwd: FIXTURE_CWD,
+};
 
 /**
  Repository root passed to the `-C` remedy in fixture commands.

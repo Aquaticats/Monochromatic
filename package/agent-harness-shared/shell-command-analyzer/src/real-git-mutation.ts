@@ -26,6 +26,7 @@ import {
   normalizeExecutableName,
 } from './executable-path-words.ts';
 import { mutatesRepository, } from './git-subcommand-mutation.ts';
+import { shellScriptPayloads, } from './shell-script-payloads.ts';
 import {
   comparableDirectories,
   commandExcludesWrapper,
@@ -69,28 +70,6 @@ export const REAL_GIT_MUTATION_BAN_REASON: string = [
   .join(' ',);
 
 /**
- Shell names whose `-c` argument carries a script string.
- */
-const SHELL_NAMES: ReadonlySet<string> = new Set([
-  'bash',
-  'dash',
-  'ksh',
-  'mksh',
-  'sh',
-  'zsh',
-],);
-
-/**
- Shell flags that consume the next word as their value.
- */
-const SHELL_OPTIONS_WITH_VALUE: ReadonlySet<string> = new Set([
-  '-O',
-  '-o',
-  '+O',
-  '+o',
-],);
-
-/**
  Sentinel returned when this host exposes no real-Git executable.
  */
 const REAL_GIT_UNRESOLVED: unique symbol = Symbol('real Git executable not resolved',);
@@ -98,82 +77,6 @@ const REAL_GIT_UNRESOLVED: unique symbol = Symbol('real Git executable not resol
 //endregion Constants
 
 
-
-//region Shell script payloads
-
-/**
- Reports whether a shell flag word selects `-c`, as in `-c` or `-lc`.
- 
- @param word - shell argument word
- 
- @returns whether the word is a short flag cluster containing `c`
- 
- @example
- ```ts
- isShellCommandFlag('-lc'); // true
- isShellCommandFlag('-e'); // false
- ```
- */
-function isShellCommandFlag(word: string,): boolean {
-  return word.startsWith('-',)
-    && (!word.startsWith('--',))
-    && word.includes('c',);
-}
-
-/**
- Collects script strings passed to a shell through its `-c` flag.
- 
- @param words - command name followed by its arguments
- 
- @returns script strings the launched shell executes
- 
- @example
- ```ts
- shellScriptPayloads({ words: ['bash', '-lc', 'git commit'] }); // ['git commit']
- ```
- */
-function shellScriptPayloads({ words, }: { readonly words: readonly string[]; },): readonly string[] {
-  /**
-   Command word that may name a shell.
-   */
-  const [name,] = words;
-  if ((name === undefined) || (!SHELL_NAMES.has(lastPathSegment(name,),)))
-    return [];
-
-  /**
-   Script strings following `-c` flags.
-   */
-  const payloads: string[] = [];
-  for (let index = 1; index < words.length; index += 1) {
-    /**
-     Shell argument inspected as flag or script string.
-     */
-    const word = words[index];
-    if (word === undefined)
-      break;
-    if (word === '--')
-      break;
-    if (!word.startsWith('-',))
-      break;
-    if (SHELL_OPTIONS_WITH_VALUE.has(word,)) {
-      index += 1;
-      continue;
-    }
-    if (!isShellCommandFlag(word,))
-      continue;
-
-    /**
-     Script string following the `-c` flag.
-     */
-    const payload = words[index + 1];
-    if (payload !== undefined)
-      payloads.push(payload,);
-    break;
-  }
-  return payloads;
-}
-
-//endregion Shell script payloads
 
 //region Command verdicts
 

@@ -1,10 +1,11 @@
 # guardrail
 
-PreToolUse hook that guards Agent and Bash tool calls with four checks:
+PreToolUse hook that guards Agent, Bash, and file-editing tool calls with five checks:
 resume polling prevention,
 `bun test` blocking,
 process-name wait loop blocking,
-and mutating real-Git path blocking.
+mutating real-Git path blocking,
+and literal-`rm`-path blocking.
 
 ## Problem
 
@@ -28,7 +29,7 @@ see `doc/decision/general-purpose-subagent-ban.md`.
 
 ## Solution
 
-The handler implements denial responses for four cases:
+The handler implements denial responses for five cases:
 
 1. **Resume blocking**:
     when an Agent call includes a `resume` parameter,
@@ -63,6 +64,74 @@ The handler implements denial responses for four cases:
    The repository's `git` on PATH is a wrapper that applies commit-time policies
    and pushes after a commit;
    each of those forms starts the real binary and skips all of them.
+
+5. **Literal `rm` path blocking**:
+    when a Bash call would run an `rm` whose path is written through a variable,
+   a substitution,
+   or an arithmetic expression,
+   it is denied
+   with a message naming the command and the offending word,
+   and that says to write each path literally in a single `rm` command.
+   A `Write`,
+   `Edit`,
+   or `MultiEdit` call is denied when the file it would leave on disk holds such
+   a deletion the file does not hold now.
+
+## Literal `rm` paths
+
+The rule this enforces is the repository's:
+`rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`),
+because an unset or empty variable widens what gets deleted.
+The check lives in
+`@monochromatic-dev/agent-harness-shared-shell-command-analyzer`
+as `findLiteralRmPaths`, `findLiteralRmPathsInCommand`,
+and `literalRmPathFindingsAddedToScriptFile`,
+beside `invokesBunTest`,
+and the shared package's README lists every form it reads and every form it does not.
+
+### The surfaces this hook refuses
+
+- **Bash**:
+   a command that runs such an `rm`,
+   including one behind a program wrapper (`sudo`, `env`, `timeout`, `systemd-run`,
+   `flock`, `nice`, `command`, `xargs`),
+   one written in a here-document body,
+   one inside a `bash -c` string or an `eval` or `ssh` command line,
+   one inside a function body,
+   one that `find -exec` runs,
+   and one inside a script file the command hands a shell
+   (`bash deploy.sh`, `source env.sh`, or `./cleanup` with a shell shebang),
+   read from disk relative to the call's working directory.
+- **Write**:
+   a write of a shell script,
+   judged by the text it leaves.
+   A script is recognized by `.sh`, `.bash`, `.zsh`, `.ksh`, `.dash`, or `.bats`,
+   or by a first line that asks for a shell.
+- **Edit** and **MultiEdit**:
+   an edit of a shell script,
+   judged by the text the call would leave on disk rather than by its new text,
+   so two edits cannot split one violation between them.
+   Only a violation the file does not already hold is refused,
+   so an edit that repairs an old script is never blocked.
+- **Code mode**:
+   covered by the three surfaces above rather than by a check of its own.
+   A code-mode script's nested calls arrive as ordinary tool calls with their own
+   `tool_name` and `tool_input`,
+   so a nested `Bash` or `Write` is refused exactly like one the model issued,
+   and the script receives the rejection.
+   The REPL call itself fires no PreToolUse event,
+   so a command the script builds in JavaScript is not read here.
+
+### What stays undetected on this surface
+
+A command a code-mode script assembles in JavaScript is not read:
+`cmd = 'rm -rf ' + d` inside a REPL script reaches this hook only as the nested
+`Bash` call whose `command` is the assembled text,
+and that call is refused when the assembled text still holds the unreadable path
+and allowed when it does not.
+Deleting programs other than `rm` (`rmdir`, `unlink`, `shred`, `find -delete`) and
+deletions an interpreter performs (`python3 -c`, `node -e`) are not read at all.
+The shared analyzer README lists the rest.
 
 ## Mutating real-Git paths
 

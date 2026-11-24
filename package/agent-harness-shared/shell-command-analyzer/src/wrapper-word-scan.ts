@@ -72,6 +72,14 @@ type WrapperScan = {
    Whether any layer hands the program to another host.
    */
   reachesAnotherHost: boolean;
+  /**
+   Names of the wrappers stripped so far, innermost layer last.
+
+   A caller that must tell one wrapper's effect from another reads this:
+   an `rm` behind `xargs` is handed its paths, while the same command without
+   `xargs` spells them.
+   */
+  readonly wrapperNames: string[];
 };
 
 //endregion Types

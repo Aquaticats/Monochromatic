@@ -465,6 +465,98 @@ so the same spellings are refused
 after a parse error.
 
 
+## Literal `rm` path guard
+
+`findLiteralRmPaths` reports the `rm` commands whose paths are not written out,
+which this repository bans:
+a path spelled through a variable, a substitution, or an arithmetic expression
+can widen when that value is unset or empty,
+while the command text still looks narrow.
+The rule is about spelling rather than effect,
+so `rm --recursive /home/user/temp/agent/scratch` names one path and stays allowed.
+
+Each finding carries the command line as written,
+the word that made the path unreadable,
+and, for a script file, the file and the line its command starts on.
+
+### What counts as `rm`
+
+The program word is `rm`, a path ending in `/rm` (`/usr/bin/rm`, `./rm`), `\rm`,
+or any of those behind a program wrapper the analyzer already strips
+(`sudo`, `doas`, `env`, `command`, `builtin`, `exec`, `nohup`, `setsid`, `time`,
+`nice`, `ionice`, `stdbuf`, `timeout`, `flock`, `systemd-run`, `taskset`, `chrt`, `busybox`).
+A different program that takes `rm` as a subcommand is not this program:
+`git rm`, `podman rm`, `docker rm`, `npm rm`, `pnpm rm` and `cargo rm`
+name their own program word, so they stay allowed.
+
+### What makes a path unreadable
+
+A finding is an `rm` whose operands hold a parameter expansion (`$d`, `"${d}"`,
+`"$HOME/temp"`), a command substitution (`"$(dirname "$0")/build"`), a backtick
+substitution (`` `pwd`/scratch ``), or an arithmetic expansion (`$((1 + 1))`),
+read from the operand's source spelling rather than its parsed value.
+Single quotes make a word literal, so `rm -rf '$d'` is allowed.
+Globs and `~` stay allowed for now.
+
+An `rm` whose paths come from outside the command text is a finding whatever its
+operands spell:
+one that `xargs` runs (`tr ' ' '\n' | xargs rm -rf`),
+and one that `find -exec`, `-execdir`, `-ok` or `-okdir` runs.
+
+### Sources read
+
+The read follows every source the analyzer already reaches:
+a shell `-c` string, the source `eval` or `ssh` joins, a function body,
+the command lines `find` runs, and a command the parser rejected (read from its
+raw words, because the visible text is the only evidence it carries).
+
+One shell-source form is read here that no other guard reads:
+every here-document body, whichever program the redirect feeds,
+because a shell may read that body as a script (`bash <<'EOF'`,
+`{ cat <<EOF; } > script.sh`).
+A body read for its text is read with its delimiter's quoting ignored,
+since a quoted delimiter still hands the shell the same script characters.
+
+`findLiteralRmPathsInCommand` also reads the script files a Bash command runs
+from disk, relative to that call's working directory:
+a shell with a file operand (`bash deploy.sh`, `busybox sh deploy.sh`),
+`source` or `.` with a file,
+and a command word carrying a path separator whose file starts with a shell shebang
+(`./cleanup` with `#!/bin/bash`).
+It follows the command's own words only, so a script that runs another script is
+not followed, and a file that cannot be read gives no finding and logs at debug level.
+
+### A command the parser rejects
+
+A command that does not parse is read from its raw words,
+so `rm -rf "$d" "unterminated` is refused.
+That reader has no quote information left,
+so a single-quoted expansion inside such a command is refused too.
+
+### What stays undetected
+
+Deleting programs other than `rm` are not read yet:
+`rmdir "$d"`, `unlink "$d"`, `shred -u "$d"` and `find . -delete` stay allowed.
+A deletion an interpreter performs (`python3 -c`, `node -e`) is not read either,
+nor one a script builds and runs (`sh script.sh` where `script.sh` holds `rm -rf "$d"`
+is read only when the command names that file, and a script it runs in turn is not).
+
+An `rm` whose program word is itself computed (`"$RM" -rf x`, `$TOOL -rf x`) is not read,
+because the program word is not `rm` in the command text.
+A shell script read from standard input (`printf '%s' 'rm -rf "$d"' | bash`) is not followed.
+
+Globs and `~` stay allowed until the owner decides,
+so `rm -rf build/*` and `rm -rf ~/temp/scratch` are not refused.
+
+### What is over-refused
+
+A here-document body is read as shell source whatever it feeds,
+so a document that quotes `rm -rf "$d"` as text is refused
+when the same command also writes it to a file.
+A script file the command names is read whatever its extension says
+when the command hands it to a shell (`bash notes.txt`),
+because the shell reads those bytes as a script.
+
 ## Pi dependency trust
 
 PJE:

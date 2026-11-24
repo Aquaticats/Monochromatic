@@ -16,7 +16,9 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { evaluateBashGuard, } from './bash-guard.ts';
+import { evaluateCodemodeScriptGuard, } from './codemode-script-guard.ts';
 import { loadGuardrailConfig, } from './config.ts';
+import { evaluateScriptFileGuard, } from './script-file-guard.ts';
 import {
   createPathGuardMatcher,
   evaluatePathGuard,
@@ -210,10 +212,14 @@ async function evaluateToolCall(
     readonly realGitBasenames?: readonly string[];
   },
 ): Promise<GuardrailDecision> {
+  if (event.toolName === 'codemode')
+    return evaluateCodemodeScriptGuard({ input: event.input, },);
+
   if (event.toolName === 'bash') {
     return await evaluateBashGuard({
       input: event.input,
       blockBunTest: config.blockBunTest,
+      cwd: ctx.cwd,
       ...(realGitBasenames === undefined ? {} : { realGitBasenames, }),
     },);
   }
@@ -221,10 +227,21 @@ async function evaluateToolCall(
   if ((event.toolName !== 'edit') && (event.toolName !== 'write'))
     return GUARDRAIL_NOT_BLOCKED;
 
-  return evaluatePathGuard({
+  /**
+   Decision of the protected-path rules for this call.
+   */
+  const pathDecision = evaluatePathGuard({
     input: event.input,
     cwd: ctx.cwd,
     matcher: pathMatcher,
+  },);
+  if (pathDecision !== GUARDRAIL_NOT_BLOCKED)
+    return pathDecision;
+
+  return await evaluateScriptFileGuard({
+    toolName: event.toolName,
+    input: event.input,
+    cwd: ctx.cwd,
   },);
 }
 
@@ -245,6 +262,37 @@ export type { RegisterGuardrailOptions, };
  @internal
  */
 export { evaluateBashGuard, } from './bash-guard.ts';
+
+/**
+ Code-mode script guard, exported so built-artifact tests can drive the same
+ function a Pi tool call reaches.
+
+ @internal
+ */
+export {
+  evaluateCodemodeScriptGuard,
+  findRmCommandsBuiltAtRunTime,
+} from './codemode-script-guard.ts';
+
+/**
+ JavaScript literal reader the code-mode guard uses, exported so built-artifact
+ tests can read the literals the guard reads.
+
+ @internal
+ */
+export { scriptLiterals, } from './codemode-script-literals.ts';
+
+/**
+ Shell-script guard for `write` and `edit`, exported so built-artifact tests can
+ drive the same function a Pi tool call reaches.
+
+ @internal
+ */
+export {
+  evaluateScriptFileGuard,
+  fileChangeOf,
+} from './script-file-guard.ts';
+export { NO_FILE_CHANGE, } from './script-file-guard.ts';
 
 /**
  Config loading and normalization steps, exported so built-artifact tests can
