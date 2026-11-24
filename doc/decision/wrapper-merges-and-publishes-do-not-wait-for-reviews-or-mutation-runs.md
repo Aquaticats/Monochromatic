@@ -114,6 +114,25 @@ and go on as before.
   So reviews and mutation campaigns never block a merge or a publish;
   their findings become follow-up fixes and later releases.
 
+## Release dispatches, answered 2026-11-23
+
+Asked whether the standing authorization to bump and publish covers a release dispatch,
+now that a crate release is a workflow dispatch (`doc/decision/releases-run-in-ci.md`)
+and no longer a local bump and push,
+the owner answered on 2026-11-23:
+"Yes cover release dispatches.
+But only alphas.
+Of everything."
+
+So an agent may bump a version and dispatch its release unasked when the release is an alpha,
+for every package and tool the repository releases,
+not only the Git wrapper.
+A release that is not an alpha is still asked each time.
+The question as it was put is in `doc/handover/questions-for-the-owner.md`'s history
+(commit `43044b6fc3`),
+with the options "Agents bump and dispatch unasked",
+"Agents dispatch only what you name" and "Ask each time".
+
 ## Moved from the old handover
 
 From lines 49602 to 49606 of the old handover

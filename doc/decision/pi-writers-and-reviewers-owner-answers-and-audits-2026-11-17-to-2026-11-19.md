@@ -97,3 +97,18 @@ change, Sonnet alone. Where short ends and long begins, answered the same evenin
 Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
 short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
 `AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
+
+From lines 1921 to 1930 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
+  (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.

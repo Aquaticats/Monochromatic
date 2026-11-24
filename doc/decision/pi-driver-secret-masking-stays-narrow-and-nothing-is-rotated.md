@@ -103,3 +103,16 @@ From lines 46642 to 46642 of the old handover
 moved verbatim on 2026-11-23:
 
   "Keep waiting for masking".
+
+From lines 15205 to 15212 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **What does not change**:
+  the owner's answers of the morning stand
+  (one rotation once the masking is merged and shown to hold;
+  runs go on starting;
+  the affected session files stay untouched).
+  The rotation is now at least one more author round and one more review away,
+  and until then every Pi run can still send a value it prints to its provider.
+  That is said to the owner in this round's message.

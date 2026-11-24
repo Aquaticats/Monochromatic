@@ -8972,3 +8972,16 @@ moved verbatim on 2026-11-23:
   or the run timed out,
   was stopped or failed without naming a test,
   and prints other failing tests as notices above the pass.
+
+From lines 25903 to 25910 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Measured on 2026-11-13, both from the branch's debug wrapper:
+  an average finished record is 1267 bytes,
+  so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
+  the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
+  (seven runs each, two rounds),
+  while later answers took 6 to 13 ms at both sizes,
+  so a start's read grows with the records and the landing's lookup does not.
+  The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.

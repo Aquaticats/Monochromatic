@@ -49,3 +49,16 @@ From lines 45998 to 45998 of the old handover
 moved verbatim on 2026-11-23:
 
 - monochromatic-lint, a line the fixer breaks inside a blockquote: **"Add `>` to the new line (Recommended)"**.
+
+From lines 33400 to 33408 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+`922fa7d1fb` merged the move tool's fixes,
+and `cargo-shadow-lean.timer` is running again.
+The old trees,
+the source snapshots and the received first-pass copies of the move were deleted on 2026-11-10,
+under the owner's "860 move:
+You delete it."
+and "Delete both (Recommended)".
+No rollback to the NVMe remains.

@@ -51,3 +51,30 @@ From lines 46391 to 46391 of the old handover
 moved verbatim on 2026-11-23:
 
   The brief has the author settle per finding, by a run on `main`'s build and on its tip, whether the tip is worse than `main` (several "brought" findings are protections `main` lacks altogether), fix those and every false sentence first, write what a cleanup cannot see as stated limits, correct the size cleanup to the owner's "Age rule, gap accepted", and then give each shipped protection a control shown to fail. The review's worktree is removed.
+
+From lines 9169 to 9190 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **mpm-shadow, an install removes no version a lock names or a process runs**,
+  the fresh run's fourth run,
+  ended 06:28:15 at `3f4ac7efdf`,
+  `main` merged.
+  867 of 867 tests pass in release;
+  Clippy 0.
+  Cost over 20 interleaved rounds of two release binaries:
+  an install that takes no tool,
+  ratio median 0.947 (0.560 to 1.072);
+  an install that removes an old version,
+  ratio median 0.984 (0.902 to 1.160);
+  one arm against itself spreads as wide,
+  so none that can be measured.
+  Two of the review's tests do not fail inside their own fixtures,
+  and the author says why for each.
+  Its review is queued twelfth
+  (`main...3f4ac7efdf`,
+  25 code files that are not tests).
+  Its open questions,
+  left with the review:
+  whether a refusal after two seconds is the right answer for an install that meets a live removal of its archives,
+  and whether a name made of device and inode should reach the size record on disk.
