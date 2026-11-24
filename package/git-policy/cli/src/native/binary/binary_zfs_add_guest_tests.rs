@@ -4,7 +4,11 @@
 //!  a second add at the filled slot,
 //!  a kill at each phase and the resume after it,
 //!  what each kill leaves,
-//!  and the pool's full answer at the snapshot.
+//!  the pool's full answer at the snapshot,
+//!  and the two arms a boot and a power cut split in half:
+//!  T27's record read after the guest rebooted and after its dataset was
+//!  exported and imported,
+//!  and T28's flushed write read back after the guest lost power.
 //! Why:
 //!  The route writes a real registration, a real snapshot, a real clone and a
 //!  real mount, so no control on a person's machine may run it:
@@ -18,6 +22,11 @@
 //!  and this step's subject is the order from the claim to the fill. The add's
 //!  own wait and verification read the mount the table shows, whichever
 //!  program made it.
+//!  T27 and T28 each span a reboot or a power cut, so each is split into a
+//!  `before` and an `after` half named by `CLI_GIT_ZFS_ADD_PHASE`: the `before`
+//!  half writes what the `after` half reads, and the driver's own steps put the
+//!  cut between them (`zfs-add-boot-*`, `zfs-add-power-*`). A run of the suite
+//!  without that variable prints one `UNRUN` line per split arm and returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,9 +35,10 @@
 
 #![cfg(target_os = "linux")]
 
-use git_policy_cli::worktree_clone_binding_record::{BindingRecord, Phase, parse_binding};
+use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentity, Phase, parse_binding};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{ReadyState, ReadinessRecord, SweepState};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
+use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
@@ -61,6 +71,27 @@ const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
 /// How long the arm waits for one phase of the add or for a mount.
 const WAIT: Duration = Duration::from_secs(60);
+
+/// The variable naming which half of a split arm this run is.
+const PHASE_VARIABLE: &str = "CLI_GIT_ZFS_ADD_PHASE";
+
+/// The half that writes the record the next half reads.
+const BEFORE: &str = "before";
+
+/// The half that reads that record back on the other side of the boot or the cut.
+const AFTER: &str = "after";
+
+/// The slot the boot arm fills, and the one whose identity the red control replaces.
+const BOOT_SLOT: &str = "boot";
+
+/// The slot whose folder the red control replaces, so the record cannot match it.
+const BOOT_PLANT_SLOT: &str = "boot-plant";
+
+/// The slot the power-loss arm fills.
+const POWER_SLOT: &str = "power";
+
+/// What the before halves keep on the guest's own root disk, which a reboot and a cut both keep.
+const KEPT_FOLDER: &str = "/root/zfs-add-kept";
 
 /// The pause between two looks at the pool while the add runs.
 const POLL: Duration = Duration::from_millis(100);
@@ -96,15 +127,32 @@ impl Fixture {
     /// The fixture the driver prepared,
     /// with its repository and its handler readiness written.
     fn prepare() -> Fixture {
+        let fixture: Fixture = Fixture::bare();
+        fixture.adopt_the_guest();
+        return fixture;
+    }
+
+    /// What:
+    ///  Write what the guest must hold again after it rebooted or lost power:
+    ///  the repository, its worktrees folder, the handler's readiness and the wrapper's link.
+    /// Why:
+    ///  The readiness report lives in `/run`,
+    ///  which a boot empties,
+    ///  and a half after a cut must publish this boot's own identifier before any add reads it.
+    fn adopt_the_guest(&self) {
+        self.make_the_repository();
+        self.make_the_worktrees_folder();
+        self.publish_the_readiness();
+        self.make_the_wrapper_link();
+    }
+
+    /// The fixture's three names and nothing else,
+    /// for the halves that must import the pool before they can read or write anything on it.
+    fn bare() -> Fixture {
         let root: PathBuf = PathBuf::from(required(ROOT_VARIABLE));
         let pool: String = required(POOL_VARIABLE);
         let sbin: String = required(SBIN_VARIABLE);
-        let fixture: Fixture = Fixture { root, pool, sbin };
-        fixture.make_the_repository();
-        fixture.make_the_worktrees_folder();
-        fixture.publish_the_readiness();
-        fixture.make_the_wrapper_link();
-        return fixture;
+        return Fixture { root, pool, sbin };
     }
 
     /// The checkout's dataset name.
@@ -204,18 +252,45 @@ impl Fixture {
 
     /// Run one `zfs` command and answer its output.
     fn zfs(&self, arguments: &[&str]) -> Output {
-        return Command::new("zfs")
+        return self.openzfs("zfs", arguments);
+    }
+
+    /// Run one OpenZFS program and answer its output.
+    fn openzfs(&self, program: &str, arguments: &[&str]) -> Output {
+        return Command::new(program)
             .args(arguments)
             .env("PATH", format!("{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", self.sbin))
             .env("LD_LIBRARY_PATH", format!("{}/lib", self.sbin.trim_end_matches("/sbin")))
             .output()
-            .unwrap_or_else(|error| panic!("zfs {arguments:?} could not start: {error}"));
+            .unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
     }
 
     /// Run one `zfs` command and require success.
     fn zfs_ok(&self, arguments: &[&str]) {
         let output: Output = self.zfs(arguments);
         assert!(output.status.success(), "zfs {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    }
+
+    /// Run one `zpool` command and require success.
+    fn zpool_ok(&self, arguments: &[&str]) {
+        let output: Output = self.openzfs("zpool", arguments);
+        assert!(output.status.success(), "zpool {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    }
+
+    /// One `zfs get -H -o value <property>` answer, trimmed.
+    fn zfs_value(&self, property: &str, dataset: &str) -> String {
+        let output: Output = self.zfs(&["get", "-H", "-o", "value", property, dataset]);
+        assert!(
+            output.status.success(),
+            "zfs get {property} {dataset} was refused: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    }
+
+    /// The live GUID of one dataset, as the record writes it.
+    fn dataset_guid(&self, dataset: &str) -> String {
+        return self.zfs_value("guid", dataset);
     }
 
     /// Whether a dataset answers the pool.
@@ -346,6 +421,151 @@ impl Fixture {
             .status();
         let records: PathBuf = self.common().join("monochromatic-git-policy-cli").join("worktree-clones");
         let _cleared: std::io::Result<()> = std::fs::remove_dir_all(records.as_path());
+    }
+
+    /// What:
+    ///  Clear one slot's own mount, clone, registration and records,
+    ///  so a split arm run twice starts from nothing.
+    /// Why:
+    ///  A split arm's `before` half is run again for the red control,
+    ///  and the filled slot it left would refuse the second add,
+    ///  while another slot's record and clone must stand.
+    fn clear_one_slot(&self, name: &str) {
+        self.unmount(name);
+        let clone: String = self.clone(name);
+        let _destroyed: Output = self.zfs(&["destroy", clone.as_str()]);
+        let slot: PathBuf = self.slot(name);
+        let _removed = Command::new("/usr/bin/git")
+            .current_dir(self.root.as_path())
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.home_folder())
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .args(["worktree", "remove", "--force", "--force", slot.to_str().expect("a text path")])
+            .status();
+        for form in ["binding", "origin-inventory", "clone-inventory"] {
+            let _gone: std::io::Result<()> = std::fs::remove_file(self.home().join(format!("{name}.{form}")));
+        }
+    }
+
+    /// Unmount one slot's clone,
+    /// so the folder below it answers again,
+    /// and answer whether a mount was there.
+    fn unmount(&self, name: &str) -> bool {
+        let slot: PathBuf = self.slot(name);
+        if !self.mounted_at(slot.as_path()) {
+            return false;
+        }
+        let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.as_path()).output().expect("the unmount runs");
+        assert!(unmounted.status.success(), "the clone at {} cannot be unmounted: {}", slot.display(), String::from_utf8_lossy(unmounted.stderr.as_slice()));
+        return true;
+    }
+
+    /// What:
+    ///  Bring the pool back the way the driver's pool step left it:
+    ///  the module, the import, the datasets' keys, the checkout's mount and a private parent.
+    /// Why:
+    ///  The pool is made with `cachefile=none`,
+    ///  so nothing imports it at boot,
+    ///  and a dataset with no key loaded mounts nothing.
+    ///  The import is skipped when the pool answers,
+    ///  so the half after a cut may run against a pool another half already imported.
+    fn import_the_pool(&self) {
+        self.load_the_module();
+        let listed: Output = self.openzfs("zpool", &["list", "-H", "-o", "name", self.pool.as_str()]);
+        if !listed.status.success() {
+            let folder: &Path = self.root.parent().expect("the folder the pool's image sits beside the checkout's mountpoint");
+            self.zpool_ok(&["import", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
+        }
+        if self.zfs_value("keystatus", self.checkout().as_str()) != "available" {
+            self.zfs_ok(&["load-key", "-a", "-L"]);
+        }
+        if self.zfs_value("mounted", self.checkout().as_str()) != "yes" {
+            self.zfs_ok(&["mount", self.checkout().as_str()]);
+        }
+        self.make_the_checkout_private();
+    }
+
+    /// Load the guest's own OpenZFS modules, which a boot leaves unloaded.
+    fn load_the_module(&self) {
+        if Path::new("/sys/module/zfs").is_dir() {
+            return;
+        }
+        let kernel: String = std::fs::read_to_string("/proc/sys/kernel/osrelease").expect("this kernel's release").trim().to_string();
+        for module in ["spl", "zfs"] {
+            let path: String = format!("/lib/modules/{kernel}/extra/{module}.ko");
+            let loaded: Output = Command::new("/usr/sbin/insmod").arg(path.as_str()).output().unwrap_or_else(|error| panic!("insmod {path} could not start: {error}"));
+            assert!(loaded.status.success(), "insmod {path} was refused: {}", String::from_utf8_lossy(loaded.stderr.as_slice()));
+        }
+    }
+
+    /// Make the checkout's mount share nothing,
+    /// as the driver's pool step did,
+    /// because a clone mounted below it must not propagate to a peer.
+    fn make_the_checkout_private(&self) {
+        let made: Output = Command::new("/usr/bin/mount")
+            .args(["--make-rprivate", self.root.to_str().expect("a text path")])
+            .output()
+            .expect("the mount runs");
+        assert!(made.status.success(), "the checkout's mount cannot be made private: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    }
+
+    /// Unmount everything mounted below the checkout's mountpoint,
+    /// which an export refuses while it stands.
+    fn unmount_below_the_checkout(&self) {
+        let prefix: String = format!("{}/", self.root.display());
+        let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
+        for line in table.lines() {
+            let Some(point) = line.split(' ').nth(4) else {
+                continue;
+            };
+            let path: String = point.replace("\\040", " ");
+            if path.starts_with(prefix.as_str()) {
+                let _unmounted: Output = Command::new("/usr/bin/umount").arg(path.as_str()).output().expect("the unmount runs");
+            }
+        }
+    }
+
+    /// What:
+    ///  Export the pool and import it again,
+    ///  which T27's second read needs.
+    /// Why:
+    ///  An export ends every mount and unloads every key,
+    ///  so the import must bring back the keys and the checkout's mount,
+    ///  which is exactly the state the record must survive.
+    fn export_and_import_the_pool(&self) {
+        self.unmount_below_the_checkout();
+        self.zpool_ok(&["export", "-f", self.pool.as_str()]);
+        self.import_the_pool();
+    }
+
+    /// One slot's binding bytes,
+    /// or nothing.
+    fn binding_bytes(&self, name: &str) -> Option<Vec<u8>> {
+        return std::fs::read(self.home().join(format!("{name}.binding"))).ok();
+    }
+
+    /// What:
+    ///  Keep one file on the guest's own root disk, flushed,
+    ///  for the half on the other side of a reboot or a cut.
+    /// Why:
+    ///  The kept copy is what the after half compares the pool's record with,
+    ///  so it must survive the same loss, and a write that is not flushed there
+    ///  would be lost by the very cut this arm makes.
+    fn keep(&self, name: &str, bytes: &[u8]) {
+        let folder: PathBuf = PathBuf::from(KEPT_FOLDER);
+        std::fs::create_dir_all(folder.as_path()).expect("the kept folder");
+        let path: PathBuf = folder.join(name);
+        let mut file: std::fs::File = std::fs::File::create(path.as_path()).unwrap_or_else(|error| panic!("{} cannot be made: {error}", path.display()));
+        file.write_all(bytes).unwrap_or_else(|error| panic!("{} cannot be written: {error}", path.display()));
+        file.sync_all().unwrap_or_else(|error| panic!("{} cannot be flushed: {error}", path.display()));
+    }
+
+    /// One file kept before the reboot or the cut,
+    /// or a panic naming what is missing.
+    fn kept(&self, name: &str) -> Vec<u8> {
+        let path: PathBuf = PathBuf::from(KEPT_FOLDER).join(name);
+        return std::fs::read(path.as_path()).unwrap_or_else(|error| panic!("{} was kept before the reboot or the cut and cannot be read ({error})", path.display()));
     }
 }
 
@@ -510,3 +730,237 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     fixture.git(&["add", "-A"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
 }
+
+//region The two arms a boot and a power cut split in half
+
+/// This boot's identifier, which a reboot and a power cut both change.
+fn this_boot() -> String {
+    return std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("this boot's identifier").trim().to_string();
+}
+
+/// What:
+///  The half of a split arm this run was asked for,
+///  or nothing with one line saying the arm runs in its own steps.
+/// Why:
+///  A reboot and a power cut sit between the two halves of one arm,
+///  so the suite's own run can hold neither,
+///  and the driver's steps name the half they run.
+fn requested_half(arm: &str) -> Option<String> {
+    let Ok(half) = std::env::var(PHASE_VARIABLE) else {
+        println!("UNRUN {arm} is split across a reboot or a power cut and runs only in its own driver step ({PHASE_VARIABLE} is unset)");
+        return None;
+    };
+    assert!(half == BEFORE || half == AFTER, "{PHASE_VARIABLE}={half} names no half of {arm}; it takes {BEFORE} or {AFTER}");
+    return Some(half);
+}
+
+/// What:
+///  Read one slot's record back and compare it, its phase and the identities it keeps with what was kept and
+///  with the live system.
+/// Why:
+///  The whole point of an identity is that it still names the same object after a boot or an export,
+///  so a comparison against a value read in the same breath would prove nothing;
+///  the record's bytes are compared with the copy taken before the reboot or the cut.
+fn read_the_record_back(fixture: &Fixture, slot: &str, when: &str) -> BindingRecord {
+    let kept: Vec<u8> = fixture.kept(format!("{slot}.binding").as_str());
+    let path: PathBuf = fixture.home().join(format!("{slot}.binding"));
+    let bytes: Vec<u8> = std::fs::read(path.as_path())
+        .unwrap_or_else(|error| panic!("{} cannot be read {when} ({error}), so the record this arm wrote before it is gone", path.display()));
+    assert_eq!(
+        bytes, kept,
+        "the record at {slot} differs from the copy this arm kept {when}, so the write the route flushed did not read back"
+    );
+    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| panic!("the record at {slot} is not this grammar's {when}: {refusal:?}"));
+    assert_eq!(record.phase, Phase::Filled, "the record at {slot} still records the fill {when}");
+    let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the record at {slot} keeps no slotIdentity= {when}"));
+    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(slot).as_path()).expect("the slot folder's identity");
+    assert_eq!(
+        recorded,
+        live,
+        "the record's slotIdentity= differs from the slot folder's own inode and birth time {when}: recorded {}, live {}",
+        recorded.encode(),
+        live.encode()
+    );
+    let guid: String = fixture.dataset_guid(fixture.checkout().as_str());
+    assert_eq!(
+        record.checkout_dataset_guid.file_name(),
+        guid,
+        "the record's checkoutDatasetGuid= differs from the live dataset's GUID {when}: recorded {}, live {guid}",
+        record.checkout_dataset_guid.file_name()
+    );
+    println!(
+        "MEASUREMENT read-back slot={slot} when=\"{when}\" slot-identity={} checkout-guid={guid} clone-guid={} bytes-match=yes",
+        recorded.encode(),
+        record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-"))
+    );
+    return record;
+}
+
+/// What:
+///  The half before the reboot:
+///  two whole adds, each record's identities checked against the live folder and dataset,
+///  and the record and this boot's identifier kept on the guest's own disk.
+/// Why:
+///  T27 must read a record whose `slotIdentity=` and `checkoutDatasetGuid=` are real,
+///  because two wrong values compare equal just as well as two right ones.
+///  The second slot is the red control's, planted over after the reboot.
+fn boot_before(fixture: &Fixture) {
+    for name in [BOOT_SLOT, BOOT_PLANT_SLOT] {
+        fixture.clear_one_slot(name);
+        let output: Output = fixture.run_add(name);
+        assert!(output.status.success(), "the add at {name} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        let record: BindingRecord = fixture.binding(name).unwrap_or_else(|| panic!("the filled add at {name} wrote no binding"));
+        assert_eq!(record.phase, Phase::Filled, "the add at {name} filled the worktree");
+        // The recorded identity is the empty slot folder's, and the clone now covers that path:
+        // the unmount makes the folder answer again, and nothing below writes to it.
+        fixture.unmount(name);
+        let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the record at {name} keeps no slotIdentity="));
+        let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(name).as_path()).expect("the slot folder's identity");
+        assert_eq!(recorded, live, "the record at {name} names the slot folder's own inode and birth time");
+        let guid: String = fixture.dataset_guid(fixture.checkout().as_str());
+        assert_eq!(record.checkout_dataset_guid.file_name(), guid, "the record at {name} names the checkout dataset's live GUID");
+        let bytes: Vec<u8> = fixture.binding_bytes(name).unwrap_or_else(|| panic!("the record at {name} cannot be read"));
+        fixture.keep(format!("{name}.binding").as_str(), bytes.as_slice());
+        println!(
+            "MEASUREMENT before-reboot slot={name} slot-identity={} checkout-guid={guid} clone-guid={} bytes={} boot-id={}",
+            recorded.encode(),
+            record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-")),
+            bytes.len(),
+            this_boot()
+        );
+    }
+    fixture.keep("boot-id", this_boot().as_bytes());
+}
+
+/// What:
+///  The half after the reboot:
+///  the record read back once the guest has booted again,
+///  and again after its dataset was exported and imported.
+/// Why:
+///  That is T27's second sentence,
+///  and the boot identifier kept before the reboot is what proves the guest really booted.
+fn boot_after(fixture: &Fixture) {
+    let before: String = String::from_utf8(fixture.kept("boot-id")).expect("the kept boot identifier");
+    let now: String = this_boot();
+    assert_ne!(now, before, "the boot identifier is still {now}, so this half ran without the guest booting");
+    read_the_record_back(fixture, BOOT_SLOT, "after the guest rebooted");
+    fixture.export_and_import_the_pool();
+    read_the_record_back(fixture, BOOT_SLOT, "after the dataset was exported and imported");
+}
+
+/// What:
+///  The red control's half:
+///  the slot folder was replaced, so the record's `slotIdentity=` must no longer match it,
+///  and this must fail naming both.
+/// Why:
+///  An arm whose comparison cannot fail proves nothing;
+///  the driver's own step plants the replacement and requires this run's refusal.
+fn boot_plant(fixture: &Fixture) {
+    let record: BindingRecord = fixture.binding(BOOT_PLANT_SLOT).unwrap_or_else(|| panic!("the planted slot's record cannot be read"));
+    let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the planted slot's record keeps no slotIdentity="));
+    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(BOOT_PLANT_SLOT).as_path()).expect("the planted slot folder's identity");
+    assert_eq!(
+        recorded,
+        live,
+        "the record's slotIdentity= no longer names the slot folder, so this arm is what refuses a record whose identity did not survive: recorded {}, live {}",
+        recorded.encode(),
+        live.encode()
+    );
+}
+
+/// What:
+///  The half before the guest loses power:
+///  one whole add, and its record and this boot's identifier kept,
+///  with nothing else written to the pool afterwards.
+/// Why:
+///  The record's last write is the routed, flushed one the arm reads back,
+///  and a read or a second write after it would change what the cut is asked about.
+fn power_before(fixture: &Fixture) {
+    fixture.clear_one_slot(POWER_SLOT);
+    let output: Output = fixture.run_add(POWER_SLOT);
+    assert!(output.status.success(), "the add at {POWER_SLOT} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    let bytes: Vec<u8> = fixture.binding_bytes(POWER_SLOT).unwrap_or_else(|| panic!("the filled add at {POWER_SLOT} wrote no binding"));
+    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| panic!("the record at {POWER_SLOT} is not this grammar's: {refusal:?}"));
+    assert_eq!(record.phase, Phase::Filled, "the add at {POWER_SLOT} filled the worktree, so its last record write is the filled one");
+    fixture.keep("power.binding", bytes.as_slice());
+    fixture.keep("power.boot-id", this_boot().as_bytes());
+    println!(
+        "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} boot-id={}",
+        record.phase,
+        bytes.len(),
+        record.slot_identity.expect("the filled record keeps the slot's identity").encode(),
+        this_boot()
+    );
+}
+
+/// What:
+///  The half after the cut:
+///  the record the route flushed must read back whole,
+///  with the identities it keeps still naming the live folder and dataset.
+/// Why:
+///  That is T28,
+///  and the guest's boot identifier is what proves it really lost power.
+fn power_after(fixture: &Fixture) {
+    let before: String = String::from_utf8(fixture.kept("power.boot-id")).expect("the kept boot identifier");
+    let now: String = this_boot();
+    assert_ne!(now, before, "the boot identifier is still {now}, so this half ran without the guest losing power");
+    read_the_record_back(fixture, POWER_SLOT, "after the guest lost power");
+}
+
+/// What:
+///  T27:
+///  the boot arm reads a record written before the guest rebooted,
+///  and again after the dataset was exported and imported.
+/// Why:
+///  The record keeps a folder's inode and birth time and the dataset's GUID,
+///  and whether those still answer the same values after a boot is what step 8's boot arm and this design's M7
+///  both owe; this arm runs it once for both.
+#[test]
+fn the_boot_arm_reads_a_record_written_before_the_guest_rebooted() {
+    if !guest() {
+        return;
+    }
+    let Some(half) = requested_half("the boot arm") else {
+        return;
+    };
+    let fixture: Fixture = Fixture::bare();
+    if half == BEFORE {
+        fixture.adopt_the_guest();
+        boot_before(&fixture);
+        return;
+    }
+    fixture.import_the_pool();
+    fixture.adopt_the_guest();
+    if std::env::var("CLI_GIT_ZFS_ADD_PLANT").is_ok() {
+        boot_plant(&fixture);
+        return;
+    }
+    boot_after(&fixture);
+}
+
+/// What:
+///  T28:
+///  a write the route flushed is read back after the guest loses power without an orderly shutdown.
+/// Why:
+///  The design flushes every record write on the strength of a source reading (`F12`),
+///  and M6 is the run that decides whether the name and the bytes are still there after a cut.
+#[test]
+fn a_flushed_write_is_read_back_after_the_guest_loses_power() {
+    if !guest() {
+        return;
+    }
+    let Some(half) = requested_half("the power-loss arm") else {
+        return;
+    };
+    let fixture: Fixture = Fixture::bare();
+    if half == BEFORE {
+        fixture.adopt_the_guest();
+        power_before(&fixture);
+        return;
+    }
+    fixture.import_the_pool();
+    fixture.adopt_the_guest();
+    power_after(&fixture);
+}
+
+//endregion The two arms a boot and a power cut split in half
