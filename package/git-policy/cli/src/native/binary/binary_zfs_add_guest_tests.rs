@@ -479,11 +479,12 @@ impl Fixture {
         if !listed.status.success() {
             let folder: &Path = self.root.parent().expect("the folder the pool's image sits beside the checkout's mountpoint");
             // `-f` because a guest that did not export the pool before it went down leaves it importing only when it is
-            // forced; the pool is this guest's own, so nothing else can hold it.
-            self.zpool_ok(&["import", "-f", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
+            // forced, and `-N` because the checkout's key is not loaded yet, so the mount is made below instead; the pool
+            // is this guest's own, so nothing else can hold it.
+            self.zpool_ok(&["import", "-f", "-N", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
         }
         if self.zfs_value("keystatus", self.checkout().as_str()) != "available" {
-            self.zfs_ok(&["load-key", "-a", "-L"]);
+            self.zfs_ok(&["load-key", "-a"]);
         }
         if self.zfs_value("mounted", self.checkout().as_str()) != "yes" {
             self.zfs_ok(&["mount", self.checkout().as_str()]);
