@@ -942,7 +942,11 @@ and B and E meeting the owner's self-start rule in `doc/planning/cli-git-no-self
 which is the owner's call.
 The third revision merged as `077c006094`,
 ranked both ways: rule read strictly `J > C > C2 > D > A`, exception granted `B > J > C > E > C2 > D > A`.
-A Sonnet read of it writes the owner's question (`~/temp/agent/gate-review-typed-network-command-third-revision-2026-11-24/`).
+The owner answered never B, never E, and J
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`);
+J is built and merged: `SSH_ASKPASS` carries a 571-byte sentence that names no host key outside quotes,
+seven controls red with `false` and green with J in the gate image,
+and the detector and the upload and push-record sentences pinned unchanged.
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
