@@ -3,9 +3,13 @@
 ## Status
 
 A proposal,
-put to the owner.
+put to the owner,
+and answered on 2026-11-24T14:30:00-05:00.
+The third revision below is the design round that led to that answer and is kept as it stood;
+the section after the labels records the answer and what building it took,
+and the options that were not chosen are kept under "The options that were not chosen".
 It is not a decision,
-nothing here is approved or final,
+nothing of this design record is approved or final,
 and this revision is not final either.
 It designs the words a typed `git clone`,
 `fetch`,
@@ -43,6 +47,55 @@ because the read's first finding was that the second round printed text its run 
 - **composed** means no program printed them: the text was put together from other facts;
 - **source** means read from a file, at the tag or the path named with it;
 - **unrun** means neither.
+
+## The answer: J, and what building it took
+
+The owner answered on 2026-11-24T14:30:00-05:00,
+recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`:
+"J: the sentence in SSH_ASKPASS (Recommended)",
+and each of B and E was answered "Never (Recommended)".
+So the wrapper never hands its own program to ssh or to Git for an explanation,
+the self-start rule stays as written,
+and the strict ranking is the one that applied:
+J, then C, C2, D, A.
+
+Built in the round whose folder is
+`~/temp/agent/build-host-key-next-step-option-j-2026-11-24/`,
+worktree `.claude/worktrees/build-host-key-next-step-option-j`,
+branch `feat/git-policy-cli-host-key-next-step-in-askpass`,
+and specified in `package/git-policy/cli/SPEC.md`
+under "No command the wrapper runs or forwards asks a person for a credential".
+
+What the build changed:
+
+- `ssh_no_answer_overlay` in `src/native/invocation/child_environment.rs` writes `NO_ANSWER_SENTENCE` into
+  `SSH_ASKPASS` instead of `false`, and `SSH_ASKPASS_REQUIRE=force` still sends every question there.
+  The sentence is 571 bytes, so `execlp` fails with `File name too long`,
+  and the line a person reads is
+  `ssh_askpass: exec(monochromatic-git-policy-cli: …): File name too long`.
+- The read's finding 2 is met by the wording and not by a detector change:
+  the sentence names no host key and no certificate outside single quotes,
+  so `reads_as_unknown_host_key` still answers true on a transcript that holds its line.
+- The read's finding 3 is named where a person reads it:
+  the sentence's last clause says that the question alone never says whether another key answered it,
+  and `SPEC.md` and `README.md` name the two cases where it prints on a command that succeeds.
+
+Controls, red on `main` and green with the change, in a narrowed run of the gate image
+(`keep/gate-image-red-run.log`, `keep/gate-image-green-run.log`):
+
+- a typed `git clone` and a typed `git fetch` at a new host key print the sentence, then
+  `Host key verification failed.`, and end 128;
+- the same two at a key whose passphrase nobody can give print it, then `Permission denied (publickey).`, and end 128;
+- a key whose passphrase nobody can give, skipped for one that works, prints it and the clone ends 0;
+- on `main` the same five controls find no such line at all, because `false` starts and answers nothing;
+- the upload's explanation and the service's push record still print the wrapper's own sentence for an unknown host key
+  on a transcript that holds the rule's own line.
+
+Not built, and not this answer's to build:
+the three per-question sentences under "The words" belong to B and to C,
+and a typed LFS push and the service's push record print the rule's sentence and then the wrapper's own sentence for
+one unknown host key,
+because both read the same transcript.
 
 ## What this revision changed
 
@@ -715,9 +768,11 @@ none of its five words (`terminal prompts disabled`,
 `too many authentication attempts`,
 `Permission denied (`) appears in the three sentences this design adds.
 
-## The options
+## The options that were not chosen
 
-Each option says what it starts,
+J was chosen on 2026-11-24,
+so every option in this section is recorded for its evidence and is not built.
+Each says what it starts,
 what it reads,
 whether it can answer yes,
 what a person sees for each case from a run,
@@ -1437,6 +1492,8 @@ It is not ranked.
 
 Two rankings,
 because the self-start rule has two readings and the owner has not chosen between them.
+The owner answered on 2026-11-24 with "Never" for each of B and E,
+so the strict ranking below is the one that applied and J is the chosen option.
 Both rank by what each option delivers to the person who typed the command:
 whether the words arrive at the refusal that stopped them,
 whether they name what the person must do,
@@ -1517,7 +1574,8 @@ not change.
 
 ### What each answer gives the owner
 
-- Read strictly: J is the first option, and it needs no code, no mode and no host change.
+- Read strictly: J is the first option, and it needs one constant, its wording's controls and docs, no mode and no
+  host change. The owner answered this way on 2026-11-24.
   C is the option the recorded shape prefers, at the price of the progress display.
 - With B's exception and the two AppArmor rules: B is first, and the words are the best this design can print.
 - With B's exception but no root edit on this host: B's words do not print here, so J and then C are the field, as
@@ -1525,7 +1583,11 @@ not change.
 
 ## The owner's question
 
-The read raised it and this round does not answer it:
+The read raised it and this round does not answer it.
+The owner answered it on 2026-11-24,
+recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`:
+"Never (Recommended)" for B and "Never (Recommended)" for E,
+which is the strict answer to the question below.
 
 > Does the self-start rule's third bullet
 > ("Nothing that Git or a hook starts is asked to explain anything")
@@ -1547,6 +1609,13 @@ so it is put here and in this round's report,
 and the proposal waits on the answer before any of the three is built.
 
 ## The words
+
+These three sentences were designed for B and for C and were not built:
+the sentence the owner chose is one generic text, `NO_ANSWER_SENTENCE` in
+`src/native/invocation/child_environment.rs`,
+which names no host key outside single quotes and says what a person does instead
+(the constraints and the measured line are under "The answer: J, and what building it took").
+They are kept here because the next option that owns a child would print them.
 
 Three sentences,
 all new,
