@@ -818,7 +818,9 @@ and the clone rung pass's as `5c84ab3368`.
 The commit pass's L2 is answered,
 "Show any segment under 20 chars (Recommended)"
 (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`),
-and built in `pi-lfs-url-mask-shows-short-segments`.
+and merged as `51e90be69e`,
+with the build's narrower reading (a short segment with `%` or other punctuation still hides) recorded there,
+veto open.
 Its L4 waits in `doc/handover/questions-for-the-owner.md`,
 and its options merged as a proposal,
 `41bdf36a2a`
