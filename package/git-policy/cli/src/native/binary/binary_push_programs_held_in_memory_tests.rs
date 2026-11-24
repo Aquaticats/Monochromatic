@@ -125,12 +125,12 @@ fn world(name: &str) -> World {
     executable(stand_in.join("git-lfs").as_path(), stand_in_source().as_bytes());
     let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
     // The first wrapped command starts the fixture's own service, in the runtime directory it hands that command, and this
-    //  control stops and starts that one (`the_service`).
+    //  control stops and starts that one (`the_service_lock`).
     return World { fixture, repo, origin, shell_path, stand_in };
 }
 
 /// What:
-///  The fixture's own service,
+///  The registry holding the fixture's own service,
 ///  which every wrapped command of this fixture reaches.
 /// Why:
 ///   The settings a push needs live in the memory of the service the command spoke to,
@@ -139,14 +139,14 @@ fn world(name: &str) -> World {
 /// which no command of this fixture is told about:
 /// it holds none of the settings,
 /// and stopping it proves nothing (issue 6447).
-fn the_service(fixture: &Fixture) -> std::sync::MutexGuard<'_, Option<FixtureService>> {
+fn the_service_lock(fixture: &Fixture) -> std::sync::MutexGuard<'_, Option<FixtureService>> {
     return fixture.service.lock().expect("the fixture's service");
 }
 
 /// The runtime directory the fixture's service listens in,
 /// which every wrapped command of this fixture is told.
 fn service_runtime_of(fixture: &Fixture) -> PathBuf {
-    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
     let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
     return started.runtime.clone();
 }
@@ -155,7 +155,7 @@ fn service_runtime_of(fixture: &Fixture) -> PathBuf {
 /// ends it and everything it started,
 /// and with the process its memory of the settings.
 fn stop_the_service(fixture: &Fixture) {
-    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
     let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
     started.stop_all();
 }
@@ -168,7 +168,7 @@ fn stop_the_service(fixture: &Fixture) {
 /// and the fixture has none,
 /// so the control starts the new one where the last one listened and holds nothing of its memory.
 fn serve_the_service(fixture: &Fixture, git_dir: &Path) {
-    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
     let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
     started.serve(fixture, git_dir);
 }
