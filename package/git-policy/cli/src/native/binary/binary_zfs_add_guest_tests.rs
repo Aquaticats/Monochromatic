@@ -147,6 +147,10 @@ impl Fixture {
         std::fs::write(self.root.join(".gitignore"), b".claude/\n").expect("the ignore rule");
         std::fs::write(self.root.join("plain.txt"), b"plain\n").expect("the tracked file");
         std::fs::write(self.root.join("second.txt"), b"second\n").expect("the second file");
+        // A file written in the same second as the index is a racy entry, which
+        // the clean check refuses to vouch for; the fixture waits one second so
+        // the index's record proves the bytes.
+        std::thread::sleep(std::time::Duration::from_secs(1));
         self.git(&["init", "--quiet", "--initial-branch=main"]);
         self.git(&["add", "."]);
         self.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "one"]);
@@ -435,6 +439,7 @@ fn a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration(
     let mut file: std::fs::File = std::fs::File::create(big.as_path()).expect("the big file");
     file.write_all(&vec![7u8; 8 * 1024 * 1024]).expect("the big file's bytes");
     drop(file);
+    std::thread::sleep(std::time::Duration::from_secs(1));
     fixture.git(&["add", "big.bin"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big"]);
     fixture.zfs_ok(&["set", "quota=1m", fixture.container().as_str()]);
