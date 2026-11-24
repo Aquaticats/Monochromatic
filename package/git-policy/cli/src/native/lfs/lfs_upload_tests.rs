@@ -758,7 +758,7 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_SENTENCE),
         (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =
@@ -802,7 +802,7 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_SENTENCE),
         (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =
@@ -845,7 +845,7 @@ fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_ke
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
+        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_SENTENCE),
         (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
     ];
     let (code, diagnostics) =

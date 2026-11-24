@@ -304,10 +304,12 @@ fn the_skip_variable_is_read_as_a_boolean() {
 
 /// OpenSSH's own words for a host key this machine does not know,
 /// under the account's default `StrictHostKeyChecking=ask`,
-/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables
-/// (`SSH_ASKPASS=false`,
-/// `SSH_ASKPASS_REQUIRE=force`):
-/// the yes/no question goes to a program that answers nothing,
+/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables as they were
+/// on that round (`SSH_ASKPASS=false`,
+/// `SSH_ASKPASS_REQUIRE=force`;
+/// the first holds the wrapper's sentence since 2026-11-24,
+/// and these words without its line are what a hook or another program's push still leaves):
+/// the yes/no question goes to a value that answers nothing,
 /// and an empty answer is not "yes".
 const AN_UNKNOWN_HOST_KEY: &str = "Host key verification failed.\n";
 

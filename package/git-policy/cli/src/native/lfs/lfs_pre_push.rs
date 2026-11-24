@@ -492,8 +492,11 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  and `Certificate invalid: ...` (`sshkey.c`),
 ///  which a certificate that does not fit the host prints before that last line.
 ///  Each arm's transcript was measured against a throwaway `sshd` with OpenSSH 10.6p2
-///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
-///  `SSH_ASKPASS_REQUIRE=force`),
+///  and the wrapper's own two variables as they were on that round,
+///  `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`
+///  (since 2026-11-24 the first holds [`crate::child_environment::NO_ANSWER_SENTENCE`],
+///  whose own line this reading tolerates as well,
+///  which `an_unknown_host_key_reads_while_the_askpass_value_is_the_wrappers_sentence` holds),
 ///  certificates included.
 ///  One refusal is still read as an unknown key though it is not:
 ///  with `CheckHostIP=yes` and a key this machine knows for the host beside a different one for its address,
@@ -707,8 +710,9 @@ pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
     };
     return format!(
         "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this wrapper never lets a command \
-         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS=false` and \
-         `SSH_ASKPASS_REQUIRE=force`), whether or not a terminal is there: the owner decided that no command it runs or \
+         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS` set to a sentence \
+         that answers nothing and says what a person does instead, and `SSH_ASKPASS_REQUIRE=force`), whether or not a \
+         terminal is there: the owner decided that no command it runs or \
          forwards asks a person for a username or a password. That is why nothing prompted, and why the program stopped \
          instead. Ways forward: store the login where `git-lfs` finds it without a person, in a Git credential helper for \
          that URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or \

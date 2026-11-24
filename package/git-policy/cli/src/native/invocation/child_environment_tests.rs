@@ -12,7 +12,7 @@
 
 /// Import the functions under test and native string types.
 use super::{
-    ASKPASS_REQUIRE_FORCE, ASKPASS_REQUIRE_VARIABLE, ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, NO_ANSWER_PROGRAM,
+    ASKPASS_REQUIRE_FORCE, ASKPASS_REQUIRE_VARIABLE, ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, NO_ANSWER_SENTENCE,
     SSH_ASKPASS_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay, environment_with_overlay, invocation_overlay, lockfile_pid_overlay,
     never_prompt_overlay, no_prompt_overlay, service_child_overlay, ssh_no_answer_overlay,
 };
@@ -327,7 +327,7 @@ fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair_then_o
 /// What:
 ///  Every child of the wrapper,
 /// the service's and one a person typed alike,
-///  is given `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
+///  is given `SSH_ASKPASS` set to the sentence that answers nothing and `SSH_ASKPASS_REQUIRE=force`,
 ///  which is what reaches every question OpenSSH asks at a terminal.
 /// Why:
 ///   The pair of `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` stops Git and `git-lfs`,
@@ -343,19 +343,19 @@ fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair_then_o
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(envOf(serviceChildOverlay(inherited)).SSH_ASKPASS).toBe('false');
+/// expect(envOf(serviceChildOverlay(inherited)).SSH_ASKPASS).toBe(askpassText);
 /// expect(envOf(invocationOverlay(inherited, git)).SSH_ASKPASS_REQUIRE).toBe('force')
 /// ```
 #[test]
 fn the_service_overlay_gives_openssh_a_program_that_answers_nothing_and_a_typed_command_does_too() {
     let inherited = environment(&[("SSH_ASKPASS", "/usr/bin/ksshaskpass"), ("SSH_ASKPASS_REQUIRE", "prefer")]);
     let service = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
-    assert_eq!(last_value(service.as_slice(), SSH_ASKPASS_VARIABLE), Some(OsString::from(NO_ANSWER_PROGRAM)));
+    assert_eq!(last_value(service.as_slice(), SSH_ASKPASS_VARIABLE), Some(OsString::from(NO_ANSWER_SENTENCE)));
     assert_eq!(last_value(service.as_slice(), ASKPASS_REQUIRE_VARIABLE), Some(OsString::from(ASKPASS_REQUIRE_FORCE)));
     let typed = environment_with_overlay(inherited.as_slice(), invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git")).as_slice());
     assert_eq!(
         last_value(typed.as_slice(), SSH_ASKPASS_VARIABLE),
-        Some(OsString::from(NO_ANSWER_PROGRAM)),
+        Some(OsString::from(NO_ANSWER_SENTENCE)),
         "a command a person typed is given the same program"
     );
     assert_eq!(
@@ -406,7 +406,7 @@ fn the_service_overlay_replaces_every_inherited_prompt_setting() {
     let complete = environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice());
     assert_eq!(last_value(complete.as_slice(), "GIT_ASKPASS"), Some(OsString::new()));
     assert_eq!(last_value(complete.as_slice(), "GIT_TERMINAL_PROMPT"), Some(OsString::from("0")));
-    assert_eq!(last_value(complete.as_slice(), "SSH_ASKPASS"), Some(OsString::from(NO_ANSWER_PROGRAM)));
+    assert_eq!(last_value(complete.as_slice(), "SSH_ASKPASS"), Some(OsString::from(NO_ANSWER_SENTENCE)));
     assert_eq!(last_value(complete.as_slice(), "SSH_ASKPASS_REQUIRE"), Some(OsString::from(ASKPASS_REQUIRE_FORCE)));
 }
 
@@ -426,7 +426,7 @@ fn the_service_overlay_replaces_every_inherited_prompt_setting() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(invocationOverlay(env, git)).toContainEqual(['GIT_ASKPASS', '']);
-/// expect(invocationOverlay(env, git)).toContainEqual(['SSH_ASKPASS', 'false']);
+/// expect(invocationOverlay(env, git)).toContainEqual(['SSH_ASKPASS', askpassText]);
 /// ```
 #[test]
 fn every_command_the_wrapper_forwards_never_prompts() {

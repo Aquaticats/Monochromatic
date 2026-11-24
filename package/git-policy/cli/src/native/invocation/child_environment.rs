@@ -531,18 +531,9 @@ pub const NO_ANSWER_SENTENCE: &str = "monochromatic-git-policy-cli: OpenSSH aske
     `eval \"$(ssh-agent)\"` and load the key with `ssh-add`. Run this command again if it failed: the question alone never \
     says whether another key answered it.";
 
-/// The program OpenSSH is given in place of the account's own:
-/// the standard one that prints nothing and reports failure.
-///  A child's `PATH` is the caller's,
-/// and `ssh_askpass` finds the program with `execlp`
-///  (`readpass.c:77`),
-/// so its failure to find one is a start that exits non-zero,
-/// which is the answer below.
-pub const NO_ANSWER_PROGRAM: &str = "false";
-
 /// What:
-///  The two variables that send every question OpenSSH would ask a person to a program that answers nothing:
-///  [`SSH_ASKPASS_VARIABLE`] naming [`NO_ANSWER_PROGRAM`],
+///  The two variables that send every question OpenSSH would ask a person to a value that answers nothing:
+///  [`SSH_ASKPASS_VARIABLE`] naming [`NO_ANSWER_SENTENCE`],
 ///  and [`ASKPASS_REQUIRE_VARIABLE`] set to [`ASKPASS_REQUIRE_FORCE`].
 /// Why:
 ///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s;
@@ -556,26 +547,23 @@ pub const NO_ANSWER_PROGRAM: &str = "false";
 ///  a passphrase question is neither an askpass question nor one that may read standard input (150-167),
 ///  and so it opened `/dev/tty` and asked (185).
 ///  `force` sets `use_askpass` and `allow_askpass` both (131-133),
-///  so the question goes to the program (172-182),
-/// a program that fails leaves no answer (179-181),
+///  so the question goes to that value (172-182),
+/// a start that fails leaves no answer (179-181),
 /// and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 ///  (`sshconnect2.c:1549-1558`).
 ///  A key the agent holds needs no passphrase,
 /// so it still opens the connection.
-///  The program's absence fails the same way:
-/// a child that cannot `execlp` it exits non-zero,
-/// which `ssh_askpass` reads as no answer.
-///  The wrapper ships for Linux only (`README.md`,
-/// "Requirements"),
-/// where coreutils or busybox puts `false` on `PATH`.
+///  The value cannot start, which `ssh_askpass` reads as no answer,
+/// and OpenSSH prints its own failure with the sentence inside it,
+/// which is the next step a person reads ([`NO_ANSWER_SENTENCE`]).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sshNoAnswer: [string, string][] = [['SSH_ASKPASS', 'false'], ['SSH_ASKPASS_REQUIRE', 'force']];
+/// const sshNoAnswer: [string, string][] = [['SSH_ASKPASS', askpassText], ['SSH_ASKPASS_REQUIRE', 'force']];
 /// ```
 pub fn ssh_no_answer_overlay() -> Vec<(OsString, OsString)> {
     return vec![
-        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_PROGRAM)),
+        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_SENTENCE)),
         (OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_FORCE)),
     ];
 }
