@@ -772,14 +772,23 @@ and add rules for what this work meets;
 cause H is its own work
 (the account's "Cause H").
 
-#### The wrapper's `0.6.1-alpha.45`
+#### The wrapper's `0.6.1-alpha.45` and what its release passes found
 
 Outcome:
-the week of merges since `alpha.44` (2026-11-16) reaches installs as an alpha,
-which the owner lets agents dispatch unasked (standing directions).
+the release passes' findings are fixed for the next alpha.
 
 State:
-the first dry run failed at `pnpm install --frozen-lockfile`
+`monochromatic-git-policy-cli-v0.6.1-alpha.45` is published
+(release run 45308756772,
+publish run 45308886552,
+archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
+an alpha is not published to crates.io).
+It ships the second program `mount-git-worktree-clone-datasets`,
+by the owner's "Let it finish (Recommended)";
+the owner's "One program only, ever" removes it from later releases
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+and `pi-zfs-root-modes-in-the-one-wrapper-executable-design` designs how the root modes join the wrapper.
+The first dry run failed at `pnpm install --frozen-lockfile`
 (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`);
 the fix merged as `7703a307ea`:
 `toolchain:update:daily` now ends with that frozen install,
@@ -796,17 +805,28 @@ The ZFS route's release pass found it fit to ship,
 with two medium findings on the handler's words and its `start-probe`'s missing root check
 (`zfs-route-reach/keep/review.md` in
 `~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`).
-Running:
-`native:release:wait` on the release,
-the clone rung's and the commit,
+For its `start-probe` the owner chose "Refuse non-root, exit 2 (Recommended)";
+its `--help` paths are left to the fold.
+The commit,
 push,
-LFS and lock paths' release passes,
-and `pi-zfs-handler-words-true-of-the-release` on the ZFS pass's findings,
-which builds the pass's first-ranked option of its two choices (D1 and D2) for the owner's veto.
+LFS and lock pass (`commit-push-lfs-lock/keep/review.md` beside the ZFS one)
+found nothing that loses work;
+its medium finding is that the 22 controls using the real `git-lfs` skip in the gate,
+whose image has none,
+and its Decision 1,
+`git-lfs` in the image with a skip made a failure there,
+is adopted with the owner's veto open.
+Its L2 and L4 wait in `doc/handover/questions-for-the-owner.md`.
+Running:
+the clone rung's release pass,
+`pi-zfs-handler-words-true-of-the-release` on the ZFS pass's findings,
+and `pi-wrapper-lfs-gate-and-push-environment-fixes` on the commit pass's M1,
+L5,
+L1 and L3.
 
 Next:
-read the release's end,
-and turn the other two passes' findings into fixes.
+merge each fix when it ends,
+and turn the clone rung pass's findings into fixes.
 
 #### Tests that failed once and are not diagnosed
 
