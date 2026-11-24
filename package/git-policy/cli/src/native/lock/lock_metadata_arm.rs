@@ -80,8 +80,8 @@ pub(crate) struct MetadataArm {
 /// What:
 ///  How far the removal the running thread's arm answers has gone.
 /// Why:
-///  The removal reads the armed path once as the file it judges, before the lock's name goes,
-///  and once at its last look, after it.
+///  The removal reads the armed path once as the file it judges and once at its last look,
+///  with the lock's name going between them.
 ///  A count of reads would answer a judged read taken after the lock's name went as the first one,
 ///  so a removal that read the file in the wrong place would still compare it against an armed difference.
 ///
