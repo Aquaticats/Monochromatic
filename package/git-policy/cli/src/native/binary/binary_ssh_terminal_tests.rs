@@ -678,18 +678,32 @@ fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
 ///   The controls below meet the same two refusals through a clone and a fetch,
 ///  so one helper builds the server, the repository and the options,
 ///  and each control names only the command it runs and the passphrase it gives.
+///  `known_host_key` decides which refusal the arm can meet:
+///  an unknown key is refused before any key is offered,
+///  so an arm about a key's passphrase writes the server's key into its own `known_hosts` first.
 ///  The account's own keys, agent and `known_hosts` stay out of it, as in the controls above.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { url, commandLine, server } = servedOverSsh(fixture, ssh, keygen, sshd, '');
+/// const { url, commandLine, server } = servedOverSsh(fixture, ssh, keygen, sshd, '', false);
 /// ```
-fn served_over_ssh(fixture: &Fixture, ssh: &Path, keygen: &Path, sshd: &Path, phrase: &str) -> (String, String, Sshd) {
+fn served_over_ssh(
+    fixture: &Fixture,
+    ssh: &Path,
+    keygen: &Path,
+    sshd: &Path,
+    phrase: &str,
+    known_host_key: bool,
+) -> (String, String, Sshd) {
     let ssh_directory: PathBuf = fixture.root.join("ssh");
     std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
     make_ssh_keys(keygen, ssh_directory.as_path(), phrase);
     let port: u16 = free_port();
     let server: Sshd = start_sshd(sshd, fixture, port, ssh_directory.as_path());
+    if known_host_key {
+        let host_public: String = std::fs::read_to_string(ssh_directory.join("host_key.pub")).expect("the host public key");
+        std::fs::write(ssh_directory.join("known_hosts"), format!("[127.0.0.1]:{port} {host_public}").as_bytes()).expect("known_hosts");
+    }
     let served: PathBuf = fixture.root.join("served.git");
     let served_text: String = served.to_string_lossy().into_owned();
     let made: std::process::Output = git_through_wrapper(fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
@@ -748,7 +762,7 @@ fn a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refus
         remove_settled(&fixture);
         return;
     };
-    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "");
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "", false);
     let clone: PathBuf = fixture.root.join("clone");
     let clone_text: String = clone.to_string_lossy().into_owned();
     let control_clone: PathBuf = fixture.root.join("control-clone");
@@ -792,7 +806,7 @@ fn a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refus
         remove_settled(&fixture);
         return;
     };
-    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "");
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "", false);
     let repository: PathBuf = fixture.root.join("repository");
     let repository_text: String = repository.to_string_lossy().into_owned();
     let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--quiet", repository_text.as_str()]);
@@ -828,7 +842,7 @@ fn a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_
         remove_settled(&fixture);
         return;
     };
-    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE);
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE, true);
     let clone: PathBuf = fixture.root.join("clone");
     let clone_text: String = clone.to_string_lossy().into_owned();
 
@@ -860,7 +874,7 @@ fn a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_
         remove_settled(&fixture);
         return;
     };
-    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE);
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE, true);
     let repository: PathBuf = fixture.root.join("repository");
     let repository_text: String = repository.to_string_lossy().into_owned();
     let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--quiet", repository_text.as_str()]);
@@ -916,6 +930,9 @@ fn a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_
     std::fs::write(ssh_directory.join("authorized_keys"), authorized.as_bytes()).expect("authorized_keys");
     let port: u16 = free_port();
     let server: Sshd = start_sshd(sshd.as_path(), &fixture, port, ssh_directory.as_path());
+    // The host key is already known here, so the clone reaches the keys and the only question is the passphrase's.
+    let host_public: String = std::fs::read_to_string(ssh_directory.join("host_key.pub")).expect("the host public key");
+    std::fs::write(ssh_directory.join("known_hosts"), format!("[127.0.0.1]:{port} {host_public}").as_bytes()).expect("known_hosts");
     let served: PathBuf = fixture.root.join("served.git");
     let served_text: String = served.to_string_lossy().into_owned();
     let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
