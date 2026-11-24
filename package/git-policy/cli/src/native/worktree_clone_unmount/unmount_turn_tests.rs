@@ -366,7 +366,7 @@ fn a_transition_that_leaves_another_mount_is_retained() {
 #[test]
 fn a_row_of_another_filesystem_refuses() {
     let fixture = fixture("turn-filesystem");
-    let mut calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
+    let calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
     let mut other: crate::fs_mount_options::MountFacts = row(&fixture.expected);
     other.filesystem_type = String::from("ext4");
     *calls.facts.borrow_mut() = Some(other.clone());
@@ -383,7 +383,7 @@ fn a_row_of_another_filesystem_refuses() {
 #[test]
 fn a_row_of_another_root_refuses() {
     let fixture = fixture("turn-root");
-    let mut calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
+    let calls = RecordingCalls { observed: fixture.expected.canonical_slot.clone(), mount_id: fixture.mount, ..RecordingCalls::default() };
     let mut other: crate::fs_mount_options::MountFacts = row(&fixture.expected);
     other.root = std::path::PathBuf::from("/a/subdirectory");
     *calls.facts.borrow_mut() = Some(other.clone());
