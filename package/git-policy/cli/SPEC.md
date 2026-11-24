@@ -2888,6 +2888,19 @@ every other path is carried when the size its index records equals the size of i
 which one `git ls-tree -r -l` reads,
 because a rule can only shrink a file on the way into the index and a file with no rule today can still hold a form
 an earlier rule wrote.
+A stat-clean file whose recorded size is its blob's size is therefore taken as holding the blob's bytes,
+and one case is beyond that proof:
+a file an earlier conversion left the same length (a clean filter that masked a token at its own length,
+a case-folding rule removed after the add) is carried while Git's own checkout writes the stored blob,
+and Git's own `git status` reports that source clean as well,
+because neither the file's stat data nor a size comparison reads the bytes to tell the two apart.
+Hashing each carried file against its blob would see it,
+and it costs a read of every byte the rung copies,
+which is most of what the copies save;
+the rung does not pay it,
+and the limit is the project's answer "Document the limit"
+(`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+"A file an earlier conversion left the same length (D4)").
 The attributes are read (`git check-attr --all --stdin`) and the decline is decided before the copies;
 the rest of the fence (`git ls-tree` and the per-path decision) runs on the add's own thread while the clones copy,
 and both answers are joined before anything is installed.
@@ -2996,9 +3009,21 @@ each pinned with the measurement it rests on and all open to the project's veto
 its sections "The size limit on a clean source,
 answered 2026-11-22" and "Four further answers after the recheck,
 answered 2026-11-23").
-The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
-Git's own checkout:
-a dirty source of 10,001 files of 2,600 bytes,
+The whole-tree size limit sends a source **with changes** whose clones would copy fewer than 762,000,000 bytes to
+Git's own checkout.
+It sums the recorded sizes of the paths the conversion fence would carry and leaves out every path an attribute rule
+hands to Git,
+whose index records the file's own bytes while its blob may hold a pointer
+(a `filter=lfs` path of this repository's own checkout records bytes the clones never copy),
+so the figure describes what the rung copies
+(the project's answer "Sum only what it clones",
+`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+"What the whole-tree limit sums (D3)").
+The measurements below were taken on ZFS,
+and the whole-tree limit and the changed-file cut apply on every filesystem until a Btrfs round measures the dirty
+shapes (the same record's "The dirty-tree limit on Btrfs (D2)":
+"Yes, after one Btrfs round", which names no change until that round has run).
+A dirty source of 10,001 files of 2,600 bytes,
 about 26 MB,
 took 1.30 times Git's own checkout on the fenced rung,
 one of 10,001 files of 26,000 bytes,
@@ -3012,9 +3037,13 @@ and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;
 the pin sits at the top of that bracket,
 so no size nobody measured is cloned.
-A clean source is judged by its mean tracked file size,
+A source with no tracked change is judged by its mean tracked file size,
 because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
 files costs more to clone than to write:
+a source whose only difference is an untracked file,
+or whose recorded times are stale with no change in `git status`,
+counts as one here (the same record's "A source whose only change is untracked (D1)":
+"Judge it as clean");
 below the edge Git's own checkout writes a clean source,
 and at or above it the clone copies the tree as `main` does.
 **btrfs has no mean rule**:
