@@ -318,6 +318,7 @@ the cause-H pair, that guard,
 and nine companion tests that read the host's `XDG_RUNTIME_DIR`,
 which the gate's container does not set;
 fixed: the companion takes its runtime folder from its caller and its controls pass their own (35 of 35 in the gate image);
+the gate on `main` at `c4b0b123ab` (run `native-AoVnL6`) then gave `10865 tests run: 10863 passed (5 slow), 2 failed, 42 skipped`, the cause-H pair alone;
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
