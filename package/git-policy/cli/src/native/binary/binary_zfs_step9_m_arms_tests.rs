@@ -51,7 +51,7 @@ fn in_guest() -> bool {
         println!("SKIP M arms: {GUEST} unset");
         return false;
     };
-    let running = std::fs::read_to_string("/etc/hostname").map(|t| t.trim().to_string()).unwrap_or_default();
+    let running = std::fs::read_to_string("/etc/hostname").map(|t| return t.trim().to_string()).unwrap_or_default();
     assert_eq!(running, name);
     return true;
 }
@@ -84,33 +84,33 @@ fn zfs_ok(sbin: &str, args: &[&str]) {
 }
 
 fn table() -> Vec<String> {
-    return std::fs::read_to_string("/proc/self/mountinfo").expect("the table reads").lines().map(|l| l.to_string()).collect();
+    return std::fs::read_to_string("/proc/self/mountinfo").expect("the table reads").lines().map(|l| return l.to_string()).collect();
 }
 
 fn rows_at(path: &Path) -> Vec<String> {
     let want = path.display().to_string();
-    return table().into_iter().filter(|line| line.split(' ').nth(4) == Some(want.as_str())).map(|line| desc(&line)).collect();
+    return table().into_iter().filter(|line| return line.split(' ').nth(4) == Some(want.as_str())).map(|line| return desc(&line)).collect();
 }
 
 fn desc(line: &str) -> String {
     let f: Vec<&str> = line.split(' ').collect();
-    let dash = f.iter().position(|x| *x == "-").unwrap_or(f.len());
+    let dash = f.iter().position(|x| return *x == "-").unwrap_or(f.len());
     return format!("id={} parent={} root={} at={} fs={} src={} opt={}", f[0], f[1], f[3], f[4], f.get(dash + 1).unwrap_or(&"?"), f.get(dash + 2).unwrap_or(&"?"), f[6]);
 }
 
 fn rows_of_source(clone: &str) -> Vec<String> {
     let needle = format!(" - zfs {clone} ");
-    return table().into_iter().filter(|line| line.contains(&needle)).map(|line| desc(&line)).collect();
+    return table().into_iter().filter(|line| return line.contains(&needle)).map(|line| return desc(&line)).collect();
 }
 
 fn optional_fields(line: &str) -> String {
     let f: Vec<&str> = line.split(' ').collect();
-    return f.iter().skip(6).take_while(|x| **x != "-").cloned().collect::<Vec<&str>>().join(" ");
+    return f.iter().skip(6).take_while(|x| return **x != "-").cloned().collect::<Vec<&str>>().join(" ");
 }
 
 fn receipt(guid: &str) -> String {
     return match std::fs::read_to_string(Path::new("/run/git-worktree-clone-mount-results").join(guid)) {
-        Ok(text) => text.lines().filter(|l| l.starts_with("operation") || l.starts_with("outcome") || l.starts_with("nonce") || l.starts_with("failed-step")).collect::<Vec<&str>>().join(" ; "),
+        Ok(text) => text.lines().filter(|l| return l.starts_with("operation") || l.starts_with("outcome") || l.starts_with("nonce") || l.starts_with("failed-step")).collect::<Vec<&str>>().join(" ; "),
         Err(_) => String::from("none"),
     };
 }
@@ -176,7 +176,7 @@ fn world(tag: &str) -> World {
     let (cache_there, _) = zfs(&sbin, &["list", "-H", "-o", "name", cache_dataset.as_str()]);
     if !cache_there {
         zfs_ok(&sbin, &["create", "-p", "-o", format!("mountpoint={CACHE}").as_str(), cache_dataset.as_str()]);
-    } else if std::fs::metadata(CACHE).map(|m| m.dev() == std::fs::metadata(HOME).map(|h| h.dev()).unwrap_or(0)).unwrap_or(true) {
+    } else if std::fs::metadata(CACHE).map(|m| return m.dev() == std::fs::metadata(HOME).map(|h| return h.dev()).unwrap_or(0)).unwrap_or(true) {
         let _ = sh(format!("zfs mount {cache_dataset}").as_str());
     }
     let _ = sh(format!("chown ubuntu:ubuntu {CACHE}").as_str());
@@ -202,7 +202,7 @@ fn sweep() -> (Option<i32>, String) {
 }
 
 fn line_about(said: &str, clone: &str) -> String {
-    return said.lines().find(|l| l.contains(clone) && (l.starts_with("unmounted ") || l.starts_with("reattached ") || l.starts_with("attached ") || l.starts_with("refused ") || l.starts_with("failed "))).unwrap_or("").to_string();
+    return said.lines().find(|l| return l.contains(clone) && (l.starts_with("unmounted ") || l.starts_with("reattached ") || l.starts_with("attached ") || l.starts_with("refused ") || l.starts_with("failed "))).unwrap_or("").to_string();
 }
 
 fn scene(world: &World, label: &str) -> Scene {
@@ -220,8 +220,8 @@ fn scene(world: &World, label: &str) -> Scene {
     let _ = sh(format!("chown --recursive ubuntu:ubuntu {}", world.checkout.display()).as_str());
     let (_, said) = sweep();
     assert!(line_about(&said, &clone).starts_with("attached "), "the clone attaches: {said}");
-    let (_, guid) = zfs(&world.sbin, &["get", "-H", "-o", "value", "guid", clone.as_str()]);
-    let guid = guid.trim().to_string();
+    let (_, guid_text) = zfs(&world.sbin, &["get", "-H", "-o", "value", "guid", clone.as_str()]);
+    let guid = guid_text.trim().to_string();
     let folder = Path::new(CACHE).join(staging_folder_name(DatasetGuid::parse(guid.as_str()).expect("guid")));
     return Scene { clone, guid, slot, folder };
 }
@@ -283,14 +283,14 @@ fn in_namespace(pid: u32, script: &str) -> String {
 /// one line per mount,
 /// read with no shell filter so nothing about the arm's own quoting can hide a row.
 fn namespace_table(pid: u32) -> Vec<String> {
-    return in_namespace(pid, "cat /proc/self/mountinfo").lines().map(|line| line.to_string()).filter(|line| !line.is_empty()).collect();
+    return in_namespace(pid, "cat /proc/self/mountinfo").lines().map(|line| return line.to_string()).filter(|line| return !line.is_empty()).collect::<Vec<String>>();
 }
 
 /// The rows of `table` whose mount point is `path`,
 /// as the kernel prints them inside that namespace.
 fn namespace_rows_at(table: &[String], path: &Path) -> Vec<String> {
     let want = path.display().to_string();
-    return table.iter().filter(|line| return line.split(' ').nth(4) == Some(want.as_str())).map(|line| desc(line)).collect();
+    return table.iter().filter(|line| return line.split(' ').nth(4) == Some(want.as_str())).map(|line| return desc(line)).collect();
 }
 
 fn stop(pid: u32) {
@@ -302,7 +302,7 @@ fn stop(pid: u32) {
 #[test]
 fn m3_private_bind() {
     if !in_guest() { return; }
-    let run_tag = std::env::var("STEP9_M3_TAG").unwrap_or_else(|_| String::from("a"));
+    let run_tag = std::env::var("STEP9_M3_TAG").unwrap_or_else(|_| return String::from("a"));
     let world = world(format!("m3{run_tag}").as_str());
     let scene = scene(&world, "m3p");
     make_folder(&scene);
@@ -324,7 +324,7 @@ fn m3_private_bind() {
     drop(clone_at_slot);
     drop(bind_again);
     let reader_rows = reader_a.map(|pid| return in_namespace(pid, "awk '{print $5, $10}' /proc/self/mountinfo")).unwrap_or_default();
-    let leaked = reader_rows.lines().any(|line| line.contains(&scene.clone));
+    let leaked = reader_rows.lines().any(|line| return line.contains(&scene.clone));
     if let Some(pid) = reader_a { stop(pid); }
     // The negative scene: the same move into a plain folder of the shared cache without a private bind.
     let plain = Path::new(CACHE).join(format!("plain-{}", scene.guid));
@@ -343,7 +343,7 @@ fn m3_private_bind() {
     // The leak the design predicts: a mount under a shared parent reaches the peer namespace.
     let (mounted, said) = sh(format!("mount --bind {} {}", world.checkout.display(), plain.display()).as_str());
     let reader_b_rows = reader_b.map(|pid| return in_namespace(pid, "awk '{print $5, $6, $10}' /proc/self/mountinfo")).unwrap_or_default();
-    let seen = reader_b_rows.lines().any(|line| line.contains(&plain.display().to_string()));
+    let seen = reader_b_rows.lines().any(|line| return line.contains(&plain.display().to_string()));
     if let Some(pid) = reader_b { stop(pid); }
     let (_, _) = sh(format!("umount {}", plain.display()).as_str());
     let _ = sh(format!("umount {}", scene.folder.display()).as_str());
@@ -427,10 +427,10 @@ fn m5_ordering() {
     let inode = std::fs::metadata(CACHE).expect("the cache").ino();
     // Negative: the pin records a dataset that is not the one mounted, which is the state a bind made before the
     // cache dataset mounts leaves, so the source check refuses and nothing is created.
-    let underlay_before = std::fs::read_dir(CACHE).map(|d| d.count()).unwrap_or(0);
+    let underlay_before = std::fs::read_dir(CACHE).map(|d| return d.count()).unwrap_or(0);
     let wrong = UserCachePin { source: String::from("git-policy-cli-store/not-the-cache"), root_inode: pin_now.root_inode, device: pin_now.device };
     let refused = git_policy_cli::worktree_clone_unmount::user_cache_pin::check_live_pin(&cache_file, &wrong).is_err();
-    let underlay_after = std::fs::read_dir(CACHE).map(|d| d.count()).unwrap_or(0);
+    let underlay_after = std::fs::read_dir(CACHE).map(|d| return d.count()).unwrap_or(0);
     let after = std::fs::read_dir(HOME).expect("the home lists").count();
     let (unmounted, remounted, cache_gone, pin_gone) = (false, true, false, wrong.source.clone());
     println!("ARM-M5 refused-on-wrong-source={refused} pin-source={} pin-inode={} mount-inode={inode} live={live} unmounted={unmounted} underlay-home={pin_gone} underlay-entries={underlay_before}->{underlay_after} remounted={remounted} home-entries={before}->{after} cache-gone={cache_gone} facts={}", pin_now.source, pin_now.root_inode, facts.source);
@@ -504,11 +504,10 @@ fn m6_interruption_and_cleanup() {
         Ok(held) => {
             let pinned = LiveStagingCalls.mount_id(&held).expect("the mount id");
             let answer = LiveStagingCalls.unmount_top(&held);
-            let text = match answer {
+            match answer {
                 Ok(()) => format!("ok pinned={pinned}"),
                 Err(refusal) => format!("EBUSY={} pinned={pinned}", refusal.errno == libc::EBUSY),
-            };
-            text
+            }
         }
         Err(refusal) => format!("open refused {}", refusal.errno),
     };
