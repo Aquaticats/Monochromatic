@@ -24,6 +24,7 @@ fn a_capture(nonce: &RequestNonce) -> Capture {
         head: String::new(),
         source_head: String::new(),
         entries: Vec::new(),
+        digests: Vec::new(),
     };
 }
 

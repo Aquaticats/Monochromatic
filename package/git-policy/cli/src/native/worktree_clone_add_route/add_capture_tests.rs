@@ -3,7 +3,7 @@
 //!  the walk's refusals,
 //!  and the record it writes and reads back.
 
-use super::{CapturedKind, Capture, CaptureInput, capture_the_source};
+use super::{CapturedDigest, CapturedKind, Capture, CaptureInput, capture_the_source};
 use crate::test_support::{fixture, git, remove};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
@@ -64,6 +64,72 @@ fn the_capture_reads_every_tracked_kind() {
     assert_eq!(capture.index.digest, crate::subvolume_sha::sha256(std::fs::read(root.join(".git").join("index")).expect("the index").as_slice()));
     assert_eq!(capture.repository, root.join(".git").as_os_str().as_bytes());
     assert_eq!(capture.source, root.as_os_str().as_bytes());
+    remove(root.as_path());
+}
+
+/// The capture of one fixture, with the index file's modification time moved to
+/// `seconds` so C4's set is decided by state and never by a wait.
+fn capture_with_the_index_at(root: &Path, seconds: i64, nanos: i64) -> Capture {
+    let index_path: PathBuf = root.join(".git").join("index");
+    let moved = libc::timespec { tv_sec: seconds, tv_nsec: nanos };
+    let times: [libc::timespec; 2] = [moved, moved];
+    let path: std::ffi::CString = c_path(index_path.as_path());
+    // SAFETY: `utimensat` reads the two times from this array and the path from a NUL-terminated string of ours.
+    let answered: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, path.as_ptr(), times.as_ptr(), 0) };
+    assert_eq!(answered, 0, "the control moves the index's own time");
+    return capture_of(root);
+}
+
+/// One path as the C string the libc call reads.
+fn c_path(path: &Path) -> std::ffi::CString {
+    return std::ffi::CString::new(path.as_os_str().as_bytes()).expect("the fixture's path holds no NUL");
+}
+
+/// The digest one capture recorded for a path,
+/// or nothing.
+fn digest_of<'a>(capture: &'a Capture, path: &str) -> Option<&'a CapturedDigest> {
+    return capture.digests.iter().find(|digest| return digest.path == path.as_bytes());
+}
+
+#[test]
+fn the_capture_digests_only_the_unvouched_and_racy_entries() {
+    let root: PathBuf = a_repository("capture-digests-some");
+    // An entry whose stat data cannot vouch for the file: the edit lands after
+    // the index recorded the file, at the same length.
+    std::fs::write(root.join("plain.txt"), b"PLAIN\n").expect("the control's edit");
+    let index_mtime: i64 = std::os::unix::fs::MetadataExt::mtime(&std::fs::metadata(root.join(".git").join("index")).expect("the index"));
+    let capture: Capture = capture_with_the_index_at(root.as_path(), index_mtime + 3600, 0);
+    assert!(digest_of(&capture, "plain.txt").is_some(), "an entry the stat data cannot vouch for is digested");
+    assert!(digest_of(&capture, "run.sh").is_none(), "an entry whose fields are its own and whose tick has moved is not read");
+    assert!(digest_of(&capture, "gone.txt").is_none(), "an absent path has no bytes to digest");
+    let plain: &CapturedDigest = digest_of(&capture, "plain.txt").expect("the digest");
+    assert_eq!(plain.digest, crate::subvolume_sha::sha256(b"PLAIN\n"), "the digest is the file's own bytes");
+    remove(root.as_path());
+}
+
+#[test]
+fn the_capture_digests_every_entry_the_index_is_not_older_than() {
+    let root: PathBuf = a_repository("capture-digests-all");
+    let index_mtime: i64 = std::os::unix::fs::MetadataExt::mtime(&std::fs::metadata(root.join(".git").join("index")).expect("the index"));
+    // The control moves the index's own time back, so every entry is inside one
+    // tick of it: the "a control which touches every file records every path"
+    // arm of the capture's own test.
+    let capture: Capture = capture_with_the_index_at(root.as_path(), index_mtime - 3600, 0);
+    assert!(digest_of(&capture, "plain.txt").is_some(), "a regular file inside the tick is digested");
+    assert!(digest_of(&capture, "run.sh").is_some(), "an executable inside the tick is digested");
+    assert!(digest_of(&capture, "link").is_some(), "a link inside the tick is digested through its target");
+    assert!(digest_of(&capture, "gone.txt").is_none(), "an absent path carries no digest even inside the tick");
+    let link: &CapturedDigest = digest_of(&capture, "link").expect("the digest");
+    assert_eq!(link.digest, crate::subvolume_sha::sha256(b"plain.txt"), "a link's digest is its target bytes");
+    remove(root.as_path());
+}
+
+#[test]
+fn the_capture_reads_a_digest_only_from_the_file_it_found() {
+    let root: PathBuf = a_repository("capture-digests-link");
+    let capture: Capture = capture_with_the_index_at(root.as_path(), 1763750400, 0);
+    assert_eq!(capture.entries.len(), 4, "every tracked path is recorded");
+    assert_eq!(capture.digests.len(), 3, "every path but the absent one is inside the tick");
     remove(root.as_path());
 }
 

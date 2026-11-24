@@ -21,7 +21,7 @@ fn every_kind_the_walk_meets_is_read() {
     let root: PathBuf = a_tree("walk-kinds");
     let paths: Vec<&[u8]> = vec![b"a.txt", b"link", b"gone.txt"];
     let mut seen: Vec<(String, FoundFacts)> = Vec::new();
-    walk_paths(root.as_path(), paths.iter(), |path| return path, |_item, path, found| {
+    walk_paths(root.as_path(), paths.iter(), |path| return path, |_item, path, found, _parent, _name| {
         seen.push((path.display().to_string(), found.clone()));
         return Ok(());
     })
@@ -39,10 +39,10 @@ fn every_kind_the_walk_meets_is_read() {
 fn a_folder_and_a_climbing_path_are_refused() {
     let root: PathBuf = a_tree("walk-refusals");
     let folders: Vec<&[u8]> = vec![b"folder"];
-    let refusal: String = walk_paths(root.as_path(), folders.iter(), |path| return path, |_item, _path, _found| return Ok(())).expect_err("a folder is no file the route proves");
+    let refusal: String = walk_paths(root.as_path(), folders.iter(), |path| return path, |_item, _path, _found, _parent, _name| return Ok(())).expect_err("a folder is no file the route proves");
     assert!(refusal.contains("is a folder"), "{refusal}");
     let climbing: Vec<&[u8]> = vec![b"../outside"];
-    let climbs: String = walk_paths(root.as_path(), climbing.iter(), |path| return path, |_item, _path, _found| return Ok(())).expect_err("a path that climbs out is no tracked path");
+    let climbs: String = walk_paths(root.as_path(), climbing.iter(), |path| return path, |_item, _path, _found, _parent, _name| return Ok(())).expect_err("a path that climbs out is no tracked path");
     assert!(climbs.contains("not a plain relative path"), "{climbs}");
     remove(root.as_path());
 }
@@ -52,7 +52,7 @@ fn a_visit_that_refuses_stops_the_walk() {
     let root: PathBuf = a_tree("walk-visit");
     let paths: Vec<&[u8]> = vec![b"a.txt", b"link"];
     let mut visited: usize = 0;
-    let refusal: String = walk_paths(root.as_path(), paths.iter(), |path| return path, |_item, _path, _found| {
+    let refusal: String = walk_paths(root.as_path(), paths.iter(), |path| return path, |_item, _path, _found, _parent, _name| {
         visited += 1;
         return Err(String::from("the control refused"));
     })
@@ -71,7 +71,7 @@ fn the_shared_path_is_one_plain_name_at_a_time() {
     std::fs::write(root.join("real").join("f.txt"), b"f\n").expect("the file");
     std::os::unix::fs::symlink("real", root.join("linked")).expect("the folder link");
     let through_link: Vec<&[u8]> = vec![b"linked/f.txt"];
-    let refusal: String = walk_paths(root.as_path(), through_link.iter(), |path| return path, |_item, _path, _found| return Ok(())).expect_err("a folder reached through a link is refused");
+    let refusal: String = walk_paths(root.as_path(), through_link.iter(), |path| return path, |_item, _path, _found, _parent, _name| return Ok(())).expect_err("a folder reached through a link is refused");
     assert!(refusal.contains("cannot be opened without a link"), "{refusal}");
     let _kept: &Path = root.as_path();
     remove(root.as_path());

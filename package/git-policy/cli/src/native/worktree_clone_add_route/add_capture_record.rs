@@ -18,16 +18,18 @@
 //! const capture = parseCapture(text); // throws with the line it refused
 //! ```
 
-use super::add_capture::{CapturedEntry, CapturedIndex, CapturedKind, Capture, MAXIMUM_PATH_BYTES, entry_words};
+use super::add_capture::{CapturedDigest, CapturedEntry, CapturedIndex, CapturedKind, Capture, MAXIMUM_PATH_BYTES, digest_words, entry_words};
 use crate::worktree_clone_binding_record::binding_encoding::{bytes_as_hexadecimal, hexadecimal_as_bytes};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
 /// The first line of a capture, naming the grammar's version.
-pub const CAPTURE_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree add capture, version 1";
+/// Version 2 carries the C3 and C4 digests a dirty source needs; a version 1
+/// record holds none, so it is refused rather than read as one that does.
+pub const CAPTURE_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree add capture, version 2";
 
 /// The keys the fixed part writes, in the order it writes them.
-pub const CAPTURE_FIXED_KEYS: [&str; 10] = ["nonce", "repository", "source", "checkoutGuid", "indexSize", "indexMtime", "indexDigest", "head", "sourceHead", "entries"];
+pub const CAPTURE_FIXED_KEYS: [&str; 11] = ["nonce", "repository", "source", "checkoutGuid", "indexSize", "indexMtime", "indexDigest", "head", "sourceHead", "entries", "digests"];
 
 /// The widest decimal form of a 64-bit unsigned number.
 const WIDEST_DECIMAL: usize = 20;
@@ -43,6 +45,9 @@ const WIDEST_COMMIT: usize = 64;
 pub const CAPTURE_ENTRY_LINE_MAXIMUM_BYTES: u64 =
     (2 * MAXIMUM_PATH_BYTES) as u64 + 1 + 7 + 1 + WIDEST_DECIMAL as u64 + 1 + (WIDEST_DECIMAL + 1 + WIDEST_NANOS) as u64 * 2 + 1 + 1 + 1 + (2 * MAXIMUM_PATH_BYTES) as u64 + 1;
 
+/// One digest's widest line: the hex path, the SHA-256 and their space.
+pub const CAPTURE_DIGEST_LINE_MAXIMUM_BYTES: u64 = (2 * MAXIMUM_PATH_BYTES) as u64 + 1 + 64 + 1;
+
 /// The capture's fixed lines' widest total.
 pub const CAPTURE_FIXED_BYTES: u64 = CAPTURE_HEADER.len() as u64
     + 1
@@ -55,11 +60,12 @@ pub const CAPTURE_FIXED_BYTES: u64 = CAPTURE_HEADER.len() as u64
     + ("indexDigest=".len() + 64 + 1) as u64
     + ("head=".len() + WIDEST_COMMIT + 1) as u64
     + ("sourceHead=".len() + WIDEST_COMMIT + 1) as u64
-    + ("entries=".len() + WIDEST_DECIMAL + 1) as u64;
+    + ("entries=".len() + WIDEST_DECIMAL + 1) as u64
+    + ("digests=".len() + WIDEST_DECIMAL + 1) as u64;
 
-/// The largest capture one entry count can name.
+/// The largest capture one entry count and its digests can name.
 pub fn capture_bound(entries: usize) -> u64 {
-    return CAPTURE_FIXED_BYTES + entries as u64 * CAPTURE_ENTRY_LINE_MAXIMUM_BYTES;
+    return CAPTURE_FIXED_BYTES + entries as u64 * CAPTURE_ENTRY_LINE_MAXIMUM_BYTES + entries as u64 * CAPTURE_DIGEST_LINE_MAXIMUM_BYTES;
 }
 
 /// What:
@@ -80,8 +86,12 @@ pub fn encode_capture(capture: &Capture) -> Vec<u8> {
     text.push_str(format!("head={}\n", commit_word(capture.head.as_str())).as_str());
     text.push_str(format!("sourceHead={}\n", commit_word(capture.source_head.as_str())).as_str());
     text.push_str(format!("entries={}\n", capture.entries.len()).as_str());
+    text.push_str(format!("digests={}\n", capture.digests.len()).as_str());
     for entry in &capture.entries {
         text.push_str(format!("entry={}\n", entry_words(entry)).as_str());
+    }
+    for digest in &capture.digests {
+        text.push_str(format!("digest={}\n", digest_words(digest)).as_str());
     }
     return text.into_bytes();
 }
@@ -134,6 +144,7 @@ pub fn parse_capture(text: &str) -> Result<Capture, CaptureParseRefusal> {
     let head: String = commit_named(values[7], "head")?;
     let source_head: String = commit_named(values[8], "sourceHead")?;
     let count: usize = usize::try_from(decimal_named(values[9], "entries")?).map_err(|_overflow| return String::from("the capture's entry count does not fit this machine"))?;
+    let digest_count: usize = usize::try_from(decimal_named(values[10], "digests")?).map_err(|_overflow| return String::from("the capture's digest count does not fit this machine"))?;
     let mut entries: Vec<CapturedEntry> = Vec::with_capacity(count.min(1 << 16));
     for _ in 0..count {
         let Some(line) = lines.next() else {
@@ -144,8 +155,18 @@ pub fn parse_capture(text: &str) -> Result<Capture, CaptureParseRefusal> {
         };
         entries.push(parse_entry(words)?);
     }
+    let mut digests: Vec<CapturedDigest> = Vec::with_capacity(digest_count.min(1 << 16));
+    for _ in 0..digest_count {
+        let Some(line) = lines.next() else {
+            return Err(format!("the capture says digests={digest_count} and holds fewer digest lines"));
+        };
+        let Some(words) = line.strip_prefix("digest=") else {
+            return Err(format!("the capture holds `{line}` where `digest=` belongs"));
+        };
+        digests.push(parse_digest(words)?);
+    }
     if let Some(extra) = lines.next() {
-        return Err(format!("the capture holds a line after its `entries={count}` lines: `{extra}`"));
+        return Err(format!("the capture holds a line after its `digests={digest_count}` lines: `{extra}`"));
     }
     return Ok(Capture {
         nonce,
@@ -156,6 +177,7 @@ pub fn parse_capture(text: &str) -> Result<Capture, CaptureParseRefusal> {
         head,
         source_head,
         entries,
+        digests,
     });
 }
 
@@ -241,6 +263,22 @@ fn parse_entry(words: &str) -> Result<CapturedEntry, CaptureParseRefusal> {
         (other, target) => return Err(format!("the capture's {other:?} entry names a link target `{target}`")),
     };
     return Ok(CapturedEntry { path, kind, size, mtime, ctime, executable, link_target });
+}
+
+/// One digest's line.
+fn parse_digest(words: &str) -> Result<CapturedDigest, CaptureParseRefusal> {
+    let fields: Vec<&str> = words.split(' ').collect();
+    if fields.len() != 2 {
+        return Err(format!("the capture's digest `{words}` does not hold its two fields"));
+    }
+    let path: Vec<u8> = hexadecimal_bytes_named(fields[0], "digest path", MAXIMUM_PATH_BYTES)?;
+    let Some(bytes) = hexadecimal_as_bytes(fields[1]) else {
+        return Err(format!("the capture's digest `{}` is not lowercase hexadecimal", fields[1]));
+    };
+    let Ok(digest) = <[u8; 32]>::try_from(bytes.as_slice()) else {
+        return Err(format!("the capture's digest `{}` is not 32 bytes", fields[1]));
+    };
+    return Ok(CapturedDigest { path, digest });
 }
 
 /// Controls stay out of the release executable.
