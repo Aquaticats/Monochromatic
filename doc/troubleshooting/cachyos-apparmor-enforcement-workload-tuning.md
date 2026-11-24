@@ -1703,7 +1703,7 @@ which is why this batch proposes none for `dac_override`.
 
 ## The askpass controls read a refusal, and prove the recorder starts
 
-Recorded 2026-11-24T03:35:00-05:00 by the round `askpass-controls-see-a-refused-program-2026-11-24`,
+Recorded 2026-11-24T03:23:00-05:00 by the round `askpass-controls-see-a-refused-program-2026-11-24`,
 on branch `fix/git-policy-cli-askpass-controls-see-a-refused-program`,
 whose one code commit is `2f9d76aaea`.
 Not approved and not final:
@@ -1751,7 +1751,7 @@ An empty log therefore means the rule held and not that the program never starte
 
 Host, `cargo test --locked --offline --test native_binary -- never_opens_the_password_dialog`
 and `cargo test --locked --offline --lib -- never_starts_the_hosts_askpass_program`,
-2026-11-24 between 03:05 and 03:20:
+2026-11-24 between 02:52 and 02:56:
 all four controls pass with their arms.
 With the recorder written mode `0644` so nothing can start it,
 the arms fail and say so,
