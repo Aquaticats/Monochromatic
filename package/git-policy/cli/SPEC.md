@@ -8614,7 +8614,7 @@ Every Git and `git-lfs` child gets one list,
 `no_prompt_overlay` in `src/native/invocation/child_environment.rs`:
 `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS=false`,
+`SSH_ASKPASS` set to one sentence that answers nothing and names what a person does instead,
 and `SSH_ASKPASS_REQUIRE=force`.
 The service's children take it through `service_child_overlay`,
 which `service_work.rs` uses for the service's landing and upkeep context and for each push's environment,
@@ -8640,17 +8640,52 @@ and so it opened `/dev/tty` and asked (`readpass.c:185`);
 the integration pass measured that at a real pseudo-terminal through the wrapper,
 with only these variables set.
 `force` sets `use_askpass` and `allow_askpass` both (`readpass.c:131-133`),
-which sends the question to the program (`readpass.c:172-182`),
-a program that prints nothing and exits non-zero leaves no answer (`readpass.c:179-181`),
+which sends the question to that value (`readpass.c:172-182`),
+a start that fails leaves no answer (`readpass.c:179-181`),
 and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 (`sshconnect2.c:1549-1558`).
-`ssh_askpass` finds the program with `execlp` (`readpass.c:77`),
-so a `PATH` without `false` fails the same way:
-the child cannot start it and exits non-zero.
-`false` is the standard program that prints nothing and reports failure;
-the wrapper ships for Linux only (`README.md`,
-"Requirements"),
-where coreutils or busybox puts it on `PATH`.
+`ssh_askpass` starts that value with `execlp` (`readpass.c:77`),
+and the value is not a program.
+It is one sentence, `NO_ANSWER_SENTENCE` in `src/native/invocation/child_environment.rs`,
+which the owner chose on 2026-11-24
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
+"J: the sentence in SSH_ASKPASS"):
+a name that long cannot be started,
+and OpenSSH prints its own failure with the sentence inside it
+(`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`),
+so the person reads
+`ssh_askpass: exec(monochromatic-git-policy-cli: ...): File name too long`
+before OpenSSH's own refusal.
+No program starts,
+so nothing has to be installed on `PATH`
+and no confinement has to allow an execute in place of a person.
+The sentence names no host key and no certificate outside single quotes and holds none of the login words,
+because a transcript that holds it is still judged by `reads_as_unknown_host_key` and by the two login readings
+(`the_wrappers_sentence_for_openssh_turns_no_reading_on` in `src/native/lfs/lfs_pre_push_tests.rs`).
+That is also why the wrapper's own sentence for an unknown host key still prints below the program's words:
+the upload's explanation and the service's push record read the same transcript
+(`an_upload_refused_for_an_unknown_host_key_reads_words_that_hold_the_wrappers_askpass_line`,
+`a_record_of_a_push_refused_for_an_unknown_key_reads_words_that_hold_the_wrappers_askpass_line`).
+A person meets the line at both refusals this rule causes,
+measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
+`git clone` and `git fetch` print it before `Host key verification failed.` at an unknown host key,
+and before `Permission denied (publickey).` at a key whose passphrase nobody can give,
+each ending 128 with Git's own lines below
+(`a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
+`a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
+`a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal` and
+`a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
+The line also prints where nothing failed:
+with `AddKeysToAgent=ask` and an agent that does not hold the key yet,
+and with a key whose passphrase nobody can give skipped for one that works,
+the command ends 0 and the line is on standard error anyway
+(`a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_with_the_sentence`,
+and the `AddKeysToAgent=ask` arm in
+`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+The sentence's last clause says so,
+and that is the cost of one generic text:
+it cannot say which question it was printed for.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -8674,10 +8709,10 @@ which a server that simply does not accept the key prints as well,
 so the sentence says the key was refused or could not be unlocked).
 What the two variables also turn off:
 the yes/no question for a host key that is not known,
-which is answered "no" from the program that fails and refused (`Host key verification failed.`,
+which is answered "no" by the value that cannot start and refused (`Host key verification failed.`,
 `confirm` reads it with `read_passphrase` at `sshconnect.c:603-627`
 and an empty answer is not "yes"),
-where the same command with no such program asked the question at a terminal;
+where the same command with no such value asked the question at a terminal;
 and the permission questions of a shared connection (`ControlMaster`),
 of a key an agent is asked to confirm,
 and of `AddKeysToAgent=ask`,
@@ -9944,7 +9979,7 @@ The refusal that follows a login failure says what the wrapper did about prompti
 and every refusal says the wrapper never lets a command ask for a credential,
 with `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
+`SSH_ASKPASS` set to the sentence that answers nothing and `SSH_ASKPASS_REQUIRE=force`,
 whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
