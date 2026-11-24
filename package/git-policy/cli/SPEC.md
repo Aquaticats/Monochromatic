@@ -21481,17 +21481,49 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
-A probe with no configuration file is about 25 milliseconds (1.14 times) slower
+A probe with no configuration file is about 13 milliseconds (1.115 times) slower
 than one whose file names every entry,
 once per boot.
-Three runs measured it,
-and a second pass decomposed it into three lookup arms,
-each 26 to 43 milliseconds over the file-named arm with heavily overlapping
-ranges,
-so the arms do not look additive and the cause is not established;
+Forty rounds in one throwaway `mvm` guest measured it,
+the two arms interleaved in the same round with the order shuffled every round,
+and a repeat of the file-named arm as the control of the method:
+129.8 milliseconds for no file against 114.3,
+with the repeat 1.3 percent from the first arm.
+The spread of an unchanged arm was measured before any comparison,
+thirty rounds of the same file-named arm against an identical repeat of itself,
+and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,
+so a single round resolves nothing and the medians carry the claim.
+The difference is not the look-up's work.
+The look-up reads this process's mount table once and parses it,
+about 78 microseconds,
+and the checkout's dataset is taken from the row that carried the path,
+so the second read the first build made is gone:
+the look-up's own work went from 162 to 90 microseconds,
+timed in the guest against a control of ten reads of the same file (787
+microseconds) and a null control of 20 nanoseconds,
+while the whole command moved by no measurable time (129.2 milliseconds after,
+1.000 times the arm before, spread -169.5 to +53.7).
+What the 13 milliseconds are is a stall this guest shows on a process's first
+touch of the mount table:
+the first open of `/proc/self/mountinfo` in the worker takes 12 to 17
+milliseconds in a quiet guest and 93 to 105 in a loaded one,
+with 3,824 page faults inside that open,
+while the read that follows it is 146 microseconds and a second open and read in
+the same process 44 and 81 with no faults.
+Split by the timestamps of the probe's own step lines,
+the no-file arm pays that stall in its look-up (12.9 milliseconds) and again in
+its holder's start (10.8),
+and the file-named arm pays it once, at the mount verify (12.2),
+which is what makes the two whole commands 13 milliseconds apart rather than
+three:
+the worker phases are 33.2 milliseconds with no file and 22.4 with one,
+and 32.7 with no file once the second read was removed.
+This round placed that stall and did not explain it;
 the work happens inside the worker phase the deadline bounds,
 whose margin is the 231 milliseconds stated below,
-and this build states the cost rather than sizing the deadline by it.
+and this build states the cost rather than sizing the deadline by it
+(the rounds, the arms and the step split are in
+`package/git-policy/cli/doc/start-probe-no-file-cost-measurement-2026-11-23.md`).
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to
