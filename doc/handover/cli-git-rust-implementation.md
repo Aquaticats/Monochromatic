@@ -474,15 +474,29 @@ left two fixes to the binding,
 neither step 10's:
 a wrong sentence about a `snapshotted` resume,
 and `doctor` naming two commands for one plan state.
+The registration half merged as `cde8ad55a8`:
+the add's record family,
+the lock's words,
+the finder,
+the recipe,
+the resume states and the plan-folder read,
+in `package/git-policy/cli/src/native/worktree_clone_binding_record/`,
+with 70 unit controls and nothing wired into the add yet.
+Its round decided seven points the designs leave open
+(`keep/state-so-far.md` in
+`~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`),
+which the binding design's writer is to put into its text.
 Running:
-`pi-zfs-step-10-add-route-to-a-verified-fill`,
-the build,
-on `feat/git-policy-cli-zfs-step-10-add-route-to-a-verified-fill`;
-and the binding's round on the two fixes
-(`continuation-eleventh-read.md` in its round folder).
+`pi-zfs-step-10-execution-half`,
+on the same branch:
+the route from the claimed slot to a verified fill,
+its wiring,
+kills and resumes,
+and the guest tests.
 
 Next:
-merge each when it ends.
+merge it when it ends;
+then a round putting both rounds' decisions into the binding design.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
 
