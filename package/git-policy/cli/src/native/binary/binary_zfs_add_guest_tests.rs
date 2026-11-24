@@ -255,6 +255,17 @@ impl Fixture {
         return PathBuf::from("/root/zfs-add-home");
     }
 
+    /// The session's runtime folder,
+    /// which the account companion keeps its scratch in,
+    /// made beside the home folder so the add's own environment is the one a
+    /// session gives it.
+    fn runtime_folder(&self) -> PathBuf {
+        let folder: PathBuf = PathBuf::from("/root/zfs-add-runtime");
+        std::fs::create_dir_all(folder.as_path()).expect("the runtime folder");
+        std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the runtime folder's mode");
+        return folder;
+    }
+
     /// The link the arm starts as `git`.
     fn make_the_wrapper_link(&self) {
         let bin: PathBuf = self.bin_folder();
@@ -364,6 +375,7 @@ impl Fixture {
             .env_clear()
             .env("PATH", format!("{}:/usr/bin:/bin", self.bin_folder().display()))
             .env("HOME", self.home_folder())
+            .env("XDG_RUNTIME_DIR", self.runtime_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
             .env("GIT_AUTHOR_NAME", "Fixture")
