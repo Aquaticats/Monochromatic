@@ -14,8 +14,8 @@ The two sentences of the plan and the design that it amends are quoted under
 What it ran, and where the evidence is:
 one throwaway `mvm` guest (`zfs-step-19-boot-order-2026-11-23`, Ubuntu 24.04, kernel `6.8.0-147-generic`,
 systemd `255` (`255.4-1ubuntu8.19`), OpenZFS `2.4.4-1` module and userspace built from the release tarball),
-a 1 GiB file-backed pool laid out like this host's, five unattended reboots, one poweroff cycle, and two
-arms that run without rebooting.
+a 1 GiB file-backed pool laid out like this host's, fifteen unattended boots (three of them ended by a poweroff the
+round read back), and three arms that run without rebooting.
 Every run is logged whole under
 `~/temp/agent/zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23/keep/guest-logs/`.
 Host reads are read-only and kept in that folder's
@@ -261,14 +261,16 @@ Why each line, and what the runs said about it:
   What the edges do work is the stop pass: at shutdown the gate stops before the provider and before `umount.target`.
 - `Before=systemd-user-sessions.service`.
   Measured in every green boot: the pre-session witness ran, found the checkout mounted, private, and its slot
-  attached, and `systemd-user-sessions.service` finished after the gate's job had ended
-  (`Finished reconcile-...` at `.197`, `Finished systemd-user-sessions.service` at `.279` of the same second, one boot
-  of five).
+  attached, and `systemd-user-sessions.service` started only after the gate's job had ended.
+  One boot, whose first entry is `02:10:35` (`keep/guest-logs/journals-per-boot.log`):
+  `Finished reconcile-...` at `1795486241.197907`, the witness `Finished` at `.260876`,
+  `Starting systemd-user-sessions.service` at `.298290` and `Finished` at `.344026`.
 - `Before=umount.target` with `Conflicts=umount.target`.
-  Measured at a poweroff: `Stopping reconcile-...` at `3757.432`, deactivated at `.457`, then
-  `zfs-mount.service: Deactivated successfully` at `.758`, then `Reached target umount.target` at `.944`.
-  The stop pass therefore ran before the datasets' own teardown, and its own log line landed in
-  `/var/log/step19-sweep-stop.log` at uptime `67.40`, which is the same pass.
+  Measured in the same boot's shutdown: `Stopping reconcile-...` at `1795486310.937130`, deactivated at `.958381`,
+  then `zfs-mount.service: Deactivated successfully` at `1795486311.645979`, then the checkout's own learned mount
+  unit `Unmounting` at `.700170` and `Unmounted` at `.706510`.
+  The stop pass therefore ran before the provider's stop and before the checkout's own unmount, and its own durable
+  line landed in `/var/log/step19-sweep-stop.log` at uptime `67.40`, which is the same pass.
 - `WantedBy=multi-user.target` with default dependencies.
   This is what makes the gate part of the boot at all; without it the unit runs only on a manual start.
   It also carries the implicit `After=basic.target` that the ordering paragraph above explains.
@@ -482,6 +484,10 @@ The arms below are cited by that first entry time, `02:07:01` meaning the boot w
   No arm ran `zfs-zed.service`, and the hook's line is a text this design proposes, not a run.
 - **Not a mount namespace other than the host's.**
   Every gate run was in the guest's own namespace, as root, with no second namespace holding the checkout.
+- **Not a failed import.**
+  No arm made the pool's import fail; the failure control failed the key load, and the checkout's mount failed with
+  it. Whether a refused import leaves a different trail is unmeasured, and the provider's behaviour when import
+  fails is only what the first boot above shows for an import unit skipped by its own condition.
 - **Not the migration.**
   The fixture's pool, datasets and covered entry were created directly; nothing here exercises the one-time move,
   the rollback, or a covered entry whose flag was set by that move.
