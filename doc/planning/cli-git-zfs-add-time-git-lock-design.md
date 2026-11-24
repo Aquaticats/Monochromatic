@@ -1981,7 +1981,7 @@ That section lists one row per state Git's source can leave,
 reads each entry twice through the pinned `<common>/worktrees` parent,
 compares `locked` with the sentence recomposed from this add's `nonce=` including the newline Git's
 `write_file` appends (`wrapper.c:760` to `:783`),
-counts a proper prefix only when it covers the sentence's fixed part and the whole nonce,
+counts a proper prefix only when it runs past the sentence's fixed part and the whole nonce,
 trims a `gitdir`'s newline and resolves a relative one against the registration's directory
 (`worktree.c:1105` to `:1134`),
 and derives the candidate names from the slot's name through Git's own sanitiser
@@ -2034,10 +2034,13 @@ the clone slot <slot> holds the managed Git lock its add wrote for add nonce <no
 S2.
 **The wrapper's own lock,
 cut short.**
-`locked`'s bytes are a proper prefix of the recomposed sentence **that covers the sentence's fixed part and
+`locked`'s bytes are a proper prefix of the recomposed sentence **that runs past the sentence's fixed part and
 the whole nonce**,
 which is the only shape a killed single write leaves (F8),
 and which is how the binding's finder counts a prefix.
+A prefix that stops at the nonce's last byte attributes nothing here,
+because the build asks for one byte more before it calls a prefix the add's (`cde8ad55a8`,
+2026-11-23T20:08:54-05:00).
 A shorter prefix,
 including the empty file a person's `git worktree lock` with no reason leaves,
 attributes nothing and is S3.
@@ -2049,7 +2052,7 @@ the clone slot <slot> holds the managed Git lock its add wrote for add nonce <no
 
 S3.
 **A lock the wrapper cannot recompose.**
-The bytes are neither equal to the sentence nor a prefix that covers its fixed part and the whole nonce,
+The bytes are neither equal to the sentence nor a prefix that runs past its fixed part and the whole nonce,
 or the binding is absent or unreadable so that nothing can be recomposed.
 An empty file is S3 here.
 The binding's resume reads an empty `locked` as no lock for attribution (its "The states Git's source can leave" and its T20b),
@@ -2364,7 +2367,7 @@ writes nothing,
 and says nothing about it;
 nothing is lost but the report.
 A kill inside the write leaves a prefix of the sentence (F8):
-one that covers the fixed part and the whole nonce is S2,
+one that runs past the fixed part and the whole nonce is S2,
 which the next claim holder completes in place (V4),
 and a shorter one is S3,
 a lock the wrapper cannot recompose,
@@ -3754,6 +3757,13 @@ with each committer time from `git log --format=%cI`:
   the split's A24 release,
   the command for each state after A20 cited,
   and the fifth round's commit named.
+- 2026-11-24T01:41-05:00:
+  the lock's attribution boundary as the build has it:
+  a prefix that stops at the nonce's last byte attributes nothing,
+  which S2,
+  S3,
+  the finder gloss and the kill's states now say,
+  decided at `cde8ad55a8` (2026-11-23T20:08:54-05:00).
 
 Any commit after those carries this list;
 the round's report names every commit with its committer time.

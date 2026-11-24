@@ -1514,6 +1514,10 @@ A field whose fact is not confirmed yet is absent,
 and the phase says how far the add got.
 A field present is a fact the writer confirmed before that write,
 never a guess.
+The build requires a record's lines to be strictly increasing in that order,
+which refuses a repeated key and an out-of-order key with one rule,
+and it skips an absent optional key rather than shifting the key it expects (`cde8ad55a8`,
+2026-11-23T20:08:54-05:00).
 
 The wrapper's own reader finds a field by its key and skips every line it does not ask
 for (`worktree_add_binding.rs`:77 to :87).
@@ -1845,6 +1849,22 @@ the checkout mount,
 the grants,
 the slot parent and the handler's readiness,
 as plan step 10 lists it.
+The build fixed four things here,
+and the code decides each of them (`bee6531780`,
+2026-11-24T00:51:32-05:00):
+it reads no effective ZFS grant,
+so a write the pool refuses reports the kernel's own error with the pool already recorded at A2,
+while the list above still says the shared preflight proves the grants,
+which plan step 10's own list does not ask for;
+it refuses a repository whose Git does not ignore `.claude/cli-git-trash`,
+because the copied administration must be left where the disposal can prove it;
+it refuses a source that is not clean,
+so a dirty main checkout stops the add before the claim instead of falling to the ladder's rung 3,
+which the build round's note claimed and the code does not;
+and it refuses a person's own `--lock`,
+`--reason`,
+`--checkout` or `--no-checkout`,
+because the route takes the named lock itself (the lock design's "The invocation").
 Owner:
 the route's preflight.
 Lock moment:
@@ -1867,14 +1887,26 @@ The binding's first write,
 before any mutation.
 `claim=`,
 `nonce=`,
+`request=`,
 `phase=claimed`,
 `checkoutDataset=`,
 `checkoutDatasetGuid=`,
 `repository=`,
 `repositoryIdentity=`,
 `slot=`,
-`request=`,
-the proposed clone name and the proposed `git-worktree-clone-origin-<nonce>` snapshot name.
+`pool=`,
+`poolGuid=`,
+`originSnapshot=` and
+`cloneDataset=`,
+the last two holding the proposed snapshot name and the proposed clone name.
+The build writes the pool and its GUID here too,
+which this list first left out:
+a refused write reports the pool,
+and the record must name it before the first ZFS call (`bee6531780`,
+2026-11-24T00:51:32-05:00).
+`originDataset=` and `originDatasetGuid=` are absent here and required from `phase=snapshotted`,
+because only the origin snapshot proves which dataset holds it (`cde8ad55a8`,
+2026-11-23T20:08:54-05:00).
 Owner:
 this design.
 Lock moment:
@@ -1899,7 +1931,10 @@ Lock moment:
 D0.
 A kill leaves an empty slot,
 a claim and a binding at phase `claimed`;
-the next command verifies the slot again.
+the next command scans `<common>/worktrees` before it verifies the slot,
+so a Git add that already ran is adopted rather than refused as a slot holding entries,
+and the slot is verified as empty only when the scan answers that Git must run (`bee6531780`,
+2026-11-24T00:51:32-05:00).
 Git's own failure path may delete this slot later (the resume's slot rule),
 which is why A3 is a step a resume may run again.
 
@@ -1988,7 +2023,13 @@ GUID and `createtxg`;
 publish `<slot>.origin-inventory`,
 then write `originSnapshot=`,
 `originSnapshotGuid=`,
-`originSnapshotCreatetxg=` and `phase=snapshotted`.
+`originSnapshotCreatetxg=`,
+`originDataset=`,
+`originDatasetGuid=` and `phase=snapshotted`.
+The build writes the two origin-dataset fields at this phase,
+which this list first left to the fields section,
+and it requires them from `phase=snapshotted` (`cde8ad55a8`,
+2026-11-23T20:08:54-05:00).
 Owner:
 this design.
 Lock moment:
@@ -2012,6 +2053,16 @@ Lock moment:
 D5.
 A kill leaves a clone the recorded name and parent identify and possibly no inventory;
 the resume rebuilds the inventory only while the clone holds no snapshot of its own (V13).
+The build creates the clone with `mountpoint=legacy` and no `canmount` property:
+a clone inherits the origin's mountpoint,
+a legacy dataset is never mounted by itself whatever `canmount` says,
+and the kernel refused `canmount=off` at creation in the build's guest (`add_zfs.rs`:100 to :110,
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
+The build round's note first recorded both properties;
+the code decides,
+and `SPEC.md`'s account of this step still names both,
+which is a defect of that file.
 
 A10.
 The mount,
@@ -2020,6 +2071,17 @@ then `phase=mounted`.
 This step ends at that write.
 Owner:
 this design with the route's attach checks.
+The build asks the handler through the clone's intent property,
+then waits for the slot's own mount to show the clone's dataset as its source,
+the slot as its mount point and `zfs` as its kind in this command's namespace,
+looking every 50 milliseconds and no longer than the protocol's provisional request deadline (`add_mount.rs`:27,
+:31 and :61 to :80;
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
+The handler's receipt is its account of the same fact;
+the mount table the caller reads is what ends the wait,
+and a deadline is not a cancellation,
+so a refused wait leaves the request standing.
 Lock moment:
 D6 is this step's window and the two below,
 and A11's exchange ends it (the lock design reads D6 as A10,
@@ -2029,6 +2091,12 @@ at `9e3ceff079`).
 A kill leaves a clone that may be mounted;
 the resume reads the mount live,
 and compares the identities "The identity fields" says are comparable while mounted.
+At `phase=cloned` the build reads the mount before it compares the underlay:
+a clone a handler has mounted once the intent stands shows its own root at the slot,
+so `slotIdentity=` is compared only when nothing is mounted there,
+and the mount's source is compared when something is (`add_route_run.rs`:140 to :145;
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
 
 A10a.
 The frozen-content comparison inside the clone,
@@ -2039,6 +2107,13 @@ and as the dirty-main decision's window states it (that record's "Which writes t
 Owner:
 the dirty-main restore design for the proof;
 this design for its place in the order.
+The build takes the capture at A6's end,
+after Git's registration and before the snapshot request,
+publishes it once and flushed,
+and refuses a snapshot that stands while the capture is gone (`add_route_steps.rs`:253 and :304;
+`add_capture_store.rs`:77;
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
 Lock moment:
 inside D6.
 A kill leaves a mounted clone with the comparison unmade;
@@ -2059,6 +2134,21 @@ Owner:
 the dirty-main restore design for the restore's steps;
 this design for one rule it depends on,
 which is the copied `.git`'s fate at A11.
+What step 10 builds of this on a clean source,
+and the code decides (`bee6531780`,
+2026-11-24T00:51:32-05:00):
+the leave-outs of step 4;
+the private index of step 5 as the captured index normalized,
+with every entry's stored stat fields kept and the untracked-cache and fsmonitor extensions dropped and the checksum
+remade (`add_index.rs`:69 to :76);
+and the check,
+the publication and the exchange of step 8.
+The seed is the clone's copied index,
+read only after D1 has proved it equal to the capture,
+so a fresh read of the source's index cannot carry a later write into the fill (`add_fill.rs`:135 to :142).
+No path is written through Git,
+so the reset and the fence's writes are step 11's,
+and a path a conversion rule would rewrite keeps the source's bytes until that step lands (issue 6323).
 Lock moment:
 inside D6.
 A kill leaves a mounted clone whose slot still shows the copied `.git` and whose index may be the private name or
@@ -2095,6 +2185,20 @@ that is the one statement of D6's boundary between the two documents.
 A kill leaves a mounted clone whose slot shows either the copied directory or the pointer,
 never neither,
 and the resume reads which and continues.
+The build records the copied administration's identity in the trash's own manifest with one atomic rewrite:
+it appends the identity to the manifest's entries and renames `.manifest.pending` over `.manifest` (`add_exchange.rs`:178
+and :248 to :256;
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
+A resume that finds the exchange unmade re-runs the leave-outs,
+which are idempotent by this design's own words,
+and a second leave-out on ZFS moves the earlier trash into the new one,
+whose disposal empties both (`add_fill.rs`:113 to :133).
+A successful fill then removes the proof's marker and,
+after it,
+the capture,
+and a kill between the two leaves a capture the next add at the slot clears by its nonce (`add_capture_store.rs`:154 to :157
+and :171 to :180).
 The exchange's own guest run is still owed (the decision's "Still owed"),
 and it is the dirty-main design's measurement,
 not this record's.
@@ -2104,6 +2208,13 @@ The dependency repairs,
 queued.
 Owner:
 the route's existing repair step.
+The build then hands the filled worktree's trash to the service,
+queues the repairs,
+and prints one note of its own unless the person asked for `--quiet`,
+while Git's own preparing line stays Git's (`add_route_run.rs`:51,
+:162 and :369;
+`bee6531780`,
+2026-11-24T00:51:32-05:00).
 Lock moment:
 D7,
 which the lock stands through.
@@ -2628,10 +2739,17 @@ and the name compared with the ones Git could derive from this slot.
 
 - The sentence is recomposed from this add's `nonce=` and compared with `locked`'s bytes as Git wrote them,
   **including the newline `write_file` completes it with** (`wrapper.c`:760 to :783).
-  A proper prefix counts only when it covers the sentence's fixed part and the whole nonce;
-  a shorter prefix,
-  including an empty file,
-  is what any just-opened lock looks like and attributes nothing.
+  A lock is this add's when its bytes equal the sentence and that newline,
+  or when they are a proper prefix that runs past the sentence's fixed part and the whole nonce,
+  which is a prefix longer than the fixed part with the nonce and shorter than the whole file.
+  A prefix that stops at the nonce's last byte attributes nothing,
+  and neither does a shorter one,
+  an empty file included,
+  because the build asks for one byte past the nonce before it calls a prefix this add's (`cde8ad55a8`,
+  2026-11-23T20:08:54-05:00).
+  Any other short file,
+  whatever its length,
+  is a person's lock and refuses.
 - A `gitdir`'s text is trimmed of its ending newline and,
   when it is relative,
   resolved against the registration's directory,
@@ -2685,7 +2803,7 @@ An entry is this add's when one of these holds:
 
 - `locked` equals the recomposed sentence,
   newline included;
-- `locked` is a proper prefix that covers the fixed part and the nonce (the lock design's F8 and S2);
+- `locked` is a proper prefix that runs past the fixed part and the whole nonce (the lock design's F8 and S2);
 - there is no `locked`,
   and `gitdir` resolves to `<slot>/.git`;
 - there is neither `locked` nor `gitdir`,
@@ -2719,6 +2837,7 @@ which the five facts above name and which no lock list supplies.
 Complete:
 adopt it.
 A lock cut short is completed in place first (the lock design's S2),
+with one truncating write and a flush of the whole sentence (`registration_recipe.rs`:239 to :244),
 and an entry with no lock at all is the case step 10 has no installer for.
 The decision of 2026-11-22 makes any command that holds the slot and has proved the registration write a lost
 lock again
@@ -2801,7 +2920,8 @@ as the rows say.
   empty.
   Recognised by:
   the lock,
-  and an empty `locked` is recognised by the name alone,
+  and a `locked` that attributes nothing (empty,
+  or a prefix that stops at the nonce) is recognised by the name alone,
   as row 1's shape with one file.
   Cleared by:
   `locked`;
@@ -3015,6 +3135,12 @@ and M9 is the arm that would show it.
 So at phase `slot` or `claimed` the resume may find no slot at all,
 or an empty slot with another inode and birth time,
 and `slotIdentity=` then answers nothing.
+The scan of "A resume after a kill between Git's add and the registered write" runs before this rule does,
+because at either phase Git's add may already have written the slot's pointer,
+which A3's empty-slot test would refuse;
+the rule below applies only when the scan asks for Git to run again,
+and a registration adopted at `claimed` records the slot's identity the later readers need (`bee6531780`,
+2026-11-24T00:51:32-05:00).
 
 The rule is:
 
@@ -3321,6 +3447,15 @@ when the record is:
 
 An add that finds no record takes the claim and writes one,
 which is the normal path.
+The build refuses two phases that this design hands to later steps,
+and `bee6531780` (2026-11-24T00:51:32-05:00) decides both:
+a record at `phase=filled` refuses a second add,
+naming the worktree and the two ways of using or removing it,
+because Git refuses a second worktree at a slot that holds one (`add_route_run.rs`:98 to :104);
+and a record at `phase=settling` refuses and names the settling command,
+because the fallback that writes and finishes that phase is step 11's and this release has none (`add_route_run.rs`:105
+to :111).
+A `settling` binding can therefore meet a step 10 build only as a later release's leftover.
 
 ### The removal's lineage proof
 
@@ -4009,6 +4144,24 @@ and the last list says what step 10 cannot take yet.
   the accepted proposal's pre-flight list,
   and the route's own checks;
   this document's A0 names it and adds no rule.
+- The route's gate:
+  the build serves only an add whose source is the mount of the ZFS dataset whose leaf name is
+  `monochromatic-git-checkout`,
+  whose destination is a direct child of `<checkout>/.claude/worktrees`,
+  and whose command names none of `--lock`,
+  `--reason`,
+  `--checkout` or `--no-checkout`;
+  every other add keeps the ladder exactly as it was (`bee6531780`,
+  2026-11-24T00:51:32-05:00).
+  That dataset exists only after plan step 19's one-time migration,
+  so no person meets the route before that step.
+- The add's read of the plan folder:
+  the project's answer of 2026-11-23 puts it in step 10
+  (`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`,
+  "Where the add's read of the plan folder is built"),
+  and the build makes it in the preflight and again at A2 (`bee6531780`,
+  2026-11-24T00:51:32-05:00).
+  V24 states what it reads and what it does with what it finds.
 - The account companion's check code,
   before the claim:
   the start-probe design's "The account companion" and its step 10 entry,
@@ -4124,10 +4277,13 @@ and the last list says what step 10 cannot take yet.
 - Step 14 builds the removal's reading of the binding and both inventories,
   the refusals of "The removal's lineage proof",
   and the claim the removal takes.
-  It also builds the add's read of the plan folder,
-  because step 14 is the first step that writes a plan,
-  and until then the folder holds nothing for the add to find (N4 of the eleventh add-side read;
-  the add's list in "What step 10 takes" is not the place for it).
+  The add's read of the plan folder is not this step's:
+  the project answered on 2026-11-23 that step 10 builds it
+  (`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`,
+  "Where the add's read of the plan folder is built"),
+  "What step 10 takes" lists it there,
+  and the build has it (`bee6531780`),
+  which supersedes this paragraph's earlier placement of it here (N4 of the eleventh add-side read).
 - Step 16 builds the record's end,
   which is this design's assignment rather than the plan's,
   together with the plan design's finish pass,
@@ -4417,6 +4573,25 @@ resumed by an add given `request=commit 4f1c...`,
 refuses and names both,
 and resumed by an add given the same request,
 continues.
+
+The seam the build kills an add at,
+decided at build time (`bee6531780`,
+2026-11-24T00:51:32-05:00):
+a control add reads one step name from `CLI_GIT_TEST_ONLY_ZFS_ADD_STOP_AFTER`,
+checks it against a closed list of the add's steps,
+and sends itself `SIGKILL` at that boundary,
+which is the shape step 8's adoption arm already uses for a killed writer;
+a full-pool arm holds the add at one named step through `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP` and
+`CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL`,
+bounded so a dead test ends the add rather than the suite (`add_route_plan.rs`:54 to :74 and :251 to :278).
+Neither switch is a mode a person's add enters.
+The guest arm mounts the clone as root with `/usr/bin/mount -t zfs -o nosuid,nodev`
+at the step the clone's intent property asks,
+never as soon as the dataset exists,
+because the handler's own attach is steps 4 and 7's arm and this route's subject is the order (`binary_zfs_add_guest_tests.rs`:302);
+and its snapshot listings name the dataset with no depth,
+because a `-d 1` listing shows no snapshot of it,
+so a check through one would pass while an earlier arm's origin snapshot stayed in the pool (`binary_zfs_add_guest_tests.rs`:333 and :378).
 
 Guest tests,
 because they need a real pool,
@@ -5841,6 +6016,19 @@ Whether an add refuses while a destruction plan stands for its clone.
   the add's refusal names the proposal's cancel command as well,
   which the plan design's section 7 removes in that one state and returns the worktree to use,
   so a person who wants the worktree kept is not told only how to finish removing it (N3 of the eleventh).
+  The read is the smallest one that can refuse (`cde8ad55a8`,
+  2026-11-23T20:08:54-05:00):
+  it lists the plans folder and reads only an entry whose name is a clone's canonical decimal GUID,
+  which is the plan's key;
+  a file under such a name that cannot be read,
+  or that does not begin with the plan design's header,
+  stops the add too,
+  because nothing proves it does not name this clone;
+  and an entry under any other name is foreign,
+  read by nobody here and reported by `doctor`.
+  The build reads the folder twice,
+  in the preflight before the claim and again at A2,
+  so a plan written between the two still stops the add (`add_route_run.rs`:203 and :317).
   Pros:
   no plan is left with no clone,
   no binding and no command,
@@ -6556,6 +6744,37 @@ and any test suite.
   and 2026-11-23T19:29:15-05:00 (`cddb3c87f5`):
   the round's Revisions entry,
   and the plan design's section cited as it now reads beside the five readers.
+- 2026-11-24T01:41-05:00:
+  wrote step 10's build decisions into this design at the place a reader meets each question,
+  each checked against the code on `main` and cited to the half that decided it
+  (`cde8ad55a8`,
+  2026-11-23T20:08:54-05:00,
+  and `bee6531780`,
+  2026-11-24T00:51:32-05:00):
+  the pool fields at A2 and the origin-dataset fields at A8;
+  the reader's strict key order;
+  the lock's attribution boundary as the code has it,
+  here and in the lock design's S2,
+  S3 and finder gloss;
+  the cut-short lock's one truncating write;
+  the preflight's four build decisions at A0;
+  the scan before the slot rule at A3;
+  the clone's `mountpoint=legacy` and no `canmount` at A9;
+  the mount wait and the mounted-slot compare at A10;
+  the capture's place at A10a and the clean fill's index at A10b;
+  the atomic manifest,
+  the re-run leave-outs and the marker-then-capture order at A11;
+  the trash hand-over and the printed note at A12;
+  the two phases a step 10 build refuses in "A resumed add";
+  the smallest plan read in V24;
+  the route's gate and the add's plan read in "What step 10 takes",
+  with step 14's list corrected to the project's answer of 2026-11-23;
+  and the kill seam,
+  the arm's mount and the snapshot listings in the tests.
+  It also checked the eleventh read's N1,
+  N2 and N5 fixes against the code and found them already in,
+  and the code's shared command rule is coarser than N1's `doctor` rule,
+  which this round's report puts to the project.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
