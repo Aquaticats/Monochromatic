@@ -4417,8 +4417,8 @@ meets" for the pass's binding condition,
   and says a plan of an earlier clone at the same path is not that binding's plan,
   which is the binding design's V24 and its "Which command is true for a state".
   The dependency sentence beside it says one fact remains and is B's own.
-- `WILLFILL`,
-  committer time `WILLFILL`:
+- `53e8120410`,
+  committer time `2026-11-23T20:31:46-05:00`:
   the project's choice of one line per attempt,
   as `doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`
   records it under "Choice 32:
