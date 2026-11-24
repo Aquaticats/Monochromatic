@@ -19,17 +19,21 @@
 //! ```
 
 use super::adopt_worktree_parent_mode;
-use super::attaching_sweep_mode;
-use super::boot_reconcile_mode;
+use super::attaching_sweep_mode::{self, SweepPlaces};
+use super::boot_reconcile_mode::{self, ReconcilePlaces};
 use super::handler_mode_arguments::{self, HandlerMode};
+use super::root_mode_caller::NotRootRefusal;
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
 use super::handler_install_paths::CONFIGURATION_PATH;
 use crate::start_probe::{FingerprintPaths, ProbeMode, RecordPlace, skip_after_gate_refusal};
+use crate::worktree_clone_mount_protocol::ReadinessFile;
 use crate::zfs_compatibility_gate::gate_verdict::Verdict;
 use crate::zfs_compatibility_gate::{BeforeRequests, LiveGate, verdict_line};
+use rustix::process::geteuid;
 use std::ffi::OsString;
 use std::io::Write;
+use std::path::PathBuf;
 
 /// The status of an invocation that did what it was asked.
 pub const EXIT_DONE: i32 = 0;
@@ -165,6 +169,48 @@ fn behind_the_gate(
 /// so a control runs the refused branch against a fixture directory and never
 /// writes under `/run`.
 fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests, place: &RecordPlace, configuration: &std::path::Path) -> Result<String, String> {
+    let effective_user = geteuid();
+    return behind_the_gate_for_the_probe_as(gate, place, configuration, effective_user.is_root(), effective_user.as_raw());
+}
+
+/// What:
+///  Run the start probe behind the gate,
+///  refusing first a caller that is not root,
+///  with the caller's answer to whether this process runs as root.
+/// Why:
+///  Every write the probe makes is root's:
+///  the record under `/run`,
+///  the scratch tree,
+///  the private mount namespace and the attach it proves,
+///  so an account is refused before the gate is asked and before anything is
+///  written,
+///  and its status is the refusal status rather than the zero a probe that
+///  reached its own end answers.
+///  The effective user is an argument because a control cannot set it:
+///  a control drives the not-root refusal without root,
+///  and the program passes the user the kernel reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = behindTheGateForTheProbeAs(gate, place, configuration, false, 1000); // Err: not root
+/// ```
+fn behind_the_gate_for_the_probe_as(
+    gate: &dyn BeforeRequests,
+    place: &RecordPlace,
+    configuration: &std::path::Path,
+    running_as_root: bool,
+    effective_user: u32,
+) -> Result<String, String> {
+    if !running_as_root {
+        return Err(NotRootRefusal {
+            mode: "start-probe",
+            nothing: "read, mounted or recorded",
+            because: "the record it writes decides whether a boot's clones are admitted for attachment, and an account that could write it could report a boot that never passed",
+            way: "run the mode as root, from the boot unit or by hand",
+            effective_user,
+        }
+        .sentence());
+    }
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(refusal) = &verdict {
@@ -176,6 +222,48 @@ fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests, place: &RecordPlace,
         Ok(done) => Ok(format!("{line}\n{done}")),
         Err(refusal) => Ok(format!("{line}\n{refusal}")),
     };
+}
+
+/// What:
+///  Where one command line's modes read and write,
+///  with the installed paths by default.
+/// Why:
+///   The release path takes the installed places,
+///  and a control hands in fixture places,
+///  so no control reads this machine's configuration,
+///  store,
+///  probe record or readiness folder,
+///  and the order the modes run in stays the one the release path takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DispatchPlaces = { sweep: SweepPlaces; reconcile: ReconcilePlaces; readiness: ReadinessFile; probe: RecordPlace; probeConfiguration: string };
+/// ```
+pub struct DispatchPlaces {
+    /// The sweep's places.
+    pub sweep: SweepPlaces,
+    /// The boot reconciliation's places.
+    pub reconcile: ReconcilePlaces,
+    /// The readiness file the boot reconciliation publishes.
+    pub readiness: ReadinessFile,
+    /// The start probe's record place.
+    pub probe: RecordPlace,
+    /// The start probe's configuration file.
+    pub probe_configuration: PathBuf,
+}
+
+impl DispatchPlaces {
+    /// The installed places,
+    /// which is what a boot or a ZED event reaches.
+    pub fn installed() -> Self {
+        return DispatchPlaces {
+            sweep: SweepPlaces::installed(),
+            reconcile: ReconcilePlaces::installed(),
+            readiness: ReadinessFile::live(),
+            probe: RecordPlace::live(),
+            probe_configuration: PathBuf::from(CONFIGURATION_PATH),
+        };
+    }
 }
 
 /// What:
@@ -208,6 +296,24 @@ pub fn run(arguments: &[OsString]) -> i32 {
 /// const status = runBehind(gate, argv);
 /// ```
 pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
+    return run_behind_at(gate, &DispatchPlaces::installed(), arguments);
+}
+
+/// What:
+///  Read one invocation and run it behind the given gate,
+///  from the places it is given.
+/// Why:
+///   The installed places hold this machine's configuration,
+///  store and `/run` folders,
+///  so a control hands in fixtures and no mode reads or writes anything the
+///  machine owns;
+///  the gate is an argument for the same reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = runBehindAt(gate, places, argv);
+/// ```
+pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, arguments: &[OsString]) -> i32 {
     let mode: HandlerMode = match handler_mode_arguments::parse(arguments) {
         Ok(mode) => mode,
         Err(refusal) => {
@@ -225,9 +331,9 @@ pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
             report_line(handler_mode_arguments::version_line().as_str());
             EXIT_DONE
         }
-        HandlerMode::AttachingSweep => report(behind_the_gate(gate, attaching_sweep_mode::run)),
-        HandlerMode::BootReconcile => report(behind_the_gate(gate, boot_reconcile_mode::run)),
-        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate, &RecordPlace::live(), std::path::Path::new(CONFIGURATION_PATH))),
+        HandlerMode::AttachingSweep => report(behind_the_gate(gate, || return attaching_sweep_mode::run_at(&places.sweep))),
+        HandlerMode::BootReconcile => report(behind_the_gate(gate, || return boot_reconcile_mode::run_at(&places.reconcile, &places.readiness))),
+        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate, &places.probe, places.probe_configuration.as_path())),
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
         })),

@@ -13,6 +13,8 @@
 //!  Unmounting from a fresh process is plan step 9,
 //!  and step 19 installs the unit that runs it,
 //!  so this build refuses the mode rather than detach anything.
+//!  The refusal names the unit it waits for rather than step 9 alone,
+//!  because step 9's unmount code is in this binary already.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,10 +24,11 @@
 use super::mode_awaiting_its_step::AwaitingItsStep;
 
 /// The mode this build refuses,
-/// its plan step and the work that step adds.
+/// what runs it,
+/// and the work that step adds.
 pub const AWAITING: AwaitingItsStep = AwaitingItsStep {
     mode: "shutdown-unmount",
-    step: 9,
+    arrives_with: "plan step 19, whose boot unit runs this mode in its `ExecStopPost`; the unmount code itself landed with plan step 9",
     does: "withdraws readiness, closes admission to new attaches and unmounts only the mounts this boot verified, without changing durable intent",
 };
 
