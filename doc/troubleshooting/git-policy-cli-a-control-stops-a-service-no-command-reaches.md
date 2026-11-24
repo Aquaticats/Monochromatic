@@ -132,13 +132,32 @@ and `stop_the_service` and `serve_the_service` are the only places the control e
 
 ## Still open
 
-- `package/git-policy/cli/src/native/binary/binary_push_programs_end_to_end_tests.rs` builds its own world the same way:
-  it starts a `FixtureService` and stops and serves it in its restart control.
-  The same race is there,
-  and this host has a real `git-lfs` in `/usr/bin`,
-  so every control of that file declines to run here.
-  The fix belongs to a round that can run it in the gate image.
 - A push a restarted service has to try again is recovered from a claim only after `CLAIM_LEASE`,
   which is 120 seconds,
   so a control that lets the old service claim the record and then restarts it waits out that lease.
   This control avoids that wait by keeping the record held until the restart has happened.
+
+## The same defect in the end-to-end carry controls
+
+`package/git-policy/cli/src/native/binary/binary_push_programs_end_to_end_tests.rs`
+built its own world the same way:
+it started a `FixtureService`,
+served the repository in it,
+and its restart control stopped and served that one,
+while every wrapped command reached the fixture's own.
+The control could not show it here,
+because this host has a real `git-lfs` in `/usr/bin`
+and every control of that file declined then;
+the decline was itself a defect,
+recorded in `doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`.
+The round of 2026-11-24 that made those controls run everywhere fixed both:
+its restart control and the second arm of its `a7` control
+stop `Fixture.service`,
+form the scene with the record held at `AFTER_THE_VERDICT`,
+promote the record while no service runs,
+and then serve the next instance,
+as this control does.
+Its evidence is in `~/temp/agent/end-to-end-push-program-controls-run-in-the-gate-2026-11-24/keep/`:
+twelve green runs of that control,
+and a red one with the source of the searched list classified as the command's own `PATH`,
+which failed at `the refusal names the service's own list` in 1.57 s.

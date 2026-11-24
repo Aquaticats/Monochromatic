@@ -84,14 +84,17 @@ its skip is keyed on the same absence and reads
   with that variable set and no program found,
   the control fails and names the variable and the image step,
   so an image that loses `git-lfs` is red.
-- `CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1` is set for the opposite reason:
-  the four end-to-end carry controls of `binary/binary_push_programs_end_to_end_tests.rs`
-  need program folders that hold no `git-lfs`,
-  because a real one answers the push before their stand-in.
-  An image that installs the program takes that premise away,
-  so those four print `END TO END CARRY CONTROL NOT RUN: <control> (<folder that holds a real git-lfs>)`
-  and pass;
-  `--success-output=final` brings each line into the gate's log.
+- The four end-to-end carry controls of `binary/binary_push_programs_end_to_end_tests.rs`
+  run wherever they are,
+  because every list they hand a push names folders of their own fixture alone:
+  the stand-in's folder or the red arm's,
+  and a folder of links to the programs a push needs.
+  A list that named `/usr/bin` or `/bin` found a real `git-lfs` there first,
+  so the stand-in never ran and the red control's refusal never happened.
+  Those four once declined behind `CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1`,
+  which passed a control that ran nothing;
+  the variable and its guard are gone,
+  and nothing in that file can decline.
 - Three controls prove the refusal for a program the list does not hold,
   and they used to name `/usr/bin` and `/bin`:
   on a host or image with `git-lfs` installed,
@@ -113,6 +116,29 @@ its skip is keyed on the same absence and reads
   there rather than printing the skip line.
 - The three missing-program controls passed on that host,
   whose `/usr/bin` holds `git-lfs`.
+- The four end-to-end carry controls,
+  on a host whose `/usr/bin` holds `git-lfs` 3.8.1,
+  after the lists became their fixture's own folders:
+  all four passed in one run of that file,
+  24.39 s,
+  and the same file's controls each ran their push,
+  which their journals show
+  (`~/temp/agent/end-to-end-push-program-controls-run-in-the-gate-2026-11-24/keep/`).
+  Before that change the red control failed after 120.44 s with the real program answering its push,
+  and the restart control failed the same way,
+  so the decline had hidden a control that could not run here at all.
+- The four end-to-end carry controls in a gate image built from that change,
+  which holds the real `/usr/bin/git-lfs` 3.8.1 and sets no acknowledgement variable:
+  `4 tests run: 4 passed, 1335 skipped` in 14.91 s,
+  each control passing in 1.57 to 6.84 s,
+  where a declined control passes in no time at all
+  (`keep/gate-image-run-of-the-four-controls.log` in that round's folder).
+- The old controls with the acknowledgement the image set,
+  run on this host to measure the decline the 2026-11-24 gate's own output no longer holds:
+  four `END TO END CARRY CONTROL NOT RUN` lines,
+  `4 passed` in 0.00 s,
+  against 24.39 s for the same four when they run
+  (`keep/measured-decline-of-the-old-controls-with-the-acknowledgement.log`).
 
 ## What does not work
 
@@ -122,3 +148,9 @@ its skip is keyed on the same absence and reads
 - Checking `git-lfs` for a presence and skipping when absent:
   that is the behaviour this doc records,
   and it reads as a pass in every summary.
+- Handing a push a list that names a folder any machine installs programs in,
+  and declaring the control unable to run where one of those folders holds the real program:
+  the four end-to-end carry controls did that,
+  the gate image installs the program,
+  and each control then passed in no time without running.
+  A list of the fixture's own folders keeps the control the same everywhere.
