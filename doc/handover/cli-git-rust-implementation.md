@@ -437,14 +437,20 @@ and built the owner's `cancelled` answer
 answered 2026-11-23").
 All of it sits behind the pin plan step 19 writes,
 so none reaches a user.
+The round after it merged as `534000d680`:
+the busy branch's check shown against the pass's A12 arm,
+the A10 arm,
+M1 and M2,
+ten host controls each red without its guard,
+and the reboot phase of the kill points run in a guest
+(`keep/report-pi-zfs-step-9-unmount-what-the-last-round-left.md` in
+`~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
 Not yet shown:
-the busy branch's check against the pass's adversarial arm,
-the pass's M1 and M2 guest arms,
-VM item 15 and M3 to M9,
-a host control for each of ten guards,
-and the reboot phase of the kill points.
+the pass's M3 to M9,
+whose arms must be built,
+not only run.
 Running:
-`pi-zfs-step-9-unmount-what-the-last-round-left`,
+`pi-zfs-step-9-unmount-m3-to-m9-guest-arms`,
 on the same branch.
 
 Next:
