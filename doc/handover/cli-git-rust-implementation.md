@@ -628,10 +628,28 @@ The sixth batch lets Git run hooks of fixtures under `~/temp/agent`
 (72 denied executions of `reference-transaction` in one pass's host tests)
 and lets `git//ssh` run `/usr/bin/false`,
 the passphrase program of the two `ssh_terminal` controls still failing (6 denials).
+The gate on `main` at `25d719bc6f`,
+after the seventh batch and the second batch of merges,
+failed seven,
+all in that baseline:
+the cause-H pair,
+the two `ssh_terminal` controls,
+and the three `stale_ref_lock` controls;
+the size read's child control passes now.
+The three `stale_ref_lock` controls were the test killing `timeout` and not Git,
+fixed in the test and merged as `02de1145eb`
+(the account's "The three stale lock controls killed the `timeout` and not the Git").
+The two `ssh_terminal` controls were `sshd-session`,
+a profile of its own,
+refused the fixture's `authorized_keys`;
+the eighth batch gives it `owner /work/** r`
+and gives `git` the cgroup controller list.
+Denials are read from `/var/log/audit/audit.log` with `list-denials-in-a-window.ts`,
+since neither the journal nor `ausearch`'s window showed them
+(the account's "Rules added").
 Running:
-`gate-on-main-after-the-evening-merges-20261123`,
-one whole gate on `main` at `20c4bfa018`,
-after the evening's merges and the sixth batch.
+`gate-on-main-after-the-eighth-batch-20261123`,
+one whole gate on `main` at `6f2b9ef708`.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -643,10 +661,11 @@ by the owner
 ("Things a new session would not find elsewhere" has the owner's words).
 
 Next:
-read the gate on `main` against the baseline and its denials,
-and add rules for what it still meets;
-if the three `stale_ref_lock` controls still fail,
-run one alone in the gate's image.
+read that gate;
+if only the cause-H pair fails,
+the baseline is cause H alone,
+which is not AppArmor's
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H").
 
 #### Tests that failed once and are not diagnosed
 
