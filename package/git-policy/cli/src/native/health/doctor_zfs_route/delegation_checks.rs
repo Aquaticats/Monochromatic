@@ -523,7 +523,7 @@ fn scope_detail(narrowings: &[Narrowing<'_>], facts: &DelegationFacts) -> String
         unallows.push(unallow_command(narrowing.wide, facts));
     }
     return format!(
-        "{} decided permission(s) are effective but granted more widely than the design scopes them: {}. Grant each where the design puts it before the wider grant goes, so the account is never without one: {}. Then remove the wider grant(s): {}.",
+        "{} decided permission(s) are effective but granted more widely than the design scopes them: {}. Grant each where the design puts it before the wider grant goes, so the account is never without one: {}. Then remove the wider grant(s): {}",
         narrowings.len(),
         entries.join("; "),
         each_command_once(&allows).join("; "),
