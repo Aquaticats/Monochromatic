@@ -6,13 +6,16 @@
 //!  the removal's `unmount` intent and the verified answer step 9's code carries,
 //!  and the list of names it prints as lost.
 //! Why:
-//!  Plan step 14 builds steps 1 and 2 of "Removal and recovery": a removal proves the live pool,
+//!  Plan step 14 builds steps 1 and 2 of "Removal and recovery":
+//! a removal proves the live pool,
 //!  clone and origin identities,
 //!  proves its lineage in a fixed order,
 //!  refuses before its first delete when anything is unproved,
 //!  and only then records the removal intent and the destruction plan
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 14";
-//!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery").
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! "Step 14";
+//!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery").
 //!  The record's shapes are the accepted ones:
 //!  one `key=value` format for the three removal-side records and one line per attempt
 //!  (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`),
@@ -23,7 +26,9 @@
 //!  "Bookmarks on a clone being removed").
 //!  This folder is built ahead of the plan's order and is wired by no command:
 //!  step 14's own wiring calls it,
-//!  and no `git` command, `doctor`, mount handler or boot unit reaches it
+//!  and no `git` command,
+//! `doctor`,
+//! mount handler or boot unit reaches it
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
 //!
@@ -49,8 +54,12 @@
 //! - `plan_record.rs`:
 //!   the plan's fields,
 //!   its first write and its bytes.
+//! - `plan_lines.rs`:
+//!   the one line reader both halves of the parse share.
+//! - `plan_attempt_parse.rs`:
+//!   one attempt region read into one line per attempt.
 //! - `plan_parse.rs`:
-//!   the header and the attempt lines read into that value.
+//!   the header read into the plan's fields and the two halves joined.
 //! - `plan_reading.rs`:
 //!   the two-stage file read and the folder and owner checks.
 //! - `plan_publication.rs`:
@@ -98,6 +107,8 @@ pub mod plan_refusal;
 pub mod plan_name;
 pub mod started_moment;
 pub mod plan_record;
+pub mod plan_lines;
+pub mod plan_attempt_parse;
 pub mod plan_parse;
 pub mod plan_reading;
 pub mod plan_publication;
@@ -134,13 +145,22 @@ pub use loss_names::NamesToBeLost;
 pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, RemovalUnmount, UnmountAnswer, UnmountProof, verify_the_answer};
 pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
 
-/// The plan every control of this folder starts from. Never part of the release executable.
+/// The plan every control of this folder starts from.
+/// Never part of the release executable.
 #[cfg(test)]
 #[path = "plan_fixtures_tests.rs"]
 pub(crate) mod fixtures;
 
-/// The repository, binding, origin inventory and scripted pool the removal's controls drive.
+/// The repository,
+/// binding,
+/// origin inventory and scripted pool the removal's controls drive.
 /// Never part of the release executable.
 #[cfg(test)]
 #[path = "removal_fixtures_tests.rs"]
 pub(crate) mod removal_fixtures;
+
+/// The guest arm of this folder's piece,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "removal_guest_arm_tests.rs"]
+mod removal_guest_arm_tests;

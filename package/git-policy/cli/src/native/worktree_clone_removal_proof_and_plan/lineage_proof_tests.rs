@@ -10,7 +10,9 @@
 //!  Item 11 showed that an explicit snapshot delete erases protected history before the kernel
 //!  refuses the origin,
 //!  so every one of these must refuse before the removal writes or deletes anything
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 1).
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 1).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

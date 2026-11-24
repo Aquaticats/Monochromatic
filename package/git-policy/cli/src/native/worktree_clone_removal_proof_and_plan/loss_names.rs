@@ -4,9 +4,12 @@
 //!  the clone dataset,
 //!  and the exact snapshot names to be lost.
 //! Why:
-//!  The design requires a proven set to "print the slot, dataset and exact snapshot names to be
+//!  The design requires a proven set to "print the slot,
+//! dataset and exact snapshot names to be
 //!  lost"
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 2),
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 2),
 //!  and the project decided the printed report is the only trace of a destruction that outlives the
 //!  removal beyond its records
 //!  (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,

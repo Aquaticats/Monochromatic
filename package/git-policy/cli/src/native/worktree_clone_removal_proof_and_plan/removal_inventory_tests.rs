@@ -6,7 +6,9 @@
 //! Why:
 //!  The plan records the clone's own snapshots and no bookmark,
 //!  and the separation is the transaction group the design's `createtxg` check rests on
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 1).
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 1).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

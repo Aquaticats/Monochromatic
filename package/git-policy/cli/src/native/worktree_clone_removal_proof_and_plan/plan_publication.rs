@@ -9,7 +9,8 @@
 //!  and is written by the removal and by nothing else:
 //!  `doctor` and the finish pass never create that folder
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "The folder, its owner and its modes").
+//!  "The folder,
+//! its owner and its modes").
 //!  The project's flush rule leaves a plan write unflushed because every one of them precedes an
 //!  irreversible ZFS step,
 //!  whose loss costs one repeated proof and never an object nothing can prove

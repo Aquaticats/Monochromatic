@@ -9,12 +9,14 @@
 //!  added again at one path,
 //!  so a plan keyed that way would be one name for two clones
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "The key, and why it is the clone's GUID").
+//!  "The key,
+//! and why it is the clone's GUID").
 //!  A ZFS name holds no newline and no `=` (`F2`),
 //!  which is what lets a `key=value` line carry one verbatim,
 //!  so the reader checks that and the shape a request's own name check would accept,
 //!  and never interprets the name.
-//!  This is not a second `entity_namecheck`: it refuses the shapes a plan cannot hold,
+//!  This is not a second `entity_namecheck`:
+//! it refuses the shapes a plan cannot hold,
 //!  and the kernel still refuses a name it does not accept when a request carries one.
 //!
 //! In TS you'd write (pseudocode):

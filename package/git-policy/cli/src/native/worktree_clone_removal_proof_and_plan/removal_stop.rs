@@ -8,10 +8,18 @@
 //!  snapshot or dependency,
 //!  to keep the registration and the records,
 //!  and to report the need for administrator lineage recovery before a retry:
-//!  "Name the mismatched dataset, snapshot or dependency, keep the registration and removal
-//!  record, and report the need for administrator lineage recovery before retry. Do not try a
-//!  subset, promote back automatically, or invoke ordinary Git removal to clear the slot"
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 2).
+//!  "Name the mismatched dataset,
+//! snapshot or dependency,
+//! keep the registration and removal
+//!  record,
+//! and report the need for administrator lineage recovery before retry.
+//! Do not try a
+//!  subset,
+//! promote back automatically,
+//! or invoke ordinary Git removal to clear the slot"
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 2).
 //!  One type carries every stop so the removal has one place to print from and one place to keep its
 //!  promise that nothing was deleted.
 //!

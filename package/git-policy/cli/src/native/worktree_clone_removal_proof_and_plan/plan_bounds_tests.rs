@@ -7,7 +7,8 @@
 //!  The reader refuses an oversized file before it reads an attempt byte,
 //!  so a bound that was smaller than what the writer can produce would refuse the removal's own
 //!  record
-//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`, `F11`).
+//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+//! `F11`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

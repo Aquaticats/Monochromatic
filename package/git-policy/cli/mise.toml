@@ -277,6 +277,10 @@ run = "node e2e/slot-state-and-move-refusal-guest.ts"
 description = "Run plan step 15's deferred-origin arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the planned removal going on, an origin snapshot marked with `zfs destroy -d` refusing, the reap that mark causes when a removal goes ahead, and an origin moved by `zfs promote` refusing; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
 run = "node e2e/deferred-origin-check-guest.ts"
 
+[tasks."e2e:removal-lineage-proof"]
+description = "Run plan step 14's removal arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the healthy removal entering and writing its plan, VM item 11's promote refusing before the first delete with every protected tuple surviving and reverse promotion restoring the lineage, VM item 13's live and stale bookmarks, and VM item 12's grant set and same-name replacement; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
+run = "node e2e/removal-lineage-proof-guest.ts"
+
 [tasks."native:lock:scanner"]
 description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
 run = [

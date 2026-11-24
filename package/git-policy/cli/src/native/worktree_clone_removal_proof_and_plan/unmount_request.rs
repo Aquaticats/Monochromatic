@@ -167,7 +167,8 @@ pub struct ExpectedUnmount {
 }
 
 /// What:
-///  The unmount request, as the removal makes it.
+///  The unmount request,
+/// as the removal makes it.
 /// Why:
 ///  A control answers this seam,
 ///  and the release answers it with step 7's writer and wait,

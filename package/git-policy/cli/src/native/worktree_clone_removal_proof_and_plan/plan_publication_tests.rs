@@ -9,7 +9,10 @@
 //!  so a write that published bytes no reader reads back would leave a removal with no record at
 //!  all
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "The folder, its owner and its modes", "One writer, one publication" and section 8).
+//!  "The folder,
+//! its owner and its modes",
+//! "One writer,
+//! one publication" and section 8).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

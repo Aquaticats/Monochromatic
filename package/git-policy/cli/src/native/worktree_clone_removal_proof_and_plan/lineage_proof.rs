@@ -12,8 +12,11 @@
 //!  an explicit delete erased the relocated older checkout snapshot before the kernel refused the
 //!  origin,
 //!  and promoting back did not restore it
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 1;
-//!  `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`, item 11).
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 1;
+//!  `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
+//! item 11).
 //!  Item 13 measured the separation this proof rests on:
 //!  transferred snapshots keep the origin's GUID and transaction group,
 //!  the clone's own snapshot is newer than the clone,

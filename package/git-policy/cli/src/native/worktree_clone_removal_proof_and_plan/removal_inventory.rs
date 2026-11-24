@@ -13,7 +13,8 @@
 //!  measured,
 //!  and a bookmark carries the GUID and birth transaction group of the snapshot it was made from
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-//!  "Removal and recovery", step 1).
+//!  "Removal and recovery",
+//! step 1).
 //!  The per-name record is one line per attempt with no bookmark entry,
 //!  so the own set is every live snapshot the proof accepted and never a bookmark.
 //!

@@ -8,7 +8,9 @@
 //!  snapshot or dependency,
 //!  keep the registration and the record,
 //!  and report the need for administrator lineage recovery before a retry
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 2).
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 2).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

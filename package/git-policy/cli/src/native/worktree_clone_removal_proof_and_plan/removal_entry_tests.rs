@@ -9,7 +9,8 @@
 //!  the proof refuses before anything is written,
 //!  the intent and the unmount come before the plan,
 //!  and the plan is the last thing the entry writes
-//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`, section 3).
+//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+//! section 3).
 //!  A control that asserts only the refusal would not show which step it refused at,
 //!  so each one also asserts that the unmount was never asked and that no plan exists.
 //!

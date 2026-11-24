@@ -5,11 +5,18 @@
 //!  the first write a removal makes,
 //!  and the bytes it publishes.
 //! Why:
-//!  The plan is the only record of what a removal verified and submitted, so its first write holds
-//!  the whole verified inventory and nothing else: one line per snapshot, at attempt `0`, as
+//!  The plan is the only record of what a removal verified and submitted,
+//! so its first write holds
+//!  the whole verified inventory and nothing else:
+//! one line per snapshot,
+//! at attempt `0`,
+//! as
 //!  `planned`
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "1. The home", "2. The fields" and section 3's step 4).
+//!  "1.
+//! The home",
+//! "2.
+//! The fields" and section 3's step 4).
 //!  A snapshot's current state is the outcome on its highest attempt number,
 //!  which is the merge rule every reader applies,
 //!  and `destroyed` closes a name's history.

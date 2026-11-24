@@ -9,7 +9,10 @@
 //!  so a line more or a line less than the inventory is a record no later reader can trust,
 //!  and a writer that published a field past its bound would leave a plan its own reader refuses
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "2. The fields" and "4. Progress, unknown outcomes and objects that are partly gone").
+//!  "2.
+//! The fields" and "4.
+//! Progress,
+//! unknown outcomes and objects that are partly gone").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -6,7 +6,9 @@
 //!  A listing that answered another dataset's name or a GUID no live object has is a read this
 //!  route must refuse rather than record,
 //!  and these are the two places the live layer can see it
-//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 1).
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 1).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

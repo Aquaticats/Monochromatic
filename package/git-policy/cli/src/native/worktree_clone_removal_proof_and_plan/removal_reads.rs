@@ -14,7 +14,8 @@
 //!  "Binding crate and compatibility").
 //!  The add route reads the same lists,
 //!  and this module writes its own two readers because the add's are private to it and the removal
-//!  needs the owning dataset of every object, which the add's inventory of a single dataset does not
+//!  needs the owning dataset of every object,
+//! which the add's inventory of a single dataset does not
 //!  carry.
 //!
 //! In TS you'd write (pseudocode):

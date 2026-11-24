@@ -9,8 +9,10 @@
 //!  attempt byte,
 //!  so the bound is what keeps its memory to the record's own length with no count ceiling
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "The size bound and its basis" and facts `F1`, `F11` and `F14`).
-//!  The per-field widths are this build's own reading of those facts: they sum below the design's
+//!  "The size bound and its basis" and facts `F1`,
+//! `F11` and `F14`).
+//!  The per-field widths are this build's own reading of those facts:
+//! they sum below the design's
 //!  10,130,
 //!  so the design's number stays the reader's cap and every field still has one bound a writer can
 //!  refuse a value past.
@@ -39,7 +41,8 @@ pub const PLAN_HEADER_MAXIMUM_BYTES: u64 = 10_130;
 /// The largest one attempt line may carry.
 ///
 /// Why:
-///  The design's own sum: the key,
+///  The design's own sum:
+/// the key,
 ///  the kind,
 ///  an attempt number,
 ///  an outcome word,
@@ -59,14 +62,16 @@ pub const ATTEMPT_COUNT_MAXIMUM_DIGITS: usize = 7;
 /// The most digits an errno takes.
 pub const ERRNO_MAXIMUM_DIGITS: usize = 11;
 
-/// The longest one ZFS name the kernel accepts, less its terminator.
+/// The longest one ZFS name the kernel accepts,
+/// less its terminator.
 pub const ZFS_NAME_MAXIMUM_BYTES: usize = 255;
 
 /// The longest slot path a plan records:
 /// the kernel's own path bound.
 pub const SLOT_PATH_MAXIMUM_BYTES: usize = 4_095;
 
-/// The digits of a request nonce, spelled as the route spells it.
+/// The digits of a request nonce,
+/// spelled as the route spells it.
 pub const NONCE_MAXIMUM_DIGITS: usize = 32;
 
 /// The longest head word,

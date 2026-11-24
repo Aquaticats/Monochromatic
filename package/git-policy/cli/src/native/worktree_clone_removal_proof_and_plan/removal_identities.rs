@@ -4,11 +4,14 @@
 //!  as the identities a removal proves itself against.
 //! Why:
 //!  The plan copies the clone's and the origin's identities and refers to the binding for the
-//!  origin-side inventory, and no record wins when they disagree:
+//!  origin-side inventory,
+//! and no record wins when they disagree:
 //!  the removal refuses before the first delete and names the three readings
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "6. The binding record and the removal intent",
-//!  "What is copied, and what is referred to" and "When they disagree").
+//!  "6.
+//! The binding record and the removal intent",
+//!  "What is copied,
+//! and what is referred to" and "When they disagree").
 //!  The key is the slot's name,
 //!  the last component of the slot path the binding holds,
 //!  and the five origin fields are compared with the plan's and with the live pool.

@@ -78,7 +78,8 @@ pub enum PlanRefusalCause {
     /// A file longer than the declared count allows,
     /// or wider than the header bound.
     Oversized,
-    /// A name that is not a plan's own: not a canonical clone GUID.
+    /// A name that is not a plan's own:
+    /// not a canonical clone GUID.
     ForeignName,
     /// A record filed under a name its `cloneGuid` does not carry.
     NameDisagreesWithTheRecord,

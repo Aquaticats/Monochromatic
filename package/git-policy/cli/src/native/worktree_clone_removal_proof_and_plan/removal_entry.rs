@@ -17,7 +17,9 @@
 //!  anything is unproved
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  section 3's list and "The removal intent";
-//!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Removal and recovery", step 2).
+//!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//! "Removal and recovery",
+//! step 2).
 //!  Nothing here deletes:
 //!  the snapshot batch and the head destroy are step 16's,
 //!  and this entry stops at the plan and the list of names.

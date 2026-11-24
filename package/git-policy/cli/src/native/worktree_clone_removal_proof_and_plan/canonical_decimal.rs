@@ -19,7 +19,8 @@
 /// Whether `text` is a canonical unsigned decimal with at most `maximum_digits` digits.
 ///
 /// Why:
-///  `0` is its own spelling and `00`, `+1` and `007` are not numbers this grammar holds.
+///  `0` is its own spelling and `00`,
+/// `+1` and `007` are not numbers this grammar holds.
 pub fn is_canonical_decimal(text: &str, maximum_digits: usize) -> bool {
     if text.is_empty() || text.len() > maximum_digits {
         return false;

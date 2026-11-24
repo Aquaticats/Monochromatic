@@ -6,7 +6,8 @@
 //!  The plan keeps the moment for `doctor` and for a person and decides nothing by it,
 //!  because the design sets no expiry
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "Field by field": `started` "is never a proof").
+//!  "Field by field":
+//! `started` "is never a proof").
 //!  Writing the offset rather than `Z` is what the design's example holds,
 //!  so a person reading two records from two machines sees the same local hour the
 //!  wrapper printed.
@@ -37,7 +38,8 @@ const OFFSET_BYTES: usize = 6;
 pub const STAMP_WITH_OFFSET_BYTES: usize = DATE_BYTES + DATE_TIME_MARKER + TIME_BYTES + OFFSET_BYTES;
 
 /// The format this field writes.
-/// `%:z` is the offset with its colon, which is the ISO 8601 form.
+/// `%:z` is the offset with its colon,
+/// which is the ISO 8601 form.
 const STAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%:z";
 
 /// What:

@@ -29,8 +29,10 @@ pub use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 /// The plan's keys in the order its header writes them.
 ///
 /// Why:
-///  One order refuses a repeated key, a missing key and a key written out of place with
-///  one rule, so no reader has to guess which of two lines is the record's.
+///  One order refuses a repeated key,
+/// a missing key and a key written out of place with
+///  one rule,
+/// so no reader has to guess which of two lines is the record's.
 pub const PLAN_KEYS_IN_ORDER: [&str; 18] = [
     "run",
     "owner",
@@ -55,7 +57,8 @@ pub const PLAN_KEYS_IN_ORDER: [&str; 18] = [
 /// The one attempt kind this grammar records.
 ///
 /// Why:
-///  The decided record carries no bookmark entry, so a reader that meets another kind
+///  The decided record carries no bookmark entry,
+/// so a reader that meets another kind
 ///  refuses the record rather than skipping a line it does not understand.
 pub const SNAPSHOT_KIND: &str = "snapshot";
 
@@ -77,7 +80,8 @@ pub const NO_ERRNO: &str = "-";
 ///  One snapshot's state on one line of its history.
 /// Why:
 ///  The merge rule reads a snapshot's current state as the outcome on its highest
-///  attempt number, so the five words have to be one closed set both the writer and the
+///  attempt number,
+/// so the five words have to be one closed set both the writer and the
 ///  reader take.
 ///
 /// In TS you'd write (pseudocode):
