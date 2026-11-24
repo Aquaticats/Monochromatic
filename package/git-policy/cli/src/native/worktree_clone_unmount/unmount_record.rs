@@ -61,6 +61,7 @@ pub(super) fn check_the_folders_shape(request: &UnmountRequest<'_>, staging: &st
     return Ok(());
 }
 
+#[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
 pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
     let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
     let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
