@@ -1441,7 +1441,9 @@ function step10Arms(options: Options): void {
     `tar --extract --gzip --file /root/step10-wrapper.tar.gz --directory ${STEP10_WRAPPER_ROOT}`,
     `cd ${STEP10_WRAPPER_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked --jobs 2 > /root/step10-wrapper-build.log 2>&1',
+    // One job: the guest has 8 GiB, and two rustc processes at the crate's
+    // largest reached 7.3 GiB and were killed by its OOM killer on 2026-11-24.
+    'cargo build --release --tests --locked --jobs 1 > /root/step10-wrapper-build.log 2>&1',
     'tail --lines=3 /root/step10-wrapper-build.log',
   ].join('\n');
   guest({ options, script: build, log: 'step10-wrapper-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
