@@ -1560,7 +1560,7 @@ Lost:
   for every ZFS event and every boot,
   and a waiting caller waits on the sweep's receipt.
   The absolute medians are context, not the finding:
-  the wrapper's own median moved between 9.78 ms and 13.51 ms across this round's arms,
+  the wrapper's own median moved between 9.63 ms and 13.51 ms across this round's four arms,
   so only the interleaved pair is comparable.
   The start-path cost is the decision's accepted price;
   if it ever bites,
