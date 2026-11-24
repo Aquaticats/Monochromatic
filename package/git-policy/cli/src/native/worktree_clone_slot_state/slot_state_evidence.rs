@@ -71,6 +71,7 @@ pub fn evidence(readings: &SlotReadings) -> Vec<String> {
         }
     }
     match &readings.plan {
+        PlanReading::NotAsked => lines.push(String::from("plan: not asked, because no record was read to name the clone with")),
         PlanReading::NoPlan => lines.push(String::from("plan: no destruction plan names this clone")),
         PlanReading::NamesTheClone { plan } => lines.push(format!("plan: {} names this clone", plan.display())),
         PlanReading::Unreadable { plan, reason } => lines.push(format!("plan: {} cannot be read: {reason}", plan.display())),

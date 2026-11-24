@@ -49,6 +49,7 @@ fn readings_at(phase: Phase) -> SlotReadings {
 fn no_record_and_no_mount_is_not_a_managed_clone() {
     let readings: SlotReadings = SlotReadings {
         binding: BindingReading::Absent,
+        plan: PlanReading::NotAsked,
         ..readings_at(Phase::Claimed)
     };
     assert_eq!(classify_slot(&readings), SlotRouteState::NotAManagedClone);

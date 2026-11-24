@@ -151,6 +151,7 @@ fn no_record_is_read_as_the_absent_arm() {
     let intent: ScriptedIntent = ScriptedIntent { answer: Err(String::from("nothing should ask this")) };
     let readings: SlotReadings = read(common.as_path(), &table, &intent);
     assert_eq!(readings.binding, BindingReading::Absent);
+    assert_eq!(readings.plan, crate::worktree_clone_slot_state::slot_state_readings::PlanReading::NotAsked);
     assert_eq!(readings.intent, IntentFacts::Unasked);
     assert_eq!(readings.registration_stands, None);
 }

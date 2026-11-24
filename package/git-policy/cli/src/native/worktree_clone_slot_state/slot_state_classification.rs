@@ -187,6 +187,11 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                 ),
             };
         }
+        PlanReading::NotAsked => {
+            return SlotRouteState::CannotProve {
+                reason: format!("the record filed under `{}` stands, and the plan folder was not read, so nothing proves no removal is in flight for this slot", readings.slot),
+            };
+        }
         PlanReading::NoPlan => {}
     }
     let mount: CloneMount = clone_mount_of(&readings.mounts, &readings.slot_mount, record.clone_dataset.as_str(), readings.slot_path.as_path());

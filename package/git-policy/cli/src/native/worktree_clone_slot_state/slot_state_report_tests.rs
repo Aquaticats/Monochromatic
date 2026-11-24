@@ -51,6 +51,7 @@ fn line_starting(report: &SlotStateReport, prefix: &str) -> String {
 fn a_slot_with_nothing_reports_no_dataset() {
     let readings: SlotReadings = SlotReadings {
         binding: BindingReading::Absent,
+        plan: PlanReading::NotAsked,
         ..readings_at(Phase::Claimed)
     };
     let report: SlotStateReport = report_of(&readings);
@@ -60,6 +61,7 @@ fn a_slot_with_nothing_reports_no_dataset() {
     assert!(report.lines().contains(&String::from("dataset: none")), "{:?}", report.lines());
     assert!(report.next_safe_action.contains("ordinary worktree"), "{}", report.next_safe_action);
     assert!(line_starting(&report, "evidence: binding:").contains("no record is filed"), "{:?}", report.lines());
+    assert!(line_starting(&report, "evidence: plan:").contains("not asked"), "{:?}", report.lines());
 }
 
 /// A pending add names its dataset and pool and tells the person not to add here.

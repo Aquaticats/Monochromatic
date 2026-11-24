@@ -184,7 +184,7 @@ pub fn read_slot(common_dir: &Path, slot: &str, slot_path: &Path, reads: &SlotRe
             asked_intent(record, reads.intents),
             registration_stands(record),
         ),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => (PlanReading::NoPlan, IntentFacts::Unasked, None),
+        BindingReading::Absent | BindingReading::Unreadable { .. } => (PlanReading::NotAsked, IntentFacts::Unasked, None),
     };
     // One mount reading serves the clone's question and the slot's, so the two can never disagree about the same table.
     return SlotReadings {

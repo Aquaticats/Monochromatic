@@ -98,10 +98,13 @@ pub fn read_binding_reading(home: &Path, slot: &str) -> BindingReading {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PlanReading = { kind: 'none' } | { kind: 'names-the-clone'; plan: PathBuf } | { kind: 'unreadable'; plan: PathBuf; reason: string };
+/// type PlanReading = { kind: 'not-asked' } | { kind: 'none' } | { kind: 'names-the-clone'; plan: PathBuf } | { kind: 'unreadable'; plan: PathBuf; reason: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlanReading {
+    /// The plan folder was not read,
+    /// because no record was read to name the clone with.
+    NotAsked,
     /// No plan in the folder names this clone.
     NoPlan,
     /// A readable plan names this clone.
