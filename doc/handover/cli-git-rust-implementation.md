@@ -754,31 +754,31 @@ so the owner's words inside `issue`,
 "Move hall-monitor to package-paused altogether.",
 at old-file line 45973 in an `issue` item,
 is held by no tracked file but the frozen one.
-Running:
-three of the five Sonnet sorters of the run logs,
+The run logs,
 lines 153 to 34,866,
-briefed by `brief-sorter-run-logs.md` in that folder
-(the two that ended scanned every non-move item,
-not only `delete` ones);
-an agent scanning every non-move item of the applied ledgers for the owner's words
-(`brief-owner-quotations-in-every-non-move-item.md`),
-whose amended ledger is applied like the others;
-and an agent filing the 35 issue drafts
-(`brief-file-the-sorters-issue-drafts.md`).
+were sorted by five Sonnet sorters
+(`brief-sorter-run-logs.md`)
+and their 98 moves applied into 42 targets as `98d8601c93`,
+188 entries already held being skipped.
+The first five ranges' 35 issue drafts are filed as issues 6401 to 6427,
+with comments on 13 others
+(`filing-of-the-sorters-issue-drafts/keep/ledger.jsonl`).
 The harness refuses a subagent's write of a report file:
 "Subagents should return findings as text,
 not write report files."
 So a sorter's report is its final message,
 saved by the coordinator as `keep/report-as-returned-to-the-coordinator.md`.
+Running:
+two agents scanning every non-move item for the owner's words,
+one for lines 34,867 to 49,707
+(`brief-owner-quotations-in-every-non-move-item.md`)
+and one for the run logs
+(`brief-owner-quotations-in-the-run-log-ledgers-non-move-items.md`);
+and an agent filing the run-log sorters' 31 drafts
+(`brief-file-the-run-log-sorters-issue-drafts.md`).
 
 Next:
-before the old file goes,
-every non-move item of every ledger is scanned for the owner's words;
-apply their ledgers the same way,
-a script moving text verbatim so that the owner's words pass through no model;
-file the sorters' `issue` items
-(35 drafts so far under each `sorter-lines-*/keep/`),
-each after a search for an issue that already holds it;
+apply the two scans' amended ledgers' new moves the same way;
 then delete the old file.
 
 ## Held work
