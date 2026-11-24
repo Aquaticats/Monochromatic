@@ -36,7 +36,72 @@
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use super::add_zfs::OpenedDevice;
-use crate::doctor_zfs_route::{Check, CheckReport, DelegationFacts, Grant, check_delegation};
+use crate::doctor_zfs_route::{Check, CheckOutcome, CheckReport, DelegationFacts, Grant, GrantPlace, RequiredGrant, allow_command, check_delegation, missing_grants, place_dataset};
+
+/// The permissions this add's own steps use,
+/// which the preflight refuses a delegation for.
+/// Why:
+///  The add takes a snapshot,
+///  clones it,
+///  names the clone in the container,
+///  writes the mount request,
+///  and from this step its failure path destroys the clone and the origin
+///  snapshot,
+///  so a missing one of these is a step that cannot run at all
+///  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+///  choice 3C, whose split moves here when the failure path starts using both
+///  `destroy` grants).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_ADDS_OWN_STEPS = [['checkout', 'snapshot'], ..., ['checkout-descendants', 'destroy']];
+/// ```
+pub const THE_ADDS_OWN_STEPS: [(GrantPlace, &str); 8] = [
+    (GrantPlace::Checkout, "snapshot"),
+    (GrantPlace::CheckoutDescendants, "clone"),
+    (GrantPlace::Container, "create"),
+    (GrantPlace::Container, "mount"),
+    (GrantPlace::ContainerDescendants, "mount"),
+    (GrantPlace::ContainerDescendants, "userprop"),
+    (GrantPlace::ContainerDescendants, "destroy"),
+    (GrantPlace::CheckoutDescendants, "destroy"),
+];
+
+/// The permissions only a removal's steps use,
+/// which the preflight warns about and never refuses for.
+/// Why:
+///  Clearing an origin snapshot after a removal mounts a snapshot of the
+///  checkout,
+///  which no step of an add does,
+///  so a missing `mount` there is the removal's command and not this add's
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Scoped delegation").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_REMOVALS_STEPS = [['checkout-descendants', 'mount']];
+/// ```
+pub const A_REMOVALS_STEPS: [(GrantPlace, &str); 1] = [(GrantPlace::CheckoutDescendants, "mount")];
+
+/// What:
+///  Why one required permission is in the add's own set or the removal's.
+/// Why:
+///  The table is the one place the split is decided,
+///  so a permission that moves between the steps moves one line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTheAddsOwn = (required) => THE_ADDS_OWN_STEPS.some(([place, permission]) => place === required.place && permission === required.permission);
+/// ```
+fn the_adds_own(required: &RequiredGrant) -> bool {
+    return THE_ADDS_OWN_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+}
+
+/// The permissions the removal's steps own,
+/// which are the decided ones the add's table does not name.
+fn a_removals_own(required: &RequiredGrant) -> bool {
+    return A_REMOVALS_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+}
 
 /// What:
 ///  Refuse the add unless the account's delegation is the shape the design
@@ -57,7 +122,7 @@ use crate::doctor_zfs_route::{Check, CheckReport, DelegationFacts, Grant, check_
 /// ```ts
 /// refuseWithoutTheDecidedGrants(device, route);
 /// ```
-pub fn refuse_without_the_decided_grants(device: &OpenedDevice, route: &RouteFacts) -> Result<(), StepRefusal> {
+pub fn refuse_without_the_decided_grants(device: &OpenedDevice, route: &RouteFacts) -> Result<Vec<String>, StepRefusal> {
     let facts: DelegationFacts = read_the_grants(device, route)?;
     return refuse_unless_the_decided_ones(&facts);
 }
@@ -89,28 +154,79 @@ pub fn read_the_grants(device: &OpenedDevice, route: &RouteFacts) -> Result<Dele
 }
 
 /// What:
-///  Refuse when `doctor`'s delegation check does not pass on the facts.
+///  Refuse when `doctor`'s delegation check does not pass on the facts,
+///  except for a missing permission only a removal's steps use,
+///  which the add warns about and goes on past.
 /// Why:
 ///  The finding already names every failing permission with the command that
 ///  settles it,
 ///  so the refusal adds only what to do after that command and changes nothing.
+///  A missing permission the add never uses would cost a person a root command
+///  and a second add before their first one finished,
+///  so it is printed once and the add goes on
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  choice 3C).
 ///
 /// # Errors
-/// A finding or an unproved delegation.
+/// A finding about a permission the add itself uses,
+/// a wider grant,
+/// or an unproved delegation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// refuseUnlessTheDecidedOnes(facts); // throws the check's line
+/// const warnings = refuseUnlessTheDecidedOnes(facts); // throws the check's line
 /// ```
-pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<(), StepRefusal> {
+pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<String>, StepRefusal> {
     let report: CheckReport = CheckReport::new(Check::Delegation, check_delegation(facts));
     if report.passed() {
-        return Ok(());
+        return Ok(Vec::new());
     }
-    return Err(StepRefusal::refused(format!(
-        "the ZFS clone route cannot run with this account's delegation: {}. Ways forward: run the command the finding names, then run the add again; the add changed nothing.",
-        report.line()
-    )));
+    let outcome: CheckOutcome = check_delegation(facts);
+    let CheckOutcome::Finding { field, .. } = &outcome else {
+        return Err(the_refusal(report.line()));
+    };
+    // The check answers a missing permission for the whole decided set at once,
+    // so the split is decided from the values rather than from its sentence.
+    if field != "grant" {
+        return Err(the_refusal(report.line()));
+    }
+    let missing: Vec<RequiredGrant> = missing_grants(facts);
+    if missing.is_empty() {
+        return Err(the_refusal(report.line()));
+    }
+    let ours: Vec<String> = missing
+        .iter()
+        .filter(|required| return the_adds_own(required))
+        .map(|required| return format!("`{}` on `{}` ({})", required.permission, place_dataset(required.place, facts), allow_command(required, facts)))
+        .collect();
+    if !ours.is_empty() {
+        return Err(StepRefusal::refused(format!(
+            "the ZFS clone route cannot run with this account's delegation: {} decided permission(s) the add's own steps use are not granted to the account: {}. Ways forward: run the command the finding names, then run the add again; the add changed nothing.",
+            ours.len(),
+            ours.join("; ")
+        )));
+    }
+    let theirs: Vec<String> = missing
+        .iter()
+        .filter(|required| return a_removals_own(required))
+        .map(|required| return format!("{}\n", allow_command(required, facts)))
+        .collect();
+    if theirs.is_empty() {
+        // A decided permission the two tables do not name is a table that has
+        // drifted from the decided set, and the add refuses rather than warn.
+        return Err(the_refusal(report.line()));
+    }
+    return Ok(vec![format!(
+        "monochromatic-git-policy-cli: this add will finish, and a removal cannot do its part until you run, as root:\n{}\nThe add changed nothing about that yet.\n",
+        theirs.join("")
+    )]);
+}
+
+/// The sentence a delegation the add cannot run under prints.
+fn the_refusal(line: String) -> StepRefusal {
+    return StepRefusal::refused(format!(
+        "the ZFS clone route cannot run with this account's delegation: {line}. Ways forward: run the command the finding names, then run the add again; the add changed nothing."
+    ));
 }
 
 /// The account this process runs as,

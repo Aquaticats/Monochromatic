@@ -1,11 +1,13 @@
 //! Controls for the preflight's delegation read:
 //!  the decided shape passes,
-//!  a missing permission refuses with the `zfs allow` command that adds it,
+//!  a missing permission the add itself uses refuses with the `zfs allow`
+//!  command that adds it,
+//!  a missing permission only a removal uses warns and the add goes on,
 //!  a lineage-changing grant refuses with the `zfs unallow` command that removes
 //!  it,
 //!  and a delegation reached through a named set is refused as unproved.
 
-use super::refuse_unless_the_decided_ones;
+use super::{THE_ADDS_OWN_STEPS, refuse_unless_the_decided_ones};
 use crate::doctor_zfs_route::route_test_facts::{ACCOUNT, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation};
 use crate::doctor_zfs_route::{DelegationFacts, Inheritance, Who};
 
@@ -21,11 +23,47 @@ fn without(permission: &str, place: &str, inheritance: Inheritance) -> Delegatio
     return facts;
 }
 
-/// The nine decided grants pass and nothing is refused.
+/// The nine decided grants pass, print nothing and are not refused.
 #[test]
 fn the_decided_delegation_passes() {
     let facts: DelegationFacts = healthy_delegation();
-    assert!(refuse_unless_the_decided_ones(&facts).is_ok());
+    let warnings: Vec<String> = refuse_unless_the_decided_ones(&facts).expect("the decided shape passes");
+    assert!(warnings.is_empty(), "a whole delegation earns no line: {warnings:?}");
+}
+
+/// A permission the add itself uses, both `destroy` grants among them, refuses
+/// and never warns.
+#[test]
+fn every_permission_the_add_uses_refuses_when_it_is_missing() {
+    for (place, permission) in THE_ADDS_OWN_STEPS {
+        let dataset: &str = match place {
+            crate::doctor_zfs_route::GrantPlace::Checkout => CHECKOUT_DATASET,
+            crate::doctor_zfs_route::GrantPlace::CheckoutDescendants => CHECKOUT_DATASET,
+            crate::doctor_zfs_route::GrantPlace::Container => CONTAINER_DATASET,
+            crate::doctor_zfs_route::GrantPlace::ContainerDescendants => CONTAINER_DATASET,
+        };
+        let inheritance: Inheritance = match place {
+            crate::doctor_zfs_route::GrantPlace::Checkout | crate::doctor_zfs_route::GrantPlace::Container => Inheritance::Local,
+            _descendants => Inheritance::Descendants,
+        };
+        let refusal: String = refuse_unless_the_decided_ones(&without(permission, dataset, inheritance)).expect_err(permission).message;
+        assert!(refusal.contains(&format!("`{permission}`")), "{permission}: {refusal}");
+        assert!(refusal.contains(&format!("zfs allow -{scope} -u {ACCOUNT} {permission} {dataset}", scope = if inheritance == Inheritance::Local { "l" } else { "d" })), "{permission}: {refusal}");
+    }
+}
+
+/// The checkout-origin `mount` is a removal's, so the add warns once with the
+/// `zfs allow` command and goes on.
+#[test]
+fn a_missing_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
+    let facts: DelegationFacts = without("mount", CHECKOUT_DATASET, Inheritance::Descendants);
+    let warnings: Vec<String> = refuse_unless_the_decided_ones(&facts).expect("the add never mounts a checkout snapshot");
+    assert_eq!(warnings.len(), 1, "one line, printed once: {warnings:?}");
+    let line: &str = warnings[0].as_str();
+    assert!(line.contains(&format!("zfs allow -d -u {ACCOUNT} mount {CHECKOUT_DATASET}")), "{line}");
+    assert!(line.contains("this add will finish"), "{line}");
+    assert!(line.contains("a removal cannot do its part"), "{line}");
+    assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
 }
 
 /// A permission the add itself writes with is refused before the claim,

@@ -4716,10 +4716,14 @@ Designs and decisions:
 `doc/planning/cli-git-zfs-add-time-git-lock-design.md`
 and
 `doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`.
-This is plan step 10's route;
-the fallback that finishes a failed add with Git's own checkout,
-and the writes that a conversion rule or a dirty source needs,
-are plan step 11's and are stated as missing below.
+This is plan steps 10 and 11's route:
+the frozen proof of every add,
+the restore that makes the clone equal to a checkout of the commit the caller
+asked for,
+and the delegation split the owner chose on 2026-11-24.
+The fallback that finishes a failed add with Git's own checkout,
+the removal's own steps and the pending worktree's report are plan steps 11 and
+14's and are stated as missing below.
 
 The route serves one `git worktree add`:
 the command runs in the main checkout,
@@ -4820,7 +4824,8 @@ The route writes the add's order,
 and every step reads the state a kill at the step before it leaves:
 
 - The preflight writes nothing.
-  It proves the clean source,
+  It proves the source,
+  clean or holding ordinary uncommitted changes,
   the checkout dataset,
   its sibling clone container,
   the pool,
@@ -4919,6 +4924,18 @@ and every step reads the state a kill at the step before it leaves:
 - The frozen proof compares the clone's copied index with the capture and every
   tracked path's own facts with the captured ones,
   before any byte of the clone is written.
+  The capture also holds a SHA-256 of the bytes of every path whose index stat
+  data cannot vouch for the file,
+  and of every path in the racy set:
+  the entries whose recorded modification or change time is not at least one
+  tick older than the index's own modification time,
+  where the tick is what the kernel answers for `CLOCK_REALTIME_COARSE`.
+  Those two sets are the writes a later tick's field comparison cannot see,
+  one inside the tick the file's own last write met,
+  so the proof reads the clone's bytes for them and refuses a difference.
+  The capture is the record grammar's version 2;
+  a version 1 record holds none of these digests and is refused rather than
+  read.
   A difference refuses and names the path and the field.
   The proof's phase marker is published once.
 - The leave-outs remove the copies of other worktrees' stubs and the copies of
@@ -4927,8 +4944,24 @@ and every step reads the state a kill at the step before it leaves:
 - The fill writes the captured index under `index.pending` in the new
   worktree's administrative directory,
   with the entries' recorded stat fields kept and the untracked-cache and
-  fsmonitor extensions dropped,
-  and publishes it under the worktree's own name with one rename.
+  fsmonitor extensions dropped.
+- The clone is then restored,
+  through the same restore the snapshot rung runs against a stage:
+  the ignored paths are listed,
+  `git clean --force -d` removes the untracked files no ignore rule covers,
+  the files the index's stat data cannot vouch for are read and those whose
+  bytes differ are removed,
+  `git read-tree --reset -u <the commit the caller asked for>` writes what
+  differs,
+  and the result is proven,
+  so the mounted tree becomes Git's own checkout of that commit whether the
+  source was clean,
+  held uncommitted edits,
+  or its `HEAD` was another commit.
+  Every Git run of the restore is given `index.pending` as its index file,
+  and no run reads or writes the worktree's own index name:
+  that name stands only once the tree is proven.
+- The private index takes the worktree's own name with one rename.
 - The saved pointer bytes are written into the new worktree's trash as
   `d<n>`,
   the copied administration's identity is recorded in the trash's own
@@ -4985,15 +5018,33 @@ lines 1858 to 1862).
 The preflight reads the account's effective delegation over the checkout dataset
 and its sibling clone container,
 the way `doctor`'s own check reads it,
-and refuses before the claim when a permission the design scopes is missing,
-is effective only through a wider ancestor grant,
+and refuses before the claim when a permission the add's own steps use is
+missing,
+when a decided permission is effective only through a wider ancestor grant,
 reaches the account through a named set,
 is granted to everyone,
 or is one of the lineage-changing grants the route must not have.
+The permissions the add's own steps use are the six the unprivileged lifecycle
+needs
+(`snapshot` on the checkout,
+`clone` on its descendants,
+`create` and `mount` on the clone container,
+`mount` and `userprop` on the container's descendants)
+and the two `destroy` grants its failure path uses,
+on the container's descendants for the clone and on the checkout's descendants
+for the origin snapshot.
 The refusal prints that check's finding,
 which names each failing permission with the `zfs allow` or `zfs unallow`
 command that settles it,
 and the add writes nothing.
+One decided permission is not the add's:
+`mount` on the checkout's descendants,
+which only a removal uses when it clears an origin snapshot.
+When that one is missing the add prints one line naming the `zfs allow` command,
+says the add will finish,
+and goes on,
+so a person does not run a root command and repeat the add for a permission no
+step of it uses.
 The kernel's `ZFS_IOC_GET_FSACL` needs no privilege for this read:
 OpenZFS `zfs-2.4.4` registers it with `zfs_secpolicy_read`,
 which returns zero in the global zone
@@ -5003,21 +5054,41 @@ holds.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,
-  so a path whose `.gitattributes`,
-  `core.autocrlf`,
-  `ident`,
-  encoding or filter
-  would give Git different bytes keeps the source's bytes in the new worktree
-  until plan step 11's fence write lands (issue 6323).
-- It does not restore a dirty main checkout;
-  such a source makes the route decline before the claim,
-  so the add takes the ladder's rung 3 as the owner's interim of 2026-11-19 says
-  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-  lines 1858 to 1862).
-  The verified restore is plan step 11's.
-- A failed add does not finish itself with Git's own checkout;
-  it keeps what it made and the next add resumes it (plan step 11).
-- A record that says an add is settling,
+  and the restore's reset is the only write Git does:
+  the `.gitattributes` fence's own write
+  (`git checkout-index --force -u --stdin` for the paths a conversion reaches)
+  is not built,
+  so the paths the reset does not rewrite keep the snapshot's bytes
+  (plan step 11's remainder, issue 6323).
+- A source holding an untracked directory with its own Git repository is not
+  refused before the snapshot:
+  `git clean --force -d` keeps such a directory,
+  the restore's own proof names it as untracked and refuses,
+  and the add then leaves the pending state the settle above describes,
+  because nothing of this release settles it.
+  The refusal before the snapshot is plan step 11's remainder.
+- The post-restore check is not built:
+  the paths the reset wrote are not compared with the entries Git recorded for
+  them,
+  so a command another session runs in the slot while the fill runs can write
+  into the tree and stay (plan step 11's remainder).
+- A failed proof or a failed restore does not finish the add with Git's own
+  checkout,
+  and nothing is destroyed or unmounted by it:
+  the claim, the slot, the locked registration, the clone and the snapshot stay
+  as they were,
+  the add prints the failure and the next add at the slot resumes it.
+  The settle that destroys what the add made and finishes with Git's own
+  checkout needs the origin cleanup record's writer,
+  which is plan step 14's, and is not built.
+- Nothing prints the pending worktree's text or `doctor`'s line for it,
+  because no step of this release leaves that state;
+  the withdrawal of an unmount request,
+  the obligation record and the settling command are the settle's own, above.
+- The warning above the measured count of changed paths is not printed:
+  the count is measurement M4's,
+  which has not been run,
+  and a shipped bound cites a measurement (rule `LQM`).- A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.

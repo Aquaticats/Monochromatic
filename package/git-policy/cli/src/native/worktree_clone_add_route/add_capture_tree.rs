@@ -18,6 +18,8 @@
 //! ```
 
 use crate::fs_beneath::{entry_metadata_at, open_directory_at, open_root, read_link_at};
+use crate::subvolume_index::StatFields;
+use crate::subvolume_index_files::fields_of;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::MetadataExt as _;
@@ -60,6 +62,10 @@ impl FoundKind {
 pub(super) struct FoundFacts {
     /// What stands at the path.
     pub(super) kind: FoundKind,
+    /// The fields Git's own stat comparison reads,
+    /// as the capture's vouching test and the record's own facts both need them.
+    /// Nothing stands at an absent path, so there are none.
+    pub(super) fields: Option<StatFields>,
     /// The size in bytes.
     pub(super) size: u64,
     /// The modification time,
@@ -88,7 +94,7 @@ pub(super) fn walk_paths<'a, T: 'a>(
     root_path: &Path,
     items: impl IntoIterator<Item = &'a T>,
     path_of: impl Fn(&T) -> &[u8],
-    mut visit: impl FnMut(&T, &Path, &FoundFacts) -> Result<(), String>,
+    mut visit: impl FnMut(&T, &Path, &FoundFacts, &std::fs::File, &OsStr) -> Result<(), String>,
 ) -> Result<(), String> {
     let root: std::fs::File = open_root(root_path).map_err(|error| return format!("the root {} cannot be opened without a link ({error})", root_path.display()))?;
     let mut cached: Option<(PathBuf, std::fs::File)> = None;
@@ -108,7 +114,7 @@ pub(super) fn walk_paths<'a, T: 'a>(
         };
         let holder: std::fs::File = parent.try_clone().map_err(|error| return format!("the folder of {} cannot be held ({error})", path.display()))?;
         let found: FoundFacts = read_facts(&holder, name.as_os_str(), path.as_path())?;
-        visit(item, path.as_path(), &found)?;
+        visit(item, path.as_path(), &found, &holder, name.as_os_str())?;
     }
     return Ok(());
 }
@@ -142,7 +148,7 @@ fn read_facts(parent: &std::fs::File, name: &OsStr, path: &Path) -> Result<Found
     let metadata: std::fs::Metadata = match entry_metadata_at(parent, name) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(FoundFacts { kind: FoundKind::Absent, size: 0, mtime: (0, 0), ctime: (0, 0), executable: false, link_target: None });
+            return Ok(FoundFacts { kind: FoundKind::Absent, fields: None, size: 0, mtime: (0, 0), ctime: (0, 0), executable: false, link_target: None });
         }
         Err(error) => return Err(format!("{} cannot be examined ({error})", path.display())),
     };
@@ -159,6 +165,7 @@ fn read_facts(parent: &std::fs::File, name: &OsStr, path: &Path) -> Result<Found
     };
     return Ok(FoundFacts {
         kind,
+        fields: Some(fields_of(&metadata)),
         size: metadata.len(),
         mtime: (metadata.mtime(), metadata.mtime_nsec() as u32),
         ctime: (metadata.ctime(), metadata.ctime_nsec() as u32),

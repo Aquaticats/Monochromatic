@@ -1456,6 +1456,19 @@ function step10Pool(options: Options): void {
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
     `zfs create -o mountpoint=${STEP10_CHECKOUT_PATH} ${STEP10_CHECKOUT}`,
     `zfs create -o mountpoint=legacy -o canmount=off ${STEP10_CONTAINER}`,
+    // The design's scoped delegation, granted to the account the arms run as.
+    // The route's preflight refuses an add whose delegation is not this shape, so
+    // the fixture that never granted it could not reach a single one of its steps:
+    // the arms met the companion first and this read second.
+    `zfs allow -l -u 0 snapshot ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 clone ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 mount ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 destroy ${STEP10_CHECKOUT}`,
+    `zfs allow -l -u 0 create ${STEP10_CONTAINER}`,
+    `zfs allow -l -u 0 mount ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 mount ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 userprop ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 destroy ${STEP10_CONTAINER}`,
     `mount --make-rprivate ${STEP10_CHECKOUT_PATH}`,
     // The handler's readiness report the route's preflight requires, as the
     // boot unit would publish it; the test itself rewrites it with this boot's
@@ -1512,6 +1525,9 @@ function step10Arms(options: Options): void {
     'grep --quiet "^test zfs_add_guest::the_add_makes_a_verified_clone_and_a_second_add_refuses" /root/step10-suite.log',
     'grep --quiet "^test zfs_add_guest::a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes" /root/step10-suite.log',
     'grep --quiet "^test zfs_add_guest::a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration" /root/step10-suite.log',
+    // Plan step 11's own arm: a dirty checkout is restored to the commit the add asks for, and its clean control.
+    // It runs in the same suite, so a run that never reached it fails here rather than passing quietly.
+    'grep --quiet "^test zfs_add_guest::a_dirty_checkout_is_restored_to_the_commit_the_add_asks_for" /root/step10-suite.log',
     // The two split arms cannot run here: each needs a reboot or a cut between its halves, so this run says so and
     // the driver's own steps carry them.
     'grep --quiet "^UNRUN the boot arm" /root/step10-suite.log',

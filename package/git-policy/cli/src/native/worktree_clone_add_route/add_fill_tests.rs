@@ -1,15 +1,48 @@
-//! Controls for the fill's trash reading:
+//! Controls for the fill's own decisions:
+//!  whether its restore still has to run,
+//!  and the trash reading:
 //!  no trash is none,
 //!  one trash with its own record is the fill's,
 //!  a trash without one refuses,
 //!  and two trashes refuse.
 
-use super::the_trash_of_a_filled_clone;
+use super::{the_restore_still_runs, the_trash_of_a_filled_clone};
 use crate::fs_beneath::identity_at;
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash_own_manifest;
 use crate::worktree_trash::{TRASH_PARENT, TrashManifest, is_trash_name};
 use std::path::PathBuf;
+
+/// What:
+///  The restore runs while the private index stands and stops as soon as the
+///  publication took that name away.
+/// Why:
+///  A restore pointed at a private name that the publication removed would read
+///  an empty index, so the state the publication leaves must be told from the
+///  one before it.
+///  The exchange is past the restore for the same reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(theRestoreStillRuns(admin, clone, false)).toBe(true); // index.pending stands
+/// expect(theRestoreStillRuns(admin, clone, false)).toBe(false); // index published
+/// ```
+#[test]
+fn the_restore_stops_once_the_publication_took_the_private_name() {
+    let root: PathBuf = fixture("fill-restore-guard");
+    let admin: PathBuf = root.join("registration");
+    let clone: PathBuf = root.join("clone");
+    std::fs::create_dir_all(admin.as_path()).expect("the registration");
+    std::fs::create_dir_all(clone.join(".git")).expect("the copied administration");
+    // Before the fill writes anything: the copied `.git` stands and no index does.
+    assert!(the_restore_still_runs(admin.as_path(), clone.as_path(), false), "the copied administration is the state before the private index");
+    std::fs::write(admin.join(crate::worktree_clone_add_route::add_index::PENDING_INDEX_NAME), b"index").expect("the private index");
+    assert!(the_restore_still_runs(admin.as_path(), clone.as_path(), false), "the private name stands, so the restore runs");
+    std::fs::rename(admin.join(crate::worktree_clone_add_route::add_index::PENDING_INDEX_NAME), admin.join(crate::worktree_clone_add_route::add_index::INDEX_NAME)).expect("the publication");
+    assert!(!the_restore_still_runs(admin.as_path(), clone.as_path(), false), "the publication removed the private name, so the restore is behind the fill");
+    assert!(!the_restore_still_runs(admin.as_path(), clone.as_path(), true), "an add resumed after the exchange is past the restore");
+    remove(root.as_path());
+}
 
 /// A clone root with a trash place.
 fn a_clone_root(name: &str) -> PathBuf {

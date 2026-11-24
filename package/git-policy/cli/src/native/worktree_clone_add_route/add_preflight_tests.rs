@@ -32,7 +32,7 @@
 //!  and what a person reads is then the control's own subject
 //!  (issue 6450: the add printed a Rust `Debug` value here).
 
-use super::{Preflight, preflight_the_add};
+use super::preflight_the_add;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_add_plan::AddPlan;
@@ -160,38 +160,42 @@ fn a_standing_plan_refuses_the_preflight_in_the_plans_own_sentence() {
 }
 
 /// What:
-///  A main checkout with one uncommitted file makes the preflight decline,
-///  and the decline stands before every write the route makes.
+///  A main checkout with one uncommitted file is a source the preflight serves:
+///  the source check records the changes instead of refusing them,
+///  and the preflight's own answer is never the source's refusal.
 /// Why:
-///  The owner's interim of 2026-11-19 is that an add from a dirty main checkout
-///  takes rung 3 while plan step 11 is unlanded
-///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-///  lines 1858 to 1862).
-///  Refusing the source failed the add instead of leaving it to the ladder
-///  (issue 6452).
-///  The claim is the route's first write and the record's first version follows
-///  it, so a record home that was never made proves no claim, and with it no
-///  record, no snapshot, no clone and no mount request.
-///  The one write the source check makes is the repository's own exclude line for
-///  the trash place, which every ladder add makes too.
+///  This is the sentence plan step 11 replaces the interim with: until the
+///  verified dirty restore landed, an add from a dirty main checkout took rung 3
+///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 1858 to
+///  1862), and the route now restores the copy instead of declining it.
+///  The fixture has no pool, so the preflight's own answer here is the pool's;
+///  what the control reads is which refusal came first,
+///  and that nothing of the route's own was written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(preflight(dirtyCheckout)).toBeNull();
-/// expect(existsSync(homeFolder(commonDir))).toBe(false);
+/// const source = sourceOrDirty(context, identity); expect(source.dirty).toBeDefined();
+/// expect(preflight(dirtyCheckout).message).not.toContain('cannot be the source of a clone');
 /// ```
 #[test]
-fn an_uncommitted_file_makes_the_preflight_decline_before_the_claim() {
+fn an_uncommitted_file_is_a_source_the_preflight_serves() {
     let (root, route, plan) = a_checkout_the_route_serves("preflight-dirty");
     std::fs::write(route.source_root.join("notes.txt"), b"one uncommitted line\n").expect("the uncommitted file");
-    let answer: Result<Option<Preflight>, StepRefusal> = preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice());
-    match answer {
-        Ok(None) => {}
-        Ok(Some(_)) => panic!("a checkout with uncommitted changes is no source of a clone until plan step 11 lands, so the preflight must decline and the add must take the ladder"),
-        Err(refusal) => panic!("the route fails the add instead of leaving it to the ladder: {}", refusal.message),
-    }
+    let identity: crate::worktree_identity::WorktreeIdentity = crate::worktree_identity::WorktreeIdentity::MainWorktree {
+        common_dir: route.common_dir.clone(),
+        git_dir: route.git_dir.clone(),
+        worktree_root: route.source_root.clone(),
+    };
+    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &identity).expect("a dirty checkout is a source the route reads");
+    assert!(source.dirty.is_some(), "the source check records the changes it will restore away");
+    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+        Ok(_) => panic!("this fixture has no pool, so the preflight cannot prove the datasets"),
+        Err(refusal) => refusal,
+    };
+    assert!(!refusal.message.contains("cannot be the source of a clone"), "the source check served the dirty checkout, and the preflight refused it for another reason: {}", refusal.message);
+    assert!(refusal.message.contains("does not answer the pool"), "the refusal is the fixture's own missing pool: {}", refusal.message);
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    assert!(!route.destination.exists(), "the slot stays empty before the claim");
     remove(root.as_path());
 }
 

@@ -6,10 +6,11 @@
 //!  the finished tree is proven
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The restore": steps 2 to 8).
-//!  Step 10's clean source writes nothing through Git, so the private index is
-//!  the captured index normalized and published; the reset and the conversion
-//!  fence's writes are step 11's, and their absence is stated where a person
-//!  meets it.
+//!  Step 10's clean source wrote nothing through Git, so the private index was
+//!  the captured index normalized and published. Step 11 adds the restore: the
+//!  private index is the index the btrfs rung's own `restore_dirty` reads and
+//!  writes, so the clone is reset to the commit the caller asked for and the
+//!  paths Git must write go through Git's own conversion.
 //!  A resume after any kill reads the states those writes leave: the marker says
 //!  the proof passed, an existing trash is the leave-out's own, the private
 //!  name's absence with the real name present says the publication ran, and the
@@ -21,18 +22,24 @@
 //! ```
 
 use super::add_capture::Capture;
+use super::add_route_git::RouteGit;
 use crate::private_storage::read_regular_file;
 use super::add_capture_store::{marker_is_ours, publish_marker};
 use super::add_exchange::{PreparedExchange, exchange_the_git_entry, prepare_the_exchange};
 use super::add_frozen_proof::prove_the_clone;
-use super::add_index::{index_for_the_fill, pending_stands, publish_the_private_index, published_stands, write_the_private_index};
+use super::add_index::{PENDING_INDEX_NAME, index_for_the_fill, pending_stands, publish_the_private_index, published_stands, write_the_private_index};
 use crate::fs_beneath::{entry_metadata_at, open_root};
+use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clean_content::ConversionEnvironment;
+use crate::worktree_clean_content_attribute_sources::for_context;
+use crate::worktree_dirty_restore::restore_dirty;
+use crate::worktree_ladder_target::Target;
 use crate::worktree_snapshot_placeholders::{HandOver, remove_snapshot_placeholders};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{PendingTrash, Pruned, TRASH_PARENT, TrashManifest, is_trash_name, prune_snapshot};
 use crate::worktree_trash_own_manifest;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -73,6 +80,13 @@ pub struct FillInput<'a> {
     /// The registration's directory,
     /// which receives the private index.
     pub admin_path: &'a Path,
+    /// The repository's Git context,
+    /// which the restore's own Git runs start through.
+    pub context: &'a GitContext,
+    /// The real Git this command resolved.
+    pub real_git: &'a Path,
+    /// The variables every Git child of this command receives.
+    pub overlay: &'a [(OsString, OsString)],
     /// Whether the person asked for no lines.
     pub quiet: bool,
     /// The test-only switch that ends a control run at one step.
@@ -138,9 +152,16 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
             return format!("the clone's copied index cannot be read for the fill ({refusal:?}); Ways forward: run the add again with nothing writing the main checkout");
         })?;
         let bytes: Vec<u8> = index_for_the_fill(seed.as_slice(), input.hash_length)?;
+        // A killed Git leaves its waiting index and its lock behind, and the write
+        // below refuses a name that stands: the wrapper's own step clears both.
+        crate::worktree_copy_interrupted_add_settlement::clear_the_waiting_index(input.admin_path);
         let admin: std::fs::File = open_root(input.admin_path).map_err(|error| return format!("the registration {} cannot be opened ({error})", input.admin_path.display()))?;
         write_the_private_index(&admin, bytes.as_slice())?;
         input.stops.after("index");
+    }
+    if the_restore_still_runs(input.admin_path, input.clone_root, already_exchanged) {
+        restore_the_clone(input)?;
+        input.stops.after("restore");
     }
     let prepared: PreparedExchange = prepare_the_exchange(input.clone_root, input.pointer, manifest)?;
     input.stops.after("trash-entry");
@@ -158,6 +179,50 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
     return Ok(Filled {
         trash: Some(PendingTrash { destination: input.clone_root.to_path_buf(), common_dir: input.common_dir.to_path_buf(), manifest: prepared.manifest, taken_over: 0, quiet: input.quiet }),
     });
+}
+
+/// What:
+///  Whether the fill's restore still has to run.
+/// Why:
+///  The restore edits the private index and the tree,
+///  and the publication takes that index's name away,
+///  so a resume that finds the worktree's own index already standing was
+///  past the restore and must not run it again:
+///  a restored tree needs no second restore, and a Git run pointed at the
+///  gone private name would read an empty index
+///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+///  "What a resume finds",
+///  the rows for a mounted clone with the real-name index and for the saved
+///  pointer).
+///  A run resumed after the exchange is past the restore for the same reason.
+pub(super) fn the_restore_still_runs(admin_path: &Path, clone_root: &Path, already_exchanged: bool) -> bool {
+    if already_exchanged || published_stands(admin_path) {
+        return false;
+    }
+    // The restore only runs against a private name that stands.
+    return pending_stands(admin_path) || clone_root.join(".git").is_dir();
+}
+
+/// What:
+///  Reset the clone to the commit the caller asked for,
+///  through the btrfs rung's own restore against the private index.
+/// Why:
+///  The clone is a snapshot of a checkout that may hold uncommitted edits and
+///  whose `HEAD` may not be the commit this add checks out, so the tree must be
+///  made equal to Git's own checkout of that commit before any name is published
+///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+///  "The restore" step 6).
+///  The restore runs only once the private index stands, and it reads and writes
+///  that file rather than the worktree's own, so no run touches a name the
+///  worktree does not hold yet.
+///
+/// # Errors
+/// The restore refused: the clean, the reset or its own proof.
+fn restore_the_clone(input: &FillInput<'_>) -> Result<(), String> {
+    let target: Target = Target { admin: input.admin_path.to_path_buf(), index: Some(input.admin_path.join(PENDING_INDEX_NAME)), pointer: input.pointer.to_vec(), commit: input.capture.head.clone(), differs: false, line: String::new() };
+    let conversion: ConversionEnvironment = for_context(input.context);
+    let mut runner: RouteGit<'_> = RouteGit { real_git: input.real_git, overlay: input.overlay };
+    return restore_dirty(input.source, &target, input.clone_root, &mut runner, input.context, &conversion);
 }
 
 /// The trash the leave-out makes for the clone, written so a kill after it

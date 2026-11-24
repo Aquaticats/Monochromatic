@@ -76,8 +76,7 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
     }
     let context: GitContext = GitContext { real_git: real_git.to_path_buf(), overlay: overlay.to_vec(), global_prefix: Vec::new(), common_dir: Some(common_dir.clone()) };
     return match run_the_route(&route, plan, &context, real_git, arguments, overlay) {
-        Ok(None) => None,
-        Ok(Some(lines)) => {
+        Ok(lines) => {
             for line in lines {
                 let _written: std::io::Result<()> = std::io::stderr().write_all(line.as_bytes());
             }
@@ -92,17 +91,13 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
 
 /// What:
 ///  The route's own run,
-///  whose success is the lines the person reads
-///  and whose `None` is the add the route declines.
+///  whose success is the lines the person reads.
 /// Why:
-///  The decline is the preflight's, and it stands before the claim,
-///  so a declined add leaves nothing this route would resume and reaches the
-///  ladder with nothing changed
-///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-///  lines 1858 to 1862).
-fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, context: &GitContext, real_git: &std::path::Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Result<Option<Vec<String>>, StepRefusal> {
+///  A refusal anywhere before the end is returned with the sentence it prints;
+///  the route serves every add its gate admits, and its gate is what decides.
+fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, context: &GitContext, real_git: &std::path::Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Result<Vec<String>, StepRefusal> {
     let stops: Stops = Stops::from_environment().map_err(StepRefusal::refused)?;
-    let Some(preflight) = preflight_the_add(route, plan, context, arguments)? else { return Ok(None) };
+    let preflight: Preflight = preflight_the_add(route, plan, context, arguments)?;
     let home: std::fs::File = open_or_create_home(route.common_dir.as_path()).map_err(|error| return StepRefusal::refused(format!("the wrapper's record folder under {} cannot be opened ({error})", route.common_dir.display())))?;
     let home_path: PathBuf = home_folder(route.common_dir.as_path());
     let mut claim = take_the_claim(home_path.as_path(), route.slot.as_str())?;
@@ -145,6 +140,9 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
         stops: &stops,
         out: std::cell::RefCell::new(Vec::new()),
     };
+    for warning in preflight.warnings.iter() {
+        steps.out.borrow_mut().push(warning.clone());
+    }
     let phase_before: Phase = record.phase;
     match phase_before {
         // The scan decides first: at phase `claimed` or `slot` Git's own add may
@@ -179,7 +177,7 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
     if !plan.quiet {
         lines.push(String::from(FILLED_NOTE));
     }
-    return Ok(Some(lines));
+    return Ok(lines);
 }
 
 /// Take the slot's claim, or refuse with the live owner's process id.

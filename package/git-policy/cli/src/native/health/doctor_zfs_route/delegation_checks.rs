@@ -369,7 +369,7 @@ fn is_ancestor_of(ancestor: &str, dataset: &str) -> bool {
 }
 
 /// The dataset a place names.
-fn place_dataset(place: GrantPlace, facts: &DelegationFacts) -> &str {
+pub fn place_dataset(place: GrantPlace, facts: &DelegationFacts) -> &str {
     return match place {
         GrantPlace::Checkout | GrantPlace::CheckoutDescendants => facts.checkout_dataset.as_str(),
         GrantPlace::Container | GrantPlace::ContainerDescendants => facts.container_dataset.as_str(),
@@ -429,7 +429,7 @@ enum Satisfaction<'a> {
 
 /// The `zfs allow` command that gives one required permission in the decided
 /// shape.
-fn allow_command(required: &RequiredGrant, facts: &DelegationFacts) -> String {
+pub fn allow_command(required: &RequiredGrant, facts: &DelegationFacts) -> String {
     let scope: &str = match place_inheritance(required.place) {
         Inheritance::Local => "-l",
         Inheritance::Descendants => "-d",
@@ -600,6 +600,24 @@ pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
         return finding("scope", scope_detail(&narrowings, facts));
     }
     return pass(format!("{} decided permission(s) are granted where the design puts them and no lineage-changing grant reaches the account", REQUIRED_GRANTS.len()));
+}
+
+/// What:
+///  The decided permissions this delegation does not grant the account,
+///  in the check's own order.
+/// Why:
+///  The add's preflight splits its verdict by which step uses a permission,
+///  and the split needs the values rather than the one sentence the check
+///  builds, so the missing set is answered on its own
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  choice 3C's cost).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const missing = missingPermissions(facts); // RequiredGrant[]
+/// ```
+pub fn missing_grants(facts: &DelegationFacts) -> Vec<RequiredGrant> {
+    return REQUIRED_GRANTS.iter().copied().filter(|required| return matches!(satisfaction(required, facts), Satisfaction::Missing)).collect();
 }
 
 //endregion

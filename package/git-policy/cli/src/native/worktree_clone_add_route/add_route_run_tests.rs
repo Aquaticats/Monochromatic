@@ -15,16 +15,14 @@
 
 use super::fresh_the_record;
 use super::run_a_zfs_add;
-use super::run_the_route;
-use crate::test_support::{REAL_GIT, fixture, git_context, remove, repository};
-use crate::transaction_git::GitContext;
+use crate::test_support::{fixture, git_context, remove, repository};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
-use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
+use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_copy_forward::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
@@ -112,6 +110,7 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
         device: OpenedDevice { device: ZfsDevice::open_at(device_file.as_path()).expect("the device file opens") },
         checkout_guid: DatasetGuid::parse("4821193048571903102").expect("the checkout's guid"),
         pool_guid: DatasetGuid::parse("4821193048571903103").expect("the pool's guid"),
+        warnings: Vec::new(),
     };
     let home_path: PathBuf = root.join("the-adds-record-home");
     std::fs::write(home_path.as_path(), b"").expect("the home file");
@@ -124,53 +123,5 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
     let message: &str = refusal.message.as_str();
     assert_eq!(message, sentence, "the add prints the plan stop's own sentence: {message}");
     assert!(!message.contains("NamesTheClone") && !message.contains("PlanNamesTheClone"), "no `Debug` rendering of the stop reaches the person: {message}");
-    remove(root.as_path());
-}
-
-/// What:
-///  A main checkout with one uncommitted file makes the route's runner decline,
-///  before it takes the claim,
-///  so every write of the route's own stays unmade.
-/// Why:
-///  The claim is the runner's first write and the record's first version follows
-///  it, so a record home that was never made proves no claim, and with it no
-///  record, no snapshot, no clone and no mount request.
-///  The runner's `Ok(None)` is the answer the entry point turns into `None`, which
-///  is what the gate's own `None` answer gives the add, so the ladder runs as it
-///  does for a checkout the route does not serve
-///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 1858 to
-///  1862; issue 6452).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// expect(runTheRoute(dirtyCheckout, addPlan)).toBeNull();
-/// expect(existsSync(homeFolder(commonDir))).toBe(false);
-/// ```
-#[test]
-fn a_dirty_checkout_makes_the_runner_decline_before_the_claim() {
-    let root: PathBuf = fixture("route-dirty-declines");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
-    let route: RouteFacts = RouteFacts {
-        source_root: repo.clone(),
-        common_dir: repo.join(".git"),
-        git_dir: repo.join(".git"),
-        destination: repo.join(".claude").join("worktrees").join("topic"),
-        slot: String::from("topic"),
-        checkout_dataset: String::from("tank/checkouts/checkout"),
-        container_dataset: String::from("tank/clones"),
-        pool: String::from("tank"),
-    };
-    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
-    std::fs::write(repo.join("notes.txt"), b"one uncommitted line\n").expect("the uncommitted file");
-    let context: GitContext = git_context();
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(&route, &plan, &context, std::path::Path::new(REAL_GIT), arguments.as_slice(), &[]);
-    match answer {
-        Ok(None) => {}
-        Ok(Some(lines)) => panic!("the route served an add from a checkout with uncommitted changes and printed {lines:?}"),
-        Err(refusal) => panic!("the route fails the add instead of leaving it to the ladder: {}", refusal.message),
-    }
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
     remove(root.as_path());
 }

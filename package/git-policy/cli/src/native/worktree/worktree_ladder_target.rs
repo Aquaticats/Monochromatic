@@ -47,12 +47,18 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string };
+/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string; index?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Target {
     /// The administrative directory of the new worktree.
     pub admin: PathBuf,
+    /// The index file the restore reads and writes when it is not the
+    /// worktree's own name yet,
+    /// which the ZFS clone route's fill needs
+    /// (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+    /// "The restore" step 5 and F41).
+    pub index: Option<PathBuf>,
     /// The bytes of the `.git` file Git wrote in the destination.
     pub pointer: Vec<u8>,
     /// The commit the new `HEAD` names,
@@ -540,7 +546,23 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
         };
         format!("HEAD is now at {} {}\n", short_name(context, destination, source.common_dir.join("objects").as_path(), Some(&source.config), commit.as_str()), String::from_utf8_lossy(subject.as_slice()))
     };
-    return Ok(Target { admin, pointer, commit, differs, line });
+    return Ok(Target { admin, index: None, pointer, commit, differs, line });
+}
+
+impl Target {
+    /// The index file the restore's three runs read and write:
+    /// the one this target names,
+    /// or the worktree's own.
+    /// Why:
+    ///  Every site that named `<admin>/index` reads this,
+    /// so a route that writes the index under a private name first changes one
+    /// place and no run reads a name the worktree does not hold.
+    pub fn index_file(&self) -> PathBuf {
+        return match self.index.clone() {
+            Some(named) => named,
+            None => self.admin.join("index"),
+        };
+    }
 }
 
 /// What:

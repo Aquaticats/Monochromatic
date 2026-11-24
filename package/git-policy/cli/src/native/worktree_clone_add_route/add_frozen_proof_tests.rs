@@ -73,6 +73,42 @@ fn an_index_written_between_the_capture_and_the_clone_is_refused() {
 }
 
 #[test]
+fn a_digested_path_whose_bytes_differ_is_refused_and_the_unchanged_one_passes() {
+    let root: PathBuf = a_repository("proof-digested");
+    let mut capture: Capture = capture_of(root.as_path());
+    // The control gives the capture a digest its file cannot have, so the guard
+    // is what the assertion meets rather than a write that D2 would catch first.
+    capture.digests = vec![crate::worktree_clone_add_route::add_capture::CapturedDigest { path: b"plain.txt".to_vec(), digest: [0; 32] }];
+    let refusal: String = prove_the_clone(&capture, root.as_path()).expect_err("the bytes are not the capture's");
+    assert!(refusal.contains("plain.txt differs in its content"), "{refusal}");
+    assert!(refusal.contains("SHA-256"), "{refusal}");
+    assert!(refusal.contains("Ways forward:"), "{refusal}");
+    let mut unchanged: Capture = capture_of(root.as_path());
+    let bytes: Vec<u8> = std::fs::read(root.join("plain.txt")).expect("the file");
+    unchanged.digests = vec![crate::worktree_clone_add_route::add_capture::CapturedDigest { path: b"plain.txt".to_vec(), digest: crate::subvolume_sha::sha256(bytes.as_slice()) }];
+    prove_the_clone(&unchanged, root.as_path()).expect("a digest the file's own bytes answer passes");
+    remove(root.as_path());
+}
+
+#[test]
+fn a_digested_link_is_compared_through_its_target_bytes() {
+    let root: PathBuf = fixture("proof-digested-link");
+    git(root.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::os::unix::fs::symlink("plain.txt", root.join("link")).expect("the link");
+    std::fs::write(root.join("plain.txt"), b"plain\n").expect("the file");
+    git(root.as_path(), &["add", "."]);
+    git(root.as_path(), &["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "one"]);
+    let mut capture: Capture = capture_of(root.as_path());
+    let real: [u8; 32] = crate::subvolume_sha::sha256(b"plain.txt");
+    capture.digests = vec![crate::worktree_clone_add_route::add_capture::CapturedDigest { path: b"link".to_vec(), digest: real }];
+    prove_the_clone(&capture, root.as_path()).expect("a link's digest is its target's bytes");
+    capture.digests = vec![crate::worktree_clone_add_route::add_capture::CapturedDigest { path: b"link".to_vec(), digest: crate::subvolume_sha::sha256(b"other.txt") }];
+    let refusal: String = prove_the_clone(&capture, root.as_path()).expect_err("another target is refused");
+    assert!(refusal.contains("link differs in its content"), "{refusal}");
+    remove(root.as_path());
+}
+
+#[test]
 fn a_path_the_capture_recorded_absent_and_the_clone_holds_is_refused() {
     let root: PathBuf = a_repository("proof-came-back");
     let capture: Capture = capture_of(root.as_path());

@@ -88,6 +88,7 @@ pub struct Steps<'a> {
 ///  A step's refusal and Git's own status are different answers:
 ///  a refusal changes nothing and keeps the records,
 ///  and a Git failure keeps its status so a script reads the same one.
+#[derive(Debug)]
 pub struct StepRefusal {
     /// The words the person reads.
     pub message: String,
@@ -467,6 +468,9 @@ pub fn step_fill(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<Option
         nonce: &record.nonce,
         home: steps.home_path,
         admin_path: admin_path.as_path(),
+        context: steps.context,
+        real_git: steps.real_git,
+        overlay: steps.overlay,
         quiet: steps.quiet,
         stops: steps.stops,
     })

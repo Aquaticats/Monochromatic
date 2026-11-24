@@ -38,7 +38,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpec
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_snapshot_source::{SnapshotSource, refused_only_for_uncommitted_changes, snapshot_blocker, source_refusal};
+use crate::worktree_snapshot_source::{Refusal as SourceRefusal, SnapshotSource, snapshot_blocker, source_or_dirty};
 use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
@@ -51,7 +51,7 @@ use std::path::PathBuf;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Preflight = { source: SnapshotSource; device: OpenedDevice; checkoutGuid: DatasetGuid; poolGuid: DatasetGuid };
+/// type Preflight = { source: SnapshotSource; device: OpenedDevice; checkoutGuid: DatasetGuid; poolGuid: DatasetGuid; warnings: string[] };
 /// ```
 pub(super) struct Preflight {
     /// The proven clean source.
@@ -62,19 +62,21 @@ pub(super) struct Preflight {
     pub(super) checkout_guid: DatasetGuid,
     /// The pool's GUID.
     pub(super) pool_guid: DatasetGuid,
+    /// The lines the add prints and goes on past,
+    /// which a delegation missing a permission only a removal uses earns.
+    pub(super) warnings: Vec<String>,
 }
 
 /// Prove the supported form,
-/// the clean source,
+/// the source,
 /// the datasets,
 /// the account's delegation,
-/// the handler's readiness and the destination,
-/// or answer nothing when the source's only fault is its uncommitted changes.
+/// the handler's readiness and the destination.
 ///
 /// # Errors
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
-pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
+pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Preflight, StepRefusal> {
     if let Some(word) = person_lock_word(arguments) {
         return Err(StepRefusal::refused(format!(
             "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
@@ -82,23 +84,16 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
-    let source: SnapshotSource = match source_refusal(context, &identity) {
-        Ok(found) => found,
-        // What:
-        //  A checkout whose only fault is its uncommitted changes makes the route
-        //  decline instead of failing the add.
-        // Why:
-        //  The owner decided the interim on 2026-11-19:
-        //  while plan step 11's verified dirty restore is unlanded,
-        //  an add from a dirty main checkout takes rung 3,
-        //  as today
-        //  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-        //  lines 1858 to 1862).
-        //  Failing it here took an answer the owner had not given, and the ladder
-        //  never ran for it (issue 6452).
-        Err(refusal) if refused_only_for_uncommitted_changes(&refusal) => return Ok(None),
-        Err(refusal) => return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason))),
-    };
+    // What:
+    //  A checkout with uncommitted edits is a source too.
+    // Why:
+    //  The clone route restores the copy to the commit the caller asked for, so it
+    //  serves the same adds the ladder's other rungs serve
+    //  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+    //  "The restore").
+    //  This replaces the interim of 2026-11-19 (issue 6452), which sent such an add
+    //  to rung 3 until this step landed.
+    let source: SnapshotSource = source_or_dirty(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
     if let Some(reason) = snapshot_blocker(&source) {
         return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));
     }
@@ -119,10 +114,10 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             route.container_dataset
         ));
     })?;
-    super::add_grants::refuse_without_the_decided_grants(&device, route)?;
+    let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
-    return Ok(Some(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid }));
+    return Ok(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings });
 }
 
 /// Verify the folder the slot goes in,
