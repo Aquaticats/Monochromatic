@@ -22,18 +22,24 @@
 //! or the shell-only folder the refusal's words name,
 //! is outside the fixture root for that
 //! reason.
-//!  Each control needs an image whose own program folders hold no `git-lfs`,
-//! because a real one answers the push before the
-//!  stand-in and the control would prove nothing;
-//! such an image is acknowledged with an environment variable (`CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED`),
-//! and the line that says the control did not run names it.
+//!  Every list these controls hand a push names this fixture's own folders alone:
+//! the last of them holds a link for each program the push needs,
+//!  and never `/usr/bin` or `/bin`,
+//! where a machine or an image installs the real `git-lfs`.
+//! A real program is found before the stand-in,
+//! or where the refusal proves no program is there,
+//!  so a list that named one of those folders would find a program this control did not build,
+//! and the control would prove another machine's program instead of its own.
 //! Every carried value is plainly fake.
 
 use super::commit::{keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, direct, executable, fixture, git, give_service_environment, observe_raw, repository, start_fixture_service, stderr_of, FixtureService,
+    Fixture, Observed, REAL_GIT, direct, executable, fixture, git, give_service_environment, observe_raw, path_of_a_folder_that_links_only, repository, stderr_of,
+    FixtureService,
 };
-use git_policy_cli::service_fault::{AFTER_PROMOTE, FAULT_VARIABLE};
+use git_policy_cli::service_fault::{AFTER_THE_VERDICT, FAULT_VARIABLE};
+use git_policy_cli::service_work::work_directory;
+use git_policy_cli::work_item::{HELD, state_directory};
 use std::ffi::{OsStr, OsString};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -54,7 +60,9 @@ struct World {
     fixture: Fixture,
     repo: PathBuf,
     origin: PathBuf,
-    service: FixtureService,
+    /// The folder that links the programs a push's children need and nothing else,
+    /// so no list these controls use reaches a folder this machine installs programs in.
+    programs: PathBuf,
     shell_folder: PathBuf,
     exec_alias: PathBuf,
     red_folder: PathBuf,
@@ -119,58 +127,43 @@ fn stand_in_source(record: &Path) -> String {
     );
 }
 
-/// The variable that acknowledges an image whose own program folders hold a real `git-lfs`,
-/// where these controls cannot run and say so.
-const OCCUPIED_ACKNOWLEDGED: &str = "CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED";
-
 /// What:
-///  Whether a real `git-lfs` sits in a folder the service's own list searches,
-///  and which one.
-/// Why:
-///   The controls prove the carry with a stand-in the service's own list cannot find;
-/// a real program there answers the push
-///  first,
-/// so the stand-in never runs and a green control would prove nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const shadowedBy = () => ['/usr/bin', '/bin', '/usr/local/bin'].find((folder) => existsSync(join(folder, 'git-lfs')));
-/// ```
-fn shadowed_by() -> Option<&'static str> {
-    for folder in ["/usr/bin", "/bin", "/usr/local/bin"] {
-        if Path::new(folder).join("git-lfs").exists() {
-            return Some(folder);
-        }
-    }
-    return None;
-}
-
-fn world(name: &str) -> Option<World> {
+///  Every control's world:
+/// a fixture whose service holds a list of its own that reaches the stand-in,
+///  and variables of its own,
+///  as `world_with` says.
+fn world(name: &str) -> World {
     return world_with(name, false, &[]);
 }
 
-/// A world whose service may hold a list of its own that reaches the stand-in too,
-/// and variables of its own,
-/// or nothing where a real `git-lfs` would answer the push before the stand-in.
-fn world_with(name: &str, stand_in_on_the_services_path: bool, service_variables: &[(&str, &str)]) -> Option<World> {
-    if let Some(folder) = shadowed_by() {
-        let acknowledged: bool = std::env::var_os(OCCUPIED_ACKNOWLEDGED).is_some_and(|value| { return !value.is_empty(); });
-        assert!(
-            acknowledged,
-            "{name} needs an image whose own program folders hold no git-lfs, and {folder} holds one; run it in the gate image, or set {OCCUPIED_ACKNOWLEDGED}=1"
-        );
-        eprintln!("END TO END CARRY CONTROL NOT RUN: {name} ({folder} holds a real git-lfs, which answers before the stand-in)");
-        return None;
-    }
+/// What:
+///  A fixture, its repository and bare origin,
+///  and the folders the lists a push is handed name.
+/// Why:
+///   No list names `/usr/bin` or `/bin`,
+/// where a machine and the gate image install the real `git-lfs`:
+/// a real program found there would answer the push before the stand-in,
+/// or take the place of the refusal whose words this control reads,
+///  so the control would prove what the machine holds instead of what the wrapper does.
+/// The folders are the stand-in's own,
+/// a folder of links to the programs the push's children need,
+/// and the shell-only or red-arm folder the words name.
+fn world_with(name: &str, stand_in_on_the_services_path: bool, service_variables: &[(&str, &str)]) -> World {
     let fixture: Fixture = fixture(name);
     // Outside the fixture root and the runtime directory: the stand-in's own text holds the fake values it classifies, so a
     //  sweep that reached it would find them there.
     let shell_folder: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent/git-policy-push-programs-end-to-end-stand-in-git-lfs").join(name).join(SHELL_FOLDER_NAME);
-    if stand_in_on_the_services_path {
-        give_service_environment(&fixture, "PATH", format!("/usr/bin:/bin:{}", shell_folder.display()).as_str());
+    // The programs a push's own children need, linked in a folder of this fixture, which never holds a `git-lfs` any machine
+    //  installed: a link of the real Git, never of the wrapper, because the wrapper passes over a path that leads back to itself.
+    let programs: PathBuf = path_of_a_folder_that_links_only(&fixture, "programs-a-push-needs", &[("git", Path::new(REAL_GIT)), ("sh", Path::new("/bin/sh"))]).into();
+    // The service's own list is the same kind of list: a service whose memory holds no request's list searches this one, and a
+    //  control that proves the stand-in answers there names the stand-in's folder first, by construction.
+    let service_list: Vec<&Path> = if stand_in_on_the_services_path {
+        vec![shell_folder.as_path(), programs.as_path()]
     } else {
-        give_service_environment(&fixture, "PATH", "/usr/bin:/bin");
-    }
+        vec![programs.as_path()]
+    };
+    give_service_environment(&fixture, "PATH", std::env::join_paths(service_list).expect("a PATH").to_str().expect("a list of paths that is text"));
     for (variable, value) in service_variables {
         give_service_environment(&fixture, variable, value);
     }
@@ -198,9 +191,67 @@ fn world_with(name: &str, stand_in_on_the_services_path: bool, service_variables
     let exec_path: String = String::from_utf8_lossy(direct(&fixture).arg("--exec-path").output().expect("real Git answers").stdout.as_slice()).trim().to_owned();
     let exec_alias: PathBuf = fixture.root.join(EXEC_ALIAS_NAME);
     std::os::unix::fs::symlink(exec_path.as_str(), exec_alias.as_path()).expect("the exec path alias");
-    let service: FixtureService = start_fixture_service(&fixture);
-    service.serve(&fixture, repo.join(".git").as_path());
-    return Some(World { fixture, repo, origin, service, shell_folder, exec_alias, red_folder, record, journal_name, journal });
+    // The first wrapped command starts this fixture's own service, in the runtime directory it hands that command, and the
+    //  controls that stop and start it act on that one (`the_service`).
+    return World { fixture, repo, origin, programs, shell_folder, exec_alias, red_folder, record, journal_name, journal };
+}
+
+/// What:
+///  The fixture's own service, which every wrapped command of this fixture reaches.
+/// Why:
+///   The request's list lives in the memory of the service the command spoke to,
+/// so a control that takes it away has to stop that service.
+/// A service a control starts itself sits in a runtime directory of its own,
+/// which no command of this fixture is told about:
+/// it holds no list,
+/// and stopping it proves nothing (issue 6447).
+fn the_service(fixture: &Fixture) -> std::sync::MutexGuard<'_, Option<FixtureService>> {
+    return fixture.service.lock().expect("the fixture's service");
+}
+
+/// The runtime directory the fixture's service listens in,
+/// which every wrapped command of this fixture is told.
+fn service_runtime_of(fixture: &Fixture) -> PathBuf {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    return started.runtime.clone();
+}
+
+/// What the manager does when the worktree's service has gone:
+/// ends it and everything it started,
+/// and with the process its memory of the request's list.
+fn stop_the_service(fixture: &Fixture) {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    started.stop_all();
+}
+
+/// What:
+///  Starts the worktree's service again,
+///  in the runtime directory the commands of this fixture already look in.
+/// Why:
+///   The manager starts one instance per worktree,
+/// and the fixture has none,
+/// so the control starts the new one where the last one listened and holds nothing of its memory.
+fn serve_the_service(fixture: &Fixture, git_dir: &Path) {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    started.serve(fixture, git_dir);
+}
+
+fn git_dir(world: &World) -> PathBuf {
+    return world.repo.join(".git");
+}
+
+/// The names of the records waiting in one state of a worktree's queue,
+/// sorted,
+/// and none when that state was never made.
+fn names_in(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    names.sort();
+    return names;
 }
 
 fn shell_path(world: &World, with_stand_in: bool) -> OsString {
@@ -212,7 +263,8 @@ fn shell_path(world: &World, with_stand_in: bool) -> OsString {
         path.push(":");
         path.push(world.red_folder.as_path());
     }
-    path.push(":/usr/bin:/bin");
+    path.push(":");
+    path.push(world.programs.as_path());
     return path;
 }
 
@@ -282,7 +334,7 @@ fn files_under(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 /// holding `value`.
 fn holding(world: &World, value: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
-    for root in [world.fixture.root.clone(), world.service.runtime.clone()] {
+    for root in [world.fixture.root.clone(), service_runtime_of(&world.fixture)] {
         for (path, bytes) in files_under(root.as_path()) {
             if bytes.windows(value.len()).any(|window| { return window == value.as_bytes(); }) {
                 found.push(path.display().to_string());
@@ -356,7 +408,7 @@ fn assert_nothing_written(world: &World) {
 
 #[test]
 fn green_the_services_push_searches_the_committing_shells_list_and_runs_its_stand_in() {
-    let Some(world): Option<World> = world("push-programs-end-to-end-green") else { return };
+    let world: World = world("push-programs-end-to-end-green");
     let committed: std::process::Output = commit_a_pointer(&world, "one.bin", true, true, None);
     assert!(committed.status.success(), "the commit lands: {}", String::from_utf8_lossy(committed.stderr.as_slice()));
     let commit: String = head_of(&world);
@@ -376,14 +428,14 @@ fn green_the_services_push_searches_the_committing_shells_list_and_runs_its_stan
     //  for this push is the positive control that the log is in the sweep.
     wait_until("the service's log holds the line it says for the push", &|| { return !holding(&world, "pushed branch=").is_empty(); });
     assert_nothing_written(&world);
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.shell_folder.parent().expect("the stand-in's parent")).expect("the stand-in's own folder goes");
 }
 
 #[test]
 fn red_with_no_stand_in_on_the_shells_list_the_services_push_is_refused_naming_the_shells_list() {
-    let Some(world): Option<World> = world("push-programs-end-to-end-red") else { return };
+    let world: World = world("push-programs-end-to-end-red");
     let committed: std::process::Output = commit_a_pointer(&world, "one.bin", false, true, None);
     assert!(committed.status.success(), "the commit lands: {}", String::from_utf8_lossy(committed.stderr.as_slice()));
     let commit: String = head_of(&world);
@@ -414,20 +466,52 @@ fn red_with_no_stand_in_on_the_shells_list_the_services_push_is_refused_naming_t
     assert!(runs(&world).is_empty(), "the stand-in never ran");
     assert!(words.contains("was not found"), "the refusal says the program was not found: {words}");
     assert!(words.contains("`PATH` of the shell that asked for this push"), "and names the shell's list, which is what the service searched: {words}");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.shell_folder.parent().expect("the stand-in's parent")).expect("the stand-in's own folder goes");
 }
 
+/// What:
+///  A push whose request's list is gone is refused,
+///  the refusal names the service's own list and the command that pushes by hand,
+///  and that command publishes the commit.
+/// Why:
+///   The request's list lives only in the memory of the service that received it,
+/// so a push the service has to run after a restart searches the service's own list,
+///  a folder this fixture built,
+/// where no `git-lfs` answers,
+/// and the person is handed the one command that sends the commit.
+///  The scene the control names is made by the control,
+///  never by a race:
+/// the command is killed once its gate approved the push and before it promoted the record,
+/// so the record waits in `held`,
+/// which no round drains.
+/// The service that holds the request ends while the record waits there,
+/// and only then does the control take the step the killed command would have taken.
+/// A push a service that still held the request ran would complete,
+/// which removes the scene's premise rather than refuting anything:
+/// the control would then wait out its bound for a refusal nothing had taken the list from.
 #[test]
 fn restart_a_push_of_a_pointer_with_no_transport_names_the_services_list_and_the_printed_command_runs() {
-    let Some(world): Option<World> = world("push-programs-end-to-end-restart") else { return };
-    let killed: std::process::Output = commit_a_pointer(&world, "one.bin", true, false, Some(AFTER_PROMOTE));
+    let world: World = world("push-programs-end-to-end-restart");
+    // A wrapper killed after its gate approved the push leaves the record held, and the service that landed the commit still
+    //  holds the request's list in its memory.
+    let killed: std::process::Output = commit_a_pointer(&world, "one.bin", true, false, Some(AFTER_THE_VERDICT));
     assert!(!killed.status.success(), "the wrapper was killed at the fault point");
     let commit: String = head_of(&world);
     assert_ne!(origin_main(&world), commit, "the push has not been made");
-    world.service.stop_all();
-    world.service.serve(&world.fixture, world.repo.join(".git").as_path());
+    // The approved record is the one thing the killed command left behind, and no round lists the state it waits in.
+    let work: PathBuf = work_directory(git_dir(&world).as_path());
+    let held: Vec<String> = names_in(state_directory(work.as_path(), HELD).as_path());
+    assert_eq!(held.len(), 1, "the push the gate approved is the one record held: {held:?}");
+    // What the manager does when its service has gone: the service every wrapped command reached ends, and with the process
+    //  its memory of the request's list.
+    stop_the_service(&world.fixture);
+    // What the killed command would have done next: the approved record becomes runnable while no service runs to take it.
+    assert!(git_policy_cli::work_item_holding::promote(work.as_path(), held[0].as_str()), "the approved record is promoted");
+    assert!(names_in(state_directory(work.as_path(), HELD).as_path()).is_empty(), "the promoted record no longer waits where no round looks");
+    // The manager's next instance of this worktree, which holds nothing of the memory the last one had.
+    serve_the_service(&world.fixture, git_dir(&world).as_path());
     let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(world.repo.join(".git").as_path());
     wait_until("the push records what stopped it", &|| { return std::fs::read_dir(notice.as_path()).is_ok_and(|entries| { return entries.flatten().next().is_some(); }); });
     let shown: Observed = observe_raw(&mut shell(&world, &["status"], true, false), b"");
@@ -442,7 +526,7 @@ fn restart_a_push_of_a_pointer_with_no_transport_names_the_services_list_and_the
     assert_eq!(origin_main(&world), commit, "the commit is on the remote");
     let runs: Vec<String> = runs(&world);
     assert!(runs.iter().any(|run| { return run.contains("service-mark=") && !run.contains("service-mark=set") && run.contains("path-has-the-shell-folder=yes"); }), "the stand-in ran from the shell, not the service: {runs:?}");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.shell_folder.parent().expect("the stand-in's parent")).expect("the stand-in's own folder goes");
 }
@@ -451,7 +535,7 @@ fn restart_a_push_of_a_pointer_with_no_transport_names_the_services_list_and_the
 fn a7_a_value_only_the_service_holds_is_unset_for_a_push_that_carries_a_list_and_is_seen_when_none_came() {
     const SERVICE_SSH_COMMAND: &str = "ssh -i /nowhere/FAKE_SERVICE_OWN_SSH_COMMAND_33d0";
     // The service holds its own transport, and its own list reaches the stand-in too, so the stand-in runs in both arms.
-    let Some(world): Option<World> = world_with("push-programs-end-to-end-a7", true, &[("GIT_SSH_COMMAND", SERVICE_SSH_COMMAND)]) else { return };
+    let world: World = world_with("push-programs-end-to-end-a7", true, &[("GIT_SSH_COMMAND", SERVICE_SSH_COMMAND)]);
     // Arm one: the command's list came, the command chose no transport, so the service's own transport is unset for the push.
     let committed: std::process::Output = commit_a_pointer(&world, "one.bin", true, false, None);
     assert!(committed.status.success(), "the commit lands: {}", String::from_utf8_lossy(committed.stderr.as_slice()));
@@ -461,15 +545,21 @@ fn a7_a_value_only_the_service_holds_is_unset_for_a_push_that_carries_a_list_and
     assert!(carried.iter().any(|run| { return run.contains("request-mark=set") && run.contains("ssh-command=unset"); }), "the service's own GIT_SSH_COMMAND is not the push's: {carried:?}");
     // Arm two, the positive control: no list reaches the service (a restart), so its own transport is what the push has,
     //  and the same stand-in reports it as another command line than the shell's.
-    let killed: std::process::Output = commit_a_pointer(&world, "two.bin", true, false, Some(AFTER_PROMOTE));
+    // The scene is formed as in the restart control above: the record waits in `held`, which no round drains, the service that
+    //  holds the request ends, and the control promotes the record before the next instance starts.
+    let killed: std::process::Output = commit_a_pointer(&world, "two.bin", true, false, Some(AFTER_THE_VERDICT));
     assert!(!killed.status.success(), "the wrapper was killed at the fault point");
     let second: String = head_of(&world);
-    world.service.stop_all();
-    world.service.serve(&world.fixture, world.repo.join(".git").as_path());
+    let work: PathBuf = work_directory(git_dir(&world).as_path());
+    let held: Vec<String> = names_in(state_directory(work.as_path(), HELD).as_path());
+    assert_eq!(held.len(), 1, "the second push the gate approved is the one record held: {held:?}");
+    stop_the_service(&world.fixture);
+    assert!(git_policy_cli::work_item_holding::promote(work.as_path(), held[0].as_str()), "the approved record is promoted");
+    serve_the_service(&world.fixture, git_dir(&world).as_path());
     wait_until("the restarted service's push publishes the second pointer commit", &|| { return origin_main(&world) == second; });
     let all: Vec<String> = runs(&world);
     assert!(all.iter().any(|run| { return run.contains("request-mark=") && !run.contains("request-mark=set") && run.contains("service-list-mark=set") && run.contains("ssh-command=another"); }), "with no list the push has the service's own transport, so the instrument can see one: {all:?}");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.shell_folder.parent().expect("the stand-in's parent")).expect("the stand-in's own folder goes");
 }
