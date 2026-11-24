@@ -352,6 +352,42 @@ pub mod worktree_clone_managed_lock;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_managed_lock::*;
 
+/// What one worktree-clone slot is,
+///  read without changing anything:
+///  a known unmounted clone,
+///  a pending add,
+///  a pending removal,
+///  a mounted managed clone,
+///  a slot the route holds nothing in,
+///  or a state no reading proves,
+///  and the report of the slot,
+///  its dataset and the one next safe action.
+/// It reads the add's binding record,
+///  the removal's plan folder,
+///  the clone's mount intent and this process's mount table,
+///  and it is Linux only,
+///  like the mount table it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_slot_state;
+
+/// The same re-export for `worktree_clone_slot_state`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_slot_state::*;
+
+/// The refusal of `git worktree move` for a slot a managed clone is bound to,
+///  mounted or not,
+///  and the sentence that says why the slot is fixed.
+/// The step that wires `worktree move` calls it;
+///  no wrapper command reaches it yet,
+///  and it is Linux only,
+///  like the record it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_move_refusal;
+
+/// The same re-export for `worktree_clone_move_refusal`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_move_refusal::*;
+
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an

@@ -1085,3 +1085,12 @@ mod zfs_holder_scan_guest;
 /// Plan step 18's `doctor` checks for steps 2 to 9 in the throwaway guest.
 #[path = "binary_zfs_doctor_route_guest_tests.rs"]
 mod zfs_doctor_route_guest;
+
+/// Plan step 12's slot classes and `git worktree move` refusal in the throwaway guest.
+#[path = "binary_zfs_slot_state_guest_fixture.rs"]
+mod zfs_slot_state_guest_fixture;
+
+/// Plan step 12's arms: one real clone's mounted and unmounted class, a pending add and
+/// removal, and the refusal beside Git's own answer.
+#[path = "binary_zfs_slot_state_guest_tests.rs"]
+mod zfs_slot_state_guest;

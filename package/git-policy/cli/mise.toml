@@ -269,6 +269,10 @@ run = "node bin/e2e-native-container.ts run"
 description = "Run the root-run clone-mount handler's adoption arm end to end in the throwaway `mvm` libvirt guest: the administrator records a replacement `.claude/worktrees` folder and each mismatch (another device, a link, a widened mode, a differing slot) is refused without recording anything; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
 run = "node e2e/mount-git-worktree-clone-datasets-guest.ts"
 
+[tasks."e2e:zfs-slot-state"]
+description = "Run plan step 12's slot classes and `git worktree move` refusal end to end in the throwaway `mvm` libvirt guest: one real Git registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, and the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while unmounted; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
+run = "node e2e/slot-state-and-move-refusal-guest.ts"
+
 [tasks."e2e:deferred-origin-check"]
 description = "Run plan step 15's deferred-origin arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the planned removal going on, an origin snapshot marked with `zfs destroy -d` refusing, the reap that mark causes when a removal goes ahead, and an origin moved by `zfs promote` refusing; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
 run = "node e2e/deferred-origin-check-guest.ts"
