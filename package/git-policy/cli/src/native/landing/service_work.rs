@@ -434,12 +434,28 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
-        // What: A push whose command chose its transport stops here when this service no longer holds that choice.
+        // What: A push whose command chose its transport stops here when this service no longer holds that choice, or holds
+        //  it as a value this release cannot write in a line.
         // Why:  Those settings live only in the memory of the service that received them, so a service that was started again has
         //  none; running the push through the manager's environment would speak a transport nobody asked for, which may also lack
-        //  the credentials the chosen way needs. Nothing was sent, so the person is told why and given the command that pushes.
-        if newest.transport && crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_none() {
-            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest).await);
+        //  the credentials the chosen way needs. A value that is not text never reached this service for the same reason, and
+        //  the manager's own transport is no more the person's choice there. Nothing was sent, so the person is told why and
+        //  given the command that pushes.
+        let held: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
+            crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str());
+        let unspellable: bool = held.as_ref().is_some_and(|programs| {
+            return programs
+                .not_text
+                .iter()
+                .any(|name| { return crate::service_push_programs_held_in_memory::TRANSPORT.contains(&name.as_str()); });
+        });
+        if newest.transport && (held.is_none() || unspellable) {
+            let gone: crate::push_without_its_transport::TransportGone = if held.is_none() {
+                crate::push_without_its_transport::TransportGone::TheServiceWasStartedAgain
+            } else {
+                crate::push_without_its_transport::TransportGone::TheValueCouldNotTravel
+            };
+            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest, gone).await);
         }
         // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
         //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after

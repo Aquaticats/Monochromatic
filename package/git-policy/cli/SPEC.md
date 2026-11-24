@@ -8213,12 +8213,21 @@ moved verbatim on 2026-11-23:
 
 ### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
 
-Each of these was asked in the question tool and answered; the questions file kept them until their subjects
-had a record. The record is named beside each answer.
+Each of these was asked in the question tool and answered;
+the questions file kept them until their subjects
+had a record.
+The record is named beside each answer.
 
-- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
-  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
-  owner's explicit exception to "Commits should never fail." for such an index. Record:
+- An index the commit repair cannot read or write stops with a named reason:
+  "Stop with a named reason
+  (Recommended)",
+  2026-11-10T05:40:16-05:00.
+  The code already did this,
+  so nothing changed,
+  and this is the
+  owner's explicit exception to "Commits should never fail."
+  for such an index.
+  Record:
   `package/git-policy/cli/SPEC.md`.
 
 #### Git steps, tools and checks end only on no progress
@@ -14360,12 +14369,21 @@ The step:
   The service's own list is searched only when no list came with the request:
   a service that restarted holds none,
   and so does a push an earlier release queued.
+  A value that is not valid text is the third state,
+  and the push keeps the service's own value of it rather than none at all:
+  the request carries the name and never the value,
+  so a push whose `PATH` no line could hold still finds its programs,
+  and its refusal names the service's list as the list it searched
+  (`src/native/service/service_work_push_environment.rs`).
+  A name the command left unset keeps none of the manager's,
+  which is the state the removal exists for.
   A push whose command chose `GIT_SSH`,
   `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND` stops rather than speaking another transport when those settings are gone,
   and its words name the repository,
   the branch,
-  both ways the settings can be gone (a service started again since,
-  or a command that could not reach it),
+  the way the settings are gone (a service started again since,
+  a command that could not reach it,
+  or a value that is not text and so could not travel with the request),
   and the one command that pushes
   (`src/native/push/push_without_its_transport.rs`).
   A merge's,
