@@ -763,7 +763,11 @@ else:
 fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str, folder: &str) -> Option<Task> {
     let outline: String = pid_file.replace(".pid", ".py");
     std::fs::write(outline.as_str(), script).expect("the arm's python script is written");
-    let command: String = format!("exec python3 -I {outline} {clone} {folder} {CHROOT_AWAY_FOLDER} {sbin}/mount.zfs");
+    // The OpenZFS userspace this guest's driver names may sit beside the system's own, and the helper is the one the
+    // kernel runs for `mount -t zfs`, so the system's is used when the named folder has none.
+    let named: String = format!("{sbin}/mount.zfs");
+    let helper: String = if Path::new(named.as_str()).exists() { named } else { String::from("/sbin/mount.zfs") };
+    let command: String = format!("exec python3 -I {outline} {clone} {folder} {CHROOT_AWAY_FOLDER} {helper}");
     return start_task(command.as_str(), pid_file, sbin, &[]);
 }
 
