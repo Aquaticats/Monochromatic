@@ -39,7 +39,7 @@ use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentit
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{ReadyState, ReadinessRecord, SweepState};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use std::io::Write as _;
-use std::os::unix::fs::PermissionsExt as _;
+use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
@@ -294,6 +294,13 @@ impl Fixture {
     /// The live GUID of one dataset, as the record writes it.
     fn dataset_guid(&self, dataset: &str) -> String {
         return self.zfs_value("guid", dataset);
+    }
+
+    /// The device number the kernel assigned the checkout's mount,
+    /// which `F16` says is anonymous and need not come back,
+    /// and which the record therefore never holds.
+    fn device_of_the_slot(&self, name: &str) -> u64 {
+        return std::fs::metadata(self.slot(name).as_path()).expect("the slot folder's metadata").dev();
     }
 
     /// Whether a dataset answers the pool.
@@ -795,9 +802,10 @@ fn read_the_record_back(fixture: &Fixture, slot: &str, when: &str) -> BindingRec
         record.checkout_dataset_guid.file_name()
     );
     println!(
-        "MEASUREMENT read-back slot={slot} when=\"{when}\" slot-identity={} checkout-guid={guid} clone-guid={} bytes-match=yes",
+        "MEASUREMENT read-back slot={slot} when=\"{when}\" slot-identity={} checkout-guid={guid} clone-guid={} device={} bytes-match=yes",
         recorded.encode(),
-        record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-"))
+        record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-")),
+        fixture.device_of_the_slot(slot)
     );
     return record;
 }
@@ -828,9 +836,10 @@ fn boot_before(fixture: &Fixture) {
         let bytes: Vec<u8> = fixture.binding_bytes(name).unwrap_or_else(|| panic!("the record at {name} cannot be read"));
         fixture.keep(format!("{name}.binding").as_str(), bytes.as_slice());
         println!(
-            "MEASUREMENT before-reboot slot={name} slot-identity={} checkout-guid={guid} clone-guid={} bytes={} boot-id={}",
+            "MEASUREMENT before-reboot slot={name} slot-identity={} checkout-guid={guid} clone-guid={} device={} bytes={} boot-id={}",
             recorded.encode(),
             record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-")),
+            fixture.device_of_the_slot(name),
             bytes.len(),
             this_boot()
         );
@@ -895,10 +904,11 @@ fn power_before(fixture: &Fixture) {
     fixture.keep("power.binding", bytes.as_slice());
     fixture.keep("power.boot-id", this_boot().as_bytes());
     println!(
-        "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} sysrq-mask={} boot-id={}",
+        "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} device={} sysrq-mask={} boot-id={}",
         record.phase,
         bytes.len(),
         record.slot_identity.expect("the filled record keeps the slot's identity").encode(),
+        fixture.device_of_the_slot(POWER_SLOT),
         std::fs::read_to_string("/proc/sys/kernel/sysrq").expect("the sysrq mask").trim(),
         this_boot()
     );
