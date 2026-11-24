@@ -31,7 +31,7 @@ fn the_healthy_route_has_no_finding() {
         assert!(!report.found(), "the healthy route found something: {}", report.line());
     }
     let unknown: Vec<&'static str> = reports.iter().filter(|report| return report.unknown()).map(|report| return report.check.name()).collect();
-    assert_eq!(unknown, vec!["deferred-origin", "removal-plans", "cancel-command", "backup-coverage", "sanoid"], "{unknown:?}");
+    assert_eq!(unknown, vec!["deferred-origin", "removal-plans", "cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"], "{unknown:?}");
 }
 
 /// Every check the step names appears exactly once.
@@ -49,9 +49,9 @@ fn every_check_appears_exactly_once() {
     assert_eq!(
         names,
         vec![
-            "abi", "backup-coverage", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "clone-properties", "container-dataset", "deferred-origin", "delegation", "device", "handler-configuration",
-            "handler-folders", "handler-installation", "holders", "key", "nested-reachability", "parent-identity", "pool", "readiness", "removal-plans", "root-modes", "sanoid", "staging-bind-propagation", "staging-folder", "staging-forms",
-            "store-entries", "unknown-dot-entry", "unresolved-requests", "zed-wiring",
+            "abi", "backup-coverage", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "clone-properties", "container-dataset", "deferred-origin", "delegation", "device",
+            "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "nested-reachability", "parent-identity", "pool", "readiness", "removal-plans", "root-modes", "sanoid", "service-unit",
+            "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries", "unknown-dot-entry", "unresolved-requests", "zed-wiring",
         ]
     );
 }

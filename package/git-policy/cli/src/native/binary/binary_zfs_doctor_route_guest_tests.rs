@@ -1,0 +1,786 @@
+//! What:
+//!  Plan step 18's `doctor` checks for steps 2 to 9, run against a real
+//!  file-backed pool in a throwaway guest:
+//!  the three groups pass on the design's layout,
+//!  and each broken fact answers the finding that names it.
+//! Why:
+//!  The device,
+//!  the ABI gate,
+//!  a dataset's properties,
+//!  its encryption key and the kernel's delegation reply exist only on a
+//!  machine with OpenZFS,
+//!  and a mount row that hangs from the tree the checkout replaced exists only
+//!  where a mount can be made,
+//!  so no host control may show them
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//!  step 18,
+//!  "VM measurements";
+//!  `package/git-policy/cli/e2e/doctor-zfs-route-guest.ts`).
+//!  The arm prints `SKIP` where `CLI_GIT_ZFS_DOCTOR_GUEST` does not name the
+//!  guest,
+//!  and it creates everything it reads:
+//!  the pool,
+//!  the design's datasets,
+//!  the store,
+//!  the installed paths,
+//!  the records and the staging bind,
+//!  so a run leaves the guest as it found it.
+//!  Every claim is a marker line the driver requires,
+//!  so a section that silently stopped running fails the run instead of
+//!  printing less.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! if (process.env.CLI_GIT_ZFS_DOCTOR_GUEST !== guest) return print('SKIP');
+//! installLayout(); expect(routeChecks(gather()).every(pass)).toBe(true);
+//! ```
+
+use git_policy_cli::doctor_zfs_route::{
+    AbiFacts, CheckOutcome, CheckReport, DatasetFacts, DatasetRole, DelegationFacts, DeviceFacts, DeviceState, RecordedIdentity, HolderFacts, LiveIdentity, MountCheckFacts, ParentIdentityFacts, PathState, PoolFacts, Reading,
+    ReadinessFacts, RecordFacts, RequestFacts, SlotIdentityFacts, SlotRecordFacts, StagedFolder, StagingFolderFacts, StoreListingFacts, check_clone_properties, check_delegation, check_key, grants_of, remove_known_staging_forms,
+    route_checks, staging_binds, StagingRemovalRequest,
+};
+use git_policy_cli::fs_mount_options::parse_mount_table;
+use git_policy_cli::worktree_clone_mount::{
+    CloneFolderIdentity, CloneSlotRefusal, HoldCloneSlotRequest, PARENT_RECORD_NAME, STORE_HEADER, SlotIdentityStore, StoreRefusal, hold_clone_slot_under_root_control, hold_the_worktrees_parent,
+};
+use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::facts_of;
+use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
+use git_policy_cli::worktree_clone_mount_handler::sweep_configuration::read_configuration;
+use git_policy_cli::worktree_clone_mount_handler::CONFIGURATION_PATH;
+use git_policy_cli::worktree_clone_mount_protocol::{
+    CloneMountReceipt, DatasetGuid, MountOperation, ReadinessFile, ReadinessRecord, ReadyState, ReceiptMountIdentity, ReceiptOutcome, ReceiptsFolder, RequestNonce, RESULTS_DIRECTORY, READINESS_DIRECTORY, SweepState,
+    DESIRED_STATE_PROPERTY, read_intent, IntentReading,
+};
+use git_policy_cli::zfs_compatibility_gate::{BeforeRequests, LiveGate};
+use git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
+use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityStep, DEVICE_PATH, DatasetIdentity, ZfsDevice};
+use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// The variable the guest driver sets.
+const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_DOCTOR_GUEST";
+
+/// The variable the guest driver sets for the pool's name.
+const POOL_VARIABLE: &str = "CLI_GIT_ZFS_DOCTOR_POOL";
+
+/// Where the arm builds everything it reads.
+const FIXTURE: &str = "/home/zfs-doctor-fixture";
+
+/// The checkout the design's dataset mounts at.
+const CHECKOUT: &str = "/home/zfs-doctor-fixture/checkout";
+
+/// The account the delegation names,
+/// which the guest image creates.
+const ACCOUNT: u32 = 1000;
+
+/// The pool's image size.
+const POOL_IMAGE_SIZE: &str = "1G";
+
+/// The one intent nonce this arm writes.
+const NONCE: &str = "0123456789abcdef0123456789abcdef";
+
+/// The install path the checks name as a placeholder for the one executable.
+const EXECUTABLE_PATH: &str = git_policy_cli::doctor_zfs_route::PLACEHOLDER_EXECUTABLE_PATH;
+
+/// The ZED event path the checks name as a placeholder.
+const ZEDLET_PATH: &str = git_policy_cli::doctor_zfs_route::PLACEHOLDER_ZEDLET_PATH;
+
+/// The stale name a readiness record from another boot is built with.
+const OTHER_BOOT: &str = "00000000-0000-0000-0000-000000000000";
+
+//region Commands
+
+/// Run one program,
+/// refusing unless it succeeded,
+/// and print what it said.
+fn run(program: &str, arguments: &[&str]) {
+    let output = Command::new(program).args(arguments).output().unwrap_or_else(|error| panic!("{program} could not be started: {error}"));
+    if !output.status.success() {
+        panic!("{program} {} exited {:?}\n{}\n{}", arguments.join(" "), output.status.code(), String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+/// Run one `zfs` command,
+/// which the driver's PATH puts on the guest's.
+fn zfs(arguments: &[&str]) {
+    run("zfs", arguments);
+}
+
+/// The pool of this run.
+fn pool() -> String {
+    return std::env::var(POOL_VARIABLE).unwrap_or_else(|_error| panic!("{POOL_VARIABLE} is not set"));
+}
+
+/// The checkout dataset of the design's layout.
+fn checkout_dataset() -> String {
+    return format!("{}/home/monochromatic-git-checkout", pool());
+}
+
+/// The clone container of the design's layout.
+fn container_dataset() -> String {
+    return format!("{}/home/monochromatic-git-worktree-clone-datasets", pool());
+}
+
+/// The one clone this arm manages.
+fn clone_dataset() -> String {
+    return format!("{}/one", container_dataset());
+}
+
+/// The store this arm writes and reads.
+fn store_path() -> &'static str {
+    return git_policy_cli::worktree_clone_mount::SLOT_IDENTITY_STORE_PATH;
+}
+
+/// The staging folder's name for this arm's clone GUID.
+fn stage_name() -> String {
+    return git_policy_cli::worktree_clone_unmount::staging_folder_name::staging_folder_name(DatasetGuid::parse("1837462836473829").expect("a canonical GUID"));
+}
+
+/// One path's state as the checks read it.
+fn path_state(path: &Path) -> PathState {
+    return match std::fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => PathState::Absent,
+        Err(error) => PathState::Unreadable { why: error.to_string() },
+        Ok(metadata) if metadata.is_dir() => PathState::Directory { owner: metadata.uid(), mode: metadata.permissions().mode() & 0o7777 },
+        Ok(metadata) if metadata.is_file() => PathState::File { owner: metadata.uid(), mode: metadata.permissions().mode() & 0o7777 },
+        Ok(_) => PathState::WrongKind { found: String::from("a link or a device node") },
+    };
+}
+
+//endregion
+
+//region The fixture's layout
+
+/// What the arm needs in place before it reads anything.
+fn install_layout() {
+    let pool_name: String = pool();
+    let _ = Command::new("zpool").args([ "destroy", "--force", pool_name.as_str() ]).output();
+    let _ = std::fs::remove_dir_all(FIXTURE);
+    std::fs::create_dir_all(FIXTURE).expect("the fixture root");
+    let image: String = format!("{FIXTURE}/pool.img");
+    run("truncate", &[ "--size", POOL_IMAGE_SIZE, image.as_str() ]);
+    run("zpool", &[ "create", "-f", "-o", "cachefile=none", "-O", "mountpoint=none", pool_name.as_str(), image.as_str() ]);
+    zfs(&[ "create", "-o", "mountpoint=none", format!("{pool_name}/home").as_str() ]);
+    zfs(&[ "create", "-o", format!("mountpoint={CHECKOUT}").as_str(), checkout_dataset().as_str() ]);
+    zfs(&[ "create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", container_dataset().as_str() ]);
+    zfs(&[ "snapshot", format!("{}@origin", checkout_dataset()).as_str() ]);
+    zfs(&[ "clone", "-o", "mountpoint=legacy", format!("{}@origin", checkout_dataset()).as_str(), clone_dataset().as_str() ]);
+    // The account's folders below the checkout, which the store records and the walk holds.
+    for folder in [ format!("{CHECKOUT}/.claude"), format!("{CHECKOUT}/.claude/worktrees"), format!("{CHECKOUT}/.claude/worktrees/one") ] {
+        std::fs::create_dir_all(folder.as_str()).expect("the account's folder");
+        run("chown", &[ format!("{ACCOUNT}:{ACCOUNT}").as_str(), folder.as_str() ]);
+        std::fs::set_permissions(folder.as_str(), std::fs::Permissions::from_mode(0o700)).expect("the account's mode");
+    }
+    record_the_store();
+    install_the_handlers();
+    publish_the_records();
+    make_the_staging_folder();
+    allow_the_decided_grants();
+}
+
+/// The parent's and the slot's records,
+/// captured from the live folders so the identity compare passes.
+fn record_the_store() {
+    std::fs::create_dir_all(store_path()).expect("the store folder");
+    std::fs::set_permissions(store_path(), std::fs::Permissions::from_mode(0o755)).expect("the store's mode");
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(store_path())).expect("the store opens under root control");
+    let _ = store;
+    let parent: CloneFolderIdentity = capture(Path::new(&format!("{CHECKOUT}/.claude/worktrees")));
+    let slot: CloneFolderIdentity = capture(Path::new(&format!("{CHECKOUT}/.claude/worktrees/one")));
+    std::fs::write(Path::new(store_path()).join(PARENT_RECORD_NAME), format!("{STORE_HEADER}\nparent - {}\n", parent.encode())).expect("the parent record");
+    std::fs::write(Path::new(store_path()).join("one"), format!("{STORE_HEADER}\nslot one {}\n", slot.encode())).expect("the slot record");
+}
+
+/// One folder's identity,
+/// read through an open descriptor as the route reads it.
+fn capture(path: &Path) -> CloneFolderIdentity {
+    let folder: std::fs::File = std::fs::File::open(path).expect("the folder opens");
+    return CloneFolderIdentity::capture(&folder).expect("the folder's identity");
+}
+
+/// The one executable's placeholder path,
+/// the ZED event's placeholder path and the configuration,
+/// with root's ownership and the modes the checks fix.
+fn install_the_handlers() {
+    let built: String = format!("{}/target/release/monochromatic-git-policy-cli", env!("CARGO_MANIFEST_DIR"));
+    std::fs::create_dir_all(Path::new(EXECUTABLE_PATH).parent().expect("the install folder")).expect("the install folder");
+    std::fs::copy(built.as_str(), EXECUTABLE_PATH).expect("the one executable");
+    std::fs::set_permissions(EXECUTABLE_PATH, std::fs::Permissions::from_mode(0o755)).expect("the executable's mode");
+    std::fs::create_dir_all(Path::new(ZEDLET_PATH).parent().expect("the zed.d folder")).expect("the zed.d folder");
+    let shim: String = format!("#!/bin/sh\nexec {EXECUTABLE_PATH}\n");
+    std::fs::write(ZEDLET_PATH, shim).expect("the zedlet");
+    std::fs::set_permissions(ZEDLET_PATH, std::fs::Permissions::from_mode(0o755)).expect("the zedlet's mode");
+    std::fs::create_dir_all(Path::new(CONFIGURATION_PATH).parent().expect("the configuration folder")).expect("the configuration folder");
+    let document: String = format!(
+        "{{\n  \"cloneMounts\": {{\n    \"checkout\": \"{CHECKOUT}\",\n    \"parent\": \"{}\",\n    \"checkoutDataset\": \"{}\"\n  }},\n  \"account\": \"{}\"\n}}\n",
+        container_dataset(),
+        checkout_dataset(),
+        ACCOUNT
+    );
+    std::fs::write(CONFIGURATION_PATH, document).expect("the configuration");
+    std::fs::set_permissions(CONFIGURATION_PATH, std::fs::Permissions::from_mode(0o644)).expect("the configuration's mode");
+}
+
+/// This boot's readiness record and the clone's receipt,
+/// each written through the release writers so the grammar is theirs.
+fn publish_the_records() {
+    let boot: String = live_boot();
+    let record: ReadinessRecord = ReadinessRecord {
+        boot: boot.clone(),
+        pool_name: pool(),
+        pool_state: ReadyState::Ready,
+        checkout_path: String::from(CHECKOUT),
+        checkout_state: ReadyState::Ready,
+        sweep_nonce: None,
+        sweep_state: SweepState::Finished,
+        time: String::from("2026-11-23T00:00:00+00:00"),
+    };
+    ReadinessFile::at(PathBuf::from(READINESS_DIRECTORY), 0).publish(&record).expect("this boot's readiness record");
+    let guid: u64 = identity(clone_dataset().as_str()).stats.dds_guid;
+    let receipt: CloneMountReceipt = CloneMountReceipt {
+        dataset: DatasetGuid::parse(guid.to_string().as_str()).expect("the clone's GUID"),
+        operation: MountOperation::Mount,
+        nonce: RequestNonce::parse(NONCE).expect("the arm's nonce"),
+        outcome: ReceiptOutcome::Done,
+        mount: Some(ReceiptMountIdentity { mount_id: 1, device: 2049, inode: 42, source: clone_dataset(), canonical_path: format!("{CHECKOUT}/.claude/worktrees/one") }),
+        failed_step: None,
+        errno: None,
+        boot,
+        time: String::from("2026-11-23T00:00:00+00:00"),
+    };
+    ReceiptsFolder::at(PathBuf::from(RESULTS_DIRECTORY), 0).publish(&receipt).expect("the clone's receipt");
+    zfs(&[ "set", format!("{DESIRED_STATE_PROPERTY}=v1:{NONCE}:mount").as_str(), clone_dataset().as_str() ]);
+}
+
+/// The cache, the staging folder and its private bind.
+fn make_the_staging_folder() {
+    let cache: String = format!("{FIXTURE}/cache");
+    std::fs::create_dir_all(cache.as_str()).expect("the cache");
+    run("chown", &[ format!("{ACCOUNT}:{ACCOUNT}").as_str(), cache.as_str() ]);
+    std::fs::set_permissions(cache.as_str(), std::fs::Permissions::from_mode(0o700)).expect("the cache mode");
+    let stage: String = format!("{cache}/{}", stage_name());
+    std::fs::create_dir(stage.as_str()).expect("the staging folder");
+    run("chown", &[ format!("{ACCOUNT}:{ACCOUNT}").as_str(), stage.as_str() ]);
+    std::fs::set_permissions(stage.as_str(), std::fs::Permissions::from_mode(0o700)).expect("the staging folder's mode");
+    run("mount", &[ "--bind", stage.as_str(), stage.as_str() ]);
+    run("mount", &[ "--make-private", stage.as_str() ]);
+}
+
+/// The nine decided grants,
+/// given with the one executable's own `zfs` userspace.
+fn allow_the_decided_grants() {
+    let account: String = ACCOUNT.to_string();
+    let checkout: String = checkout_dataset();
+    let container: String = container_dataset();
+    for arguments in [
+        vec![ "allow", "-l", "-u", account.as_str(), "snapshot", checkout.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "clone", checkout.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "mount", checkout.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "destroy", checkout.as_str() ],
+        vec![ "allow", "-l", "-u", account.as_str(), "create", container.as_str() ],
+        vec![ "allow", "-l", "-u", account.as_str(), "mount", container.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "mount", container.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "userprop", container.as_str() ],
+        vec![ "allow", "-d", "-u", account.as_str(), "destroy", container.as_str() ],
+    ] {
+        zfs(arguments.as_slice());
+    }
+}
+
+/// This boot's identifier.
+fn live_boot() -> String {
+    return std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("the boot id").trim().to_string();
+}
+
+//endregion
+
+//region The facts the checks read
+
+/// One dataset's identity,
+/// or the read's failure.
+fn identity(dataset: &str) -> DatasetIdentity {
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    return device.objset_stats(dataset).unwrap_or_else(|error| panic!("{dataset} could not be read: {error}"));
+}
+
+/// One dataset's reading,
+/// classified by the kernel's own answer.
+fn reading(dataset: &str) -> Reading<git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts> {
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let read: Result<DatasetIdentity, ReadFailure> = device.objset_stats(dataset).map_err(|error| return ReadFailure { said: error.to_string(), errno: error.errno() });
+    return match git_policy_cli::doctor_zfs_route::reading_of(read) {
+        Reading::Read(held) => Reading::Read(facts_of(dataset, &held)),
+        Reading::Missing { why } => Reading::Missing { why },
+        Reading::Unreadable { why } => Reading::Unreadable { why },
+    };
+}
+
+/// The device's facts.
+fn device_facts() -> DeviceFacts {
+    let path: PathBuf = PathBuf::from(DEVICE_PATH);
+    let state: DeviceState = match std::fs::metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => DeviceState::Absent,
+        Err(error) => DeviceState::Unreadable { why: error.to_string() },
+        Ok(_) => match ZfsDevice::open() {
+            Ok(_) => DeviceState::Opens,
+            Err(error) => DeviceState::Denied { why: error.to_string() },
+        },
+    };
+    return DeviceFacts { path, state };
+}
+
+/// The ABI gate's answer in the checks' three states.
+fn abi_facts() -> AbiFacts {
+    return match LiveGate.verdict() {
+        git_policy_cli::zfs_compatibility_gate::Verdict::Compatible(facts) => AbiFacts::Compatible {
+            module: facts.version.clone(),
+            details: vec![ format!("base type information {} bytes", facts.base_btf_bytes), format!("module type information {} bytes", facts.module_btf_bytes) ],
+        },
+        git_policy_cli::zfs_compatibility_gate::Verdict::Refused(refusal) => {
+            if refusal.step == CompatibilityStep::Device {
+                AbiFacts::Unreadable { why: refusal.to_string() }
+            } else {
+                AbiFacts::Refused { words: refusal.to_string() }
+            }
+        }
+    };
+}
+
+/// The pool's facts.
+fn pool_facts() -> PoolFacts {
+    let name: String = pool();
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let reading: Reading<u64> = match git_policy_cli::doctor_zfs_route::reading_of(device.objset_stats(name.as_str()).map_err(|error| return ReadFailure { said: error.to_string(), errno: error.errno() })) {
+        Reading::Read(held) => Reading::Read(held.stats.dds_guid),
+        Reading::Missing { why } => Reading::Missing { why },
+        Reading::Unreadable { why } => Reading::Unreadable { why },
+    };
+    return PoolFacts { pool: name, reading };
+}
+
+/// The checkout,
+/// the container and every clone below it.
+fn dataset_facts() -> Vec<DatasetFacts> {
+    let mut datasets: Vec<DatasetFacts> = vec![
+        DatasetFacts { role: DatasetRole::Checkout { mount_point: PathBuf::from(CHECKOUT) }, name: checkout_dataset(), reading: reading(checkout_dataset().as_str()) },
+        DatasetFacts { role: DatasetRole::Container, name: container_dataset(), reading: reading(container_dataset().as_str()) },
+    ];
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let mut cursor: u64 = 0;
+    while let Some(listed) = device.dataset_list_next(container_dataset().as_str(), cursor).expect("the container's children") {
+        cursor = listed.cursor;
+        let name: String = listed.name;
+        if name.contains('@') {
+            continue;
+        }
+        datasets.push(DatasetFacts { role: DatasetRole::Clone, name: name.clone(), reading: reading(name.as_str()) });
+    }
+    return datasets;
+}
+
+/// The caller's mount table.
+fn mount_facts() -> MountCheckFacts {
+    let bytes: Vec<u8> = std::fs::read("/proc/self/mountinfo").expect("the mount table");
+    return MountCheckFacts { checkout_path: PathBuf::from(CHECKOUT), checkout_dataset: checkout_dataset(), rows: parse_mount_table(bytes.as_slice()) };
+}
+
+/// The recorded and live parent identities.
+fn parent_facts() -> ParentIdentityFacts {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(store_path())).expect("the store opens under root control");
+    let recorded: RecordedIdentity = match store.parent() {
+        Ok(held) => RecordedIdentity::Read(Box::new(held)),
+        Err(StoreRefusal::NoParentRecord { .. }) => RecordedIdentity::Absent { why: String::from("no parent record is filed") },
+        Err(refusal) => RecordedIdentity::Unreadable { why: refusal.message() },
+    };
+    let live: LiveIdentity = match hold_the_worktrees_parent(Path::new(CHECKOUT)) {
+        Ok(held) => LiveIdentity::Held(Box::new(held.identity)),
+        Err(refusal) => LiveIdentity::Refused(refusal),
+    };
+    return ParentIdentityFacts { recorded, live };
+}
+
+/// The one slot's recorded identity against its live folder.
+fn slot_facts(slot: &str) -> SlotIdentityFacts {
+    let request: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: Path::new(CHECKOUT), slot, store: Path::new(store_path()) };
+    let refusal: Option<CloneSlotRefusal> = hold_clone_slot_under_root_control(&request).err();
+    return SlotIdentityFacts { slot: String::from(slot), refusal };
+}
+
+/// What one record answered.
+fn record_facts(name: &str, store: &SlotIdentityStore) -> RecordFacts {
+    let read = if name == PARENT_RECORD_NAME { store.parent() } else { store.slot(name) };
+    return match read {
+        Ok(_) => RecordFacts::Read { recorded: String::from(name) },
+        Err(StoreRefusal::RecordUnderAnotherName { recorded, .. }) => RecordFacts::Misfiled { recorded },
+        Err(StoreRefusal::NoParentRecord { .. } | StoreRefusal::NoSlotRecord { .. }) => RecordFacts::Absent,
+        Err(refusal) => RecordFacts::Unreadable { why: refusal.message() },
+    };
+}
+
+/// The store's listing and every record in it.
+fn store_facts() -> StoreListingFacts {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(store_path())).expect("the store opens under root control");
+    let mut entries: Vec<git_policy_cli::doctor_zfs_route::ListedEntry> = Vec::new();
+    let mut slots: Vec<SlotRecordFacts> = Vec::new();
+    let mut parent: RecordFacts = RecordFacts::Absent;
+    let now: std::time::SystemTime = std::time::SystemTime::now();
+    for entry in std::fs::read_dir(store_path()).expect("the store lists") {
+        let entry = entry.expect("one entry");
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let age: Option<u64> = entry.metadata().ok().and_then(|metadata| return metadata.modified().ok()).and_then(|modified| return now.duration_since(modified).ok()).map(|elapsed| return elapsed.as_secs());
+        entries.push(git_policy_cli::doctor_zfs_route::ListedEntry { name: name.clone(), modified_seconds_ago: age });
+        if name == PARENT_RECORD_NAME {
+            parent = record_facts(name.as_str(), &store);
+            continue;
+        }
+        if name.starts_with('.') {
+            continue;
+        }
+        slots.push(SlotRecordFacts { name: name.clone(), facts: record_facts(name.as_str(), &store) });
+    }
+    return StoreListingFacts { entries, parent, slots };
+}
+
+/// The account's effective delegation,
+/// from both datasets' replies,
+/// which carry their own ancestors' grants.
+fn delegation_facts() -> DelegationFacts {
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let mut grants: Vec<git_policy_cli::doctor_zfs_route::Grant> = Vec::new();
+    for dataset in [ checkout_dataset(), container_dataset() ] {
+        let reply = device.get_fsacl(dataset.as_str()).unwrap_or_else(|error| panic!("{dataset}'s delegation: {error}"));
+        grants.extend(grants_of(&reply).expect("the kernel's delegation shape"));
+    }
+    return DelegationFacts { account: ACCOUNT, groups: vec![ ACCOUNT ], checkout_dataset: checkout_dataset(), container_dataset: container_dataset(), grants };
+}
+
+/// The handler's installation,
+/// configuration,
+/// folders,
+/// wiring and records.
+fn handler_facts() -> (
+    git_policy_cli::doctor_zfs_route::HandlerInstallationFacts,
+    git_policy_cli::doctor_zfs_route::HandlerConfigurationFacts,
+    git_policy_cli::doctor_zfs_route::FolderFacts,
+    git_policy_cli::doctor_zfs_route::HandlerWiringFacts,
+    ReadinessFacts,
+) {
+    use git_policy_cli::doctor_zfs_route::{FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PathFacts};
+    let path = |path: &str| { return PathFacts { path: PathBuf::from(path), state: path_state(Path::new(path)), }; };
+    let installation: HandlerInstallationFacts = HandlerInstallationFacts { executable: path(EXECUTABLE_PATH), zedlet: path(ZEDLET_PATH) };
+    let configuration: HandlerConfigurationFacts = HandlerConfigurationFacts {
+        file: path(CONFIGURATION_PATH),
+        parse_error: read_configuration(Path::new(CONFIGURATION_PATH), &LiveMountedDatasets).err().map(|refusal| return refusal.message()),
+    };
+    let folders: FolderFacts = FolderFacts { readiness: path(READINESS_DIRECTORY), results: path(RESULTS_DIRECTORY) };
+    let mut zedlets: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir("/etc/zfs/zed.d").map(|entries| return entries.flatten()).into_iter().flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if format!("/etc/zfs/zed.d/{name}") != ZEDLET_PATH {
+            zedlets.push(name);
+        }
+    }
+    let zed_unit: &str = if Path::new("/lib/systemd/system/zfs-zed.service").exists() { "/lib/systemd/system/zfs-zed.service" } else { "/usr/lib/systemd/system/zfs-zed.service" };
+    let wiring: HandlerWiringFacts = HandlerWiringFacts {
+        zed_unit: path(zed_unit),
+        zed_enabled: Path::new("/etc/systemd/system/multi-user.target.wants/zfs-zed.service").exists() || Path::new("/etc/systemd/system/zfs-zed.service.wants").exists(),
+        other_zedlets: zedlets,
+    };
+    let readiness: ReadinessFacts = match std::fs::read_to_string(format!("{READINESS_DIRECTORY}/result")) {
+        Ok(text) => match git_policy_cli::worktree_clone_mount_protocol::parse_readiness(text.as_str()) {
+            Ok(record) => ReadinessFacts::Read { boot: record.boot, pool: record.pool_state, checkout: record.checkout_state, sweep: record.sweep_state.word().to_string() },
+            Err(refusal) => ReadinessFacts::Unreadable { why: format!("{refusal:?}") },
+        },
+        Err(error) => ReadinessFacts::Absent { why: error.to_string() },
+    };
+    return (installation, configuration, folders, wiring, readiness);
+}
+
+/// Each clone's request and the receipt that answers it.
+fn request_facts() -> Vec<RequestFacts> {
+    let mut requests: Vec<RequestFacts> = Vec::new();
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let mut cursor: u64 = 0;
+    while let Some(listed) = device.dataset_list_next(container_dataset().as_str(), cursor).expect("the container's children") {
+        cursor = listed.cursor;
+        let name: String = listed.name;
+        if name.contains('@') {
+            continue;
+        }
+        let held: DatasetIdentity = identity(name.as_str());
+        let intent_nonce: Option<String> = match read_intent(Some(&held.properties), name.as_str()) {
+            IntentReading::Request(intent) => Some(String::from(intent.nonce.as_str())),
+            IntentReading::Absent | IntentReading::Inherited { .. } | IntentReading::Refused(_) => None,
+        };
+        let receipt = ReceiptsFolder::live().read(DatasetGuid::parse(held.stats.dds_guid.to_string().as_str()).expect("the clone's GUID")).ok().flatten();
+        requests.push(RequestFacts {
+            clone: name,
+            intent_nonce,
+            receipt_nonce: receipt.as_ref().map(|held| return String::from(held.nonce.as_str())),
+            receipt_boot: receipt.map(|held| return held.boot),
+        });
+    }
+    return requests;
+}
+
+/// The cache and the staging folders under it.
+fn staging_facts() -> StagingFolderFacts {
+    let cache: String = format!("{FIXTURE}/cache");
+    let mut folders: Vec<StagedFolder> = Vec::new();
+    for entry in std::fs::read_dir(cache.as_str()).expect("the cache lists").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with(git_policy_cli::worktree_clone_unmount::staging_folder_name::STAGING_FOLDER_PREFIX) {
+            continue;
+        }
+        let state: PathState = path_state(entry.path().as_path());
+        let empty: bool = std::fs::read_dir(entry.path()).map(|mut entries| return entries.next().is_none()).unwrap_or(false);
+        folders.push(StagedFolder { name: name.clone(), state, derived: git_policy_cli::doctor_zfs_route::is_derived_folder_name(name.as_str()), empty });
+    }
+    return StagingFolderFacts { cache: git_policy_cli::doctor_zfs_route::PathFacts { path: PathBuf::from(cache.as_str()), state: path_state(Path::new(cache.as_str())) }, account: ACCOUNT, folders };
+}
+
+/// The scan's answer,
+/// which this branch cannot produce:
+/// the all-namespace holder scan is another branch's.
+fn holder_facts() -> HolderFacts {
+    return HolderFacts { clone: clone_dataset(), holders: Vec::new(), incomplete: vec![ String::from("the all-namespace holder scan is not built in this tree") ] };
+}
+
+//endregion
+
+//region The arm
+
+/// The three groups pass on the design's layout,
+/// the five later steps are unknown,
+/// and each broken fact answers the finding that names it.
+#[test]
+fn zfs_doctor_route_guest_three_groups_and_each_finding() {
+    let Ok(guest) = std::env::var(GUEST_VARIABLE) else {
+        println!("SKIP {GUEST_VARIABLE} names no guest");
+        return;
+    };
+    if guest.is_empty() {
+        println!("SKIP {GUEST_VARIABLE} is empty");
+        return;
+    }
+    install_layout();
+    let boot: String = live_boot();
+    let reports: Vec<CheckReport> = route_checks(&route_facts(boot.as_str()));
+    assert_pass(&reports, "device");
+    assert_pass(&reports, "abi");
+    assert_pass(&reports, "pool");
+    assert_pass(&reports, "checkout-dataset");
+    assert_pass(&reports, "container-dataset");
+    assert_pass(&reports, "key");
+    assert_pass(&reports, "clone-properties");
+    println!("DOCTOR-GUEST group-one-passes");
+    assert_pass(&reports, "parent-identity");
+    assert_pass(&reports, "store-entries");
+    assert_pass(&reports, "staging-forms");
+    assert_pass(&reports, "unknown-dot-entry");
+    assert_pass(&reports, "slot-identity");
+    println!("DOCTOR-GUEST group-two-passes");
+    assert_pass(&reports, "checkout-mount");
+    assert_pass(&reports, "checkout-propagation");
+    assert_pass(&reports, "nested-reachability");
+    assert_pass(&reports, "delegation");
+    assert_pass(&reports, "handler-installation");
+    assert_pass(&reports, "root-modes");
+    assert_pass(&reports, "handler-configuration");
+    assert_pass(&reports, "handler-folders");
+    assert_pass(&reports, "zed-wiring");
+    assert_pass(&reports, "readiness");
+    assert_pass(&reports, "unresolved-requests");
+    assert_pass(&reports, "staging-folder");
+    assert_pass(&reports, "staging-bind-propagation");
+    println!("DOCTOR-GUEST group-three-passes");
+    for name in [ "deferred-origin", "removal-plans", "cancel-command", "backup-coverage", "sanoid" ] {
+        assert_unknown(&reports, name);
+    }
+    assert_unknown(&reports, "holders");
+    println!("DOCTOR-GUEST later-steps-are-unknown");
+    break_each_fact();
+}
+
+/// The whole fact set for one live boot.
+fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
+    let (installation, configuration, folders, wiring, readiness) = handler_facts();
+    let mounts: MountCheckFacts = mount_facts();
+    let cache: PathBuf = PathBuf::from(format!("{FIXTURE}/cache"));
+    return git_policy_cli::doctor_zfs_route::RouteFacts {
+        device: device_facts(),
+        abi: abi_facts(),
+        pool: pool_facts(),
+        datasets: dataset_facts(),
+        staging_binds: staging_binds(&mounts.rows, cache.as_path()),
+        mounts,
+        parent_identity: parent_facts(),
+        slots: vec![ slot_facts("one") ],
+        store: store_facts(),
+        delegation: delegation_facts(),
+        installation,
+        configuration,
+        folders,
+        wiring,
+        readiness,
+        live_boot: String::from(boot),
+        requests: request_facts(),
+        staging: staging_facts(),
+        holders: holder_facts(),
+    };
+}
+
+/// One check passed.
+fn assert_pass(reports: &[CheckReport], name: &str) {
+    let report: &CheckReport = report_of(reports, name);
+    assert!(report.passed(), "{}", report.line());
+}
+
+/// One check answered unknown.
+fn assert_unknown(reports: &[CheckReport], name: &str) {
+    let report: &CheckReport = report_of(reports, name);
+    assert!(report.unknown(), "{}", report.line());
+}
+
+/// The report of one named check.
+fn report_of<'a>(reports: &'a [CheckReport], name: &str) -> &'a CheckReport {
+    return reports.iter().find(|report| return report.check.name() == name).unwrap_or_else(|| panic!("no {name} report: {:?}", reports.iter().map(|report| return report.check.name()).collect::<Vec<&str>>()));
+}
+
+/// Every broken fact this arm can make,
+/// each with the answer that must name it.
+fn break_each_fact() {
+    // A container that could mount itself.
+    zfs(&[ "set", "canmount=on", container_dataset().as_str() ]);
+    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let container: &DatasetFacts = datasets.iter().find(|dataset| return dataset.name == container_dataset()).expect("the container is read");
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_dataset(container);
+    let CheckOutcome::Finding { field, .. } = outcome else {
+        panic!("a container that can mount is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "canmount");
+    println!("DOCTOR-GUEST container-canmount-is-a-finding");
+    zfs(&[ "set", "canmount=off", container_dataset().as_str() ]);
+
+    // A clone carrying setuid,
+    // which it inherits from the container's setting.
+    zfs(&[ "set", "setuid=on", clone_dataset().as_str() ]);
+    let clones: Vec<DatasetFacts> = dataset_facts().into_iter().filter(|dataset| return matches!(dataset.role, DatasetRole::Clone)).collect();
+    let outcome: CheckOutcome = check_clone_properties(&clones);
+    let CheckOutcome::Finding { field, .. } = outcome else {
+        panic!("a clone carrying setuid is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "setuid");
+    zfs(&[ "set", "setuid=off", clone_dataset().as_str() ]);
+
+    // A clone whose key is not loaded.
+    let key_file: String = format!("{FIXTURE}/key");
+    std::fs::write(key_file.as_str(), "correct horse battery staple").expect("the key file");
+    let encrypted: String = format!("{}/home/encrypted", pool());
+    zfs(&[ "create", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", format!("keylocation=file://{key_file}").as_str(), "-o", "mountpoint=legacy", "-o", "canmount=off", encrypted.as_str() ]);
+    zfs(&[ "snapshot", format!("{encrypted}@ready").as_str() ]);
+    let encrypted_clone: String = format!("{}/encrypted-clone", container_dataset());
+    zfs(&[ "clone", "-o", "mountpoint=legacy", format!("{encrypted}@ready").as_str(), encrypted_clone.as_str() ]);
+    zfs(&[ "unload-key", encrypted.as_str() ]);
+    let unloaded: Vec<DatasetFacts> = vec![ DatasetFacts { role: DatasetRole::Clone, name: encrypted_clone.clone(), reading: reading(encrypted_clone.as_str()) } ];
+    let outcome: CheckOutcome = check_key(&unloaded);
+    let CheckOutcome::Finding { field, .. } = outcome else {
+        panic!("an unloaded key is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "keystatus");
+    println!("DOCTOR-GUEST unloaded-key-is-a-finding");
+    zfs(&[ "load-key", encrypted.as_str() ]);
+    zfs(&[ "destroy", "-r", "-f", encrypted_clone.as_str() ]);
+    zfs(&[ "destroy", "-r", "-f", encrypted.as_str() ]);
+
+    // A nested dataset whose row hangs from the tree the checkout replaced.
+    zfs(&[ "unmount", checkout_dataset().as_str() ]);
+    std::fs::create_dir_all(CHECKOUT).expect("the underlay path");
+    let output: String = format!("{}/home/vm-builder-output", pool());
+    zfs(&[ "create", "-o", format!("mountpoint={CHECKOUT}/output").as_str(), output.as_str() ]);
+    zfs(&[ "mount", checkout_dataset().as_str() ]);
+    let mounts: MountCheckFacts = mount_facts();
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_nested_reachability(&mounts);
+    let CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a row hanging from the replaced tree is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "reachability");
+    assert!(detail.contains("vm-builder-output"), "{detail}");
+    println!("DOCTOR-GUEST nested-row-is-a-finding");
+    zfs(&[ "unmount", checkout_dataset().as_str() ]);
+    zfs(&[ "unmount", output.as_str() ]);
+    zfs(&[ "destroy", "-r", "-f", output.as_str() ]);
+    zfs(&[ "mount", checkout_dataset().as_str() ]);
+
+    // A slot record filed under another name.
+    let misfiled: String = format!("{}/two", store_path());
+    std::fs::copy(format!("{}/one", store_path()), misfiled.as_str()).expect("the misfiled copy");
+    let store: StoreListingFacts = store_facts();
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_store_entries(&store);
+    let CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a misfiled record is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "record");
+    assert!(detail.contains("two"), "{detail}");
+    println!("DOCTOR-GUEST misfiled-record-is-a-finding");
+    std::fs::remove_file(misfiled.as_str()).expect("the misfiled copy goes");
+
+    // Both staging forms and a dot name nobody accounts for,
+    // then the removal and the bytes that must survive.
+    let parent_before: Vec<u8> = std::fs::read(format!("{}/{PARENT_RECORD_NAME}", store_path())).expect("the parent bytes");
+    let slot_before: Vec<u8> = std::fs::read(format!("{}/one", store_path())).expect("the slot bytes");
+    for planted in [ ".0123456789abcdef0123456789abcdef", "..parent.0123456789abcdef.partial", ".partial-write" ] {
+        std::fs::write(format!("{}/{planted}", store_path()), b"left by a killed writer").expect("a planted entry");
+    }
+    let store: StoreListingFacts = store_facts();
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_staging_forms(&store);
+    let CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("two staging forms are a finding: {outcome:?}");
+    };
+    assert_eq!(field, "staging");
+    assert!(detail.contains('2'), "{detail}");
+    let stored: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(store_path())).expect("the store opens under root control");
+    let removal = remove_known_staging_forms(StagingRemovalRequest { store: &stored }).expect("the removal runs");
+    assert_eq!(removal.removed.len(), 2, "{removal:?}");
+    assert_eq!(std::fs::read(format!("{}/{PARENT_RECORD_NAME}", store_path())).expect("the parent bytes"), parent_before);
+    assert_eq!(std::fs::read(format!("{}/one", store_path())).expect("the slot bytes"), slot_before);
+    assert!(Path::new(format!("{}/.partial-write", store_path()).as_str()).exists(), "the stranger's name stays");
+    println!("DOCTOR-GUEST staging-forms-are-removed-and-nothing-else-is");
+    std::fs::remove_file(format!("{}/.partial-write", store_path())).expect("the planted stranger goes");
+
+    // A lineage-changing grant.
+    zfs(&[ "allow", "-d", "-u", ACCOUNT.to_string().as_str(), "rename", container_dataset().as_str() ]);
+    let delegation: DelegationFacts = delegation_facts();
+    let outcome: CheckOutcome = check_delegation(&delegation);
+    let CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a rename grant is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "permission");
+    assert!(detail.contains("rename"), "{detail}");
+    println!("DOCTOR-GUEST rename-grant-is-a-finding");
+    zfs(&[ "unallow", "-d", "-u", ACCOUNT.to_string().as_str(), "rename", container_dataset().as_str() ]);
+
+    // A readiness record from another boot,
+    // which is the same record judged against a boot that is not this one.
+    let (_, _, _, _, readiness) = handler_facts();
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_readiness(&readiness, OTHER_BOOT);
+    let CheckOutcome::Finding { field, .. } = outcome else {
+        panic!("another boot's record is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "boot");
+    println!("DOCTOR-GUEST readiness-from-another-boot-is-a-finding");
+
+    // The walk that refuses names the component.
+    let missing: SlotIdentityFacts = slot_facts("no-such-slot");
+    let outcome: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(&missing);
+    let CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a missing slot is a finding: {outcome:?}");
+    };
+    assert!(field.contains("no-such-slot"), "{field}");
+    assert!(detail.contains("not there"), "{detail}");
+    println!("DOCTOR-GUEST missing-slot-is-a-finding");
+}
+
+//endregion

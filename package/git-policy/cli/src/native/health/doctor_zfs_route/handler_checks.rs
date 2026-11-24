@@ -70,17 +70,21 @@ pub const PLACEHOLDER_EXECUTABLE_PATH: &str = "/usr/libexec/monochromatic-git-po
 pub const PLACEHOLDER_ZEDLET_PATH: &str = "/etc/zfs/zed.d/history_event-monochromatic_git_policy_cli";
 
 /// What:
-///  The mode words the one executable must answer for this route's root work.
+///  The mode words the one executable must answer for this route's root work,
+///  as the owner's answer of 2026-11-23 names them.
 /// Why:
-///  The sweep,
-///  the boot reconciliation,
-///  the shutdown unmount and the administrator's adoption are the four the
-///  tree holds,
-///  and the all-namespace holder scan is a fifth the step 9 branch adds,
-///  so a build that lost one of these four answers a finding here.
+///  The record names the default sweep the ZED hook makes,
+///  `boot-reconcile`,
+///  `shutdown-unmount`,
+///  `start-probe` and `adopt-worktree-parent`,
+///  so a build that lost one of these answers a finding here.
 ///  The empty word is the sweep,
 ///  which is the mode the installed ZED event starts with no argument.
-pub const REQUIRED_ROOT_MODES: [&str; 4] = ["", "boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"];
+///  The all-namespace holder scan is one more mode the step 9 branch adds and
+///  this tree does not hold,
+///  so it is not required here and the wiring step adds it when that branch
+///  lands.
+pub const REQUIRED_ROOT_MODES: [&str; 5] = ["", "adopt-worktree-parent", "boot-reconcile", "shutdown-unmount", "start-probe"];
 
 /// The owner every installed file and folder of the route must have.
 pub const ROOT_OWNER: u32 = 0;

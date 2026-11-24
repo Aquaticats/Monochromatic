@@ -41,6 +41,10 @@ pub enum LaterStep {
     RemovalPlans,
     /// Step 17's cancel command.
     CancelCommand,
+    /// Step 19's checkout boot protection and its immutable covered entry.
+    BootProtection,
+    /// Step 19's boot and shutdown units.
+    ServiceUnit,
     /// Step 19's backup coverage.
     BackupCoverage,
     /// Step 20's Sanoid coverage and exclusions.
@@ -49,7 +53,7 @@ pub enum LaterStep {
 
 impl LaterStep {
     /// Every later-step check the report answers.
-    pub const ALL: [LaterStep; 5] = [LaterStep::DeferredOrigin, LaterStep::RemovalPlans, LaterStep::CancelCommand, LaterStep::BackupCoverage, LaterStep::Sanoid];
+    pub const ALL: [LaterStep; 7] = [LaterStep::DeferredOrigin, LaterStep::RemovalPlans, LaterStep::CancelCommand, LaterStep::BootProtection, LaterStep::ServiceUnit, LaterStep::BackupCoverage, LaterStep::Sanoid];
 
     /// The check's stable name.
     pub fn name(self) -> &'static str {
@@ -62,6 +66,8 @@ impl LaterStep {
             LaterStep::DeferredOrigin => Check::DeferredOrigin,
             LaterStep::RemovalPlans => Check::RemovalPlans,
             LaterStep::CancelCommand => Check::CancelCommand,
+            LaterStep::BootProtection => Check::BootProtection,
+            LaterStep::ServiceUnit => Check::ServiceUnit,
             LaterStep::BackupCoverage => Check::BackupCoverage,
             LaterStep::Sanoid => Check::Sanoid,
         };
@@ -79,6 +85,12 @@ impl LaterStep {
             ),
             LaterStep::CancelCommand => String::from(
                 "step 17 builds the cancel command and what it proves, so a blocked removal's way back is not reported here",
+            ),
+            LaterStep::BootProtection => String::from(
+                "step 19 builds the one-time migration and the immutable entry the checkout's underlay is protected by, so whether that protection stands is unknown here",
+            ),
+            LaterStep::ServiceUnit => String::from(
+                "step 19 builds reconcile-git-worktree-clone-mounts.service and its shutdown unit, so the route's own unit is unknown here while ZED's own wiring is checked",
             ),
             LaterStep::BackupCoverage => String::from(
                 "step 19 builds the backup coverage arm, so whether the configured backup job can see the checkout is unknown here rather than a failure",

@@ -75,7 +75,7 @@ fn the_one_executable_answers_every_root_mode_the_route_needs() {
     let super::CheckOutcome::Pass { detail } = outcome else {
         panic!("this build's grammar holds every required mode: {outcome:?}");
     };
-    assert!(detail.contains('4'), "{detail}");
+    assert!(detail.contains('5'), "{detail}");
 }
 
 /// A mode word this build does not answer is a finding naming the mode.
@@ -89,11 +89,11 @@ fn a_mode_the_build_does_not_answer_is_a_finding() {
     assert!(detail.contains("not-a-mode"), "{detail}");
 }
 
-/// The required modes are the four the tree holds,
+/// The required modes are the five the owner's answer names,
 /// and the sweep is the empty word.
 #[test]
 fn the_required_modes_are_the_four_the_tree_holds() {
-    assert_eq!(REQUIRED_ROOT_MODES, ["", "boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"]);
+    assert_eq!(REQUIRED_ROOT_MODES, ["", "adopt-worktree-parent", "boot-reconcile", "shutdown-unmount", "start-probe"]);
 }
 
 /// A look this account was refused leaves the installation unknown.

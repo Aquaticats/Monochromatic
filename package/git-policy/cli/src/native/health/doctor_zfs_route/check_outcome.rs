@@ -95,6 +95,10 @@ pub enum Check {
     RemovalPlans,
     /// Step 17's cancel command.
     CancelCommand,
+    /// Step 19's checkout boot protection and its immutable covered entry.
+    BootProtection,
+    /// Step 19's boot and shutdown units.
+    ServiceUnit,
     /// Step 19's backup coverage.
     BackupCoverage,
     /// Step 20's Sanoid coverage and exclusions.
@@ -141,6 +145,8 @@ impl Check {
             Check::DeferredOrigin => "deferred-origin",
             Check::RemovalPlans => "removal-plans",
             Check::CancelCommand => "cancel-command",
+            Check::BootProtection => "boot-protection",
+            Check::ServiceUnit => "service-unit",
             Check::BackupCoverage => "backup-coverage",
             Check::Sanoid => "sanoid",
         };

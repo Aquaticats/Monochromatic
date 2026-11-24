@@ -35,6 +35,8 @@ fn every_reason_names_its_step() {
     assert!(LaterStep::DeferredOrigin.reason().contains("step 15"));
     assert!(LaterStep::RemovalPlans.reason().contains("step 14") && LaterStep::RemovalPlans.reason().contains("step 16"));
     assert!(LaterStep::CancelCommand.reason().contains("step 17"));
+    assert!(LaterStep::BootProtection.reason().contains("step 19"));
+    assert!(LaterStep::ServiceUnit.reason().contains("step 19"));
     assert!(LaterStep::BackupCoverage.reason().contains("step 19"));
     assert!(LaterStep::Sanoid.reason().contains("step 20"));
 }
@@ -43,5 +45,5 @@ fn every_reason_names_its_step() {
 #[test]
 fn each_later_step_reports_under_its_own_name() {
     let names: Vec<&'static str> = LaterStep::ALL.iter().map(|step| return step.name()).collect();
-    assert_eq!(names, vec!["deferred-origin", "removal-plans", "cancel-command", "backup-coverage", "sanoid"]);
+    assert_eq!(names, vec!["deferred-origin", "removal-plans", "cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"]);
 }
