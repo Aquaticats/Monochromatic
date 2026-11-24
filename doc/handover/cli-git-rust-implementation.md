@@ -691,6 +691,39 @@ and add rules for what this work meets;
 cause H is its own work
 (the account's "Cause H").
 
+#### The wrapper's `0.6.1-alpha.45`
+
+Outcome:
+the week of merges since `alpha.44` (2026-11-16) reaches installs as an alpha,
+which the owner lets agents dispatch unasked (standing directions).
+
+State:
+the dry run (GitHub Actions run 45303365282) failed before any push,
+at `pnpm install --frozen-lockfile` on a clean checkout of `main`:
+`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`,
+the "catalogs" configuration not matching the lock,
+since the daily update `aead90ed51` changed both.
+The same error is what a new worktree's relink prints,
+so it is likely issue 6339's cause too.
+A release note holds at most 200 characters.
+Running:
+`pi-pnpm-lock-out-of-step-with-the-catalog`,
+on `fix/mise-daily-update-leaves-the-pnpm-lock-out-of-step-with-the-catalog`;
+and three Sonnet release passes over `alpha.44..main`
+(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`):
+the clone rung,
+the commit,
+push,
+LFS and lock paths,
+and what of the ZFS code reaches a person today.
+
+Next:
+merge the lock fix,
+dispatch the release with `mise run //package/git-policy/cli:native:release -- 0.6.1-alpha.44 0.6.1-alpha.45 <note>`
+(dry run first),
+follow it with `native:release:wait`,
+and turn the passes' findings into fixes.
+
 #### Tests that failed once and are not diagnosed
 
 Issues 6348 to 6352 on GitHub hold them,
