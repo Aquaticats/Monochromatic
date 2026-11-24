@@ -638,32 +638,51 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     command_ok("mount", &["-o", "remount,bind,suid,dev", stale_slot_folder.display().to_string().as_str()]);
     let flags_output: Output = running.wait_with_output().expect("the stale sweep ends");
     let flags_said: String = format!("{}{}", String::from_utf8_lossy(flags_output.stdout.as_slice()), String::from_utf8_lossy(flags_output.stderr.as_slice()));
+    let flags_row: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default();
+    println!("SWEEP stale-diag order-ms={} row-after-change=[{flags_row}]", stale_order.elapsed.as_millis());
     let flags_line: &str = line_about(flags_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the changed clone");
     assert!(flags_line.starts_with("refused "), "the flags removed in place are refused: {flags_line}");
     println!("SWEEP stale flags-changed=refused slot={stale_slot}");
     command_ok("mount", &["-o", "remount,bind,nosuid,nodev", stale_slot_folder.display().to_string().as_str()]);
 
     // The mount replaced: the replacement may take the old mount's number, so a table keyed by that number would answer
-    // with the mount that held it before. The poll must make the sweep read again and refuse.
-    let old_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
-    let replaced_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
-    std::thread::sleep(Duration::from_millis(400));
-    unmount_at(stale_slot_folder.as_path());
-    command_ok("mount", &["-t", "tmpfs", "stale-bystander", stale_slot_folder.display().to_string().as_str()]);
-    let new_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
-    let replaced_output: Output = replaced_running.wait_with_output().expect("the stale sweep ends");
-    let replaced_said: String = format!("{}{}", String::from_utf8_lossy(replaced_output.stdout.as_slice()), String::from_utf8_lossy(replaced_output.stderr.as_slice()));
-    let replaced_line: &str = line_about(replaced_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the replaced clone");
-    assert!(replaced_line.starts_with("refused "), "the mount replaced under the old number is refused: {replaced_line}");
-    // A refusal proves the answer was read again only where the replacement took the old mount's number: another number is
-    // no mount the copy ever described.
-    assert_eq!(old_mount_id, new_mount_id, "this kernel gave the replacement the old mount's number, which is the case this arm exists for");
-    println!("SWEEP stale replaced=refused slot={stale_slot} reused={}", old_mount_id == new_mount_id);
-    unmount_at(stale_slot_folder.as_path());
+    // with the mount that held it before. The kernel hands a freed number to the next mount most of the time but not
+    // always, and a replacement under another number is no mount any earlier read described, so an attempt that is not
+    // given the old number proves nothing and is tried again.
+    let mut reused: bool = false;
+    for attempt in 1..=5 {
+        // This clone's mount stands at the slot before each attempt, because the attempt before may have had to take it down.
+        let restored: Run = sweep();
+        let restored_line: &str = line_about(restored.said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the clone");
+        assert!(restored_line.starts_with("attached "), "attempt {attempt} starts from this clone's mount standing at the slot: {restored_line}");
+        let old_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+        let replaced_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+        std::thread::sleep(Duration::from_millis(400));
+        unmount_at(stale_slot_folder.as_path());
+        command_ok("mount", &["-t", "tmpfs", "stale-bystander", stale_slot_folder.display().to_string().as_str()]);
+        let new_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+        let replaced_output: Output = replaced_running.wait_with_output().expect("the stale sweep ends");
+        let replaced_said: String = format!("{}{}", String::from_utf8_lossy(replaced_output.stdout.as_slice()), String::from_utf8_lossy(replaced_output.stderr.as_slice()));
+        let replaced_line: &str = line_about(replaced_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the replaced clone");
+        assert!(replaced_line.starts_with("refused "), "the mount replaced at attempt {attempt} is refused: {replaced_line}");
+        println!("SWEEP stale replaced=refused slot={stale_slot} reused={} attempt={attempt}", old_mount_id == new_mount_id);
+        // The replacement comes down whether or not it took the old number: the next attempt, and the swap arm after this
+        // one, both start from this clone's own mount standing at the slot.
+        unmount_at(stale_slot_folder.as_path());
+        if old_mount_id == new_mount_id {
+            reused = true;
+            break;
+        }
+    }
+    assert!(reused, "the kernel gave the replacement the old mount's number within five tries, which is the case this arm exists for");
 
     // The dataset swapped under the mount: root renames a mounted legacy dataset away and another clone into its name, the
     // sequence of OpenZFS's own Example 1, which raises no mount event at all. The slot then holds the mount of the dataset
-    // that was renamed away, and the source the kernel prints has moved.
+    // that was renamed away, and the source the kernel prints has moved. The replaced arm above took the slot's mount down,
+    // so a sweep first puts this clone's mount back: the swap is only a case while a mount stands there.
+    let restored: Run = sweep();
+    let restored_line: &str = line_about(restored.said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the clone");
+    assert!(restored_line.starts_with("attached "), "the swap arm starts from this clone's mount standing at the slot: {restored_line}");
     let swapped_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
     std::thread::sleep(Duration::from_millis(400));
     let moved_dataset: String = format!("{stale_container}/{stale_slot}-moved-away");
