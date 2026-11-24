@@ -1563,4 +1563,6 @@ Counts and outcomes, not timings, and they carry no spread.
 - OpenSSH `V_10_6_P2`: `readpass.c`, `sshconnect.c`, `sshconnect2.c`, `ssh.c`, `log.c`, `log.h`.
 - Git 2.56.1: `prompt.c`, `connect.c`, `sideband.c`, `transport.c`, `editor.c`, `strbuf.c`.
 - `keep/run4.log`, `keep/run5.log`, `keep/run6.log`, `keep/run7.log`, `keep/run8.log`,
-  and `keep/probe-scripts/` in this round's folder.
+  `keep/probe-scripts/` and `keep/probe-bin/` in this round's folder.
+- Every OpenSSH and Git line cited here was read from the full file fetched from the tag this round,
+  not from an earlier copy that a fetch cut short.
