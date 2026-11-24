@@ -4832,6 +4832,13 @@ and every step reads the state a kill at the step before it leaves:
   `.claude/cli-git-trash`,
   because the copied Git administration must be left somewhere the disposal
   can prove.
+  A source it refuses only for uncommitted changes makes the whole route decline,
+  so that add takes the ladder's rung 3 as the owner's interim of 2026-11-19 says
+  while step 11 is unlanded
+  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+  lines 1858 to 1862),
+  and every other refusal of the source stops the add with the wrapper's refusal
+  exit code before the claim.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
   in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
@@ -4997,11 +5004,11 @@ What this release does not yet do:
   would give Git different bytes keeps the source's bytes in the new worktree
   until plan step 11's fence write lands (issue 6323).
 - It does not restore a dirty main checkout;
-- It does not restore a dirty main checkout;
-  the route refuses such a source before the claim,
-  with the wrapper's refusal exit code,
-  so the ladder never runs for it.
-  The restore is plan step 11's.
+  such a source makes the route decline before the claim,
+  so the add takes the ladder's rung 3 as the owner's interim of 2026-11-19 says
+  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+  lines 1858 to 1862).
+  The verified restore is plan step 11's.
 - A failed add does not finish itself with Git's own checkout;
   it keeps what it made and the next add resumes it (plan step 11).
 - A record that says an add is settling,
