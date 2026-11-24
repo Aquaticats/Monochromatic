@@ -90,6 +90,9 @@ const BOOT_PLANT_SLOT: &str = "boot-plant";
 /// The slot the power-loss arm fills.
 const POWER_SLOT: &str = "power";
 
+/// The variable that makes the power-loss arm's before half cut the guest's power when its work is done.
+const CUT_VARIABLE: &str = "CLI_GIT_ZFS_ADD_CUT_POWER";
+
 /// What the before halves keep on the guest's own root disk, which a reboot and a cut both keep.
 const KEPT_FOLDER: &str = "/root/zfs-add-kept";
 
@@ -475,7 +478,9 @@ impl Fixture {
         let listed: Output = self.openzfs("zpool", &["list", "-H", "-o", "name", self.pool.as_str()]);
         if !listed.status.success() {
             let folder: &Path = self.root.parent().expect("the folder the pool's image sits beside the checkout's mountpoint");
-            self.zpool_ok(&["import", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
+            // `-f` because a guest that did not export the pool before it went down leaves it importing only when it is
+            // forced; the pool is this guest's own, so nothing else can hold it.
+            self.zpool_ok(&["import", "-f", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
         }
         if self.zfs_value("keystatus", self.checkout().as_str()) != "available" {
             self.zfs_ok(&["load-key", "-a", "-L"]);
@@ -871,10 +876,14 @@ fn boot_plant(fixture: &Fixture) {
 /// What:
 ///  The half before the guest loses power:
 ///  one whole add, and its record and this boot's identifier kept,
-///  with nothing else written to the pool afterwards.
+///  then the guest's own power cut, with no orderly shutdown behind it.
 /// Why:
 ///  The record's last write is the routed, flushed one the arm reads back,
 ///  and a read or a second write after it would change what the cut is asked about.
+///  The cut is made here rather than by a command after this run ends,
+///  because ZFS commits a transaction group within `zfs_txg_timeout` seconds of its first change (F12)
+///  and a cut that waits for a round trip can land after that commit,
+///  which would answer a different question.
 fn power_before(fixture: &Fixture) {
     fixture.clear_one_slot(POWER_SLOT);
     let output: Output = fixture.run_add(POWER_SLOT);
@@ -885,12 +894,33 @@ fn power_before(fixture: &Fixture) {
     fixture.keep("power.binding", bytes.as_slice());
     fixture.keep("power.boot-id", this_boot().as_bytes());
     println!(
-        "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} boot-id={}",
+        "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} sysrq-mask={} boot-id={}",
         record.phase,
         bytes.len(),
         record.slot_identity.expect("the filled record keeps the slot's identity").encode(),
+        std::fs::read_to_string("/proc/sys/kernel/sysrq").expect("the sysrq mask").trim(),
         this_boot()
     );
+    if std::env::var(CUT_VARIABLE).is_ok() {
+        cut_the_power();
+    }
+}
+
+/// What:
+///  Take the guest's power at once:
+///  the kernel's own immediate reboot,
+///  which does not sync and does not unmount anything.
+/// Why:
+///  `mvm` offers no verb that powers a guest off and keeps its disk
+///  (`mvm destroy` runs `virsh destroy` and then deletes the storage),
+///  so the deepest loss reachable here is the one the guest can make of itself,
+///  and it is reachable only from inside through `mvm exec` anyway.
+///  `b` is "immediately reboot the system without syncing or unmounting your disks"
+///  (`Documentation/admin-guide/sysrq.rst`), so the guest's page cache, its ZFS in memory and every
+///  unwritten byte of the pool's image are gone with it.
+fn cut_the_power() {
+    let written: std::io::Result<()> = std::fs::write("/proc/sysrq-trigger", b"b");
+    panic!("the kernel did not take the power cut ({written:?}), so this half cannot answer T28");
 }
 
 /// What:
