@@ -1543,10 +1543,16 @@ before anything is changed:
     or no destination or no room for one.
     The report names the check that failed and the namespace,
     and says that nothing was ended and no signal clears the cause.
-    `holder-unendable` is its word too,
-    and the forced arm gives a locked copy no separate word of its own:
-    it calls it the word the structural stage uses ([forced][forced],
-    "Who ends each kind of holder" and "What is still refused").
+    `holder-unendable` is its word too.
+    The forced arm gives a locked copy no separate word of its own:
+    it says the refusal carries "the refusal word the structural stage uses" ([forced][forced],
+    "Who ends each kind of holder"),
+    while the refusal itself is the preflight's,
+    made before any act,
+    and that design's own reasons under `holder-unendable` do not list a locked copy.
+    This design files it with `holder-unendable` here,
+    because it is a preflight refusal that ends nothing,
+    and records the difference so a later pass can settle which word the forced arm means.
     A kept receiver with a mount at the slot outside the namespaces the act handles is not a refusal:
     it means way 8 is not used and the act falls to way 7,
     which reports the namespace and what it stops
