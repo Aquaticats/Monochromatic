@@ -31,7 +31,7 @@
 //! await zfs('unmount <clone>'); await rm(join(slot, '.git')); await classify();
 //! ```
 
-use super::zfs_sweep_guest::{command_ok, make_the_designs_layout, required, zfs, zfs_ok, GUEST_VARIABLE as SWEEP_GUEST_VARIABLE, POOL_VARIABLE, SBIN_VARIABLE, CHECKOUT_VARIABLE};
+use super::zfs_sweep_guest::{CHECKOUT_VARIABLE, GUEST_VARIABLE as SWEEP_GUEST_VARIABLE, POOL_VARIABLE, SBIN_VARIABLE, command_ok, make_the_designs_layout, mount_row, required, zfs, zfs_ok};
 use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentity, Phase, Request, RequestForm, lock_file_bytes, lock_words, open_or_create_home, write_binding};
 use git_policy_cli::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
 use git_policy_cli::worktree_clone_managed_lock::{
@@ -181,7 +181,12 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     write_the_record(checkout.as_path(), slot.as_path(), registration.as_path(), pointer.as_slice(), slot_identity, sbin.as_str(), pool.as_str(), checkout_dataset.as_str(), clone.as_str());
     // The clone covers the slot, and its unmount puts the underlay back.
     zfs_ok(sbin.as_str(), &["set", format!("mountpoint={}", slot.display()).as_str(), clone.as_str()]);
-    zfs_ok(sbin.as_str(), &["mount", clone.as_str()]);
+    // A mounted dataset moves to its new mountpoint as the property is set, so the mount is made only when none stands.
+    let (_ok, mounted, _error) = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "mounted", clone.as_str()], None);
+    if mounted.trim() == "no" {
+        zfs_ok(sbin.as_str(), &["mount", clone.as_str()]);
+    }
+    assert!(mount_row(slot.as_path()).is_some(), "the clone stands at the slot after the property is set");
     command_ok("mount", &["--make-private", slot.display().to_string().as_str()]);
     zfs_ok(sbin.as_str(), &["unmount", clone.as_str()]);
     // Item 6's deletion: the underlay's pointer goes, and the lock is the only protection left.
