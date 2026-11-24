@@ -487,9 +487,8 @@ all under `package/git-policy/cli/src/native/`:
 - `lock/single_owner_claim.rs`.
 - `foundation/private_storage.rs`,
   `private_storage_replacing_a_record.rs`,
-  `plain_file.rs`,
-  `path_bytes_in_records.rs`
-  and `json_record.rs`.
+  `plain_file.rs`
+  and `path_bytes_in_records.rs`.
 - `worktree/worktree_removal_leaving_that_outlives_its_record.rs`
   and `worktree/worktree_removal_leavings_a_command_queues_again.rs`.
 - `worktree_copying/worktree_copy_stage_claim.rs`,
@@ -550,6 +549,10 @@ and its job is to pick among them and say why.
   (`:108` to `:128`),
   and it is published whole by one rename
   (`:132` to `:138`).
+  This design takes its `key=value` lines and not its JSON object:
+  the project chose one `key=value` format for the route's three records
+  (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+  "Choice 2").
   Its look runs for every command of the repository,
   "so a repository in which no removal left anything pays one open that finds no folder"
   (`worktree/worktree_removal_leavings_a_command_queues_again.rs:82` to `:84`).
@@ -574,8 +577,14 @@ and its job is to pick among them and say why.
 - `foundation/path_bytes_in_records.rs` is how a path enters a text record without losing a byte:
   a text field when the path is text,
   and a hexadecimal field always (`:1` to `:20`).
-- `foundation/json_record.rs` reads a JSON object the way the incumbent does.
-  Its `MAX_SAFE_INTEGER` is why no 64-bit GUID may travel as a JSON number (`:36`).
+  This design takes the hexadecimal field alone,
+  which is what the project's format choice leaves it.
+- The add's record and the plan write the shape this design now writes,
+  which the project chose for all three:
+  a `#` header line and one `key=value` line per field,
+  in a fixed order the reader requires
+  (in `doc/planning/cli-git-zfs-add-binding-record-design.md` at "The binding",
+  and in the plan design's "The grammar").
 - `lock/single_owner_claim.rs` is the wrapper's lock-free claim (`:1` to `:45`),
   and the root handler's per-slot claim builds on it
   (`worktree_clone_mount_handler/per_slot_root_claim.rs`).
@@ -1013,8 +1022,7 @@ the record's folder is on the pool whose destroy waits for the transaction group
 A Git directory on another pool,
 a network file system or a different machine breaks that argument,
 and the record then needs the flush that V14's option A buys.
-L9 The record's bound is derived from the field widths and the JSON escape rule
-in "The bound".
+L9 The record's bound is derived from the field widths in "The bound".
 It is a bound on what the reader accepts,
 not a measured write size.
 L10 A same-account process can substitute objects between the identity read and the destroy.
@@ -1349,7 +1357,9 @@ and the slot's path.
 An add that made no clone has no `cloneGuid`:
 its `cloneDataset` holds only the proposed name,
 and the reader says the name is proposed and the clone was never made
-("The identity lines and the outcome lines" and W9).
+("The lines,
+the encodings and the order the reader requires",
+and W9).
 
 What the next `git worktree` command does.
 The look proves the snapshot's state and destroys it once the block is gone,
@@ -1741,98 +1751,126 @@ A record on its second attempt,
 blocked because a clone of the snapshot still exists:
 
 ```text
+# <checkout>/.git/monochromatic-git-policy-cli/origin-cleanups/git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f
 # monochromatic-git-policy-cli origin cleanup, version 1
 state=blocked
+startedAt=2026-11-22T18:28:41-05:00
 attemptedAt=2026-11-22T18:31:04-05:00
 blockedReason=dependency
 blockedErrno=0
 numClones=1
 userRefs=0
-{"originDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-checkout","originDatasetGuid":"12039048377182978123","originSnapshot":"git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f","originSnapshotGuid":"3745620968172523788","originSnapshotCreatetxg":"93823","cloneDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer","cloneGuid":"9012873465091283655","slotPath":"/home/user/Monochromatic/.claude/worktrees/add-cache-layer","slotPathHex":"2f686f6d652f757365722f4d6f6e6f6368726f6d617469632f2e636c617564652f776f726b74726565732f6164642d63616368652d6c61796572","startedAt":"2026-11-22T18:38:41-05:00"}
+originDataset=zpcachyos/ROOT/cos/home/monochromatic-git-checkout
+originDatasetGuid=12039048377182978123
+originSnapshot=git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f
+originSnapshotGuid=3745620968172523788
+originSnapshotCreatetxg=93823
+cloneDataset=zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer
+cloneGuid=9012873465091283655
+slotPath=2f686f6d652f757365722f4d6f6e6f6368726f6d617469632f2e636c617564652f776f726b74726565732f6164642d63616368652d6c61796572
 ```
 
-The shape is the leaving record's,
-short `key=value` lines followed by one JSON object
-(F16 and `worktree/worktree_removal_leaving_that_outlives_its_record.rs:108` to `:128`),
-because it needs no escaping decision beyond the wrapper's own JSON writer,
-and because a person reading a blocked record sees the reason before the long line.
+The block's first line names the file for this page;
+the record's own first line is the header beneath it.
+
+The shape is the add's record's and the plan's,
+a `#` header line and one `key=value` line per field
+(F16,
+`doc/planning/cli-git-zfs-add-binding-record-design.md` at its "The binding",
+and the plan design's "The grammar"),
+and the project chose that one format for all three records
+(`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+"Choice 2:
+one line format for all three records").
 A `blocked` record writes `blockedErrno=0` when the block came from the counts and no request was made,
 and a nonzero errno when a request was refused ("The state machine").
 
-### The identity lines and the outcome lines
+### The lines, the encodings and the order the reader requires
 
-The JSON object holds the identity.
-It is written once and never changes.
-The lines before it hold the outcome,
-and they are the only bytes a later attempt may replace.
-A rewrite with an unchanged outcome writes the same bytes,
-which control T1 asserts.
+The record is the header line and then one line per field,
+in the order below,
+and the order is what the add's record and the plan already require.
+A key outside this list,
+a key out of order,
+a repeated key,
+a line that does not parse,
+and a missing key that the state does not excuse each refuse the whole record,
+and nothing is read as a partial record.
 
-The short lines:
+Each value is encoded as its kind allows and never in two spellings:
 
-- `# monochromatic-git-policy-cli origin cleanup, version 1` is the header.
-  A reader refuses a file whose first line is not exactly this,
-  and it refuses one whose version it does not know.
+- a ZFS dataset or snapshot name is written verbatim,
+  because the kernel's charset holds neither a newline nor `=` (F9);
+- a GUID and a transaction group are canonical decimal,
+  through `DatasetGuid`'s grammar,
+  which refuses a sign,
+  a leading zero and a value beyond a `u64`
+  (`worktree_clone_mount_protocol/dataset_guid.rs:39` to `:60`);
+- an instant is ISO 8601 with its offset to the second;
+- an errno and a count are canonical decimal;
+- the slot path is the path's bytes in lowercase hexadecimal and nothing else,
+  which is the cost the project accepted with this format:
+  "the origin record's slot path shows only as hex".
+
+The state's own lines come first:
+
 - `state` is one of `owed` and `blocked` ("The state machine").
-- `attemptedAt` is an ISO 8601 instant with its offset to the second,
-  anchored to the command's clock,
-  and absent until an attempt first records an outcome.
+- `startedAt` is when the writing command first wrote the record,
+  a removal or a failed add,
+  as an instant.
+  It is for a person and for `doctor`,
+  and no reader decides anything by it.
+- `attemptedAt` is when the last attempt ran,
+  as an instant,
+  and it is absent until an attempt first records an outcome.
 - `blockedReason` is one of `dependency` or `deferred` or `unproved` or `refused`,
-  and absent unless the state is `blocked`.
-- `blockedErrno` is the errno of a refused request as a decimal integer.
+  and it is absent unless the state is `blocked`.
+- `blockedErrno` is the errno of a refused request as a decimal integer,
+  and it is absent unless the state is `blocked`.
   It is `0` when the attempt submitted no request,
   which a `dependency` block read from the counts does,
   and when a refusal carried no errno.
-- `numClones` is the live clone count the attempt read (F1).
-- `userRefs` is the live user-hold count the attempt read (F2).
+- `numClones` is the live clone count the attempt read (F1),
+  absent unless the state is `blocked`.
+- `userRefs` is the live user-hold count the attempt read (F2),
+  absent unless the state is `blocked`.
 
-The JSON object's keys,
-in the fixed order the writer emits and the reader requires:
+The identity's lines come last:
 
 - `originDataset` is the checkout dataset's full name as the add recorded it,
   at most 255 bytes (F9).
-- `originDatasetGuid` is the dataset's GUID as a decimal string of a `u64`.
+- `originDatasetGuid` is the dataset's GUID.
 - `originSnapshot` is the snapshot's own name,
   which must equal the file's name and the grammar of "The name grammar and the key".
-- `originSnapshotGuid` is the snapshot's GUID as a decimal string.
-- `originSnapshotCreatetxg` is the transaction group that created the snapshot,
-  as a decimal string.
+  The add's record and the plan write this fact as the full name with its dataset;
+  this record writes the own name alone because that name is its key,
+  and a reader compares it with the file's name and never with theirs.
+- `originSnapshotGuid` is the snapshot's GUID.
+- `originSnapshotCreatetxg` is the transaction group that created the snapshot.
 - `cloneDataset` is the clone's full dataset name,
   at most 255 bytes.
   An add that made no clone writes the clone name it proposed,
   and then `cloneGuid` is absent and the name is only proposed.
-- `cloneGuid` is the clone's GUID as a decimal string,
+- `cloneGuid` is the clone's GUID,
   and it is absent exactly when no clone was made.
   A record without it says its clone was never made,
   and a reader that needs a clone (none of this design's proof does) reports that it has none.
-- `slotPath` is the slot's path as text when the path needs no JSON escape,
-  and absent when it does.
-- `slotPathHex` is the slot path's bytes as lowercase hexadecimal,
+- `slotPath` is the slot path's bytes as lowercase hexadecimal,
   always.
-- `startedAt` is when the writing command first wrote the record,
-  a removal or a failed add,
-  as an ISO 8601 instant with its offset to the second.
+  A person reads it as a path with `xxd -r -p`,
+  and `doctor` prints the path itself beside it.
 
-Why every GUID and transaction group is a JSON string and not a number:
-the wrapper's JSON reader follows the incumbent's semantics,
-where a number is a double,
-and its `MAX_SAFE_INTEGER` is 9,007,199,254,740,991
-(`foundation/json_record.rs:36`),
-while a dataset GUID fills a `u64`.
-A GUID written as a number would lose its low digits in a reader and then disagree with the pool.
-A decimal string goes through `DatasetGuid`'s grammar,
-which refuses a sign,
-a leading zero and a value beyond a `u64`
-(`worktree_clone_mount_protocol/dataset_guid.rs:39` to `:60`).
+The identity's lines are written once and never change.
+Only the state's own lines may be replaced,
+and a rewrite re-emits the whole record with them changed.
+A rewrite with an unchanged outcome writes the same bytes,
+which control T1 asserts.
 
-Why the path travels twice:
-a text record cannot hold a path that is not text
-(`foundation/path_bytes_in_records.rs:1` to `:20`),
-and the hexadecimal field is the only form that loses no byte.
-The text field is written only when it needs no escape,
-which is what keeps the bound below sound (O9).
-Nothing compares the two fields with each other;
-the hex field is what `doctor` prints for a person whose terminal can show it.
+Why the identity and the state do not share one line each:
+the writer re-emits the record by one rename,
+so a reader sees one whole record either way,
+and a fixed order with a header line is what lets a reader refuse a damaged one without guessing.
+The state's lines come first because a person reading a blocked record then sees the reason at the top.
 
 Why there is no free-text field:
 a record is read by a report,
@@ -1853,36 +1891,44 @@ The staging name is reported by `doctor` and read by nothing (V8).
 
 ### The bound
 
-The reader accepts at most 13,368 bytes of one record.
+The reader accepts at most 9,217 bytes of one record.
 That number is the widest record these fields can spell,
 field by field:
 
 - The header line and its line feed:
   57 bytes.
-- The short lines at their widest:
+- The state's lines at their widest:
   `state=` with `blocked` at 14,
+  `startedAt=` with an instant at 36,
   `attemptedAt=` with an instant at 38,
   `blockedReason=` with `dependency` at 25,
   `blockedErrno=` with a four-digit errno at 18,
   `numClones=` with twenty digits at 31,
   and `userRefs=` with twenty digits at 30.
-  That is 156 bytes.
-- The JSON object's keys,
-  its quotes and separators at 195 bytes.
-- Its values at their widest:
-  two dataset names at 255 each (F9),
-  the snapshot name at 59,
-  four decimal strings at 20 each,
-  a slot path of 4,095 bytes that needs no escape,
-  its hexadecimal form at 8,190 bytes,
-  and one instant at 25.
-- A final line feed.
+  That is 192 bytes.
+- The identity's lines at their widest:
+  `originDataset=` with a 255-byte name at 270,
+  `originDatasetGuid=` with twenty digits at 39,
+  `originSnapshot=` with a 58-byte name at 74,
+  `originSnapshotGuid=` at 40,
+  `originSnapshotCreatetxg=` at 45,
+  `cloneDataset=` with a 255-byte name at 269,
+  `cloneGuid=` at 31,
+  and `slotPath=` with the hexadecimal form of a 4,095-byte path at 8,200.
+  That is 8,968 bytes.
 
-Those terms sum to 13,368 bytes.
+Those terms sum to 9,217 bytes,
+and each value's widest form comes from a named limit:
+255 bytes from `ZFS_MAX_DATASET_NAME_LEN` (F9),
+58 bytes from the 26-byte snapshot prefix and the 32-hex nonce,
+twenty digits from a `u64`,
+4,095 bytes from `PATH_MAX` without its terminator,
+and four digits for an errno.
 No rounding is applied,
 because a rounded power of two is a pick the accepted store's bound does not make
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md:140` to `:141`).
-A new field or a new escape changes the version number and the bound with it.
+A new field changes the version number and the bound with it,
+and so does a wider value.
 The writer refuses to publish a record its own reader would refuse,
 which is the rule the receipts already hold to
 (`package/git-policy/cli/SPEC.md:6154` to `:6155`).
@@ -2488,7 +2534,7 @@ and never removes a record or a staging name (V8).
 A record that no attempt has ended:
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f is owed; recorded 2026-11-22T18:38:41-05:00 before the clone zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer was destroyed; the next `git worktree` command (add or remove or list or prune or repair) attempts it.
+git monochromatic-git-policy-cli doctor: origin cleanup: zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f is owed; recorded 2026-11-22T18:28:41-05:00 before the clone zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer was destroyed; the next `git worktree` command (add or remove or list or prune or repair) attempts it.
 ```
 
 It names the snapshot,
@@ -2702,21 +2748,21 @@ an unknown `state`;
 an unknown `blockedReason`;
 a missing `attemptedAt` in a blocked record;
 a `blockedErrno` that is no decimal integer;
-a JSON object with a key the record does not have;
+a key the record does not have;
 a key out of order;
+a repeated key;
+a line that does not parse,
+such as a final line that stops before its newline;
 a GUID with a sign or a leading zero;
-a `snapshot` field that differs from the file's name;
+an `originSnapshot` that differs from the file's name;
 a record missing a key the grammar requires,
-which is any of the JSON object's keys except `cloneGuid`,
-which is absent only for an add that made no clone;
-and `slotPath`,
-absent when the path needs an escape;
-among the short lines `state` is always required,
-and the outcome's own lines,
-`attemptedAt` or `blockedReason` or `blockedErrno` or `numClones` or `userRefs`,
-exactly when the state is `blocked`,
-so an `owed` record without `attemptedAt` is whole and a `blocked` one without it is refused;
-a file wider than 13,368 bytes;
+which is every key except `cloneGuid`,
+absent only for an add that made no clone,
+and except `attemptedAt` or `blockedReason` or `blockedErrno` or `numClones` or `userRefs`,
+absent exactly when the state is `owed`,
+so an `owed` record without them is whole and a `blocked` one without one of them is refused;
+a `slotPath` that is not lowercase hexadecimal;
+a file wider than 9,217 bytes;
 and an empty file.
 T3 A file name outside the grammar is never read.
 A planted `notes.txt` and a planted `git-worktree-clone-origin-<31 hex>` are listed and skipped,
@@ -2918,25 +2964,21 @@ this design's V3 and the binding design's V2 list the alternatives.
 
 ### 3. The encoding of names and the shape of the file
 
-The plan design and the binding design now write the same shape:
+All three now write one shape:
 a `#` version line,
+one `key=value` line per field,
 the ZFS names verbatim,
 paths in hex,
-GUIDs and transaction groups in canonical decimal,
-and no 64-bit value in a JSON number (F24 and F25).
-This design writes a `#` version line and the outcome lines,
-then one JSON object holding the identities,
-with the path as text when no escape is needed plus hex.
-That is a real difference and not a misunderstanding:
-the second gate pass's N9 asks for the option both siblings write to be listed,
-and "V2 The record's shape" now lists it as its option D,
-with this design's reason for not taking it.
-The plan design's earlier claim that it "agrees with both siblings" was true of the binding design and not of this
-one;
-that sentence is the plan design's to correct,
-and this design states its own side here.
-An earlier revision of this section said the plan design writes ZFS names as hex and its numbers as lines,
-which was true of an earlier revision of that document and is not true of `76849b8d9b`.
+GUIDs and transaction groups in canonical decimal (F24 and F25).
+The project chose that one format and named this record's cost for it,
+"the origin record's slot path shows only as hex"
+(`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+"Choice 2:
+one line format for all three records"),
+so "V2 The record's shape" is decided and no longer a veto entry.
+This design wrote short lines and one JSON object until this round,
+and an earlier revision of this section recorded that as a real difference from the two siblings;
+it is not one now.
 
 ### 4. The moment of the origin carrier
 
@@ -3098,7 +3140,7 @@ An earlier revision of this section called that entry "its Choice 5";
 
 All three derive their bounds from named terms with no rounding:
 the plan design `10,128 + 340 * count` (F25),
-this design 13,368,
+this design 9,217,
 and the binding design 43,027 (F24).
 The plan design's ceiling is gone (F25):
 its reader is bounded by the file's own length,
@@ -3405,97 +3447,40 @@ D over E:
 D needs no new grant and no property grammar,
 while E needs a delegation the project did not decide and a value bound nothing here sizes.
 
-### V2 The record's shape
+### V2 The record's shape, decided
 
-The adopted option is A.
+The project decided this entry,
+and its choice is quoted whole:
 
-- A Short `key=value` lines and one JSON object,
-as the leaving record already reads,
-with ZFS names verbatim,
-paths as text only when no escape is needed plus hex always,
-and GUIDs as decimal strings.
-  Example.
-  A person runs `cat .git/monochromatic-git-policy-cli/origin-cleanups/git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f`
-  and reads `state=blocked` and `blockedReason=dependency` before the long JSON line.
-  Pros:
-  the state reads first for a person;
-  a header line carries the version;
-  the JSON writer and reader already exist;
-  it matches the leaving record and the binding design's header line.
-  Cons:
-  two grammars in one file;
-  a reader must reject a key out of order.
-- B One space-separated line,
-as the recorded identities store writes,
-with ZFS names as hex and numbers as fields.
-  Example.
-  The same record reads
-  `cleanup v1 owed 12039048377182978123 zpcachyos/...@git-worktree-clone-origin-4f0c... 3745620968172523788 93823 ...`
-  on one long line.
-  Pros:
-  one grammar;
-  a person's `grep` finds a field;
-  no escape question.
-  Cons:
-  a path with a space needs an escape the store never needed;
-  the state hides in the middle of a long line;
-  the JSON writer would go unused;
-  hex names are longer than the ZFS names every other record in this route writes verbatim.
-- C One JSON object with everything.
-  Example.
-  The same record reads `{"version":1,"state":"owed","attemptedAt":null,...}` in one line.
-  Pros:
-  one grammar;
-  trivially parsed.
-  Cons:
-  a person reads the state after the longest fields if the order is not chosen;
-  nothing to check the file's first bytes against;
-  a truncated file parses as nothing and gives no version.
+> The project chose "One key=value format (Recommended)":
+> "All three records use plain key=value lines.
+> Cost:
+> the origin record's slot path shows only as hex."
+> This replaces the origin cleanup record's adopted short lines and one JSON line.
+> Not chosen:
+> "Keep the JSON line (adopted)".
+>
+> `doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+> "Choice 2:
+> one line format for all three records".
 
-- D All `key=value` lines,
-as the plan design writes and as the binding design's convention says,
-with ZFS names verbatim,
-the path in hex and GUIDs as decimal lines.
-  Example.
-  The same record reads
-  `# monochromatic-git-policy-cli origin cleanup, version 1`,
-  then `state=owed`,
-  then `originDatasetGuid=12039048377182978123`,
-  then `originSnapshotGuid=3745620968172523788`,
-  then `slotPathHex=2f686f6d65...`,
-  one key per line.
-  Pros:
-  one grammar for the three records,
-  which is the route's own convention;
-  a person's `grep` finds a field;
-  no JSON object to keep in a fixed key order.
-  Cons:
-  the immutable identity and the mutable outcome share one key space,
-  so a reader must refuse a missing or out-of-order key among twenty;
-  the path's text form is gone and a person reads only the hex field;
-  the leaving record's shape,
-  which this design cites as its precedent,
-  is then only this design's.
-  This is the option both sibling designs now write,
-  and this design does not take it:
-  its reason for the JSON object was that a 64-bit GUID cannot travel as a JSON number,
-  and that reason falls away for D,
-  whose GUIDs are decimal lines.
-  What remains is the leaving record's shape and the one place a rewrite can compare byte for byte,
-  and the second gate pass's N9 asks for the option to be listed beside them.
-
-The ranking is A then D then C then B.
-A over D:
-A keeps the immutable identity in one object that a rewrite re-emits byte for byte,
-and it follows the leaving record's shape,
-while D flattens both kinds of field into one key space a reader must police for order and presence.
-D over C:
-D writes ZFS names verbatim and keeps the path out of the grammar,
-and it is what both sibling designs write,
-while C escapes the path into one JSON line.
-C over B:
-C needs no escaping for a path with a space and no new field grammar,
-while B would need a new escape rule the store's grammar does not have.
+So the record is one `key=value` line per field under one `#` header line,
+as "The lines,
+the encodings and the order the reader requires" states it,
+and the slot path is hex only.
+That is this design's former option D,
+which it had ranked second.
+The two options it set aside are not taken either:
+no line is space-separated with the fields in fixed positions,
+and no line is one JSON object.
+Three things this entry's options weighed are settled by the choice:
+the outcome and the identity share one key space,
+so the reader refuses a missing or out-of-order key among fifteen;
+a person reads the slot path only through `xxd -r -p` or the path `doctor` prints;
+and the leaving record's JSON object is not this record's shape.
+The cost the choice states is the second of those,
+and the bound is smaller for it:
+9,217 bytes against the JSON form's 13,368.
 
 ### V3 The name grammar and the key
 
