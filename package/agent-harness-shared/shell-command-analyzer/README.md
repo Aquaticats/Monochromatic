@@ -465,40 +465,67 @@ so the same spellings are refused
 after a parse error.
 
 
-## Literal `rm` path guard
+## Literal deletion path guard
 
-`findLiteralRmPaths` reports the `rm` commands whose paths are not written out,
-which this repository bans:
+`findLiteralRmPaths` reports the deletion commands whose targets are not written
+out, which this repository bans:
 a path spelled through a variable, a substitution, or an arithmetic expression
 can widen when that value is unset or empty,
 while the command text still looks narrow.
 The rule is about spelling rather than effect,
 so `rm --recursive /home/user/temp/agent/scratch` names one path and stays allowed.
 
+The rule covers `rm`, `rmdir`, `unlink`, `shred` and `find -delete`
+by the owner's decision in
+[`doc/decision/literal-rm-guard-in-claude-code-and-pi.md`][the-record].
+The readers keep the branch's `rm` names;
+each program is a predicate of its own inside them.
+
 Each finding carries the command line as written,
-the word that made the path unreadable,
+the word that broke the rule,
+which check fired and why,
 and, for a script file, the file and the line its command starts on.
 
-### What counts as `rm`
+### What counts as a deletion
 
-The program word is `rm`, a path ending in `/rm` (`/usr/bin/rm`, `./rm`), `\rm`,
-or any of those behind a program wrapper the analyzer already strips
+For `rm`, `rmdir`, `unlink` and `shred` the program word is the program,
+a path ending in it (`/usr/bin/rmdir`, `./unlink`), or a backslash-escaped spelling
+(`\rm`), or any of those behind a program wrapper the analyzer already strips
 (`sudo`, `doas`, `env`, `command`, `builtin`, `exec`, `nohup`, `setsid`, `time`,
 `nice`, `ionice`, `stdbuf`, `timeout`, `flock`, `systemd-run`, `taskset`, `chrt`, `busybox`).
-A different program that takes `rm` as a subcommand is not this program:
+A different program that takes one of them as a subcommand is not that program:
 `git rm`, `podman rm`, `docker rm`, `npm rm`, `pnpm rm` and `cargo rm`
 name their own program word, so they stay allowed.
 
-### What makes a path unreadable
+`find -delete` is a finding whatever its starting points spell,
+because the paths that action deletes are never written in the command:
+`find /home/user/temp/agent/x -delete` is refused even though `/home/user/temp/agent/x` is written out.
 
-A finding is an `rm` whose operands hold a parameter expansion (`$d`, `"${d}"`,
-`"$HOME/temp"`), a command substitution (`"$(dirname "$0")/build"`), a backtick
-substitution (`` `pwd`/scratch ``), or an arithmetic expansion (`$((1 + 1))`),
+### What makes a target unacceptable
+
+Three checks fire, and each finding names the one that did.
+
+A target the shell computes is a finding:
+a parameter expansion (`$d`, `"${d}"`, `"$HOME/temp"`),
+a command substitution (`"$(dirname "$0")/build"`),
+a backtick substitution (`` `pwd`/scratch ``),
+or an arithmetic expansion (`$((1 + 1))`),
 read from the operand's source spelling rather than its parsed value.
 Single quotes make a word literal, so `rm -rf '$d'` is allowed.
-Globs and `~` stay allowed for now.
 
-An `rm` whose paths come from outside the command text is a finding whatever its
+A target that collapsed to a broader path is a finding whatever it spells:
+`/`,
+the account's home folder itself,
+a top-level folder (one segment under `/`, such as `/home`, `/usr` or `/tmp`),
+a path holding `//`,
+and a path with a segment `undefined` or `null`.
+The home folder is the caller's, injected as `homeFolder` and defaulting to this
+process's home,
+never a username written into this package.
+Literal paths below those shapes stay allowed, so
+`rm --recursive /home/user/temp/agent/scratch` and `rmdir -p /home/user/temp/agent/x/y` pass.
+
+A deletion whose paths come from outside the command text is a finding whatever its
 operands spell:
 one that `xargs` runs (`tr ' ' '\n' | xargs rm -rf`),
 and one that `find -exec`, `-execdir`, `-ok` or `-okdir` runs.
@@ -535,17 +562,15 @@ so a single-quoted expansion inside such a command is refused too.
 
 ### What stays undetected
 
-Deleting programs other than `rm` are not read yet:
-`rmdir "$d"`, `unlink "$d"`, `shred -u "$d"` and `find . -delete` stay allowed.
 A deletion an interpreter performs (`python3 -c`, `node -e`) is not read either,
 nor one a script builds and runs (`sh script.sh` where `script.sh` holds `rm -rf "$d"`
 is read only when the command names that file, and a script it runs in turn is not).
 
-An `rm` whose program word is itself computed (`"$RM" -rf x`, `$TOOL -rf x`) is not read,
-because the program word is not `rm` in the command text.
+A deletion whose program word is itself computed (`"$RM" -rf x`, `$TOOL -rf x`) is not read,
+because the program word names no known program in the command text.
 A shell script read from standard input (`printf '%s' 'rm -rf "$d"' | bash`) is not followed.
 
-Globs and `~` stay allowed until the owner decides,
+Globs and `~` stay allowed by the owner's decision in [the same record][the-record],
 so `rm -rf build/*` and `rm -rf ~/temp/scratch` are not refused.
 
 ### What is over-refused
@@ -556,6 +581,8 @@ when the same command also writes it to a file.
 A script file the command names is read whatever its extension says
 when the command hands it to a shell (`bash notes.txt`),
 because the shell reads those bytes as a script.
+
+[the-record]: ../../../doc/decision/literal-rm-guard-in-claude-code-and-pi.md
 
 ## Pi dependency trust
 

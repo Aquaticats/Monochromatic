@@ -115,9 +115,18 @@ Unlike the `bun test` guard,
  this one has no config switch:
  running the real binary skips guards that protect committed work.
 
-### Literal `rm` path blocking
+### Literal deletion path blocking
 
-The repository's rule is that an `rm` command writes every path literally:
+The repository's rule is that a deletion command writes every path literally,
+and what the rule covers is the owner's decision in
+[`doc/decision/literal-rm-guard-in-claude-code-and-pi.md`][the-record]:
+`rm`,
+`rmdir`,
+`unlink`,
+`shred` and
+`find -delete`,
+plus targets that collapsed to a broader path,
+with globs and `~` left allowed.
 a path spelled through a variable, a substitution, or an arithmetic expression
 can widen when that value is unset or empty,
 while the command text still looks narrow.
@@ -128,13 +137,20 @@ and its README lists every form it reads and every form it does not.
 
 #### The Bash surface
 
-A `bash` call is refused when it would run such a deletion,
+A `bash` call is refused when it would run such a deletion with `rm`, `rmdir`,
+`unlink` or `shred`,
 including one behind a program wrapper (`sudo`, `env`, `timeout`, `systemd-run`,
 `flock`, `nice`, `command`, `xargs`),
 one written in a here-document body,
 one inside a `bash -c` string or an `eval` or `ssh` command line,
 one inside a function body,
 one `find -exec` runs,
+one `find -delete` asks for whatever its starting points spell,
+one whose target is `/`,
+the home folder itself,
+a top-level folder,
+a path holding `//`,
+or a path with a segment `undefined` or `null`,
 and one inside a script file the command hands a shell
 (`bash deploy.sh`, `source env.sh`, `./cleanup` with a shell shebang),
 read from disk relative to the session's working directory.
@@ -148,6 +164,7 @@ or by a first line that asks for a shell.
 The whole resulting file is judged,
 so two edits cannot split one violation between them,
 and a change that repairs an old script is never refused.
+The deletion family and the collapsed targets are read the same way here.
 The protected-path rules above still run first and keep their own messages.
 
 #### The `codemode` surface
@@ -156,7 +173,8 @@ Code mode runs a script a model wrote,
 and Pi dispatches the `codemode` call itself through `tool_call`,
 with its input `{ code }`,
 so this extension reads the script before any of it runs.
-A script is refused when it builds an `rm` command at run time:
+A script is refused when it builds a deletion command at run time,
+for `rm`, `rmdir`, `unlink`, `shred` and `find -delete` alike:
 
 - a template literal holding a `${` substitution whose literal text puts `rm` in
   command position,
@@ -176,10 +194,23 @@ What stays undetected on this surface:
 a command the script assembles from values no literal spells (a file's text through
 `tools.read`, a stored value through `load`) is not read by the script guard,
 a literal that puts `sh` or another shell in command position
-(`` `sh -c \`rm -rf ${d}\`` ``) names no `rm` of its own,
-`rmdir`, `unlink`, `shred` and `find -delete` are not read,
+(`` `sh -c \`rm -rf ${d}\`` ``) names no deletion program of its own,
 and a regular expression in the script is read as arithmetic rather than skipped,
 so a quote inside one can hide a literal after it.
+A collapsed target inside a fully literal command is refused by the nested `bash`
+call rather than here, which is the same answer.
+
+#### Globs and the home-folder tilde stay allowed
+
+The owner answered two questions in the same record:
+globs stay allowed
+("Allow globs"),
+and `~` in a deletion path stays allowed
+("Allow ~"),
+although an empty `HOME` turns `~/x` into `/x`.
+So `rm -rf build/*` and `rm -rf ~/temp/scratch` are not refused here.
+
+[the-record]: ../../../doc/decision/literal-rm-guard-in-claude-code-and-pi.md
 
 ### `pnpm-lock.yaml` edit and write blocking
 

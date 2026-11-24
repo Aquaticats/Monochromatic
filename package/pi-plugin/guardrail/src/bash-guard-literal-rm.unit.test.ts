@@ -39,13 +39,22 @@ await writeFile(VIOLATING_SCRIPT, '#!/bin/sh\nrm -rf "$d"\n',);
  Commands that delete a path they compute, with the offending word.
  */
 const REFUSED_COMMANDS: readonly { readonly command: string; readonly word: string; }[] = [
-  { command: 'rm -rf "$d"', word: '(word `"$d"`)', },
-  { command: 'sudo rm -rf "$litter"', word: '(word `"$litter"`)', },
-  { command: 'env rm -f "$d/$n"', word: '(word `"$d/$n"`)', },
-  { command: `bash -c 'rm -rf "\${HOME}/scratch"'`, word: `(word \`"\${HOME}/scratch"\`)`, },
-  { command: 'eval \'rm -rf "$d"\'', word: '(word `"$d"`)', },
-  { command: String.raw`find . -name build -exec rm -rf {} \;`, word: '(word `rm`)', },
-  { command: String.raw`printf '%s\n' build | xargs rm -rf`, word: '(word `rm`)', },
+  { command: 'rm -rf "$d"', word: '(word `"$d"`;', },
+  { command: 'sudo rm -rf "$litter"', word: '(word `"$litter"`;', },
+  { command: 'env rm -f "$d/$n"', word: '(word `"$d/$n"`;', },
+  { command: `bash -c 'rm -rf "\${HOME}/scratch"'`, word: `(word \`"\${HOME}/scratch"\`;`, },
+  { command: 'eval \'rm -rf "$d"\'', word: '(word `"$d"`;', },
+  { command: String.raw`find . -name build -exec rm -rf {} \;`, word: '(word `rm`;', },
+  { command: String.raw`printf '%s\n' build | xargs rm -rf`, word: '(word `rm`;', },
+  { command: 'rmdir "$d"', word: '(word `"$d"`;', },
+  { command: 'unlink "$f"', word: '(word `"$f"`;', },
+  { command: 'shred -u "$f"', word: '(word `"$f"`;', },
+  { command: 'find /home/user/temp/agent/x -delete', word: '(word `-delete`;', },
+  { command: 'rm -rf /', word: '(word `/`; the target collapses to a broader path than it looks like: the filesystem root', },
+  { command: 'rm -rf /home', word: '(word `/home`; the target collapses to a broader path than it looks like: a top-level folder', },
+  { command: 'rmdir -p /home', word: '(word `/home`; the target collapses to a broader path than it looks like: a top-level folder', },
+  { command: 'rm -rf //home/user/x', word: '(word `//home/user/x`; the target collapses to a broader path than it looks like: a doubled separator', },
+  { command: 'rm -rf /home/user/undefined/x', word: '(word `/home/user/undefined/x`; the target collapses to a broader path than it looks like: a segment named undefined or null', },
 ];
 
 /**
@@ -56,7 +65,10 @@ const ALLOWED_COMMANDS: readonly string[] = [
   'rm -rf \'$d\'',
   'rm -rf ~/temp/agent/scratch',
   'git rm --cached "$file"',
-  'rmdir "$d"',
+  'rmdir /home/user/temp/agent/x',
+  'unlink /home/user/temp/agent/x/f',
+  'shred -u /home/user/temp/agent/x/f',
+  'find /home/user/temp/agent/x -name \'*.log\' -print',
 ];
 
 //endregion Fixtures
@@ -139,7 +151,7 @@ await describe({
                 input: { command: 'bash <<\'EOF\'\nrm -rf "$d"\nEOF', },
                 cwd: fixtureCwd,
               },),),
-            ).toContain('(word `"$d"`)',);
+            ).toContain('(word `"$d"`;',);
           },
         },),
       ],
