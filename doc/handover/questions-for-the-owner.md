@@ -697,32 +697,6 @@ picked) yourself from now on for this session."
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
 
-## Open: a wrapper behaviour the alpha.45 release pass left to the owner, recorded 2026-11-23T21:08:00-05:00
-
-The pass is `~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`.
-Its L2 was answered on 2026-11-24
-(`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`).
-
-### Words for a typed command at an unknown host key or a missing passphrase (the pass's L4)
-
-A typed `git clone`,
-`fetch`,
-`pull` or non-LFS `push` that meets a new SSH host key ends with OpenSSH's "Host key verification failed."
-and no next step,
-because the no-prompt rule of 2026-11-20 sets `SSH_ASKPASS` to `false` and the wrapper hands the command to Git.
-The pass ranked "ship a small askpass program" over "stop handing network commands to Git" over "leave it";
-the owner's later answer "One program only,
-ever"
-(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`)
-rules out a separate program,
-so the first option would become a mode of the wrapper that `SSH_ASKPASS` names.
-The answer of 2026-11-24 that only the ZED hook's name selects a mode
-(`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`)
-means such a mode could not be chosen by its start name either,
-so the options are being redesigned before they are asked:
-`pi-typed-network-command-next-step-at-a-new-host-key-design`,
-writing `doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`.
-
 ## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
 
 Both wait for the owner's word,
