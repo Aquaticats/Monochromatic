@@ -296,9 +296,11 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert_eq!(class_of(&classify_slot(&removing)), "pending removal");
     println!("SLOT-STATE pending-removal class={}", class_of(&classify_slot(&removing)));
 
+    // The plan goes first, so the prune below reads a slot no removal is in flight for.
+    std::fs::remove_file(plans.join(clone_guid.file_name())).expect("the plan is removed");
+
     // A registration Git already pruned: the report says what is lost, and a pointer restored from the record points at
     // nothing, because Git does not rebuild a registration.
-    std::fs::remove_file(plans.join(clone_guid.file_name())).expect("the plan is removed");
     std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
     let pruned: Output = git(checkout.as_path(), &["worktree", "prune"]);
     assert!(pruned.status.success(), "prune ran: {}", said_of(&pruned));
@@ -309,7 +311,6 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     println!("REPAIR pruned registration=gone");
 
     // The fixture's own cleanup: the base dataset and the repository.
-    std::fs::remove_file(plans.join(clone_guid.file_name())).expect("the plan is removed");
     let _unmounted = zfs(sbin.as_str(), "zfs", &["unmount", checkout_dataset.as_str()], None);
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8").as_str()]);
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());
