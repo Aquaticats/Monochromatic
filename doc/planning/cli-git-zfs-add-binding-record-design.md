@@ -1849,9 +1849,9 @@ the checkout mount,
 the grants,
 the slot parent and the handler's readiness,
 as plan step 10 lists it.
-The build fixed four things here,
-and the code decides each of them (`bee6531780`,
-2026-11-24T00:51:32-05:00):
+The build fixed four things here (`bee6531780`,
+2026-11-24T00:51:32-05:00),
+and each is what the code does:
 it reads no effective ZFS grant,
 so a write the pool refuses reports the kernel's own error with the pool already recorded at A2,
 while the list above still says the shared preflight proves the grants,
@@ -2134,8 +2134,7 @@ Owner:
 the dirty-main restore design for the restore's steps;
 this design for one rule it depends on,
 which is the copied `.git`'s fate at A11.
-What step 10 builds of this on a clean source,
-and the code decides (`bee6531780`,
+The build decided what step 10 takes of this on a clean source (`bee6531780`,
 2026-11-24T00:51:32-05:00):
 the leave-outs of step 4;
 the private index of step 5 as the captured index normalized,
