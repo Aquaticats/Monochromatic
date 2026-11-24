@@ -37,6 +37,11 @@ import {
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
 import {
+  CLOSED_POOL_EXIT_STATUS,
+  ClosedPoolRefusalError,
+  refuseARunOnAClosedPool,
+} from './refusal-of-a-run-on-a-closed-pool.ts';
+import {
   CommandAnswerMissingError,
   requiredOutputOf,
 } from './required-output-of-a-command.ts';
@@ -90,6 +95,26 @@ const options = parseWorktreeLauncherOptions({
   commandLine: argv.slice(2,),
   checkoutFolder,
 },);
+
+// A run whose provider and model name a closed pool is refused before the worktree, the dependency link and the unit, and before
+// the questions this command asks the session: a closed pool is no work a start should spend anything on. The refusal names the
+// pools a run that names no model of its own may take instead, and, for a command line that named no provider at all, the pool gate
+// that counts the runs going and chooses one.
+try {
+  refuseARunOnAClosedPool({
+    provider: options.provider,
+    model: options.model,
+    namesItsOwnPool: options.namesItsOwnProvider,
+    environment: env,
+  },);
+}
+catch (error) {
+  if (!(error instanceof ClosedPoolRefusalError)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(CLOSED_POOL_EXIT_STATUS,);
+}
 
 /**
  Whether the run works in the checkout itself, which is what a run that only reads does.

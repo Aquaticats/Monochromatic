@@ -50,6 +50,28 @@ pub(super) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     age(path.as_path());
 }
 
+/// What:
+///  A sparse tracked anchor whose size lifts a clean fixture's mean tracked file above the clone rung's edge.
+/// Why:
+///   A clean source is cloned only when its tracked files average at least the rung's mean edge,
+/// and a control's fixture holds a few dozen bytes a file,
+/// so a fixture that must reach the clone rung sits above the edge on purpose
+/// (`git_policy_cli::worktree::worktree_clone_rung_limits::the_safest_mean_tracked_file`).
+/// The anchor is a tenth above the edge per path,
+/// so a path a control adds later cannot pull the mean under it,
+/// and it derives its size from the constant rather than carrying a stale number
+/// (`AGENTS.md`,
+///  rule `MGN`).
+pub(super) fn tracked_above_the_mean_edge(repo: &Path, relative: &str, paths: u64) {
+    let edge: u64 = git_policy_cli::worktree::worktree_clone_rung_limits::the_safest_mean_tracked_file();
+    let per_path: u64 = edge + edge / 10;
+    let path: PathBuf = repo.join(relative);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+    let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse anchor");
+    file.set_len(per_path.saturating_mul(paths + 1)).expect("the sparse anchor's length");
+    age(path.as_path());
+}
+
 /// Commit everything in the repository and refresh its index,
 /// so every entry is provably unchanged.
 pub(super) fn commit_all(fixture: &Fixture, repo: &Path, message: &str) {

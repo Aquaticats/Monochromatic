@@ -1278,8 +1278,7 @@ a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
 its directory and so is not in the snapshot;
-and the clone rung,
-which is only for clean sources.
+and the clone rung only where its proof cannot settle the source.
 The restore reads the index inside the snapshot before the snapshot's `.git` is replaced by the new worktree's pointer,
 and
 installs that index as it is (stat data kept,
@@ -1470,24 +1469,31 @@ the global `--no-lazy-fetch` is Git 2.45.0's,
 and an older Git refuses it before reading anything (exit 129),
 which sent a plain source from the snapshot to Git's whole checkout;
 the variable alone leaves the route as it was on every Git that honours it.
-The variable is honoured from the May 2024 maintenance releases
+The variable is honoured by the May 2024 maintenance releases
 (`v2.39.4`,
 `v2.40.2`,
 `v2.41.1`,
 `v2.42.2`,
 `v2.43.4`,
-`v2.44.1`,
-`v2.45.1`,
-the commit `7b70e9efb`)
-and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
-with it an unavailable size prints `BAD` in the size column,
+`v2.44.1`;
+the commit `7b70e9efb`),
+by `v2.45.0` and later
+(which set `fetch_if_missing = 0`,
+and from `v2.45.1` also read the variable in `promisor-remote.c`),
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later,
+which backport the fix.
+What the read does on a missing blob differs by release:
+the maintenance releases and Ubuntu's package refuse the lazy fetch,
+and the read exits 128
+("lazy fetching disabled ... could not fetch ... from promisor remote"),
+so the rung declines to Git's checkout;
+`v2.45.0` and later never attempt the fetch,
+so an unavailable size prints `BAD` in the size column,
 the run exits 0 with its output,
-and the clone is unchanged.
-A Git older than those releases that does not carry the fix
-(Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores the variable and can fetch a missing blob,
-which is the recorded limit of this read there;
-a size it cannot parse only ever sends its path to Git's writing,
-so the fence's answer is unchanged,
+and only that path goes to Git's writing.
+A Git older than the fix that does not carry it ignores the variable and can fetch a missing blob,
+and its fetch can outlive the command:
+that is the recorded limit of this read there,
 and such a Git is older than the wrapper's tested minimum (`MINIMUM_GIT_VERSION`,
 2.56.0).
 The read also leaves the process-wide failed-step note alone
@@ -1525,9 +1531,24 @@ ends its Git child there (`SIGKILL` to the id the read's runner published),
 and a read abandoned before its thread published a child has that child ended the moment the runner publishes it;
 the thread then ends with the process.
 A refused or declined add therefore does not wait for the read,
-and the read cannot run its whole length beside Git's own checkout:
-what it can still pay is the time between its start and the abandon,
-measured in one btrfs guest on Git 2.56 as a few milliseconds.
+and the read cannot run its whole length beside Git's own checkout.
+What it can still pay differs by shape:
+a source that refuses at once pays about a millisecond of a child,
+started and ended at publication;
+a declined add runs the read in the background for its whole length beside `git check-attr`
+(66 to 68 ms in the integration recheck's declined rows),
+and the abandon hands the answered map to a thread of its own to free
+(the abandonment's take step measures 0.002 ms on the adding thread),
+so the map and its 24,634 entries are freed off the adding thread
+and stay resident for the few milliseconds that free takes rather than to the end of the add
+(3.1 MB for this crate's fixture,
+about 128 bytes a path);
+the parse itself stays on the read's thread,
+where `main` had it,
+so an add that uses the answer does not parse it on its waiting path
+(the integration pass's Medium 1 of 2026-11-23).
+No declined add's total is slower than `main`'s
+(the ratios are beside the timings below).
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
 so its child ends with the thread that started it,
 however the process ends.
@@ -1535,26 +1556,30 @@ Which of an add's other reads it already paid depends on where it ends:
 a source check that refuses costs Git's own checkout and the read it started and ended,
 an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
-Measured in one btrfs guest of 2026-11-22
+The integration pass of 2026-11-23's twelve-round shapes
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"The re-time on Git 2.56.1,
-2026-11-22"),
-eight rounds for the served shapes,
-forty for the add whose Git fails at once,
-twenty for the cone sparse and five or six for the others,
-position-balanced,
-on Git 2.56.1 built from source in the guest,
-with an identical-binary control:
-a served loose add 1282.8 ms against `main`'s 1692.9,
-and a packed one 752.1 against 831.5;
-a refused loose add 4540.6 against 4945.9,
-and a packed one 3393.3 against 2951.1 (six rounds do not resolve it);
-a declined loose add 9358.1 against 8634.6,
-and a packed one 8882.5 against 8651.8;
-a cone sparse refused add 190.6 against 203.2 loose and 159.2 against 169.3 packed;
-a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
-No shape is resolved slower by the reading rule.
-The ratios and the control's spread are in that section.
+"The parse on the adding thread,
+tested again"),
+position-balanced on Git 2.56.1 built from source in a btrfs guest,
+with an identical-binary control,
+give these median ratios of an add's whole time
+(this build to `main`,
+with the identical twin's ratio to this build beside it):
+a served loose add 0.962 (0.928 to 1.001),
+twin 0.997 (0.956 to 1.036);
+a served packed one 0.985 (0.955 to 0.995),
+twin 1.001 (0.966 to 1.031);
+a dirty loose one 1.007 (0.914 to 1.026),
+twin 0.994 (0.963 to 1.031);
+a dirty packed one 0.982 (0.940 to 1.042),
+twin 0.981 (0.935 to 1.027);
+a declined loose one 0.989 (0.910 to 1.083),
+twin 0.987 (0.972 to 1.074);
+and a declined packed one 1.017 (0.959 to 1.067),
+twin 1.022 (0.998 to 1.075).
+No add's total is resolved slower in any of the six,
+and on the declined shape the step on the adding thread is 2.1 to 2.9 ms shorter than `main`'s,
+not longer.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
@@ -2019,6 +2044,11 @@ then the cause in
 plain words,
 then what makes the next add quick,
 and it names no internal step.
+A rung that declines before it copies anything is the other case:
+nothing of the add had started,
+so its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because `,
+and the cause names the input and the numbers the limit was decided on
+(the size limits and the conversion fence's own decline).
 The causes it tells are:
 uncommitted changes in a source that is not restored by a snapshot (a linked worktree;
 the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
@@ -2773,10 +2803,14 @@ the reason is written in
 and the package README names the gap left by
 gates that ran the claim-only source.
 
-Rung 2 needs a clean source on btrfs,
+Rung 2 needs a source whose tracked paths it can prove,
+on btrfs,
 XFS,
 overlayfs or ZFS,
 with the source and the destination in one clone domain.
+A source whose every tracked file equals its index and whose index equals the tree of `HEAD` is cloned whole,
+and a source with uncommitted changes clones every tracked path the proof still settles while Git writes the rest;
+see "Rung 2 on a source with changes".
 A clone domain is one btrfs filesystem,
 whose every mount carries one source in the mount table;
 one device,
@@ -2878,15 +2912,15 @@ Where more than a quarter of the tracked paths,
 and more than a thousand,
 have a rule of their own that converts them,
 the rung declines before any copy and Git's checkout writes the worktree,
-with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
-a declined add is Git's own checkout plus one `git check-attr` and the count over it,
+with the line `the add ended after it had read the source (...)` absent and the fence's own count in its place:
+a declined add is the source check and Git's own checkout plus one `git check-attr` and the count over it,
 and,
 on rung 1,
 the size read that rung started before its source check.
 A rung that ends after the fence,
 for any other reason,
 says
-`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+`the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
 An add is compared with the source's index before the add's record is claimed and before the first copy:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
@@ -2928,6 +2962,124 @@ taken from their descriptors;
 a cloned link keeps the source's stat fields,
 which Git compares by target.
 The ignored-state copy then runs as for Git's checkout.
+
+Rung 2 on a source with changes.
+A path is cloned when its index entry is plain,
+at stage 0 with no extended flags and no assume-unchanged bit,
+names the tree's mode and object,
+is a file or a link,
+its file equals the entry by type,
+size,
+inode,
+owner and both times to the nanosecond,
+and its modification time is older than the index file,
+and the conversion fence this section describes carries it.
+Every other tree path is written through the one `git checkout-index` this section describes,
+whose paths are the union of the changes' paths and the fence's,
+and Git's own live listing of the paths the source staged is a second answer that refuses a path the split would
+have cloned.
+The index the new worktree takes is built from the tree of the source's `HEAD`,
+with the stat data of the files the clones made,
+a link's entry keeping the source's fields,
+and no stat data for the paths Git writes;
+the ladder's `git read-tree -m -u` brings a different new `HEAD` in against that index,
+and the file takes the worktree's name only after Git's write.
+After Git's write the worktree holds what Git's checkout holds:
+a path the clones carried is one whose file its entry proves and whose checkout writes its blob,
+and the paths a change or the fence reaches are Git's own bytes.
+
+Rung 2 declines the add,
+and Git's own checkout makes the worktree,
+for three provisional limit rules,
+each pinned with the measurement it rests on and all open to the project's veto
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+its sections "The size limit on a clean source,
+answered 2026-11-22" and "Four further answers after the recheck,
+answered 2026-11-23").
+The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
+Git's own checkout:
+a dirty source of 10,001 files of 2,600 bytes,
+about 26 MB,
+took 1.30 times Git's own checkout on the fenced rung,
+one of 10,001 files of 26,000 bytes,
+about 260 MB,
+took 1.32 of it in eight balanced rounds,
+and this repository's tree of 763,289,228 bytes,
+which that round measured,
+ took 0.73 to 0.81 of it.
+The rung's fence reads cost about the same whatever the tree holds,
+and Git's own checkout grows with the bytes,
+so the rung loses wherever a checkout is shorter than those reads;
+the pin sits at the top of that bracket,
+so no size nobody measured is cloned.
+A clean source is judged by its mean tracked file size,
+because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
+files costs more to clone than to write:
+below the edge Git's own checkout writes a clean source,
+and at or above it the clone copies the tree as `main` does.
+**btrfs has no mean rule**:
+no btrfs mean was measured to lose,
+the pin of 49 bytes a file the earlier round set made clean trees under it 1.36 to 1.62 times `main` in the recheck's
+guest,
+and the project answered "Clone as main does on btrfs;
+keep the rule on ZFS and on filesystems nobody measured".
+**ZFS is at 2,600 bytes a file**:
+the recheck's pooled points read 2,599 at 1.23 of Git's own checkout (11 of 12 rounds above 1.0),
+3,599 at 1.03,
+4,399 at 0.71,
+5,199 at 1.23,
+5,999 at 0.80,
+6,999 at 0.80,
+7,999 at 1.21,
+8,799 at 1.02 and 9,599 at 0.85,
+so the data place the crossing only within a range,
+about 3,000 to 9,600 bytes a file,
+and the edge sits just above 2,599,
+the one mean with a clear pooled loss,
+as the project's answer "lower it to about 3,000 bytes a file ... decline only below,
+where the clone clearly loses" asked.
+**A filesystem nobody measured takes the ZFS edge**:
+XFS with reflink and overlayfs are not measured,
+and the ZFS edge is the only measured edge that still applies to a clean source,
+so they are declined below 2,600 bytes a file as ZFS is.
+The alternative,
+no rule at all on an unmeasured filesystem,
+is not decided:
+it is put to the project here,
+open to its veto,
+on the ground that the only measured loss is ZFS's,
+while a copy that shares files as cheaply as btrfs's never lost and would clone small files there for free.
+The index records a tracked file's size in 32 bits,
+so a file of 4 GiB or more counts modulo 2^32 and a tree dominated by such files can read as small.
+The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
+checkout,
+which is the share the conversion fence declines at,
+and a quarter of this repository's 24,620 tracked paths is 6,155:
+6,000 changed paths took 1.00 to 1.05 times Git's own checkout,
+which is parity,
+and 20,000 took 1.68 to 1.74 of it.
+The cut is a fraction rather than an absolute count,
+so it follows the tree:
+a source of more than about 80,000 tracked paths has a quarter above 20,000,
+the largest changed count a loss was measured at,
+and the cut then declines one path in four without a measurement of its own.
+The rung's own partial clone asks the same cut of the paths Git must write,
+before it copies anything,
+so a tracked file whose recorded times are stale but whose bytes are unchanged is a path the cut counts:
+20,000 of 24,650 such paths were 1.39 times `main` before that refusal and 1.09 of it after.
+An untracked file is no changed file:
+no worktree takes it.
+**No floor on the number of tracked paths is decided**:
+a clean tree of only a few files is cloned when it is above its filesystem's mean edge,
+and the clone's fixed cost then makes a tree of 20 to 500 files 10 to 30 ms slower cloned than written by Git,
+which is equal to `main` (the recheck measured 1.02 to 1.28 of Git's own checkout on such trees).
+A declined add costs what `main` paid for the same source:
+the source check and then Git's own checkout,
+measured at 1.07 to 1.24 times Git's own checkout on clean small trees (the source check and,
+on some,
+a Git call
+inside the ladder) and inside the round's spread on dirty trees (0.94 to 1.04).
+What a declined add loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
 Where the destination's parent is on btrfs and the rung is 2 or 3,
@@ -4496,6 +4648,31 @@ and it must then also be renamed onto the reserved stage name before the reaping
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
+
+From lines 49296 to 49316 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
+
+Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
+(inside an unprivileged user namespace,
+found by integration pass 41),
+with three courses
+(keep refusing;
+stop counting the command's own chain of parents;
+stop counting every process it cannot read),
+the owner chose "Skip own parent chain".
+
+- The guard that refuses to remove a worktree a process works in leaves out the wrapper's own process and each of its parents,
+  and no other process.
+- What stays:
+  a process that is not one of those parents and whose working folder cannot be read still keeps its worktree.
+- The cost that was put to the owner with the option:
+  a parent whose working folder is the worktree loses that folder when the removal goes through.
+- Sent to the branch's author at 18:21:27
+  (`~/temp/agent/notes-to-send/note-for-the-author-of-the-removal-that-refuses-a-busy-worktree-the-owners-decision-on-the-commands-own-parents-2026-11-14T1822.md`),
+  who writes it into the guard's own doc.
 
 ### The records an add writes for itself
 
@@ -7936,6 +8113,20 @@ That pause doubles with each attempt whose job outlasted its ceiling,
 because such a job still holds a place of the blocking bound until the journal answers,
 while an attempt the pool gave no thread for promised that nothing ran and is made again at the same pause.
 
+From lines 49427 to 49435 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
+
+Each of these was asked in the question tool and answered; the questions file kept them until their subjects
+had a record. The record is named beside each answer.
+
+- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
+  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
+  owner's explicit exception to "Commits should never fail." for such an index. Record:
+  `package/git-policy/cli/SPEC.md`.
+
 #### Git steps, tools and checks end only on no progress
 
 The owner decided (2026-11-03,
@@ -9166,8 +9357,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   and the work after a landing).
   The record is durable,
   a running service looks at it by itself every `LOOK_AGAIN_AFTER` (five seconds),
-  and every later command of the repository wakes the same service,
-  so an answer that does not come costs one look or one later wake and never the work.
+  and the next commit of the repository wakes the same service,
+  so an answer that does not come costs one look or one later commit and never the work.
   Twice the slowest of the 52 measured cold starts,
   where `START_WAIT` (ten seconds) is what a command whose next step needs the answer keeps.
 - `LANDING_LOCK_CEILING` 1 minute:
@@ -12039,19 +12230,23 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
 - the name still refers to the very file that was judged,
   and its device,
   inode and change time are the ones read before the removal;
-- the PID file beside it still names the number the record explained,
+- the PID file beside it still holds the contents the record explained,
   read again after the lock is unlinked:
-  a program that wrote its own number over the judged file through the same inode is kept,
-  and one that wrote the judged number back is not told apart from it
-  (`pid_named_by`,
-  one bounded read of a file that holds `pid <number>`).
+  a program that wrote anything else over the judged file through the same inode is kept,
+  and one that wrote the very same bytes back is not told apart from it
+  (`pid_file_contents`,
+  one bounded read of at most `PID_FILE_LIMIT` bytes,
+  with no link followed and no blocking).
+  It compares the file's contents byte for byte with the contents it judged,
+  and the one case left open is a program that writes the very same bytes back,
+  and the instant between the last read and the unlink.
   Git cannot have a file of its own there anyway:
   it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is refused
   (`lockfile.c`,
   `create_lock_pid_file`,
   Git 2.56.1),
   so nothing a Git owns is on this path.
-  A program that writes its own number there is a real case and not a hypothetical one:
+  A program that writes over the judged file is a real case and not a hypothetical one:
   `gitbutlerapp/grit` writes Git sidecars with an open that creates and truncates
   (`grit-lib/src/lockfile.rs`,
   `write_lock_pid_file`,
@@ -12060,23 +12255,17 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   so it truncates the judged file through the same inode.
   The file is unlinked only if its device,
   its inode and its change time in whole milliseconds also equal the ones read before the lock went,
-  and a program that writes a different number there is told apart by the number alone,
-  on every file system and at every clock granularity.
-  The project chose to compare the bytes as well on 2026-11-22,
+  and its contents are compared byte for byte,
+  so a program that writes other bytes there is told apart on every file system and at every clock granularity.
+  The project chose this on 2026-11-22,
   over correcting these words and leaving the route open
-  (the question put to the owner,
+  (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`,
   "B:
-  also compare bytes",
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
-  cause L).
-  Two states stay open and are recorded there:
-  a program that writes the judged number back costs itself that file,
-  because the bytes say nothing and the metadata may say nothing either,
-  and no system call unlinks a name only when it still names a given file,
-  so the instant between the read and the unlink is not closed.
+  also compare bytes").
 
-No time decides anything,
-so a correction of the clock moves no verdict.
+No time decides anything except the equality of stored change times,
+which the removal compares with the ones it judged,
+so a correction of the clock moves no other verdict.
 A process number alone decides nothing:
 numbers are reused,
 and a record of a process that ended says nothing about the program that has its number now.
@@ -12650,6 +12839,17 @@ so a file older than the margin that is still the same
 file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
+
+From lines 46733 to 46738 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Reference-lock removal (the ninth design review's R9-S):
+  "Keep narrowed removal (Recommended)":
+  0.5.28's removal on a proof about the holder,
+  with the second identity check just before the move,
+  stays until the new commit protocol (whose X1 never removes a reference lock) replaces it;
+  the rare two-holders race is accepted for that time.
 
 #### Rejected rule: a reused number proven by a scan of the open descriptors
 
@@ -20495,6 +20695,25 @@ The build phase's names are `branch`,
 `commit read back` and `amend fields`,
 and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
+`offsetMs` counts from the command's start,
+so the build's window begins at `routeMs + prepareMs` and is `buildMs` long,
+each figure cut to whole milliseconds and their sum therefore up to two whole milliseconds early,
+and the window is one build's:
+with more than one attempt `prepareMs` and `buildMs` are sums over attempts,
+`routeMs` is the first attempt's only,
+written once before the first preparation
+(`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
+whose call site runs only while `attempt == 0`,
+and `package/git-policy/cli/src/native/commit/commit_timing.rs:441-443`,
+which writes the field only while it is zero),
+and no single pair of offsets states where each build began.
+`buildParts` states the Git steps that began inside the build,
+each under the stretch that ran it in `childrenMs`;
+a step that began in the preparation is stated that way by `prepareParts`;
+and a step of the route,
+or one that began between two stretches of a phase,
+is taken out of no stretch's `ms`,
+so its time lies in `routeMs` or in the `ms` of the stretch it fell in.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,

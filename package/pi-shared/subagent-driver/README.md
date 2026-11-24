@@ -121,15 +121,29 @@ A pool is how many runs one provider account answers at once,
 which is not the work a run does.
 Every limit sits in `src/pool-limits.ts` beside the owner's words or the measured refusal it came from,
 and the commands read them from there.
-In the order a run that names no model of its own takes them:
+In the table's order,
+which is also the order the counts print them in
+and the order a run that names no model of its own takes the pools that accept one:
 
 - `qwen-plan-deepseek`:
   the qwen plan's DeepSeek model (`deepseek-v4.1-flash-1017`),
-  closed to new runs (limit 0) since 2026-11-13.
-  The owner:
-  "Remove Qwen hosted Deepseek from the pool."
-  It took 18 runs before.
-  The runs already on it are still counted there and finish there.
+  5 runs,
+  taken only by a run that names that pair.
+  The owner reopened it on 2026-11-18:
+  "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
+  and
+  "Orderings:
+  qwen individual token plan first."
+  Those words supersede the removal of 2026-11-13
+  ("Remove Qwen hosted Deepseek from the pool."),
+  which had closed it at limit 0 for five days.
+  The short,
+  frequent reviews name it first.
+  It is not a pool a run that names no model of its own takes:
+  such a run still goes to `opencode-go` first,
+  then `neuralwatt-flex`.
+  Its 5 is taken from `qwen-token-plan` on the same plan rather than measured on this model,
+  with that pool's reasoning below.
 - `opencode-go`:
   20 runs,
   which a run that names no model of its own takes first.
@@ -154,6 +168,8 @@ In the order a run that names no model of its own takes them:
   because `qwen-plan-deepseek` replaced it on 2026-11-11;
   nothing was said about it when that pool was taken out,
   so it stays closed.
+  Its `closed` field carries that replacement as the reason,
+  and a command that is asked to start a run naming this pool refuses it and shows that reason.
   Its runs are still counted there,
   and a run naming the launcher's own default provider and model still reads as a default run.
 - `neuralwatt-flex`:
@@ -195,11 +211,23 @@ In the order a run that names no model of its own takes them:
 A closed pool takes no new run at all,
 and keeps its place in the table,
 so the count prints it at zero room (`neuralwatt-kimi-flex 0/0`) and the runs already on it are still counted where they are.
+`drive-pi-subagent` and `start-pi-run-in-a-worktree` refuse a run whose `--provider` and `--model` name a closed pool,
+before Pi starts and before a worktree,
+a run folder or a unit is made,
+and exit `5` rather than run it.
+The refusal names the pool,
+the reason its `closed` field gives,
+and the open pools a run that names no model of its own may take instead,
+in the table's order.
+A provider and model that belong to no pool are not refused:
+a stand-in and an audit's account are outside every pool.
 Every pool's limit can be set for one command without a code change,
 which is how a pool with a weekly or monthly quota is closed and reopened:
 `PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
 a limit of zero closes the pool,
 and any number above zero is the room it takes again.
+The two commands read that variable too,
+so a pool reopened through it takes runs again for that one command.
 
 ```sh
 # close OpenCode Go when its week is spent
@@ -334,6 +362,23 @@ or start a run it would refuse.
   `--runs-folder`,
   and `--checkout-folder`.
 
+`--provider` and `--model` name the pool the run takes.
+A run naming a pool that takes no new run is refused before the worktree,
+before the dependency link and the unit,
+and before any question is put to the session,
+with the status `5`:
+the refusal names the pool,
+the reason its `closed` field gives,
+and the open pools a run that names no model of its own may take instead,
+in the table's order.
+A command line naming no provider takes `neuralwatt` on `deepseek-v4.1-flash`,
+which is the pool the owner replaced,
+so it is refused as well;
+that refusal says to start a run that names none through `start-pi-run-when-a-pool-has-room`,
+which counts the runs going and gives the run a pool with room,
+because this launcher counts nothing and so cannot choose a pool itself.
+A provider and model that belong to no pool are not refused.
+
 The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
 A branch this launcher creates starts at `--base`,
 and a branch that already exists is added as it is,
@@ -378,9 +423,8 @@ a wait that gave up while the unit was still `active` says so,
 because a line that read `unit the-unit-ended with status 1`
 was taken for the run's end while the run it had started was alive and working.
 
-Nothing is made before five checks pass,
-the first of which is the one above:
-the `git` the session would run is this repository's policy wrapper,
+Nothing is made before the pool check above and five more checks pass,
+the first of those being the `git` the session would run is this repository's policy wrapper,
 the prompt file exists and can be read,
 the base names a commit,
 no unit of the run's name is there,
@@ -963,6 +1007,16 @@ each written as `--name=value`:
   the first prompt.
 - `--provider` and `--model`:
   what Pi runs on.
+  A pool that takes no new run accepts neither of them,
+  so a run naming such a pair is refused before Pi starts and before anything reaches the run folder,
+  and the driver exits `5`.
+  The refusal names the pool,
+  the reason its `closed` field gives,
+  and the open pools a run that names no model of its own may take instead,
+  in the table's order,
+  and `PI_RUNS_POOL_LIMITS` gives a closed pool room again for one command.
+  A provider and model that belong to no pool are not refused:
+  a stand-in and an audit's account are outside every pool.
 - `--wall-seconds`:
   how long the run may last.
   It bounds Pi's start-up,
@@ -1013,6 +1067,9 @@ each written as `--name=value`:
 
 `--run-folder`, `--working-folder`, `--prompt-file`, `--provider`, `--model`, `--wall-seconds` and `--turn-cap` are required,
 so a run is always bounded.
+A run that ends on its own terms exits `0`,
+a run refused because its pool takes no new run exits `5`,
+and any other failure exits `1`.
 Putting the run away has its own bound after the wall limit:
 the last two answers,
 Pi's stages of leaving,

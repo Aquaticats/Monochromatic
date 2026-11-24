@@ -56,7 +56,7 @@
 use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::StatFields;
 use crate::worktree_path_failure_message::subject_failure;
-use crate::worktree_clone_entries::clone_with;
+use crate::worktree_clone_entries::clone_with_entries;
 use crate::worktree_clone_entry::{Seams, do_nothing};
 pub use crate::worktree_clone_paths::Created;
 pub(crate) use crate::worktree_clone_paths::Directories;
@@ -64,6 +64,7 @@ pub(crate) use crate::worktree_clone_paths::Directories;
 pub(crate) use crate::worktree_clone_index::install_the_index;
 use crate::worktree_clone_slices::{clone_in_slices, clone_worker_count};
 use crate::worktree_clean::stored_stats;
+use crate::worktree_clean_stat_verdicts::StatEntry;
 use crate::worktree_snapshot_source::SnapshotSource;
 #[cfg(any(test, feature = "measurement-routes"))]
 use std::collections::HashSet;
@@ -200,18 +201,16 @@ pub fn leftover_report(created: &[Created], destination: &Path) -> String {
     return format!("{} entries the clones created stay in {} (for example {}); the checkout that completes the worktree overwrites the tracked ones, and `git -C {} status` lists any other as untracked", created.len(), destination.display(), shown.join(", "), destination.display());
 }
 
-/// The run itself:
-/// every tracked file in the slices the host's budget allows;
+/// The run itself for one entry set:
+/// every entry in the slices the host's budget allows,
+/// with the caller's job beside them when it has one;
 /// the caller installs the index,
 /// and removes `created` when this fails.
-fn clone_all<S, T>(source: &SnapshotSource, destination: &File, created: &mut Vec<Created>, mut beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
+fn clone_these_entries<S, T>(source: &SnapshotSource, entries: Vec<StatEntry>, destination: &File, created: &mut Vec<Created>, mut beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
-        return Err(String::from("the source's index changed shape"));
-    };
     let workers: usize = clone_worker_count(entries.len());
     if workers > 1 {
         return clone_in_slices(source, Arc::from(entries), destination, created, workers, beside);
@@ -222,7 +221,22 @@ where
     let mut directories: Directories = HashMap::new();
     directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    return clone_with(source, &mut directories, created, &mut seams).map(|stats| return (stats, beside_answer));
+    return clone_with_entries(source, entries.as_slice(), &mut directories, created, &mut seams).map(|stats| return (stats, beside_answer));
+}
+
+/// The run itself:
+/// every tracked file in the slices the host's budget allows;
+/// the caller installs the index,
+/// and removes `created` when this fails.
+fn clone_all<S, T>(source: &SnapshotSource, entries: Option<Vec<StatEntry>>, destination: &File, created: &mut Vec<Created>, beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
+    let Some(read) = entries.or_else(|| { return stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length); }) else {
+        return Err(String::from("the source's index changed shape"));
+    };
+    return clone_these_entries(source, read, destination, created, beside);
 }
 
 /// What:
@@ -244,7 +258,7 @@ where
 /// ```
 pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Result<ClonedBytes, String> {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_all(source, destination, &mut created, None::<AJob<(), ()>>) {
+    return match clone_all(source, None, destination, &mut created, None::<AJob<(), ()>>) {
         Ok((stats, _beside)) => Ok(ClonedBytes { created, stats }),
         Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
     };
@@ -263,17 +277,19 @@ pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Resul
 /// it runs the job itself,
 ///  and only then waits for the copies.
 ///
+/// The index entries the caller already read are handed in rather than parsed again.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [cloned, beside] = cloneTrackedBytesBeside(source, destination, job); // throws a reason
+/// const [cloned, beside] = cloneTrackedBytesBeside(source, entries, destination, job); // throws a reason
 /// ```
-pub fn clone_tracked_bytes_beside<S, T>(source: &SnapshotSource, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<T>), String>
+pub fn clone_tracked_bytes_beside<S, T>(source: &SnapshotSource, entries: Option<Vec<StatEntry>>, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_all(source, destination, &mut created, Some(beside)) {
+    return match clone_all(source, entries, destination, &mut created, Some(beside)) {
         Ok((stats, answered)) => Ok((ClonedBytes { created, stats }, answered)),
         Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
     };
@@ -302,6 +318,34 @@ pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &
     let cloned: ClonedBytes = clone_tracked_bytes(source, destination)?;
     install_the_index(admin, source.clean.index_bytes.as_slice(), cloned.stats(), &HashSet::new(), source.clean.hash_length)?;
     return Ok(Cloned { created: cloned.created });
+}
+
+/// What:
+///  Copy `entries` of the source while the caller's job runs beside the copies,
+///  and give both answers,
+/// installing no index.
+/// Why:
+///   A source with uncommitted changes clones only the paths its proof settles,
+/// which is a set the caller chose,
+/// and its index is built from the tree rather than copied from the source;
+/// the copies,
+/// the slices and the work beside them are the whole rung's own,
+/// so only the entry set differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [cloned, beside] = cloneTheseBytesBeside(source, entries, destination, job); // throws a reason
+/// ```
+pub fn clone_these_bytes_beside<S, T>(source: &SnapshotSource, entries: Vec<StatEntry>, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<T>), String>
+where
+    S: Clone + Send + 'static,
+    T: Send + 'static,
+{
+    let mut created: Vec<Created> = Vec::new();
+    return match clone_these_entries(source, entries, destination, &mut created, Some(beside)) {
+        Ok((stats, answered)) => Ok((ClonedBytes { created, stats }, answered)),
+        Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
+    };
 }
 
 /// Clone rung controls stay out of the release executable.

@@ -66,6 +66,21 @@ keep as built".
 The start probe's side of this answer is recorded in `cli-git-zfs-start-probe.md`,
 section "Answer of 2026-11-22".
 
+From lines 43424 to 43433 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  exists on the attach path only), lows L-1 to L-5, and two owner items. OWNER ITEM 1, ASKED 2026-11-22: with no
+  configuration file, with `{}`, or with only a `startProbe` object, the sweep exits 2 and attaches nothing;
+  `cloneMounts.checkout` is required, the start probe needs `startProbe.dataset` and `startProbe.checkout`, and the
+  accepted start-probe design has `doctor` print the probe's field for the owner to apply, against the owner's "Everything
+  must work by default w/o any configuration". OWNER ITEM 2, the sweep's cost with every clone mounted: 64 children about
+  0.3 s steady and 1 s cold (one child about 0.15 s); 1,024 about 8.3 s and 25.5 s; 2,048 about 26 s and 66 s. A
+  `git worktree add` waits on a sweep's receipt, so the growth is treated as a defect on a waiting path and fixed without a
+  question; the bound's measured figures go beside the constant, veto open. GOING:
+  `pi-zfs-step-8-recheck-findings-and-sweep-cost` on `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` (M-1 to
+  M-4, the lows, the sweep's cost; brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`; the
+
 ### Receipts for refusals
 
 "C:
@@ -205,6 +220,43 @@ since a directory that is merely not listed can still be entered by name;
 who applies it and when;
 and whether any part of the route reads a snapshot through that directory.
 
+#### What hiding comes to, answered 2026-11-23
+
+Asked in the question tool on 2026-11-23,
+after the branch's second integration pass measured the setting on OpenZFS 2.4.4
+(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review-second-pass.md`).
+What the project was shown:
+only `snapdir=disabled` stops those mounts;
+`hidden`,
+the default,
+still lets anyone enter a snapshot by name.
+`disabled` exists from OpenZFS 2.3.0.
+Accounts cannot undo it.
+It does not stop an account that had already listed the directory before it was set.
+Browsing `.zfs/snapshot` and `zfs diff` on that dataset are lost.
+Each clone keeps its own snapshot directory unless the clone container is set too,
+and clones get snapshots during removal.
+As built,
+nothing sets or checks it
+(plan steps 19 and 18 are unbuilt).
+
+The project chose "A:
+checkout + clone container (Recommended)":
+"Step 19's setup sets `snapdir=disabled` on the checkout and on the clone container (clones inherit it);
+step 18's `doctor` reports either one where it isn't disabled (the route can read the setting);
+setup says so plainly where the ZFS module is older than 2.3.0 and refuses the value.
+Pros:
+closes the growth through both.
+Cons:
+no `.zfs/snapshot` browsing and no `zfs diff` on the checkout or the clones."
+
+Not chosen:
+"B:
+checkout only";
+and "C:
+back to bound + document",
+which would have undone the answer of 2026-11-22.
+
 ### An empty configuration file is refused
 
 Asked:
@@ -221,6 +273,60 @@ an accidentally emptied file stops the route until fixed or deleted.
 
 Not chosen:
 treating an empty file as no file.
+
+## A standing mount's source is read by its mount number
+
+Answered in the question tool on 2026-11-23,
+recorded 2026-11-23T18:03:17-05:00,
+on the second Sonnet pass of the step 8 follow-up
+(`fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `c87a50a09b`;
+`~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
+"Owner item 1",
+finding P2-H1).
+
+Asked:
+to get faster,
+the branch keeps a copy of the kernel's mount list and re-reads it only when the kernel signals a change.
+One change sends no signal:
+renaming a mounted `legacy` dataset changes the dataset name the mount shows.
+With 1,024 clones mounted,
+root renames clone `c108` to `c108-moved`,
+makes a new clone and renames it to `c108`;
+`main` refuses,
+and the branch prints `attached .../c108` and files a `done` receipt for a clone that is not mounted there.
+Steady sweeps on the branch are 0.20 to 0.79 of `main`'s time from 8 to 1,024 clones.
+
+The project chose "C:
+statmount(2) per mount":
+"Ask the kernel for that one mount's source by its unique mount number (Linux 6.8 and later;
+host is 7.3.5),
+falling back to B on older kernels.
+Pros:
+exact,
+constant cost per clone,
+keeps the whole gain."
+B,
+the fallback,
+is "Whenever the copy says a mount is this clone's own,
+check it on the live mount table,
+the call `main` makes,
+and keep the copy for everything else."
+
+The question ranked B first,
+on the cost of building C,
+and the project answered:
+"C.
+And this question was framed wrong.
+Just because something is difficult doesn't mean it's less desirable."
+
+Not chosen:
+"B:
+confirm 'own' live",
+except as C's fallback;
+"D:
+trust the clone's receipt";
+and "A:
+state the limit".
 
 ## Adopted with the project's veto open
 

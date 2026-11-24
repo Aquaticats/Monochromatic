@@ -8,7 +8,11 @@ It answers the proposal `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirt
 (at `dc7b5e5624` on `docs/planning-cli-git-clone-rung-partial-clone-of-a-dirty-source`),
 and it is the end condition of `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
 section "When it ends".
-Nothing of it is built yet.
+Nothing of it was built when this was recorded.
+(Note of 2026-11-23:
+the build is on `feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`,
+unmerged,
+in a fix round on its integration recheck.)
 
 ## What was decided
 
@@ -28,6 +32,14 @@ with two provisional limits that send an add to Git's own checkout instead:
 
 An add the limits decline takes Git's own checkout,
 so no add is slower than Git's own checkout.
+(Note of 2026-11-23:
+that sentence is superseded.
+Measured,
+a declined add is the source check and then Git's checkout,
+and the requirement was restated under
+"Four further answers after the recheck,
+answered 2026-11-23",
+"What a declined add may cost".)
 
 ## The measurements it rests on
 
@@ -190,10 +202,15 @@ measuring first;
 keeping 8,799;
 and raising it to about 11,000.
 
-The exact value is the build's to set beside the measurement it cites:
-the question said "about 3,000",
-just above 2,599,
-the one mean with a clear pooled loss.
+The coordinator's reading,
+not shown to the project:
+the exact value is the build's to set beside the measurement it cites.
+The option's fuller wording in the recheck is "about 3,000 (just above 2,599,
+the one mean with a clear pooled loss)",
+of which the project was shown "about 3,000".
+Which edge a filesystem nobody measured takes after this change is not decided either;
+the build proposes one,
+open to the project's veto.
 
 ## Left to the build
 
@@ -204,3 +221,20 @@ the one mean with a clear pooled loss.
 - Rerun the gate re-check's six guard re-plants before the merge;
   five are still owed.
 - Refine both limits with measurement after it lands.
+
+## Moved from the old handover
+
+From lines 42200 to 42209 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`). The owner then asked
+  "Wait, why are we cloning every file individually when we have snapshots?": the accepted design's rung 1 is the ZFS
+  snapshot clone (whole checkout, ignored state included, a verified restore for a dirty main, the proposal's "Rung 1:
+  Snapshot clone"), and per-file cloning is rung 2, the fallback; rung 1 needs the managed route (an account cannot mount
+  a clone), whose add route is step 10 (depends on steps 2, 3, 6 and 8) and dirty-main restore step 11. Asked whether to
+  park the partial clone for steps 6 to 11, the owner answered "B: finish both": the gate review continues and the
+  proposal comes to the owner, while steps 6 onward proceed. Step 6 is split by its own design: the start probe runs the
+  module gate first and skips itself when the gate refuses, so the gate and the layout checker go first
+  (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`, brief
+  under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.

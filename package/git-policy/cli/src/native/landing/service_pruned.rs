@@ -250,7 +250,8 @@ pub fn prepared_content_missing(git: &GitContext, repository: &Path, common_dir:
     let format: ObjectFormat = if object_format == ObjectFormat::Sha256.name() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let Some(database) = ObjectDatabase::open(common_dir, Some(objects_dir), format) else {
         let named: Vec<&str> = request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()).collect();
-        if crate::service_object_questions_left_to_git::objects_missing(git, repository, named.as_slice()) {
+        // A question Git could not be asked says nothing about the content, so it is not an answer here.
+        if crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, named.as_slice()) == Some(true) {
             return true;
         }
         return match request.commit.as_deref() {
@@ -375,8 +376,10 @@ pub fn batch_content_missing(git: &GitContext, repository: &Path, common_dir: &P
     let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
         // A declined reader: Git answers both questions, presence and what the trees hold.
-        return crate::service_object_questions_left_to_git::objects_missing(git, repository, absent.as_slice())
-            || crate::service_object_questions_left_to_git::objects_missing(git, repository, trees.as_slice())
+        // Each question is asked even when another could not be: a start that failed says nothing about the content,
+        //  and the caller's old answer is only kept when no question answered.
+        return crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, absent.as_slice()) == Some(true)
+            || crate::service_object_questions_left_to_git::objects_missing(git, repository, common_dir, trees.as_slice()) == Some(true)
             || crate::service_object_questions_left_to_git::built_commits_missing(git, repository, commits.as_slice());
     };
     for name in &absent {
