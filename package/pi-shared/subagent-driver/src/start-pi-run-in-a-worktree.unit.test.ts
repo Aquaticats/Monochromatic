@@ -38,6 +38,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   CLOSED_POOL_EXIT_STATUS,
   NEURALWATT_DEEPSEEK_FLEX,
+  NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   OPENCODE_GO,
   POOL_LIMITS_VARIABLE,
@@ -1248,8 +1249,27 @@ await describe({
         expect(answered.stderr,).toContain(NEURALWATT_STANDARD.name,);
         expect(answered.stderr,).toContain('start-pi-run-when-a-pool-has-room',);
         expect(answered.stderr,).toContain(`--provider=${OPENCODE_GO.provider} --model=${OPENCODE_GO.model}`,);
+        expect(answered.stderr,).toContain('named no provider and no model',);
         expect(answered.runsFolderHolds,).toEqual([],);
         expect(answered.unitWasReached,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'refuses a run that names only a model, and says which model it kept instead of claiming the command line named nothing',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({ model: NEURALWATT_KIMI_FLEX.model, },);
+        expect(answered.code,).toBe(CLOSED_POOL_EXIT_STATUS,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.name,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.closed?.reason ?? '',);
+        // The command line named a model, so the refusal says which one it kept and what the launcher took for the provider
+        // instead of telling its reader the command line named nothing.
+        expect(answered.stderr,)
+          .toContain(`named no provider, so this command took ${NEURALWATT_STANDARD.provider} and kept the model it named, ${NEURALWATT_KIMI_FLEX.model}`,);
+        expect(answered.stderr,).not.toContain('named no provider and no model',);
+        // The old sentence said the run would have taken the default provider and model, which is not what happened here.
+        expect(answered.stderr,).not.toContain('would have taken this command\'s default provider and model',);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
       },
     },),
     it({

@@ -108,7 +108,7 @@ try {
   refuseARunOnAClosedPool({
     provider: options.provider,
     model: options.model,
-    namesItsOwnPool: options.namesItsOwnProvider,
+    namedByTheCommandLine: options.namedByTheCommandLine,
     environment: env,
   },);
 }

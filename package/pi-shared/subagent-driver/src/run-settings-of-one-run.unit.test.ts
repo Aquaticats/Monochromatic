@@ -906,7 +906,7 @@ await describe({
               wallSeconds: 7_200,
               provider: NEURALWATT_STANDARD.provider,
               model: NEURALWATT_STANDARD.model,
-              namesItsOwnProvider: false,
+              namedByTheCommandLine: { provider: false, model: false, },
               idleSeconds: 0,
               runsFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'pi-runs',),
               checkoutFolder: '/repo',
@@ -949,11 +949,33 @@ await describe({
               session: '/s.jsonl',
               provider: 'opencode-go',
               model: 'deepseek-v4.1-flash',
-              namesItsOwnProvider: true,
+              namedByTheCommandLine: { provider: true, model: true, },
               turnCap: 40,
               idleSeconds: 5,
               runsFolder: '/runs',
               checkoutFolder: '/elsewhere',
+            },);
+          },
+        },),
+        it({
+          name: 'reads a command line that names only a model as naming that model, and keeps it beside the default provider',
+          fn: async () => {
+            expect(parseWorktreeLauncherOptions({
+              commandLine: [
+                '--name=a',
+                '--branch=none',
+                '--prompt=p.md',
+                '--cpu=8',
+                '--memory=1G',
+                '--tasks=10',
+                '--wall=60',
+                `--model=${NEURALWATT_KIMI_FLEX.model}`,
+              ],
+              checkoutFolder: '/repo',
+            },),).toMatchObject({
+              provider: NEURALWATT_STANDARD.provider,
+              model: NEURALWATT_KIMI_FLEX.model,
+              namedByTheCommandLine: { provider: false, model: true, },
             },);
           },
         },),

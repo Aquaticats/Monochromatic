@@ -2704,6 +2704,8 @@ await describe({
         // The pool it named, why the pool takes no new run, and the open pools a run that names no model of its own may take instead.
         expect(run.standardError,).toContain(NEURALWATT_STANDARD.name,);
         expect(run.standardError,).toContain(reason,);
+        // The driver's command line always names both words, so the refusal never says a default was read in their place.
+        expect(run.standardError,).not.toContain('named no provider',);
         expect(run.standardError,).toContain(`--provider=${OPENCODE_GO.provider} --model=${OPENCODE_GO.model}`,);
         expect(run.standardError,)
           .toContain(`--provider=${NEURALWATT_DEEPSEEK_FLEX.provider} --model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);

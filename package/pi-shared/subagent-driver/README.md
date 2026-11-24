@@ -378,10 +378,14 @@ the refusal names the pool,
 the reason its `closed` field gives,
 and the open pools a run that names no model of its own may take instead,
 in the table's order.
-A command line naming no provider takes `neuralwatt` on `deepseek-v4.1-flash`,
-which is the pool the owner replaced,
-so it is refused as well;
-that refusal says to start a run that names none through `start-pi-run-when-a-pool-has-room`,
+A command line naming no provider takes `neuralwatt`,
+and one naming no model takes `deepseek-v4.1-flash`;
+that pair is the pool the owner replaced,
+so such a line is refused as well.
+A line that names only one of the two keeps the one it named,
+and the refusal says which one it kept and which this launcher took,
+so nothing tells a reader the command line named nothing when it named a model.
+The refusal says to start a run whose provider or model this launcher chooses through `start-pi-run-when-a-pool-has-room`,
 which counts the runs going and gives the run a pool with room,
 because this launcher counts nothing and so cannot choose a pool itself.
 A provider and model that belong to no pool are not refused.
