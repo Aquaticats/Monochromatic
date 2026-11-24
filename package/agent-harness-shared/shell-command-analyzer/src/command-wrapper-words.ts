@@ -63,6 +63,18 @@ type WrappedCommand = {
    whose search path this command text does not carry.
    */
   readonly reachesAnotherHost: boolean;
+  /**
+   Names of the wrapper layers stripped, outermost first.
+   */
+  readonly wrapperNames: readonly string[];
+  /**
+   Command lines this program runs from among its own arguments,
+   as `find -exec` does, kept apart from wrapper payloads.
+
+   The program supplies the paths such a command operates on,
+   so a caller reads those lines knowing no path is spelled for it.
+   */
+  readonly argumentCommandLines: readonly string[];
 };
 
 //endregion Types
@@ -95,6 +107,7 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
     usesDefaultSearchPath: false,
     unsetVariables: [],
     reachesAnotherHost: false,
+    wrapperNames: [],
   };
 
   /**
@@ -134,6 +147,9 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
       if (wrapper.launchesOnAnotherHost === true)
         scan.reachesAnotherHost = true;
 
+      scan.wrapperNames
+        .push(lastPathSegment(first,),);
+
       remaining = wrappedCommandWords({
         words: withoutAssignments.words,
         wrapper,
@@ -158,6 +174,8 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
     usesDefaultSearchPath: scan.usesDefaultSearchPath,
     unsetVariables: scan.unsetVariables,
     reachesAnotherHost: scan.reachesAnotherHost,
+    wrapperNames: scan.wrapperNames,
+    argumentCommandLines: nestedLines,
   };
 }
 

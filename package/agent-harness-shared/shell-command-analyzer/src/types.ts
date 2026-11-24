@@ -135,6 +135,20 @@ type ShellRedirect = {
    Whether redirect reads input from a file-like target.
    */
   readonly readsFile: boolean;
+  /**
+   Here-document body text, when this redirect declares one.
+
+   The body is document text the shell may still read as a script,
+   so a guard reads it as shell source without assuming which program it feeds.
+   */
+  readonly heredocBody?: string;
+  /**
+   Offset of the here-document body in the parsed source, when this redirect declares one.
+
+   A body the parser stripped whitespace from (`<<-`) is located here
+   without its text matching that offset exactly.
+   */
+  readonly heredocBodyOffset?: number;
 };
 
 /**
@@ -177,6 +191,13 @@ type ShellCommandInfo = {
    Execution context for this command.
    */
   readonly context: ShellCommandContext;
+  /**
+   Offset of this command in the parsed source text.
+
+   Absent for a record the analyzer synthesizes for redirects that carry no
+   command word, because no command position exists to report.
+   */
+  readonly sourceOffset?: number;
 };
 
 //endregion Command records

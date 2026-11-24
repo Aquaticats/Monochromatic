@@ -6,6 +6,10 @@
  The words are read wherever the shell name stands, so a command the caller already
  unwrapped (`env bash -c '…'` reaching `bash`) hands over the same string.
 
+ The flag is read as the cluster Bash accepts,
+ so `bash -lc '…'` and `bash -o pipefail -c '…'` hand over their script too,
+ and an option whose value is the next word never reads that value as the flag.
+
  @module
  */
 
@@ -19,18 +23,54 @@ import { lastPathSegment, } from './executable-path-words.ts';
 const SHELL_NAMES: ReadonlySet<string> = new Set([
   'bash',
   'dash',
+  'ksh',
+  'mksh',
   'sh',
   'zsh',
-],);
+]);
 
 /**
- Option word that hands a shell its script string as the next word.
+ Shell options whose value is the next word and is not a flag cluster.
  */
-const SCRIPT_OPTION = '-c';
+const SHELL_OPTIONS_WITH_VALUE: ReadonlySet<string> = new Set([
+  '+O',
+  '+o',
+  '-O',
+  '-o',
+]);
+
+/**
+ Letter whose presence in a flag cluster makes the shell read its next word as a script.
+ */
+const SCRIPT_FLAG_LETTER = 'c';
+
+/**
+ Word that ends a shell's own options.
+ */
+const OPTIONS_TERMINATOR = '--';
 
 //endregion Constants
 
 //region Payload reads
+
+/**
+ Checks whether one shell flag word selects `-c`, as in `-c` or `-lc`.
+ 
+ @param word - shell argument word
+ 
+ @returns whether the word is a short flag cluster containing `c`
+ 
+ @example
+ ```ts
+ isShellCommandFlag('-lc'); // true
+ isShellCommandFlag('-e'); // false
+ ```
+ */
+function isShellCommandFlag(word: string,): boolean {
+  return word.startsWith('-',)
+    && (!word.startsWith(OPTIONS_TERMINATOR,))
+    && word.includes(SCRIPT_FLAG_LETTER,);
+}
 
 /**
  Checks whether one command word launches a shell whose `-c` argument is a script string.
@@ -63,6 +103,7 @@ function wordLaunchesShellScript(word: string,): boolean {
  @example
  ```ts
  shellScriptPayloads({ words: ['bash', '-c', 'bun test'], }); // ['bun test']
+ shellScriptPayloads({ words: ['bash', '-lc', 'bun test'], }); // ['bun test']
  ```
  */
 function shellScriptPayloads({ words, }: { readonly words: readonly string[]; },): readonly string[] {
@@ -78,21 +119,32 @@ function shellScriptPayloads({ words, }: { readonly words: readonly string[]; },
        Words after the shell name.
        */
       const rest = words.slice(index + 1,);
-      /**
-       Position of the script option within `rest`.
-       */
-      const optionIndex = rest.indexOf(SCRIPT_OPTION,);
-      if (optionIndex === (-1))
-        return [];
-
-      /**
-       Word the option hands to the shell as its script.
-       */
-      const script = rest[optionIndex + 1];
-
-      return (script === undefined)
-        ? []
-        : [script,];
+      for (let offset = 0; offset < rest.length; offset += 1) {
+        /**
+         Word inspected as the shell's own option or as its script source.
+         */
+        const option = rest[offset];
+        if (option === undefined)
+          break;
+        if (option === OPTIONS_TERMINATOR)
+          break;
+        if (!option.startsWith('-',))
+          break;
+        if (SHELL_OPTIONS_WITH_VALUE.has(option,)) {
+          offset += 1;
+          continue;
+        }
+        if (!isShellCommandFlag(option,))
+          continue;
+        /**
+         Script string following the `-c` flag.
+         */
+        const script = rest[offset + 1];
+        return (script === undefined)
+          ? []
+          : [script,];
+      }
+      return [];
     },);
 }
 

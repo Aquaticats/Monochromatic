@@ -37,6 +37,40 @@ export {
   extractParamRefs,
   looksLikePath,
 } from './refs.ts';
+export {
+  findLiteralRmPaths,
+  findLiteralRmPathsInScriptFile,
+  readSources,
+} from './literal-rm-paths.ts';
+export { findLiteralRmPathsInCommand, } from './literal-rm-paths-in-command.ts';
+export {
+  findingIdentity,
+  findingsNotPresentBefore,
+  literalRmPathFindingsAddedToScriptFile,
+} from './literal-rm-paths-added-to-script-file.ts';
+export {
+  LITERAL_RM_PATH_BAN_REASON,
+  literalRmPathRefusal,
+} from './literal-rm-path-refusal.ts';
+export type { LiteralRmPathFinding, } from './literal-rm-path-finding.ts';
+export { shellWordCarriesExpansion, } from './shell-word-carries-expansion.ts';
+export {
+  fileExtensionOf,
+  isShellScriptFile,
+  NO_SHEBANG_PROGRAM,
+  shellShebangProgramName,
+} from './shell-script-file.ts';
+export {
+  NO_SCRIPT_FILE_OPERAND,
+  scriptFilesACommandRuns,
+  shellFileOperand,
+} from './script-files-a-command-runs.ts';
+export type { ScriptFileCandidate, } from './script-files-a-command-runs.ts';
+export {
+  textAfterEdits,
+  textAfterOneEdit,
+} from './text-after-edits.ts';
+export type { TextEdit, } from './text-after-edits.ts';
 export type {
   ShellCommandAnalysis,
   ShellCommandContext,

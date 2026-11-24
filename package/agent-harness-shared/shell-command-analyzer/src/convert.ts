@@ -243,6 +243,14 @@ function redirectToInfo(redirect: ForeignBorrowed<UnbashRedirect>,): ShellRedire
       operator: redirect.operator,
       kind,
     },),
+    ...(redirect.type === 'HereDoc'
+      ? {
+        heredocBody: redirect.body
+          .text,
+        heredocBodyOffset: redirect.body
+          .pos,
+      }
+      : {}),
   };
 }
 
@@ -414,6 +422,7 @@ function commandToInfo(
     redirectTargetSources: redirectTargetSources(redirects,),
     paramRefs: [...paramRefs,],
     context,
+    sourceOffset: command.pos,
   };
 }
 
