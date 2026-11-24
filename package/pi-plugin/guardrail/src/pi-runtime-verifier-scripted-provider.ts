@@ -1,5 +1,5 @@
 /**
- Scripted provider that plays the Bash tool calls one real Pi session makes.
+ Scripted provider that plays the tool calls one real Pi session makes.
  
  The script comes from Pi's own faux provider, so nothing reaches the network and every run sees the same calls.
  Pi's agent loop, its Bash tool, and the loaded guardrail extension do the rest.
@@ -30,11 +30,6 @@ const PROVIDER_ID = 'pi-guardrail-runtime-verifier';
 const MODEL_ID = 'absolute-git-sequence';
 
 /**
- Name of the tool every scripted call reaches.
- */
-const BASH_TOOL_NAME = 'bash';
-
-/**
  Closing text once every scripted call has run, which ends the run.
  */
 const CLOSING_TEXT = 'scripted sequence finished';
@@ -52,13 +47,17 @@ const SCRIPTED_LIMITS = {
 //region Types
 
 /**
- One scripted Bash tool call.
+ One scripted tool call.
  */
-type ScriptedBashCall = {
+type ScriptedToolCall = {
   /**
-   Shell command the model asks the Bash tool to run.
+   Tool the model asks Pi to run.
    */
-  readonly command: string;
+  readonly toolName: string;
+  /**
+   Arguments the model passes to that tool, as Pi's own tool-call shape carries them.
+   */
+  readonly arguments: Parameters<typeof fauxToolCall>[1];
 };
 
 /**
@@ -70,9 +69,9 @@ type ScriptedGitGuardProvider = {
    */
   readonly model: Model<Api>;
   /**
-   How many Bash calls the script queued, which is how many tool results a full run leaves.
+   How many tool calls the script queued, which is how many tool results a full run leaves.
    */
-  readonly commandCount: number;
+  readonly callCount: number;
   /**
    How many scripted responses are left, so a run that stopped early says so.
    */
@@ -96,15 +95,15 @@ type ScriptedGitGuardProvider = {
  
  @example
  ```typescript
- const provider = registerScriptedGitGuardProvider({ modelRuntime, calls: [{ command: 'git status' }] });
+ const provider = registerScriptedToolCallProvider({ modelRuntime, calls: [{ toolName: 'bash', arguments: { command: 'git status' } }] });
  ```
  */
-function registerScriptedGitGuardProvider({
+function registerScriptedToolCallProvider({
   modelRuntime,
   calls,
 }: {
   readonly modelRuntime: ForeignBorrowed<ModelRuntime>;
-  readonly calls: readonly ScriptedBashCall[];
+  readonly calls: readonly ScriptedToolCall[];
 },): ScriptedGitGuardProvider {
   /**
    Pi's faux provider, which turns queued responses into ordinary model streams.
@@ -140,15 +139,11 @@ function registerScriptedGitGuardProvider({
 
   faux.setResponses([
     ...calls.map(function toolCallStep(call,) {
-      /**
-       Tool call this step asks the Bash tool to run.
-       */
-      const bashCall = fauxToolCall(
-        BASH_TOOL_NAME,
-        { command: call.command, },
-      );
       return fauxAssistantMessage(
-        bashCall,
+        fauxToolCall(
+          call.toolName,
+          call.arguments,
+        ),
         { stopReason: 'toolUse', },
       );
     },),
@@ -167,7 +162,7 @@ function registerScriptedGitGuardProvider({
 
   return {
     model,
-    commandCount: calls.length,
+    callCount: calls.length,
     responsesLeft() {
       return faux.getPendingResponseCount();
     },
@@ -178,9 +173,9 @@ function registerScriptedGitGuardProvider({
 
 export {
   CLOSING_TEXT,
-  registerScriptedGitGuardProvider,
+  registerScriptedToolCallProvider,
 };
 export type {
-  ScriptedBashCall,
   ScriptedGitGuardProvider,
+  ScriptedToolCall,
 };
