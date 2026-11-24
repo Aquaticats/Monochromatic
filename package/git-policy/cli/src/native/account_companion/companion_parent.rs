@@ -56,6 +56,24 @@ pub const FORK_RETRY_PAUSE: Duration = Duration::from_millis(50);
 const STATUS_BYTES: usize = 256;
 
 /// What:
+///  The check as the add calls it:
+///  prints every line the run carries and answers whether the managed attach
+///  may go ahead.
+/// Why:
+///  Every line goes out on this one path,
+///  so no call site decides what a person reads,
+///  and a refusal leaves the route at once,
+///  which is what puts the slot on the reflink or ordinary Git route.
+pub fn the_managed_attach_may_go_ahead() -> bool {
+    use std::io::Write as _;
+    let verdict: CompanionVerdict = before_the_add();
+    for line in verdict.lines() {
+        let _written: std::io::Result<()> = writeln!(std::io::stderr(), "{line}");
+    }
+    return verdict.the_managed_attach_goes_ahead();
+}
+
+/// What:
 ///  Run the companion and answer what the add does with it.
 /// Why:
 ///  The add calls this before its first write,
