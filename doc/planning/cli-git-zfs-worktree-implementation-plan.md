@@ -1278,6 +1278,20 @@ The handler's own refusals from "Repeat [VM item 2] with the handler and account
 
 Items 1 and 5 repeated with the handler attached through a real sweep.
 Runs in the throwaway guest.
+The sweep's cost against `main`,
+interleaved in one guest with an identical-binary control and a one-child
+control beside every many-child sweep,
+at 8, 64 and 1,024 clones:
+a steady sweep over standing mounts is 0.34 of `main`'s time at 1,024 clones
+(0.19 to 0.42,
+control 0.65 to 1.65) and 0.36 in the run kept beside it,
+and indistinguishable from `main` at 8 and 64 clones;
+cold sweeps that attach every clone are 0.97 to 1.03 of `main` across three
+interleaved passes;
+and a sweep whose mount table changes before every answer stays inside the
+identical-binary spread.
+The figures and their raw lines are
+`perf/sweep-cost-2026-11-23-statmount-interleaved.json`.
 
 #### Open items
 
