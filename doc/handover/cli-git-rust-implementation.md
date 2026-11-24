@@ -308,7 +308,14 @@ and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-pl
 
 State:
 plan steps 1 to 10 are built and on `main`;
-step 11 is being built (`pi-zfs-step-11-dirty-main-restore`),
+step 11 is merged without its settle:
+the frozen proof digests the racy and stat-unvouched paths (C3, C4, D3, D4),
+the dirty restore runs in the fill with a private index,
+a dirty checkout is served by the route,
+and the grant split moved (eight refused, one warned);
+its six guest arms pass;
+the settle, the conversion fence write, the post-restore check and the count warning wait for step 14's record writer and measurement M4,
+and `pi-zfs-step-11-untracked-nested-repository-declines` makes every source the proof would refuse decline to the ladder until the settle lands;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
