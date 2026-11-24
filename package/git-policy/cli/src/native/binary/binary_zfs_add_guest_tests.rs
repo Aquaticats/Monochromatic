@@ -782,6 +782,126 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
 }
 
+//region The dirty checkout, restored to the commit the add asks for
+
+/// The slot the dirty arm fills.
+const DIRTY_SLOT: &str = "dirty";
+
+/// The slot the clean control fills.
+const CLEAN_SLOT: &str = "clean";
+
+/// The ignored path the dirty arm's source carries,
+/// which the restore must leave in place.
+const CARRIED: &str = ".claude/kept-cache";
+
+impl Fixture {
+    /// One add of a named commit-ish,
+    /// with the harness's hermetic environment.
+    fn add_command_at(&self, name: &str, commit: Option<&str>) -> Command {
+        let mut command: Command = self.add_command(name, None);
+        if let Some(wanted) = commit {
+            command.arg(wanted);
+        }
+        return command;
+    }
+
+    /// Run one add of a named commit-ish to its end,
+    /// mounting the clone when it appears.
+    fn run_add_at(&self, name: &str, commit: Option<&str>) -> Output {
+        let mut child: Child = self.add_command_at(name, commit).spawn().expect("the add starts");
+        self.mount_when_the_clone_appears(name, &mut child);
+        return child.wait_with_output().expect("the add ends");
+    }
+
+    /// The commit `HEAD` names in the checkout,
+    /// as hexadecimal.
+    fn head_commit(&self) -> String {
+        let output: Output = Command::new("/usr/bin/git")
+            .current_dir(self.root.as_path())
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.home_folder())
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .expect("rev-parse runs");
+        assert!(output.status.success(), "the checkout's HEAD cannot be read: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    }
+
+    /// A clean worktree of one slot,
+    /// as the person's own Git reads it.
+    fn porcelain(&self, name: &str) -> String {
+        let slot: PathBuf = self.slot(name);
+        let output: Output = Command::new("/usr/bin/git").current_dir(slot.as_path()).args(["status", "--porcelain"]).output().expect("status runs");
+        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    }
+}
+
+/// What:
+///  T9, in the guest where a real clone and a real mount exist:
+///  an add from a main checkout with uncommitted edits and a `HEAD` other than
+///  the commit it asks for makes a worktree equal to Git's own checkout of that
+///  commit,
+///  carrying the ignored files and none of the edits.
+/// Why:
+///  This is plan step 11's own subject, and the interim it replaces sent such an
+///  add to Git's own checkout: a route that restored nothing would pass a test
+///  that only asserted the add succeeded, so the arm compares the tree with what
+///  Git's checkout of the same commit holds and asserts each kind of change was
+///  undone.
+///  The clean control is the same fixture and the same commit with no edits,
+///  so a failure names whether the dirt or the route is what refused.
+#[test]
+fn a_dirty_checkout_is_restored_to_the_commit_the_add_asks_for() {
+    if !guest() {
+        return;
+    }
+    let fixture: Fixture = Fixture::prepare();
+    let first: String = fixture.head_commit();
+    // The commit the add asks for, which the checkout does not stand on.
+    std::fs::write(fixture.root.join("plain.txt"), b"second plain\n").expect("the second commit's file");
+    fixture.git(&["add", "--", "plain.txt"]);
+    fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "second"]);
+    let second: String = fixture.head_commit();
+    // The main checkout as the person left it: the first commit's tree and edits.
+    fixture.git(&["reset", "--hard", first.as_str()]);
+    std::fs::write(fixture.root.join("plain.txt"), b"an uncommitted edit\n").expect("the edit");
+    std::fs::remove_file(fixture.root.join("second.txt")).expect("the tracked file is deleted in the source");
+    std::fs::write(fixture.root.join("notes.txt"), b"untracked\n").expect("an untracked file no rule ignores");
+    std::fs::create_dir_all(fixture.root.join(".claude")).expect("the ignored folder");
+    std::fs::write(fixture.root.join(CARRIED), b"kept\n").expect("an ignored file the clone carries");
+    fixture.clear_the_slot(DIRTY_SLOT);
+    let dirty: Output = fixture.run_add_at(DIRTY_SLOT, Some(second.as_str()));
+    let said: String = String::from_utf8_lossy(dirty.stderr.as_slice()).into_owned();
+    assert!(dirty.status.success(), "the add of a dirty checkout failed: {said}");
+    assert!(said.contains("made the worktree as a ZFS clone"), "the dirty add took the clone route: {said}");
+    let slot: PathBuf = fixture.slot(DIRTY_SLOT);
+    assert_eq!(std::fs::read_to_string(slot.join("plain.txt")).expect("the tracked file"), "second plain\n", "the worktree holds the commit's bytes, not the source's edit");
+    assert_eq!(std::fs::read_to_string(slot.join("second.txt")).expect("the tracked file the source deleted"), "second\n", "a tracked file the source deleted is restored");
+    assert!(!slot.join("notes.txt").exists(), "an untracked file no ignore rule covers goes, as Git's own checkout leaves it");
+    assert_eq!(std::fs::read_to_string(slot.join(CARRIED)).expect("the ignored file"), "kept\n", "the ignored state the snapshot carried stays");
+    assert_eq!(fixture.porcelain(DIRTY_SLOT), "", "the filled worktree is what a clean checkout of that commit is");
+    // The clean control: the same commit, the same fixture, no edits.
+    fixture.git(&["reset", "--hard", second.as_str()]);
+    let _notes_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("notes.txt"));
+    fixture.clear_the_slot(CLEAN_SLOT);
+    let clean: Output = fixture.run_add_at(CLEAN_SLOT, Some(second.as_str()));
+    let control_said: String = String::from_utf8_lossy(clean.stderr.as_slice()).into_owned();
+    assert!(clean.status.success(), "the control's add failed: {control_said}");
+    assert!(control_said.contains("made the worktree as a ZFS clone"), "the control takes the clone route: {control_said}");
+    assert_eq!(std::fs::read_to_string(fixture.slot(CLEAN_SLOT).join("plain.txt")).expect("the control's file"), "second plain\n");
+    assert_eq!(fixture.porcelain(CLEAN_SLOT), "", "the control's worktree is clean");
+    fixture.clear_the_slot(DIRTY_SLOT);
+    fixture.clear_the_slot(CLEAN_SLOT);
+    // The checkout goes back to what every other arm expects: the first commit's
+    // tree and no untracked or edited file.
+    fixture.git(&["reset", "--hard", first.as_str()]);
+    let _carried_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join(CARRIED));
+    let _the_untracked_file_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("notes.txt"));
+}
+
+//endregion The dirty checkout, restored to the commit the add asks for
+
 //region The two arms a boot and a power cut split in half
 
 /// This boot's identifier,
