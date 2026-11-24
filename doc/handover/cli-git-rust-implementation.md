@@ -783,7 +783,11 @@ The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_ha
 failing 4 of 8 on the host,
 not its regression:
 issue 6447,
-with `pi-push-control-restarted-service-scene` on it.
+fixed as `0127911061` and closed:
+the control stopped a second fixture service no command reached.
+The same fixture pattern sits in `binary_push_programs_end_to_end_tests.rs`,
+whose controls decline wherever a real `git-lfs` is in `/usr/bin`;
+whether they still run anywhere after the gate image gained `git-lfs` is read from the next gate.
 
 The next alpha waits for the one-program build round:
 the record says "alpha.45 shipped with the second program,"
