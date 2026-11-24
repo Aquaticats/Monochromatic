@@ -173,6 +173,10 @@ fn install_layout() {
         run("chown", &[ format!("{ACCOUNT}:{ACCOUNT}").as_str(), folder.as_str() ]);
         std::fs::set_permissions(folder.as_str(), std::fs::Permissions::from_mode(0o700)).expect("the account's mode");
     }
+    // The design's route needs a checkout no other namespace receives, and the
+    // boot unit sets it; a mount made under the guest's shared root is shared
+    // until this runs.
+    run("mount", &[ "--make-rprivate", CHECKOUT ]);
     record_the_store();
     install_the_handlers();
     enable_zed();

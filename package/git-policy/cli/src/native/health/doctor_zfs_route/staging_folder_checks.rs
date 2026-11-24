@@ -196,16 +196,20 @@ pub fn staging_binds(rows: &[MountFacts], cache: &std::path::Path) -> Vec<Stagin
 }
 
 /// What:
-///  Whether each live staging bind is the design's private bind of its own
-///  folder.
+///  Whether each live staging bind is private.
 /// Why:
 ///  A shared bind delivers a mount made on it to another namespace,
 ///  which is what the guest measured as the cost of the shared arm,
-///  and a bind of another source is not the folder the removal staged.
+///  and propagation belongs to the mount instance,
+///  so the live row decides.
+///  The row's source is not judged here:
+///  the kernel prints a bind's source as the filesystem's own source, never as
+///  the folder it was bound from,
+///  so only the path and the optional fields say what the bind is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const outcome = check_staging_bind_propagation(binds); // pass | finding('propagation'|'bind')
+/// const outcome = check_staging_bind_propagation(binds); // pass | finding('propagation')
 /// ```
 pub fn check_staging_bind_propagation(binds: &[StagingBind]) -> CheckOutcome {
     if binds.is_empty() {
@@ -213,10 +217,6 @@ pub fn check_staging_bind_propagation(binds: &[StagingBind]) -> CheckOutcome {
     }
     for bind in binds {
         let path: String = bind.mount_point.display().to_string();
-        let own_source: String = path.trim_start_matches('/').to_string();
-        if bind.source != path && bind.source != own_source {
-            return finding("bind", format!("the mount at {path} comes from `{}`, and a staging bind is the folder bound to itself", bind.source));
-        }
         if !bind.sharing.is_empty() {
             return finding(
                 "propagation",

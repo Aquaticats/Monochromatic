@@ -155,17 +155,6 @@ fn a_shared_bind_is_a_finding_with_the_command() {
     assert!(detail.contains("mount --make-private"), "{detail}");
 }
 
-/// A bind of another source is a finding naming the bind.
-#[test]
-fn a_bind_of_another_source_is_a_finding() {
-    let stage: String = format!("/home/user/.cache/{DERIVED}");
-    let binds: Vec<StagingBind> = vec![StagingBind { mount_point: PathBuf::from(&stage), source: String::from("zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/one"), sharing: Vec::new() }];
-    let super::CheckOutcome::Finding { field, .. } = check_staging_bind_propagation(&binds) else {
-        panic!("a bind of another source is a finding");
-    };
-    assert_eq!(field, "bind");
-}
-
 /// A row outside the staging prefix is no staging bind.
 #[test]
 fn a_row_outside_the_prefix_is_no_staging_bind() {
