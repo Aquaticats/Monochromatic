@@ -164,7 +164,7 @@ pub use store_staging_removal::{StagingRemoval, StagingRemovalRefusal, StagingRe
 /// The recorded parent and slot identities.
 pub use identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity, SlotIdentityFacts, check_parent_identity, check_slot_identity, walk_refusal_is_unproved};
 /// The effective delegation.
-pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, GrantPlace, Inheritance, REQUIRED_GRANTS, RequiredGrant, Who, check_delegation, grants_of};
+pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, GrantPlace, Inheritance, REQUIRED_GRANTS, RequiredGrant, Who, allow_command, check_delegation, grants_of, missing_grants, place_dataset};
 /// The handler's installation and folders.
 pub use handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PLACEHOLDER_EXECUTABLE_PATH, PLACEHOLDER_ZEDLET_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
