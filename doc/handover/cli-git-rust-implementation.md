@@ -400,9 +400,20 @@ Both rounds decided points the designs leave open
 (`keep/state-so-far.md` in
 `~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`).
 
+Running:
+`pi-zfs-step-10-binding-design-takes-the-build-decisions`,
+putting both rounds' decisions and the eleventh read's two fixes into the designs.
+Waiting for the memory stall to ease
+(it was rising at 2026-11-24T01:25-05:00 with a whole gate and nine rounds running):
+the round on T27 and T28,
+whose prompt is ready in `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`
+(start it with `start-a-fresh-build-round.ts zfs-step-10-reboot-and-power-loss-arms-2026-11-24
+zfs-step-10-reboot-and-power-loss-arms test/git-policy-cli-zfs-step-10-reboot-and-power-loss-arms
+pi-zfs-step-10-reboot-and-power-loss-arms`).
+
 Next:
-a round putting both rounds' decisions into the binding design;
-T27 and T28 with step 8's boot arms and M6's power arm.
+start the T27 and T28 round when the stall eases;
+merge both when they end.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
 
