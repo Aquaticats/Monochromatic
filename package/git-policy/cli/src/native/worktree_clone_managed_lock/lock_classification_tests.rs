@@ -119,6 +119,16 @@ fn another_adds_sentence_is_the_operator_class() {
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
+/// A person's `git worktree lock --reason` carrying the wrapper's own sentence reads as the managed lock,
+/// which is the deliberate cost of a proof that compares bytes rather than identity (`V5`).
+#[test]
+fn a_person_who_writes_the_sentence_makes_the_managed_state() {
+    let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-a-copied-sentence", None);
+    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
+    assert!(matches!(state_of(&fixture), ManagedLockState::Managed { .. }), "the words are all the proof reads");
+    assert_eq!(ownership_of(&fixture), LockOwnership::TheWrappersManaged);
+}
+
 /// A record that gave no nonce recomposes nothing,
 /// so every lock is the operator class with that cause named.
 #[test]

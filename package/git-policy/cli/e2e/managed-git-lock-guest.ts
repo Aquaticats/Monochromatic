@@ -48,6 +48,7 @@ const EXPECTED_MARKERS = [
   'LOCK prune-kept-the-locked-registration=true',
   'LOCK operator class=an-operators-lock',
   'LOCK put-back wrote=yes line=yes',
+  'LOCK installed-lock-kept-the-registration=true',
   'LOCK release refused-with-another-clones-proof=yes',
   'LOCK released=yes registration-still-stands=true',
   'LOCK unlock-control-lost-the-registration=true',

@@ -1040,3 +1040,8 @@ mod zfs_sweep_guest;
 /// Plan step 9's staging mechanics in the throwaway guest.
 #[path = "binary_zfs_unmount_guest_tests.rs"]
 mod zfs_unmount_guest;
+
+/// Plan step 13's managed Git lock in the throwaway guest:
+/// Git's own lock, the clone mounted over the slot, the pointer's loss, and the three prune commands.
+#[path = "binary_zfs_managed_lock_guest_tests.rs"]
+mod zfs_managed_lock_guest;

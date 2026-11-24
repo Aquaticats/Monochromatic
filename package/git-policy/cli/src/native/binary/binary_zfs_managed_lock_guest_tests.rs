@@ -198,13 +198,14 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     assert!(registration.is_dir(), "the locked registration survives the three commands");
     println!("LOCK prune-kept-the-locked-registration=true");
     // A person's lock reads as theirs and is never released.
-    git_ok(checkout.as_path(), &["worktree", "unlock", slot.display().to_string().as_str()]);
-    git_ok(checkout.as_path(), &["worktree", "lock", "--reason", A_PERSONS_WORDS, slot.display().to_string().as_str()]);
+    // `git worktree lock` and `unlock` take the registration's own id, which is the slot's name here.
+    git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
+    git_ok(checkout.as_path(), &["worktree", "lock", "--reason", A_PERSONS_WORDS, SLOT]);
     let operator = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
     assert_eq!(operator.ownership(), LockOwnership::AnOperatorsLock);
     println!("LOCK operator class=an-operators-lock");
     // The put-back, after the person's lock goes and the slot's claim is the arm's to hold.
-    git_ok(checkout.as_path(), &["worktree", "unlock", slot.display().to_string().as_str()]);
+    git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
     let lost = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
     assert_eq!(lost.ownership(), LockOwnership::NoLockStands, "the lost lock is the state the put-back answers");
     match write_the_lost_lock(registration.as_path(), SLOT, &RequestNonce::parse(NONCE).expect("the arm's nonce reads")) {
@@ -214,6 +215,12 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     let again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
     assert!(matches!(again.state, ManagedLockState::Managed { .. }), "the put-back's lock reads as the add's: {:?}", again.state);
     println!("LOCK put-back wrote=yes line=yes");
+    // T13: the installed lock protects exactly as Git's own write does, which the same three commands try.
+    git_ok(checkout.as_path(), &["worktree", "prune"]);
+    git_ok(checkout.as_path(), &["gc", "--quiet"]);
+    git_ok(checkout.as_path(), &["maintenance", "run", "--auto"]);
+    assert!(registration.is_dir(), "the registration of an installed lock survives the three commands");
+    println!("LOCK installed-lock-kept-the-registration=true");
     let facts = read_the_recorded_facts(common.as_path(), SLOT).expect("the record reads");
     let held: std::fs::File = std::fs::File::open(registration.as_path()).expect("the registration is held open");
     // The release refuses a proof made for another clone, which is what a stale settle would hand it.
