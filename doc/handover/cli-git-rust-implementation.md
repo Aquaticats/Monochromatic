@@ -315,7 +315,10 @@ a dirty checkout is served by the route,
 and the grant split moved (eight refused, one warned);
 its six guest arms pass;
 the settle, the conversion fence write, the post-restore check and the count warning wait for step 14's record writer and measurement M4,
-and `pi-zfs-step-11-untracked-nested-repository-declines` makes every source the proof would refuse decline to the ladder until the settle lands;
+and until the settle lands the preflight declines to the ladder the two source shapes the restore refuses after the snapshot
+(an untracked directory holding a repository, and a directory where the index records a file; `44fa679969`),
+while a clean or reset that fails on the way (an unremovable path, a full disk) still leaves the clone and claim behind,
+as `SPEC.md` "What this release does not yet do" says;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
