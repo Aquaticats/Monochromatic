@@ -535,13 +535,17 @@ The tradeoffs:
 - The drop-in repeats the argument list of Fedora's unit.
   A Fedora change to those arguments has to be mirrored here,
   or the agent starts with the older list.
-  The agent's own compiled defaults are the same method and path,
-  so a stale list degrades rather than breaks,
-  and a broken list makes the unit fail loudly at start,
-  which `mvm create` reports as an agent that never answered.
+  Which flag a future qemu-guest-agent or Fedora unit drops was not measured.
+  The failure is loud when it happens:
+  the unit exits,
+  `mvm create` waits five minutes for an agent that never answers and then
+  fails,
+  and the guest's journal names the rejected argument.
 - The agent runs with the same access as an unconfined root service,
-  which is what an Ubuntu guest's agent already has
-  (Debian and Ubuntu do not confine it).
+  which is the access an Ubuntu guest's agent already has:
+  the same `mvm` push,
+  exec and pull routes work there on this host,
+  as the round that hit this defect reported.
   `unconfined_service_t` can enter the other domains a service normally
   enters,
   so this is not a general escape from the policy,
