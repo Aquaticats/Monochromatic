@@ -121,10 +121,9 @@ export function testContainerfile({
         // real program fails rather than skipping where `PATH` finds none, so an image built without it is red
         // (`src/native/testing/real_git_lfs_the_run_requires.rs`).
         'CLI_GIT_REQUIRE_REAL_GIT_LFS=1',
-        // Adding that program takes away the premise of the four end-to-end carry controls, which need program folders
-        // that hold no `git-lfs` because a real one answers the push before their stand-in; they acknowledge the
-        // occupation and print one line each, which `--success-output=final` brings into the log.
-        'CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1',
+        // Adding that program must leave every control able to run: a control that cannot run in this image fails
+        // instead of passing without checking (see the four end-to-end carry controls, which hand a push lists made only
+        // of their fixture's own folders).
       ].join(' '),
     }),
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.
