@@ -83,7 +83,7 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
-        .map_err(|stop| return StepRefusal::refused(format!("{stop:?}")))?;
+        .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
     verify_the_slot_parent(route)?;
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
