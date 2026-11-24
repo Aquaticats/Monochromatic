@@ -127,6 +127,9 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
         stops: &stops,
         out: std::cell::RefCell::new(Vec::new()),
     };
+    for warning in preflight.warnings.iter() {
+        steps.out.borrow_mut().push(warning.clone());
+    }
     let phase_before: Phase = record.phase;
     match phase_before {
         // The scan decides first: at phase `claimed` or `slot` Git's own add may

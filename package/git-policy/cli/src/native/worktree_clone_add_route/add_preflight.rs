@@ -30,7 +30,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpec
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_snapshot_source::{Refusal as SourceRefusal, SnapshotSource, snapshot_blocker, source_refusal};
+use crate::worktree_snapshot_source::{Refusal as SourceRefusal, SnapshotSource, snapshot_blocker, source_or_dirty};
 use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
@@ -43,7 +43,7 @@ use std::path::PathBuf;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Preflight = { source: SnapshotSource; device: OpenedDevice; checkoutGuid: DatasetGuid; poolGuid: DatasetGuid };
+/// type Preflight = { source: SnapshotSource; device: OpenedDevice; checkoutGuid: DatasetGuid; poolGuid: DatasetGuid; warnings: string[] };
 /// ```
 pub(super) struct Preflight {
     /// The proven clean source.
@@ -54,6 +54,9 @@ pub(super) struct Preflight {
     pub(super) checkout_guid: DatasetGuid,
     /// The pool's GUID.
     pub(super) pool_guid: DatasetGuid,
+    /// The lines the add prints and goes on past,
+    /// which a delegation missing a permission only a removal uses earns.
+    pub(super) warnings: Vec<String>,
 }
 
 /// Prove the supported form,
@@ -73,7 +76,11 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
-    let source: SnapshotSource = source_refusal(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
+    // A checkout with uncommitted edits is a source too: the clone route restores
+    // the copy to the commit the caller asked for, so it serves the same adds the
+    // ladder's other rungs serve (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+    // "The restore"; the interim that sent a dirty checkout to rung 3 ends here).
+    let source: SnapshotSource = source_or_dirty(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
     if let Some(reason) = snapshot_blocker(&source) {
         return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));
     }
@@ -94,10 +101,10 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             route.container_dataset
         ));
     })?;
-    super::add_grants::refuse_without_the_decided_grants(&device, route)?;
+    let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
-    return Ok(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid });
+    return Ok(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings });
 }
 
 /// Verify the folder the slot goes in,

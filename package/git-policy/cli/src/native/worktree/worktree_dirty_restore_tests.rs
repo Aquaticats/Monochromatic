@@ -133,7 +133,7 @@ fn real_steps(root: &Path) -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, Work
 /// whose Git directory is its own.
 fn target_of(repo: &Path) -> Target {
     let commit: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_string();
-    return Target { admin: repo.join(".git"), pointer: Vec::new(), commit, differs: false, line: String::new() };
+    return Target { admin: repo.join(".git"), index: None, pointer: Vec::new(), commit, differs: false, line: String::new() };
 }
 
 /// A repository with one committed file.
@@ -333,7 +333,7 @@ fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
     std::fs::copy(repo.join(".git/index"), admin.join("index")).expect("the stage's index");
     let stage: PathBuf = root.join("stage");
     copy_files(repo.as_path(), stage.as_path());
-    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: second, differs: false, line: String::new() };
+    let target: Target = Target { admin: admin.clone(), index: None, pointer: Vec::new(), commit: second, differs: false, line: String::new() };
     let source = SnapshotSource {
         root: repo.clone(),
         git_dir: repo.join(".git"),
@@ -350,6 +350,83 @@ fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
     assert_eq!(std::fs::read(stage.join("cache/data.bin")).expect("the ignored file is still there"), b"ignored bytes\n");
     assert_eq!(std::fs::read(stage.join("tracked.txt")).expect("the tracked file is the commit's"), b"first\n");
     assert!(!stage.join("untracked.txt").exists(), "an untracked file that no ignore rule covers goes");
+    remove(root.as_path());
+}
+
+/// What:
+///  A restore given a private index reads and writes that file and never the
+///  worktree's own name,
+///  whatever stands there.
+/// Why:
+///   The ZFS clone route writes the fill's index under `index.pending` and gives
+///  it the worktree's name only once the tree is proven
+///  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+///  "The restore" step 5 and T6b):
+///  the reset,
+///  the settle's content read and the proof would each believe a name the
+///  worktree does not hold,
+///  or a file another command left there.
+///   The three arms are the three sites:
+///  no index under the real name at all,
+///  a file there that is no index,
+///  and a real index there whose entries name other blobs.
+///  The control is the same fixture with the private name not given, which is
+///  the build before this change: it refuses on the second arm, so the guard is
+///  what the first three arms pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(restoreDirty(source, { ...target, index: pending }, stage)).toEqual({ ok: true });
+/// expect(restoreDirty(source, target, stage)).not.toEqual({ ok: true });
+/// ```
+#[test]
+fn the_restore_reads_the_private_index_and_never_the_real_name() {
+    let root: PathBuf = crate::test_support::fixture("restore-private-index");
+    let repo: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(repo.join("a.txt"), COMMITTED).expect("the tracked file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let elsewhere: PathBuf = repository(root.as_path(), "elsewhere");
+    std::fs::write(elsewhere.join("a.txt"), b"other bytes\n").expect("the decoy's file");
+    git(elsewhere.as_path(), &["add", "--", "a.txt"]);
+    git(elsewhere.as_path(), &["commit", "--quiet", "--message=their own"]);
+    let commit: String = commit_of(repo.as_path(), "HEAD");
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination.to_string_lossy().as_ref(), commit.as_str()]);
+    let admin: PathBuf = admin_of(destination.as_path());
+    let stage: PathBuf = root.join("stage");
+    copy_files(repo.as_path(), stage.as_path());
+    std::fs::copy(repo.join(".git/index"), admin.join("index.pending")).expect("the private index");
+    std::fs::copy(repo.join(".git/index"), admin.join("index")).expect("the worktree's own index, as Git's own add leaves it");
+    let source = SnapshotSource {
+        root: repo.clone(),
+        git_dir: repo.join(".git"),
+        common_dir: repo.join(".git"),
+        clean: crate::worktree_clean::CleanSource { head_commit: commit.clone(), head_tree: Vec::new(), tracked: 1, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: std::fs::read(repo.join(".git/index")).expect("the source's index") },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let private: Target = Target { admin: admin.clone(), index: Some(admin.join("index.pending")), pointer: Vec::new(), commit: commit.clone(), differs: false, line: String::new() };
+    let real: Target = Target { admin: admin.clone(), index: None, pointer: Vec::new(), commit, differs: false, line: String::new() };
+    let mut steps = real_steps(root.as_path());
+    // Arm one: no index under the real name at all.
+    let without_a_real_index: Result<(), String> = restore_dirty(&source, &private, stage.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
+    assert_eq!(without_a_real_index, Ok(()), "the private name is the one the restore reads");
+    assert_eq!(std::fs::read(stage.join("a.txt")).expect("the file"), COMMITTED);
+    // Arm two: a file that is no index stands under the real name. The control
+    // is the same fixture without the private name, which reads it and refuses.
+    std::fs::write(admin.join("index"), b"not an index").expect("the control's file");
+    let with_a_decoy: Result<(), String> = restore_dirty(&source, &private, stage.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
+    assert_eq!(with_a_decoy, Ok(()), "a file the restore never reads cannot refuse it");
+    let control: String = restore_dirty(&source, &real, stage.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the real name is what the build before this change read");
+    assert!(control.contains("ignored files"), "the control reads the name the private index keeps the restore off: {control}");
+    // Arm three: a real index whose entries name blobs of another repository.
+    std::fs::copy(elsewhere.join(".git/index"), admin.join("index")).expect("the decoy's real index");
+    let with_another_repositorys_index: Result<(), String> = restore_dirty(&source, &private, stage.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
+    assert_eq!(with_another_repositorys_index, Ok(()), "another repository's entries never decide this restore");
+    assert_eq!(std::fs::read(stage.join("a.txt")).expect("the file"), COMMITTED, "the reset wrote the private index's blob");
     remove(root.as_path());
 }
 
@@ -444,7 +521,7 @@ fn hidden_edit_fixture(root: &Path) -> (PathBuf, PathBuf, Vec<u8>, SnapshotSourc
         trash_ignored: false,
         dirty: None,
     };
-    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: head, differs: false, line: String::new() };
+    let target: Target = Target { admin: admin.clone(), index: None, pointer: Vec::new(), commit: head, differs: false, line: String::new() };
     return (repo, admin, seed, source, target);
 }
 

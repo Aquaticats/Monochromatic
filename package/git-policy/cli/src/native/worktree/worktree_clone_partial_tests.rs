@@ -184,7 +184,7 @@ fn target_of(dirty: &Dirty) -> Target {
     let format = if hash_length == 32 { crate::repo_read_layout::ObjectFormat::Sha256 } else { crate::repo_read_layout::ObjectFormat::Sha1 };
     let commit: String = head_commit(dirty.admin.as_path(), dirty.source.common_dir.as_path(), format).expect("the new HEAD");
     let pointer: Vec<u8> = std::fs::read(dirty.destination.join(".git")).expect("Git's pointer");
-    return Target { admin: dirty.admin.clone(), pointer, commit, differs: false, line: String::new() };
+    return Target { admin: dirty.admin.clone(), index: None, pointer, commit, differs: false, line: String::new() };
 }
 
 /// What:

@@ -60,7 +60,7 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::{ContentTarget, paths_whose_content_differs, stored_stats};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_copy::GitRunner;
-use crate::worktree_ladder_target::{Target, checkout_environment, run_step};
+use crate::worktree_ladder_target::{Target, checkout_environment, checkout_environment_with_index, run_step};
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use std::ffi::{OsStr, OsString};
@@ -183,10 +183,15 @@ fn arguments_in_stage(stage: &Path, words: &[&str]) -> Vec<OsString> {
 /// const { code, stdout } = await runIn(stage, admin, ['diff-files', '--quiet']);
 /// ```
 fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
+    // The index is named through the request's own field as well as the
+    // environment, so the wrapper's in-process readers answer from the same file
+    // the started Git reads (`GitRequest::index`), which is what makes the
+    // private name the one file every reader of a restore agrees on.
     let request: GitRequest = GitRequest {
         cwd: work_tree.to_path_buf(),
         arguments: arguments.iter().copied().map(OsString::from).collect(),
         without_prefix: true,
+        index: target.index.clone(),
         environment: checkout_environment(target.admin.as_path(), work_tree),
         ..GitRequest::default()
     };
@@ -416,7 +421,7 @@ fn the_reason_of(refusal: crate::worktree_clean::CleanRefusal) -> String {
 /// const removed = removeTheFilesTheResetCannotSee({ source, target, stage, conversion }); // throws the reason
 /// ```
 fn remove_the_files_the_reset_cannot_see(source: &SnapshotSource, target: &Target, stage: &Path, conversion: &ConversionEnvironment) -> Result<usize, String> {
-    let index_path: PathBuf = target.admin.join("index");
+    let index_path: PathBuf = target.index_file();
     let index: Vec<u8> = std::fs::read(index_path.as_path()).map_err(index_unreadable)?;
     let index_seconds: u32 = std::fs::metadata(index_path.as_path()).map_err(index_unexamined)?.mtime() as u32;
     let hash_length: usize = source.clean.hash_length;
@@ -467,7 +472,7 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
         return Err(String::from("the restore would run in the source's own directory"));
     }
     let began: std::time::Instant = std::time::Instant::now();
-    let environment = checkout_environment(target.admin.as_path(), stage);
+    let environment = checkout_environment_with_index((target.admin.as_path(), stage), Some(target.index_file().as_path()));
     // The ignored paths are listed, and the clean runs, while the stage still carries the source's ignore rules: an
     //  untracked file the source ignores is the person's, and a rule the new commit removed must not turn it into one the
     //  clean removes.

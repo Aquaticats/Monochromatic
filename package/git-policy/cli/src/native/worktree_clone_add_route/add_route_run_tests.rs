@@ -107,6 +107,7 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
         device: OpenedDevice { device: ZfsDevice::open_at(device_file.as_path()).expect("the device file opens") },
         checkout_guid: DatasetGuid::parse("4821193048571903102").expect("the checkout's guid"),
         pool_guid: DatasetGuid::parse("4821193048571903103").expect("the pool's guid"),
+        warnings: Vec::new(),
     };
     let home_path: PathBuf = root.join("the-adds-record-home");
     std::fs::write(home_path.as_path(), b"").expect("the home file");

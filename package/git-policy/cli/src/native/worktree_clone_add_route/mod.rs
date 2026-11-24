@@ -59,6 +59,8 @@ pub mod add_capture_store;
 pub mod add_frozen_proof;
 /// The fill's private index.
 pub mod add_index;
+/// The Git runner the fill's own restore steps start.
+pub mod add_route_git;
 /// The words of the one locked Git invocation.
 pub mod add_git_words;
 /// The scan of the registrations and what it settles.

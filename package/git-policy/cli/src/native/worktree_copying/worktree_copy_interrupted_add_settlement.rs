@@ -358,12 +358,16 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 /// so once the worktree's `index` stands no rung of ours is between the two names,
 /// and a name another program left there is the only thing this could touch,
 /// which is the same price the recovery already pays for the record itself.
+/// The ZFS clone route's fill calls it too, before it writes its own waiting
+/// index again, because `write_index_under_a_name` refuses a name that stands
+/// (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+/// F42 and T6b).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// clearTheWaitingIndex(admin); // index.pending and index.pending.lock, when they stand
 /// ```
-fn clear_the_waiting_index(admin: &Path) {
+pub(crate) fn clear_the_waiting_index(admin: &Path) {
     for name in [WAITING_INDEX, WAITING_INDEX_LOCK] {
         // A name that is not there is the ordinary case: a served rung published its index, and one killed earlier left
         //  nothing of its own.
