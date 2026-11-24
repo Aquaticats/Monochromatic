@@ -401,6 +401,35 @@ pub mod worktree_clone_move_refusal;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_move_refusal::*;
 
+/// The underlay pointer the add keeps for `git worktree prune`,
+///  independent of the clone's own pointer:
+///  what it says against the bytes the record holds,
+///  the one write that puts it back,
+///  and the pass a prune runs before Git starts.
+/// It is Linux only,
+///  like the record and the mount table it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_prune_pointer;
+
+/// The same re-export for `worktree_clone_prune_pointer`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_prune_pointer::*;
+
+/// The report of a damaged link between a worktree and its Git registration:
+///  what was found,
+///  what is kept,
+///  what a repair can and cannot restore,
+///  and the one next safe command,
+///  read live for one slot.
+/// It is Linux only,
+///  like the record and the mount table it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_link_repair;
+
+/// The same re-export for `worktree_clone_link_repair`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_link_repair::*;
+
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an

@@ -106,6 +106,11 @@ pub mod worktree_clean_content_attribute_sources;
 #[cfg(unix)]
 pub mod worktree_remove_plan;
 
+/// The worktree a `git worktree move` renames,
+/// resolved the way Git resolves that operand.
+#[cfg(unix)]
+pub mod worktree_move_source;
+
 /// The directories one removal holds open,
 /// the last look at them before the destroy,
 /// and the lock that keeps a worktree.

@@ -387,6 +387,10 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
         return finished;
     }
     #[cfg(target_os = "linux")]
+    if let Some(finished) = crate::worktree_removal_of_a_bound_clone::refuse_the_removal_of_a_bound_clone(facts) {
+        return finished;
+    }
+    #[cfg(target_os = "linux")]
     if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
         return finished;
     }

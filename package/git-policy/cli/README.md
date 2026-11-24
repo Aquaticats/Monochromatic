@@ -2182,6 +2182,7 @@ a worktree that never committed costs the removal no question to the manager,
 and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree prune`,
+which the wrapper reads before forwarding only to keep a managed clone's pointer,
 and a `git worktree remove --force` the wrapper does not serve because the worktree is no subvolume
 or its mount lacks the option),
 and a worktree deleted without Git leaves its units too.
@@ -2375,6 +2376,68 @@ The former `trust`,
 Configuration is data,
  so nothing needs approval.
 They print an explanation and change nothing.
+
+### A managed clone's slot while it is unmounted, moved or pruned
+
+When the ZFS clone route made a worktree,
+the slot under `.claude/worktrees` is fixed,
+and the wrapper answers the commands that would treat an unmounted clone as an empty folder
+(design:
+`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Unmounted,
+pruned or moved worktrees";
+`SPEC.md`,
+"Unmounted,
+pruned and moved ZFS worktree clones").
+
+`git worktree move` is refused for such a slot whether the clone is mounted or not,
+because the route derives a slot from the clone dataset's name,
+so renaming the folder would leave the record and the Git registration naming different paths.
+While the clone is mounted the kernel refuses first (`Device or resource busy`);
+while it is unmounted Git's own move really moves the registration,
+and the wrapper's refusal is the only protection there.
+The message says the slot is fixed,
+that nothing was moved,
+and that the removal and a new add are the way to move the work.
+
+`git worktree remove` is refused for a slot the binding record proves is a whole worktree,
+because Git's removal would delete the registration and the slot's underlay folder,
+which holds the pointer the add kept for `git worktree prune`,
+and the clone dataset with the checked-out files would then be reachable by nobody.
+The refusal prints the slot's state,
+its dataset and the one next safe action,
+and says that this release has no removal for a clone.
+An add that was interrupted keeps its own recovery,
+which still names `git worktree remove <slot>` when the clone must go.
+
+Before a `git worktree prune` the wrapper compares each managed clone's pointer with the bytes the add recorded,
+which is the underlay's copy while the clone is unmounted and the clone's own while it is mounted.
+A pointer an account deleted or changed is written back from the record,
+by a staging name and one rename,
+and the line that says so is printed before Git runs;
+a slot whose registration stands and whose pointer nothing can restore stops the command before Git starts,
+so no managed registration is dropped silently.
+A dry run writes nothing.
+`git gc`'s own prune is not read:
+Git expires a worktree entry there only after three months by default.
+
+`git worktree repair` prints what the repair can and cannot restore before Git runs.
+With the registration still standing,
+Git rebuilds the pointer from the registration's `gitdir`,
+and Git `2.56.1` exits 1 while doing it,
+so a second run exits 0;
+the wrapper writes the recorded bytes back for the same link before a prune it forwards.
+Once Git pruned the registration,
+the repair rebuilds nothing:
+HEAD,
+the index,
+the worktree's own refs and its lock went with it,
+the clone dataset and its files stay,
+and deciding between a re-registration at a commit a person names and removing the clone is theirs to make.
+
+`git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
+wires its checks;
+this release prints them from the add's and the removal's refusals.
 
 ### Converting the checkout to a btrfs subvolume
 
