@@ -543,6 +543,8 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         println!("SCAN H1 intent={operation} holders={} at-the-slot={at_the_slot} own={} clear={}", scan.holder_namespaces(), scan.own_mounts.len(), scan.is_clear());
     }
     assert_eq!(holders_by_intent[0], holders_by_intent[1], "the intent changes no holder the scan names");
+    // The inheriting namespace ends here, so the later arms read only the holders they make.
+    end(&mut inherited);
 
     // Arm 4 (M2): two scans of one removal answer under two nonces,
     // and a caller's nonce is the one the answer carries.
@@ -710,7 +712,6 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         pinned_result.incomplete_reads()
     );
     stop(&mut pinned);
-    end(&mut inherited);
 
     // Cleanup this arm owns: its own holders are gone, and the clone is left for the guest's own destruction.
     if mounted(clone.as_str()) {
