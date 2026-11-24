@@ -495,16 +495,27 @@ Its cold first-start read ran on the host with each file's pages evicted
 (the wrapper 6.04 ms slower than the handler at the median),
 because mvm's Fedora guest refused every file route
 (`keep/state-so-far.md` in `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
-Running:
-a Sonnet re-read of the revision
-(`~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/`).
+Its Sonnet re-read
+(`re-read-of-the-revised-one-program-design.md` in `~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/keep/`)
+found it not ready:
+under the recommended install a unit's words are selected by the zedlet's name,
+which is not the answer's letter,
+and the proposed guard admits a call site,
+not one name;
+it drafted a rule that keeps both the answer and a fail-closed install.
+Waiting for the memory stall to ease
+(rising at 2026-11-24T01:55-05:00 with 7.2 GiB available):
+`pi-zfs-root-modes-second-revision`,
+prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
+(branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
 Running too:
 `pi-mvm-fedora-guest-refuses-every-file-route`,
 with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
 (branch `fix/mvm-fedora-guest-refuses-every-file-route`).
 
 Next:
-fold the re-read in and put the six choices to the owner,
+start the second revision when the stall eases,
+then put its choices to the owner,
 then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
