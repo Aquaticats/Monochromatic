@@ -2269,6 +2269,21 @@ which removes the record once the person confirms,
 and which is the binding design's own line,
 cited at its V21 (K2).
 
+A fallback that entered at `registered` made no clone,
+so with no plan standing that state's line reads "the add made no clone" where it says the clone is gone,
+and its command is the same add again at the slot,
+whose resume continues at A20 and needs no clone's identity.
+That state's line names no settling command:
+the fallback leaves the binding at `phase=settling` and holding no `cloneGuid=`,
+and the add's record refuses the settling command for such a binding,
+names the add's re-run instead,
+and sends a state with a plan standing to the plan design's "Which resume path a removal takes"
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"The settling command",
+"What it refuses,
+changing nothing",
+and "Which command is true for a state").
+
 `doctor` reports the pending state:
 `monochromatic-git-policy-cli: the worktree at <slot> is pending: its add abandoned the clone route and <the last request's answer in the receipt's words>; nothing in this route changes it by itself; do not run Git in this folder until it is removed;` followed by `git worktree remove <slot>` when the clone stands,
 and by the settling command when its absence cannot be proved.
