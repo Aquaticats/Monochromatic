@@ -34,10 +34,10 @@ use crate::fs_mount_options::{read_mount_facts, MountFacts};
 use std::path::{Path, PathBuf};
 
 /// The leaf name the design gives the checkout dataset.
-pub const DESIGN_CHECKOUT_DATASET_NAME: &str = "monochromatic-git-checkout";
+pub const DESIGN_CHECKOUT_DATASET_NAME: &str = crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_CHECKOUT_DATASET_NAME;
 
 /// The leaf name the design gives the container of managed clones.
-pub const DESIGN_CONTAINER_DATASET_NAME: &str = "monochromatic-git-worktree-clone-datasets";
+pub const DESIGN_CONTAINER_DATASET_NAME: &str = crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_CONTAINER_DATASET_NAME;
 
 /// The prefix the kernel prints on a mount that delivers its mounts elsewhere.
 pub const SHARED_FIELD_PREFIX: &str = "shared:";

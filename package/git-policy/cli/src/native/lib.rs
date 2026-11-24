@@ -284,6 +284,17 @@ pub mod worktree_clone_binding_record;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
 
+/// The ZFS datasets this process's own mount table shows mounted,
+///  and the design names the route finds the checkout,
+///  its container and the probe dataset by when the configuration leaves an
+///  entry out.
+/// Both executables read it and neither may read the other's folder,
+///  so it sits above both,
+///  and it is Linux only,
+///  like the table it reads.
+#[cfg(target_os = "linux")]
+pub mod zfs_mounted_dataset;
+
 /// The root-run clone-mount handler,
 /// `mount-git-worktree-clone-datasets`:
 ///  its mode grammar,

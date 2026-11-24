@@ -79,7 +79,7 @@ function defaultsSentenceOf({
       model,
       namedByTheCommandLine,
     },),
-    'A run whose provider or model this command chooses starts through start-pi-run-when-a-pool-has-room, which counts the runs going and gives the run a pool with room.',
+    'A run whose command line names no provider takes the first open pool in the owner\'s order, and a model one pool takes keeps that pool: name another provider and model, or name no provider to let start-pi-run-in-a-worktree choose one.',
   ];
 }
 

@@ -1,6 +1,5 @@
 //! What:
-//!  The names the clone-mount sweep takes from the root-owned handler
-//!  configuration:
+//!  The names the clone-mount sweep acts on:
 //!  the checkout dataset whose snapshots its clones are made from,
 //!  the pinned clone parent dataset whose immediate children it sweeps,
 //!  and the checkout it walks from.
@@ -16,16 +15,17 @@
 //!  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,
 //!  and "Dataset and path layout",
 //!  where the checkout dataset and the container are siblings).
-//!  The project decided on 2026-11-22 that step 19's one-time setup writes the
-//!  checkout dataset's and the container's names into that file,
-//!  and that a file holding no such names is read through the design's own
-//!  names:
-//!  the checkout dataset is the mount the configured checkout path is on and
-//!  must carry the design's leaf name,
-//!  and the container is that dataset's sibling
+//!  The project answered on 2026-11-22 that everything works by default with no
+//!  configuration file
 //!  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-//!  "The datasets the sweep acts on").
-//!  Nobody edits the file by hand.
+//!  "With no configuration file"):
+//!  an entry the file holds wins,
+//!  and every entry it leaves out is found from this process's own mount table,
+//!  where the checkout is the one mounted ZFS dataset whose last name component
+//!  is `monochromatic-git-checkout` and the container is its sibling.
+//!  A name that matches none,
+//!  or several,
+//!  is a refusal that lists what was found rather than a guess.
 //!  The project also answered on 2026-11-21 that the start probe's two names sit
 //!  inside one `startProbe` object
 //!  (`doc/decision/cli-git-zfs-start-probe.md`,
@@ -34,48 +34,52 @@
 //!  answer "C:
 //! nest under one key");
 //!  the `cloneMounts` object beside it is this route's own extension,
-//!  and the two checkouts it names are required to be one folder,
+//!  and the two checkouts it names are required to be one folder when a file
+//!  names both,
 //!  because a probe that passed for one checkout says nothing about a walk that
 //!  starts at another.
-//!  A configuration that is absent,
-//!  unreadable or names nothing the parse accepts is a sweep that attaches
-//!  nothing and says which key to write,
-//!  never a sweep that guesses a dataset or a checkout.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const configuration = readConfiguration('/etc/…/git-worktree-clone-mounts.jsonc', liveCheckoutMounts);
+//! const configuration = readConfiguration('/etc/…/git-worktree-clone-mounts.jsonc', liveMountedDatasets);
 //! ```
 
-use super::sweep_checkout_mount::{CheckoutMounts, DESIGN_CHECKOUT_DATASET_NAME, DESIGN_CONTAINER_DATASET_NAME};
 use crate::jsonc_member_text::{MemberReading, text_of_member};
-use crate::start_probe::probe_source_name::{NameRefusal, check_dataset_name};
+use super::sweep_configuration_refusal::ConfigurationRefusal;
+use crate::start_probe::probe_source_name::check_dataset_name;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountedDatasetInstance, MountedDatasets};
+use crate::zfs_mounted_dataset::mounted_dataset_refusal::MountedDatasetRefusal;
+use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_checkout_dataset_at, the_designs_container_beside, the_one_mount_of, the_one_mounted_checkout};
 use std::path::{Path, PathBuf};
 
 /// The object this step's names sit in.
-pub const CLONE_MOUNTS_KEY: &str = "cloneMounts";
+pub const CLONE_MOUNTS_KEY: &str = crate::handler_configuration_keys::CLONE_MOUNTS_KEY;
 
 /// The key naming the pinned clone parent dataset,
 /// which is the container every managed clone is a child of.
-pub const PARENT_KEY: &str = "parent";
+pub const PARENT_KEY: &str = crate::handler_configuration_keys::PARENT_KEY;
 
 /// The key naming the checkout the walk starts from.
-pub const CHECKOUT_KEY: &str = "checkout";
+pub const CHECKOUT_KEY: &str = crate::handler_configuration_keys::CHECKOUT_KEY;
 
 /// The key naming the checkout dataset,
 /// whose snapshots the design's add route clones.
-pub const CHECKOUT_DATASET_KEY: &str = "checkoutDataset";
+pub const CHECKOUT_DATASET_KEY: &str = crate::handler_configuration_keys::CHECKOUT_DATASET_KEY;
 
 /// The object the start probe's own names sit in,
 /// which the sweep reads only to refuse two different checkouts.
-pub const PROBE_OBJECT_KEY: &str = "startProbe";
+pub const PROBE_OBJECT_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
 
 /// The key inside `startProbe` naming the checkout the probe opens.
-pub const PROBE_CHECKOUT_KEY: &str = "checkout";
+pub const PROBE_CHECKOUT_KEY: &str = crate::handler_configuration_keys::PROBE_CHECKOUT_KEY;
+
+/// The document a file that is not there stands for,
+/// so every entry is one the sweep finds rather than reads.
+pub const NO_FILE_DOCUMENT: &str = "{}";
 
 /// What:
 ///  Where the sweep's names are,
-///  once the configuration gives them.
+///  once the configuration and the mount table give them.
 /// Why:
 ///  The sweep reads the checkout dataset to judge an origin,
 ///  enumerates the parent's children and walks from the checkout,
@@ -97,199 +101,11 @@ pub struct SweepConfiguration {
 }
 
 /// What:
-///  Why the configuration gave the sweep no names.
+///  One text member the configuration may carry.
 /// Why:
-///  A missing file,
-///  a file that does not parse,
-///  a key another part has not written,
-///  a value of the wrong type,
-///  a name the kernel would refuse,
-///  a checkout path that is not absolute,
-///  a checkout that is not on a dataset,
-///  a checkout dataset that is not the design's,
-///  and two keys naming different checkouts are distinct things for a person
-///  to look at,
-///  and each names the key they hold.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ConfigurationRefusal = { kind: 'missing' | 'unreadable' | 'not-jsonc' | 'absent' | 'not-text' | 'name-refused' | 'not-absolute' | 'checkout-mount' | 'checks-differ'; ... };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ConfigurationRefusal {
-    /// The configuration file is not there.
-    Missing {
-        /// The path that was read.
-        path: PathBuf,
-    },
-    /// The configuration file could not be read.
-    Unreadable {
-        /// The path that was read.
-        path: PathBuf,
-        /// What the read answered.
-        reason: String,
-    },
-    /// The configuration is not one JSONC document.
-    NotJsonc {
-        /// The path that was read.
-        path: PathBuf,
-    },
-    /// The object or the key is not there.
-    Absent {
-        /// The path that was read.
-        path: PathBuf,
-        /// The key a person must write.
-        key: String,
-    },
-    /// The value is not text.
-    NotText {
-        /// The path that was read.
-        path: PathBuf,
-        /// The key whose value is not text.
-        key: String,
-    },
-    /// A dataset name's text is not a name the kernel takes.
-    NameRefused {
-        /// The key the name is written at.
-        key: String,
-        /// The name as written.
-        name: String,
-        /// Why the name rule refused it.
-        why: NameRefusal,
-    },
-    /// The checkout's text is not an absolute path.
-    CheckoutNotAbsolute {
-        /// The value as written.
-        text: String,
-    },
-    /// The checkout's mount could not be read,
-    /// so the design's own name decides nothing here.
-    CheckoutMount {
-        /// The path that was read.
-        path: PathBuf,
-        /// The key a person writes the dataset name at.
-        key: String,
-        /// What the mount's read answered.
-        said: String,
-    },
-    /// The checkout is not on a dataset,
-    /// so no design name can find the dataset it is on.
-    CheckoutNotADataset {
-        /// The checkout's path.
-        checkout: PathBuf,
-        /// The filesystem the checkout is on.
-        found: String,
-        /// The key a person writes the dataset name at.
-        key: String,
-    },
-    /// The dataset the checkout is on does not carry the design's name.
-    CheckoutIsNotTheDesignDataset {
-        /// The dataset the checkout is on.
-        found: String,
-        /// The design's leaf name.
-        wanted: &'static str,
-        /// The key a person writes the dataset name at.
-        key: String,
-    },
-    /// The dataset the design's sibling name would sit beside has no parent,
-    /// so there is no name to build.
-    NoParentForTheDesignName {
-        /// The dataset whose parent was needed.
-        dataset: String,
-        /// The key a person writes the container's name at.
-        key: String,
-    },
-    /// The probe's checkout and the sweep's checkout are different folders.
-    CheckoutsDiffer {
-        /// The probe's configured checkout.
-        probe: PathBuf,
-        /// The sweep's configured checkout.
-        sweep: PathBuf,
-    },
-}
-
-impl ConfigurationRefusal {
-    /// The key one refusal is about,
-    /// which is what a person has to write.
-    pub fn key(&self) -> String {
-        return match self {
-            ConfigurationRefusal::Missing { .. } | ConfigurationRefusal::Unreadable { .. } | ConfigurationRefusal::NotJsonc { .. } => String::from(CLONE_MOUNTS_KEY),
-            ConfigurationRefusal::Absent { key, .. }
-            | ConfigurationRefusal::NotText { key, .. }
-            | ConfigurationRefusal::NameRefused { key, .. }
-            | ConfigurationRefusal::CheckoutMount { key, .. }
-            | ConfigurationRefusal::CheckoutNotADataset { key, .. }
-            | ConfigurationRefusal::CheckoutIsNotTheDesignDataset { key, .. }
-            | ConfigurationRefusal::NoParentForTheDesignName { key, .. } => key.clone(),
-            ConfigurationRefusal::CheckoutNotAbsolute { .. } => format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}"),
-            ConfigurationRefusal::CheckoutsDiffer { .. } => format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}"),
-        };
-    }
-
-    /// The refusal in words,
-    /// naming the file,
-    /// the key and what to write there.
-    pub fn message(&self) -> String {
-        let cause: String = match self {
-            ConfigurationRefusal::Missing { path } => format!("the clone-mount configuration {} is not there", path.display()),
-            ConfigurationRefusal::Unreadable { path, reason } => format!("the clone-mount configuration {} could not be read ({reason})", path.display()),
-            ConfigurationRefusal::NotJsonc { path } => format!("the clone-mount configuration {} is not one JSONC document", path.display()),
-            ConfigurationRefusal::Absent { path, key } => format!("the clone-mount configuration {} names no `{key}`", path.display()),
-            ConfigurationRefusal::NotText { path, key } => format!("`{key}` in {} is not text", path.display()),
-            ConfigurationRefusal::NameRefused { name, why, .. } => format!("`{name}` is not a dataset name the kernel takes: {}", why.message()),
-            ConfigurationRefusal::CheckoutNotAbsolute { text } => {
-                format!("`{text}` is not an absolute checkout path, and a relative path would be resolved against the handler's own directory")
-            }
-            ConfigurationRefusal::CheckoutMount { path, said, .. } => format!("the mount the checkout named in {} is on could not be read: {said}", path.display()),
-            ConfigurationRefusal::CheckoutNotADataset { checkout, found, .. } => format!(
-                "the checkout {} is on a `{found}` mount rather than on a dataset, and the design's own name only finds a dataset",
-                checkout.display()
-            ),
-            ConfigurationRefusal::CheckoutIsNotTheDesignDataset { found, wanted, .. } => format!(
-                "the checkout is on the dataset `{found}`, and the dataset this route finds by its own name is the one whose last component is `{wanted}`"
-            ),
-            ConfigurationRefusal::NoParentForTheDesignName { dataset, .. } => format!("`{dataset}` has no parent dataset, so `{DESIGN_CONTAINER_DATASET_NAME}` cannot be named beside it"),
-            ConfigurationRefusal::CheckoutsDiffer { probe, sweep } => format!(
-                "the start probe is configured for the checkout {} and the clone-mount sweep for {}, and one probe's pass says nothing about a walk that starts at another checkout",
-                probe.display(),
-                sweep.display()
-            ),
-        };
-        return format!(
-            "{cause}, so this sweep enumerated nothing, attached nothing and recorded nothing, and every clone's mount intent stands untouched. Ways forward: write the key as text in the root-owned file, with `{CLONE_MOUNTS_KEY}.{PARENT_KEY}` naming the clone parent dataset such as `zpcachyos/ROOT/cos/home/{DESIGN_CONTAINER_DATASET_NAME}`, `{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}` naming the checkout such as `/home/user/Monochromatic`, and `{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}` naming the checkout dataset such as `zpcachyos/ROOT/cos/home/{DESIGN_CHECKOUT_DATASET_NAME}`; a file holding no dataset names is read through those two design names, and `doctor` reports `{key}` once plan step 18 adds it.",
-            key = self.key()
-        );
-    }
-}
-
-/// What:
-///  One text member the configuration must carry.
-/// Why:
-///  The keys are read the same way,
-///  so a missing one and a value of the wrong type are worded once rather than
-///  twice.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const text = requiredText(document, 'checkout', path);
-/// ```
-fn required_text(document: &str, key: &str, path: &Path) -> Result<String, ConfigurationRefusal> {
-    return match text_of_member(document, CLONE_MOUNTS_KEY, key) {
-        MemberReading::Text(text) => Ok(text),
-        MemberReading::DocumentNotJsonc => Err(ConfigurationRefusal::NotJsonc { path: path.to_path_buf() }),
-        MemberReading::Absent => Err(ConfigurationRefusal::Absent { path: path.to_path_buf(), key: format!("{CLONE_MOUNTS_KEY}.{key}") }),
-        MemberReading::NotText => Err(ConfigurationRefusal::NotText { path: path.to_path_buf(), key: format!("{CLONE_MOUNTS_KEY}.{key}") }),
-    };
-}
-
-/// What:
-///  One text member the configuration may carry,
-///  answering nothing when the object or the member is absent.
-/// Why:
-///  The two dataset names are the ones step 19's setup writes and this build
-///  also finds by the design's names,
-///  so their absence is a fallback rather than a refusal,
-///  while a value of the wrong type is still a refusal.
+///  Every entry is optional now,
+///  so the same reading serves all of them and a value of the wrong type is
+///  still a refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -299,156 +115,196 @@ fn required_text(document: &str, key: &str, path: &Path) -> Result<String, Confi
 /// # Errors
 /// The document is not JSONC,
 /// or the member is there and its value is not text.
-fn optional_text(document: &str, key: &str, path: &Path) -> Result<Option<String>, ConfigurationRefusal> {
-    return match text_of_member(document, CLONE_MOUNTS_KEY, key) {
+fn optional_text(document: &str, object: &str, key: &str, path: &Path) -> Result<Option<String>, ConfigurationRefusal> {
+    return match text_of_member(document, object, key) {
         MemberReading::Text(text) => Ok(Some(text)),
         MemberReading::Absent => Ok(None),
         MemberReading::DocumentNotJsonc => Err(ConfigurationRefusal::NotJsonc { path: path.to_path_buf() }),
-        MemberReading::NotText => Err(ConfigurationRefusal::NotText { path: path.to_path_buf(), key: format!("{CLONE_MOUNTS_KEY}.{key}") }),
+        MemberReading::NotText => Err(ConfigurationRefusal::NotText { path: path.to_path_buf(), key: format!("{object}.{key}") }),
     };
 }
 
-/// The key one dataset name is written at,
-/// as a refusal names it.
-fn dataset_key(key: &str) -> String {
-    return format!("{CLONE_MOUNTS_KEY}.{key}");
-}
-
-/// The last `/`-separated component of a dataset name.
-fn leaf_of(dataset: &str) -> &str {
-    return dataset.rsplit_once('/').map_or(dataset, |(_parent, leaf)| return leaf);
-}
-
 /// What:
-///  The dataset the configured checkout is on,
-///  found by the design's own name.
+///  One dataset name the file wrote,
+///  checked as a name the kernel takes.
 /// Why:
-///  A file that holds no dataset names is read through the layout the design
-///  fixes,
-///  and the checkout path is the one live fact that says which dataset that
-///  layout put there;
-///  a checkout on another dataset,
-/// or on no dataset,
-/// is refused with the key a
-///  person writes rather than guessed at.
+///  A name a file holds is used as written,
+///  and a name the kernel would refuse would fail much later in an ioctl.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const dataset = findTheCheckoutDataset(checkout, mounts, path);
+/// const dataset = namedDataset(text, 'pair', path);
 /// ```
 ///
 /// # Errors
-/// The mount could not be read,
-/// it is no dataset mount,
-/// or the dataset does not carry the design's leaf name.
-fn find_the_checkout_dataset(checkout: &Path, mounts: &dyn CheckoutMounts, path: &Path) -> Result<String, ConfigurationRefusal> {
-    let key: String = dataset_key(CHECKOUT_DATASET_KEY);
-    let mount = mounts
-        .mount_holding(checkout)
-        .map_err(|refusal| return ConfigurationRefusal::CheckoutMount { path: path.to_path_buf(), key: key.clone(), said: refusal.message() })?;
-    let Some(dataset) = mount.dataset() else {
-        return Err(ConfigurationRefusal::CheckoutNotADataset { checkout: checkout.to_path_buf(), found: mount.filesystem_type, key });
-    };
-    if leaf_of(dataset) != DESIGN_CHECKOUT_DATASET_NAME {
-        return Err(ConfigurationRefusal::CheckoutIsNotTheDesignDataset { found: String::from(dataset), wanted: DESIGN_CHECKOUT_DATASET_NAME, key });
-    }
-    return Ok(String::from(dataset));
+/// The name is not one the kernel takes.
+fn named_dataset(name: String, key: &str, path: &Path) -> Result<String, ConfigurationRefusal> {
+    check_dataset_name(name.as_str()).map_err(|why| return ConfigurationRefusal::NameRefused { path: path.to_path_buf(), key: String::from(key), name: name.clone(), why })?;
+    return Ok(name);
 }
 
 /// What:
-///  The container the design places beside the checkout dataset.
+///  The checkout path and dataset the file names,
+///  in words,
+///  where a discovery that refused is turned into a configuration refusal.
 /// Why:
-///  The two are siblings in the design's layout,
-///  so a file holding no container name gets the one the layout fixes.
+///  A refusal has to name the file a person edits,
+///  and the lookup that refused names only what the table held.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const container = `${parentOf(checkoutDataset)}/monochromatic-git-worktree-clone-datasets`;
+/// const found = discovered(theOneMountedCheckout(mounts), path);
 /// ```
-///
-/// # Errors
-/// The checkout dataset has no parent component.
-fn the_designs_container_beside(checkout_dataset: &str) -> Result<String, ConfigurationRefusal> {
-    let Some((parent, _leaf)) = checkout_dataset.rsplit_once('/') else {
-        return Err(ConfigurationRefusal::NoParentForTheDesignName { dataset: String::from(checkout_dataset), key: dataset_key(PARENT_KEY) });
-    };
-    return Ok(format!("{parent}/{DESIGN_CONTAINER_DATASET_NAME}"));
+fn discovered<T>(found: Result<T, MountedDatasetRefusal>, path: &Path) -> Result<T, ConfigurationRefusal> {
+    return found.map_err(|refusal| return ConfigurationRefusal::Discovery { path: path.to_path_buf(), refusal });
 }
 
 /// What:
-///  Read the sweep's three names out of one configuration document.
+///  The checkout the sweep walks and the dataset it is on.
+/// Why:
+///  A file entry wins,
+///  and each entry it leaves out is found from the mount table rather than from
+///  the other entry's guess:
+///  a path alone takes its dataset from the mount the path is on,
+///  a dataset alone takes its path from the one mount of it,
+///  and neither takes both from the one mounted instance of the design's leaf.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (checkout, dataset) = checkoutOf(pathEntry, datasetEntry, mounts, configurationPath);
+/// ```
+///
+/// # Errors
+/// The table could not be read,
+/// or the name matched none or several.
+fn checkout_of(
+    path_entry: Option<PathBuf>,
+    dataset_entry: Option<String>,
+    container_entry: Option<&str>,
+    mounts: &dyn MountedDatasets,
+    path: &Path,
+) -> Result<(PathBuf, String), ConfigurationRefusal> {
+    return match (path_entry, dataset_entry) {
+        (Some(checkout), Some(dataset)) => Ok((checkout, dataset)),
+        (Some(checkout), None) => {
+            let dataset: String = discovered(the_checkout_dataset_at(checkout.as_path(), mounts), path)?;
+            Ok((checkout, dataset))
+        }
+        (None, Some(dataset)) => {
+            let checkout: PathBuf = discovered(the_one_mount_of(dataset.as_str(), mounts), path)?;
+            Ok((checkout, dataset))
+        }
+        (None, None) => {
+            let one: MountedDatasetInstance = discovered(the_one_mounted_checkout(mounts, container_entry), path)?;
+            Ok((one.mount_point, one.dataset))
+        }
+    };
+}
+
+/// What:
+///  Read the sweep's three names out of one configuration document and one
+///  mount table.
 /// Why:
 ///  The document is parsed once and every name comes from the same bytes,
 ///  so a file changed between two reads cannot make them disagree,
-///  and the two dataset names fall back to the design's layout only when the
-///  file holds neither.
+///  and a file that is not there is read as one that names nothing,
+/// which is
+///  the project's answer of 2026-11-22.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const configuration = parseConfiguration(text, '/etc/…', liveCheckoutMounts);
+/// const configuration = parseConfiguration(text, '/etc/…', liveMountedDatasets);
 /// ```
 ///
 /// # Errors
 /// The document is not JSONC,
-/// a required key is absent or is not text,
+/// an entry is not text,
 /// a name is not a dataset name,
-/// the checkout is not an absolute path,
-/// the checkout's mount cannot be read or is not the design's dataset,
+/// a checkout path is not absolute,
+/// a design name matched no dataset or several,
 /// or the two checkout keys name different folders.
-pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn CheckoutMounts) -> Result<SweepConfiguration, ConfigurationRefusal> {
-    let checkout_text: String = required_text(document, CHECKOUT_KEY, path)?;
-    let checkout: PathBuf = PathBuf::from(checkout_text.as_str());
-    if !checkout.is_absolute() {
-        return Err(ConfigurationRefusal::CheckoutNotAbsolute { text: checkout_text });
-    }
-    let probe_checkout: PathBuf = match text_of_member(document, PROBE_OBJECT_KEY, PROBE_CHECKOUT_KEY) {
-        MemberReading::Text(text) => PathBuf::from(text),
-        MemberReading::Absent | MemberReading::NotText => checkout.clone(),
-        MemberReading::DocumentNotJsonc => return Err(ConfigurationRefusal::NotJsonc { path: path.to_path_buf() }),
+pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedDatasets) -> Result<SweepConfiguration, ConfigurationRefusal> {
+    let dataset_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_DATASET_KEY, path)? {
+        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}"), path)?),
+        None => None,
     };
-    if probe_checkout != checkout {
-        return Err(ConfigurationRefusal::CheckoutsDiffer { probe: probe_checkout, sweep: checkout });
-    }
-    let checkout_dataset: String = match optional_text(document, CHECKOUT_DATASET_KEY, path)? {
-        Some(name) => {
-            check_dataset_name(name.as_str()).map_err(|why| return ConfigurationRefusal::NameRefused { key: dataset_key(CHECKOUT_DATASET_KEY), name: name.clone(), why })?;
-            name
+    let path_entry: Option<PathBuf> = match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_KEY, path)? {
+        Some(text) => {
+            let checkout: PathBuf = PathBuf::from(text.as_str());
+            if !checkout.is_absolute() {
+                return Err(ConfigurationRefusal::CheckoutNotAbsolute {
+                    path: path.to_path_buf(),
+                    key: format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}"),
+                    text,
+                });
+            }
+            Some(checkout)
         }
-        None => find_the_checkout_dataset(checkout.as_path(), mounts, path)?,
+        None => None,
     };
-    let parent_dataset: String = match optional_text(document, PARENT_KEY, path)? {
-        Some(name) => {
-            check_dataset_name(name.as_str()).map_err(|why| return ConfigurationRefusal::NameRefused { key: dataset_key(PARENT_KEY), name: name.clone(), why })?;
-            name
+    // The clone container this run uses is read before the table is, because a row inside it is no instance
+    // of the checkout (the project's first answer of 2026-11-22).
+    let parent_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, PARENT_KEY, path)? {
+        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}"), path)?),
+        None => None,
+    };
+    let probe_checkout_entry: Option<PathBuf> = match optional_text(document, PROBE_OBJECT_KEY, PROBE_CHECKOUT_KEY, path)? {
+        Some(text) => {
+            let guessed: PathBuf = PathBuf::from(text.as_str());
+            if !guessed.is_absolute() {
+                return Err(ConfigurationRefusal::CheckoutNotAbsolute {
+                    path: path.to_path_buf(),
+                    key: format!("{PROBE_OBJECT_KEY}.{PROBE_CHECKOUT_KEY}"),
+                    text,
+                });
+            }
+            Some(guessed)
         }
-        None => the_designs_container_beside(checkout_dataset.as_str())?,
+        None => None,
+    };
+    let (checkout, checkout_dataset): (PathBuf, String) = checkout_of(path_entry, dataset_entry, parent_entry.as_deref(), mounts, path)?;
+    if let Some(probe) = probe_checkout_entry
+        && probe != checkout
+    {
+        return Err(ConfigurationRefusal::CheckoutsDiffer { path: path.to_path_buf(), probe, sweep: checkout });
+    }
+    let parent_dataset: String = match parent_entry {
+        Some(container) => container,
+        None => discovered(the_designs_container_beside(checkout_dataset.as_str()), path)?,
     };
     return Ok(SweepConfiguration { parent_dataset, checkout, checkout_dataset });
 }
 
 /// What:
-///  Read the configuration file and answer the names it holds.
+///  Read the configuration file,
+/// if it is there,
+///  and answer the names it holds and the ones the mount table fills in.
 /// Why:
 ///  The release path takes the file the install put in place,
 ///  and a control hands in a fixture file,
-///  so nothing here names the installed path itself.
+///  so nothing here names the installed path itself;
+///  a missing file is the answer "names nothing" rather than a refusal,
+/// which is
+///  what the project's answer of 2026-11-22 changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const configuration = readConfiguration(path, liveCheckoutMounts);
+/// const configuration = readConfiguration(path, liveMountedDatasets);
 /// ```
 ///
 /// # Errors
 /// Everything `parse_configuration` refuses,
-/// and a file that is absent or unreadable.
-pub fn read_configuration(path: &Path, mounts: &dyn CheckoutMounts) -> Result<SweepConfiguration, ConfigurationRefusal> {
-    let document: String = std::fs::read_to_string(path).map_err(|error| {
-        return match error.kind() {
-            std::io::ErrorKind::NotFound => ConfigurationRefusal::Missing { path: path.to_path_buf() },
-            _ => ConfigurationRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
-        };
-    })?;
-    return parse_configuration(document.as_str(), path, mounts);
+/// and a file that is there and unreadable.
+pub fn read_configuration(path: &Path, mounts: &dyn MountedDatasets) -> Result<SweepConfiguration, ConfigurationRefusal> {
+    let document: Option<String> = match std::fs::read_to_string(path) {
+        // A file that is there and holds nothing is refused rather than read as a file that names nothing:
+        // the project's answer of 2026-11-22 says an empty file is not the same as no file.
+        Ok(text) if text.trim().is_empty() => return Err(ConfigurationRefusal::Empty { path: path.to_path_buf() }),
+        Ok(text) => Some(text),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(ConfigurationRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() }),
+    };
+    return parse_configuration(document.as_deref().unwrap_or(NO_FILE_DOCUMENT), path, mounts);
 }
 
 /// Controls stay out of the release executable.

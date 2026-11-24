@@ -45,6 +45,10 @@ pub mod json_record;
 /// One text value inside one object of a JSONC document.
 pub mod jsonc_member_text;
 
+/// The keys the root-owned handler configuration holds,
+/// which both executables read.
+pub mod handler_configuration_keys;
+
 /// Random identifiers in the layout of the incumbent's `randomUUID`.
 pub mod random_id;
 
