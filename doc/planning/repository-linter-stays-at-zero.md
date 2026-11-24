@@ -255,7 +255,9 @@ From lines 39013 to 39013 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  `doc/decision` 1,785 (answered on 2026-11-10: form-only prose fixes, and moved-path notes only);
+  `doc/decision` 1,785 (answered on 2026-11-10:
+  form-only prose fixes,
+  and moved-path notes only);
 
 ## Ranking
 

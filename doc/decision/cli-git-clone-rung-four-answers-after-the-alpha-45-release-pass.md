@@ -40,7 +40,8 @@ measured on ZFS only,
 still applies on Btrfs.
 
 The answer:
-"Yes, after one Btrfs round (Recommended)"
+"Yes,
+after one Btrfs round (Recommended)"
 
 So one guest round measures the dirty shapes on Btrfs,
 and the limit is dropped there if the clone is no slower than Git's checkout in that round;

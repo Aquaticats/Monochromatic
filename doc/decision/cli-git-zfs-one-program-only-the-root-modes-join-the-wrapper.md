@@ -16,24 +16,29 @@ a ZED hook and the boot and shutdown units,
 a program of its own,
 `mount-git-worktree-clone-datasets`,
 beside the wrapper `monochromatic-git-policy-cli`
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Binding crate and compatibility").
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Binding crate and compatibility").
 The owner had answered "Keep inside cli (Recommended)" for where it lives,
 inside the wrapper's package rather than a package of its own.
 Plan step 5 then added it to every release
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 5"),
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 5"),
 although nothing installs or starts it until step 19.
 The release pass over alpha.45 found its `--help` naming install paths that do not exist
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/zfs-route-reach/keep/review.md`, M1).
+(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/zfs-route-reach/keep/review.md`,
+M1).
 
 ## The question
 
 Asked about the handler's words,
 the owner answered with a question:
-"What? Don't you think it shouldn't ship a 2nd program in the 1st place?"
+"What?
+Don't you think it shouldn't ship a 2nd program in the 1st place?"
 The session then asked which of three the owner wanted:
 hold the program out of releases until step 19,
 keep shipping it as step 5 does,
-or "One program only, ever",
+or "One program only,
+ever",
 described as "Fold the handler into the wrapper as a mode the root units call",
 with the costs that root then runs the whole wrapper's code instead of a small program with none of Git,
 LFS or network code,
@@ -43,7 +48,8 @@ The session ranked holding it out first.
 
 ## The answer
 
-"One program only, ever"
+"One program only,
+ever"
 
 ## What follows
 

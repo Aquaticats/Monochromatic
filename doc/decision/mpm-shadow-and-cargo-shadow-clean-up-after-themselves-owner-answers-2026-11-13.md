@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -17,12 +18,14 @@ moved verbatim on 2026-11-23:
   (both watched,
   the older alone,
   or wait for the new drive):
-  "Delete both, watched.
+  "Delete both,
+  watched.
   and make our mpm-shadow auto cleanup old toolchains by size + last modified time."
 - Asked which of the two tools should own that cleanup
   (the session offered mpm-shadow or cargo-shadow's cleaner as alternatives,
   which they are not):
-  "What? Shouldn't it be both?
+  "What?
+  Shouldn't it be both?
   mpm-shadow cleans up after itself,
   cargo-shadow also cleans up after itself."
 - So each tool removes,

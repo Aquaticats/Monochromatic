@@ -6,7 +6,8 @@ Decided by the owner on 2026-11-23,
 through the question tool,
 after the designs' reviewer's third read
 (`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-third-read-after-the-probe-rounds.md`),
-the designs' rounds on it (`64b52da212`, `63488826bc`)
+the designs' rounds on it (`64b52da212`,
+`63488826bc`)
 and the probe round on the arms that need no step 17 code (`2149a02e14`).
 Recorded by the session.
 
@@ -75,7 +76,8 @@ open to the owner's veto.
 
 - A probe in a guest with systemd 255 and kernel `7.0.0-43`
   (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
-  "The three arms that need no step 17 code, 2026-11-23T21:16:46-05:00"):
+  "The three arms that need no step 17 code,
+  2026-11-23T21:16:46-05:00"):
   a holder made by `unshare --user --map-root-user --mount` reads a mount namespace owned by `user:[4026532392]`,
   and the move and the unmount of its copy both answer `EINVAL`;
   that guest's user units with `PrivateMounts=yes` read a mount namespace owned by the initial user namespace,

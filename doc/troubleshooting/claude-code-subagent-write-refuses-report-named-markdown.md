@@ -51,14 +51,17 @@ not a fault.
 
 ## Verification
 
-Version under test: Claude Code `2.1.331` (`claude --version`).
+Version under test:
+Claude Code `2.1.331` (`claude --version`).
 
-The harness: a subagent told to call Write once each,
+The harness:
+a subagent told to call Write once each,
 content `check`,
 in `~/temp/agent/claude-code-subagent-report-file-name-check-2026-11-24/keep/`,
 on 2026-11-24.
 
-Refused, with the message above:
+Refused,
+with the message above:
 
 - `report-check.md`
 - `Summary.md`
@@ -99,7 +102,8 @@ The three written files are in that folder.
 
 ### Upstream filing decision
 
-`.out-of-scope/` was not consulted, because the first constraint already settles it.
+`.out-of-scope/` was not consulted,
+because the first constraint already settles it.
 
 1.  Is it upstream's fault?
     No:

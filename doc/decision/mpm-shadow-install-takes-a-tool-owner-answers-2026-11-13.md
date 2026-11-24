@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
