@@ -86,11 +86,11 @@ fn a_new_branch_with_no_value_refuses() {
 
 #[test]
 fn the_stop_switch_takes_a_closed_list_of_steps() {
-    assert_eq!(Stops::named("clone"), Ok(Stops { step: Some(String::from("clone")) }));
+    assert_eq!(Stops::named("clone").map(|stops| return stops.step), Ok(Some(String::from("clone"))));
     let refusal: String = Stops::named("clone-the-thing").expect_err("a word the add does not know");
     assert!(refusal.contains("names `clone-the-thing`"), "{refusal}");
     assert!(refusal.contains(STOP_AFTER_VARIABLE), "{refusal}");
-    assert_eq!(Stops::none(), Stops { step: None });
+    assert_eq!(Stops::none().step, None);
     // A switch for another step does nothing, and a run with no switch does not
     // die either. This is the control that a killed guest arm is caused by the
     // switch and not by the add itself.

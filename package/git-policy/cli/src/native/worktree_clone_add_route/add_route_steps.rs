@@ -293,6 +293,7 @@ pub fn step_snapshot(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<()
 fn write_the_capture(steps: &Steps<'_>, record: &BindingRecord) -> Result<(), StepRefusal> {
     let standing: Option<super::add_capture::Capture> = super::add_capture_store::read_capture(steps.home_path, steps.route.slot.as_str()).map_err(StepRefusal::refused)?;
     if standing.is_some() {
+        steps.stops.hold("capture").map_err(StepRefusal::refused)?;
         return Ok(());
     }
     if record.origin_snapshot_guid.is_some() {
@@ -326,6 +327,7 @@ fn write_the_capture(steps: &Steps<'_>, record: &BindingRecord) -> Result<(), St
     super::add_capture_store::publish_capture(steps.home, steps.route.slot.as_str(), &capture).map_err(|error| {
         return StepRefusal::refused(format!("the frozen capture cannot be published ({error}); nothing was mutated beyond the registration, and running the add again resumes it"));
     })?;
+    steps.stops.hold("capture").map_err(StepRefusal::refused)?;
     return Ok(());
 }
 

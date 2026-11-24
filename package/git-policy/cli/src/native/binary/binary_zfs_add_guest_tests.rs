@@ -29,7 +29,6 @@
 use git_policy_cli::worktree_clone_binding_record::{BindingRecord, Phase, parse_binding};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{ReadyState, ReadinessRecord, SweepState};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
-use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
@@ -434,42 +433,50 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
 }
 
 #[test]
-fn a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration() {
+fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() {
     if !guest() {
         return;
     }
     let fixture: Fixture = Fixture::prepare();
-    // The container's quota is the space every clone under it may use, so a
-    // checkout larger than it cannot be cloned.
-    let big: PathBuf = fixture.root.join("big.bin");
-    let mut file: std::fs::File = std::fs::File::create(big.as_path()).expect("the big file");
-    file.write_all(&vec![7u8; 8 * 1024 * 1024]).expect("the big file's bytes");
-    drop(file);
+    std::fs::write(fixture.root.join("big.bin"), vec![7u8; 1024 * 1024]).expect("the big file");
     std::thread::sleep(std::time::Duration::from_secs(1));
     fixture.git(&["add", "big.bin"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big"]);
-    // The clone shares its blocks with the snapshot, so a quota on the
-    // container does not charge it; the arm fills the pool itself with a
-    // dataset of zeros and compression off.
+    // The capture is written before the snapshot, so the pool fills at the one
+    // moment no other state can tell the test about: the add holds itself after
+    // the capture until the control's release file stands.
+    let release: PathBuf = fixture.root.join(".hold-release");
+    let waiting: PathBuf = release.with_extension("waiting");
+    let _stale: std::io::Result<()> = std::fs::remove_file(release.as_path());
+    let _stale_waiting: std::io::Result<()> = std::fs::remove_file(waiting.as_path());
     let filler: String = format!("{}/filler", fixture.pool);
     fixture.zfs_ok(&["create", "-o", "mountpoint=/root/zfs-filler", "-o", "compression=off", filler.as_str()]);
+    let mut command: Command = fixture.add_command("full", None);
+    command.env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP", "capture").env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL", release.as_os_str());
+    let child: Child = command.spawn().expect("the add starts");
+    let started: Instant = Instant::now();
+    while !waiting.exists() && started.elapsed() < WAIT {
+        std::thread::sleep(POLL);
+    }
+    assert!(waiting.exists(), "the add reached the capture before the bound");
+    // The filler takes the pool's free space with zeros that do not compress.
     let _filled: Output = Command::new("/usr/bin/dd").args(["if=/dev/zero", "of=/root/zfs-filler/fill", "bs=1M"]).output().expect("dd fills the pool");
-    let output: Output = fixture.run_add("full");
+    std::fs::write(release.as_path(), b"release\n").expect("the control releases the add");
+    let output: Output = child.wait_with_output().expect("the add ends");
     let _gone: Output = fixture.zfs(&["destroy", "-r", "-f", filler.as_str()]);
-    assert!(!output.status.success(), "the add with a full pool is refused");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(said.contains("ENOSPC") || said.contains("No space left") || said.contains("space"), "the refusal names the pool's space: {said}");
+    assert!(!output.status.success(), "the add with a full pool is refused: {said}");
+    assert!(said.contains("ENOSPC") || said.contains("No space left"), "the refusal names the pool's space: {said}");
     let record: BindingRecord = fixture.binding("full").expect("the refused add's binding");
     assert_eq!(record.phase, Phase::Registered, "the snapshot's refusal leaves the registration phase");
     assert!(fixture.slot("full").join(".git").is_file(), "the slot and its pointer stand");
     assert!(!fixture.dataset_stands(fixture.clone("full").as_str()), "no clone was made");
+    let _released: std::io::Result<()> = std::fs::remove_file(release.as_path());
     let resumed: Output = fixture.run_add("full");
     assert!(resumed.status.success(), "the resume after the full pool failed: {}", String::from_utf8_lossy(resumed.stderr.as_slice()));
     assert_eq!(fixture.binding("full").expect("the resumed binding").phase, Phase::Filled);
     fixture.clear_the_slot("full");
-    // The checkout returns to the two tracked files, so an arm that runs after
-    // this one reads the same source.
-    let _big_gone: std::io::Result<()> = std::fs::remove_file(big.as_path());
+    let _big_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("big.bin"));
     fixture.git(&["add", "-A"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
 }

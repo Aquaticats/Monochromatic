@@ -36,6 +36,16 @@ pub const ORIGIN_SNAPSHOT_PREFIX: &str = "git-worktree-clone-origin-";
 /// The variable that makes a control add die after one named step.
 pub const STOP_AFTER_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ZFS_ADD_STOP_AFTER";
 
+/// The variable naming the step a control add holds at until a file stands.
+pub const HOLD_STEP_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP";
+
+/// The variable naming the file whose appearance releases a held control add.
+pub const HOLD_UNTIL_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL";
+
+/// The bound on one control's hold,
+/// so a test that dies before releasing it ends the add rather than the suite.
+pub const HOLD_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// Every step the stop switch knows, in the add's order.
 ///
 /// Why:
@@ -186,6 +196,11 @@ pub struct Stops {
     /// The step whose boundary kills this run,
     /// when the variable named one.
     step: Option<String>,
+    /// The step this run waits at,
+    /// when a control named one.
+    hold_step: Option<String>,
+    /// The file whose appearance releases the wait.
+    hold_until: Option<std::path::PathBuf>,
 }
 
 impl Stops {
@@ -194,11 +209,16 @@ impl Stops {
     /// # Errors
     /// The variable names a step the add does not know.
     pub fn from_environment() -> Result<Stops, String> {
+        let hold_step: Option<String> = std::env::var_os(HOLD_STEP_VARIABLE).and_then(|value| return value.into_string().ok());
+        let hold_until: Option<std::path::PathBuf> = std::env::var_os(HOLD_UNTIL_VARIABLE).map(std::path::PathBuf::from);
         let Some(value) = std::env::var_os(STOP_AFTER_VARIABLE) else {
-            return Ok(Stops { step: None });
+            return Ok(Stops { step: None, hold_step, hold_until });
         };
         let text: String = value.into_string().map_err(|_raw| return format!("{STOP_AFTER_VARIABLE} is not text"))?;
-        return Stops::named(text.as_str());
+        let mut stops: Stops = Stops::named(text.as_str())?;
+        stops.hold_step = hold_step;
+        stops.hold_until = hold_until;
+        return Ok(stops);
     }
 
     /// A switch that stops after `step`.
@@ -209,12 +229,42 @@ impl Stops {
         if !STOP_STEPS.contains(&step) {
             return Err(format!("{STOP_AFTER_VARIABLE} names `{step}`, and the add's steps are {}", STOP_STEPS.join(", ")));
         }
-        return Ok(Stops { step: Some(String::from(step)) });
+        return Ok(Stops { step: Some(String::from(step)), hold_step: None, hold_until: None });
     }
 
     /// No switch at all.
     pub fn none() -> Stops {
-        return Stops { step: None };
+        return Stops { step: None, hold_step: None, hold_until: None };
+    }
+
+    /// What:
+    ///  Wait at `step` until the control's release file stands,
+    ///  when a control named this step.
+    /// Why:
+    ///  The full-pool arm has to fill the pool between the capture and the
+    ///  snapshot, where no other state can tell it the moment arrived; the wait
+    ///  is bounded so a dead test ends the add.
+    ///
+    /// # Errors
+    /// The bound passed with no release file,
+    /// or the waiting marker cannot be written.
+    pub fn hold(&self, step: &str) -> Result<(), String> {
+        if self.hold_step.as_deref() != Some(step) {
+            return Ok(());
+        }
+        let Some(until) = self.hold_until.as_ref() else {
+            return Ok(());
+        };
+        let waiting: std::path::PathBuf = until.with_extension("waiting");
+        std::fs::write(waiting.as_path(), b"waiting\n").map_err(|error| return format!("the control's waiting marker {} cannot be written ({error})", waiting.display()))?;
+        let started: std::time::Instant = std::time::Instant::now();
+        while !until.exists() {
+            if started.elapsed() > HOLD_BOUND {
+                return Err(format!("the control never released the add at `{step}` ({} did not appear), so it stopped before the step it was meant to measure", until.display()));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        return Ok(());
     }
 
     /// End this process by `SIGKILL` when the switch names `step`, exactly as a
