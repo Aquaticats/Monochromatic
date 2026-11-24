@@ -412,6 +412,10 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     // Every mount under the checkout goes first, the slots an earlier run attached included, then the checkout itself.
     'for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ' + SWEEP_CHECKOUT + ' || true); do umount "$target" 2>/dev/null || true; done',
     `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
+    // Another driver's checkout dataset carries the same leaf name and would be a second instance for the arm's
+    // no-configuration shapes; it is taken down for the length of the arm and mounted again afterwards.
+    'others=$(findmnt --list --noheadings --output SOURCE --type zfs | grep --fixed-strings monochromatic-git-checkout | grep --invert-match "git-policy-cli-store/step8" | sort --unique || true)',
+    'for other in $others; do zfs unmount "$other" 2>/dev/null || true; done',
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
     `mkdir --parents ${SWEEP_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -432,6 +436,7 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
       return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/sweep-arm.log`;
     }),
     'cp /root/sweep-arm.log /mnt/shared/sweep-arm.log',
+    'for other in $others; do zfs mount "$other" 2>/dev/null || true; done',
     // The arm's own layout goes, so a driver that runs afterwards finds one instance of the checkout's leaf name and
     // not two: the probe's no-configuration arm reads the whole mount table.
     `for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ${SWEEP_CHECKOUT} || true); do umount "$target" 2>/dev/null || true; done`,
