@@ -588,6 +588,38 @@ Install only the measured local rules and reload the affected profile.
 Rebuild the complete
 early-policy cache after all local edits.
 
+### systemd-oomd reading the cgroup tree
+
+During the whole gate of 2026-11-24T01:57:53Z to 02:51:53Z,
+with six guests and Rust builds beside it,
+the audit log held 224 denials for each of eleven cgroup folders,
+all `systemd-oomd` opening a folder under `/sys/fs/cgroup/` for read
+(`list-denials-in-a-window.ts` over that window).
+Its journal repeated "Considered 0 cgroups for killing, top candidates were:",
+and `oomctl` listed only `/system.slice` and `.../app.slice` with "Swap Usage: 0B"
+while 47.5 GiB of swap was in use and 1,964 MiB of memory was available.
+So under enforcement the daemon meant to end a runaway cgroup before memory runs out could choose none.
+On 2026-11-22,
+before enforcement,
+it read the cgroups
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, "Nothing shed load").
+
+```text
+# /etc/apparmor.d/local/systemd-oomd
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+```
+
+The owner answered "Add the read rule now (Recommended)" on 2026-11-24
+(`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`);
+the lines were appended with a comment naming that answer,
+and `sudo apparmor_parser --replace /etc/apparmor.d/systemd-oomd` reloaded the profile and wrote its early-policy cache.
+Afterwards `oomctl` listed the account's app cgroups one by one.
+Tradeoff:
+the daemon may read every cgroup file,
+which is what it is for;
+it gains no write.
+
 ### Sanoid temporary files
 
 ```text

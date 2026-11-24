@@ -701,6 +701,65 @@ It is still not the comparison:
 no arm ran without the settings,
 and six guests and a whole gate did not run in it.
 
+The load of the night of 2026-11-23 reached the shape of 2026-11-22's.
+A start read was taken at 2026-11-23T20:57:22-05:00 as one whole container gate of `package/git-policy/cli` began
+(`counters-at-the-start-of-the-gate-of-the-night-wave.txt`),
+with four guests up and about a dozen Pi rounds building Rust beside it,
+and an end read at 21:52:20,
+just after the gate ended,
+with six guests up
+(`counters-at-the-end-of-the-gate-of-the-night-wave.txt`;
+the rates are `rates-across-the-gate-of-the-night-wave.txt`,
+all in the folder above).
+Both settings were in force throughout.
+Over the 3,298 seconds:
+
+- kswapd did 18.0% of the scans
+  (`pgscan_kswapd` 47,836 per second against `pgscan_direct` 218,624);
+- `pgsteal_kswapd` ran at 32,311 per second against `pgsteal_direct` 6,329;
+- `allocstall_normal` rose by 51,270 and `allocstall_movable` by 171,954;
+- `kswapd_low_wmark_hit_quickly` rose by 17,370 and `kswapd_high_wmark_hit_quickly` by 29;
+- memory `full` stalled 5.99% of the interval and `some` 6.63%;
+  `/proc/pressure/io` full 1.25%,
+  and `/proc/pressure/cpu` some 25.18%;
+- `pswpin` and `pswpout` ran at 22,007 and 31,292 per second;
+- `oom_kill` did not move,
+  and the kernel log from 20:57 holds no "blocked for more than" line;
+- minutes after the end read,
+  1,964 MiB of memory was available and 47.5 GiB of swap was in use.
+
+`systemd-oomd` could not act in this window either way:
+AppArmor denied it reading the cgroup folders it watches,
+224 times for each folder,
+so it chose no cgroup to kill
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+"systemd-oomd reading the cgroup tree";
+fixed after the window by a local read rule).
+
+Against this section's criteria under "If the change works",
+four moved the way the settings are for
+and one did not.
+The steal split moved:
+direct reclaim stole 0.20 pages for each page kswapd stole,
+against 0.80 in the baseline totals.
+The watermark ratio narrowed:
+`kswapd_low_wmark_hit_quickly` to `kswapd_high_wmark_hit_quickly` was 599 to 1,
+against 9,013 to 1.
+Memory `full` at 5.99% stayed far below the stall's 45.76 trend,
+and no "blocked for more than" line appeared.
+The scan split did not move:
+kswapd's share of the scans was 18.0%,
+below the baseline's 35.6%,
+so direct reclaim scanned far more pages than it stole
+(218,624 scanned a second for 6,329 stolen).
+The allocation-stall rates (15.5 and 52.1 a second) cannot be set against the baseline,
+whose figures are totals since a boot.
+
+This is the first read under a load of the comparison's shape,
+and it held without the freeze's signature.
+It still does not show the settings caused that:
+no arm ran without them under this load.
+
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
 whole container gates of `package/git-policy/cli`,
