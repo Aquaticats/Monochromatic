@@ -54,16 +54,21 @@ const MODE_REGULAR: u32 = 0o100_000;
 const MODE_TYPE: u32 = 0o170_000;
 
 /// What:
-///  The two sets one source with changes splits into.
+///  The sets one source with changes splits into:
+/// the entries the clones take,
+///  the paths Git writes,
+/// and of those the ones only the file's recorded times (or an unstaged edit) sent to Git.
 /// Why:
 ///   The clones take the entries the proof settles,
 /// and Git writes the rest,
 /// so each path is made by
-///  exactly one of them.
+///  exactly one of them;
+/// the third set is what a refusal can call stale without counting a path the person changed,
+/// because a path whose index entry equals the tree's names no changed byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Split = { clones: number[]; writes: Uint8Array[] };
+/// type Split = { clones: number[]; writes: Uint8Array[]; staleTimes: Uint8Array[] };
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 pub struct Split {
@@ -74,6 +79,10 @@ pub struct Split {
     /// which the new worktree's Git writes,
     /// in the tree's order.
     pub writes: Vec<Vec<u8>>,
+    /// The paths of `writes` whose index entry names the tree's own blob and mode,
+    /// so only the file's stat data (or an unstaged edit) kept them from the clones,
+    /// in the tree's order.
+    pub stale_times: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -212,6 +221,7 @@ pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::
     let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(CleanRefusal::unreadable(format!("{} cannot be examined", root.display()))) };
     let mut clones: Vec<usize> = Vec::new();
     let mut writes: Vec<Vec<u8>> = Vec::new();
+    let mut stale_times: Vec<Vec<u8>> = Vec::new();
     let mut at: usize = 0;
     for committed in tree {
         let shown: String = String::from_utf8_lossy(committed.path.as_slice()).into_owned();
@@ -240,9 +250,17 @@ pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::
             clones.push(at);
             continue;
         }
+        // What:
+        //  A path whose entry names the tree's blob and mode is written only because its file's recorded times
+        //  no longer match it (or because the person edited it without staging);
+        //  it is named apart from a path a change reaches.
+        // Why:
+        //  A refusal that says the recorded times are out of date must count these alone, or it tells the person to
+        //  refresh times for paths whose bytes are not the tree's.
+        stale_times.push(committed.path.clone());
         writes.push(committed.path.clone());
     }
-    return Ok(Split { clones, writes });
+    return Ok(Split { clones, writes, stale_times });
 }
 
 /// Where the entry of one path is.
