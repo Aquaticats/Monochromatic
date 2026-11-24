@@ -120,8 +120,7 @@ and two of them fail the typed ban independently
   name-first would refuse its words.
   The false "order cannot change what any of them does" sentence is gone
   (cases 3 and 28;
-  run:
-  keep/dispatch-cases.log).
+  run keep/dispatch-cases.log).
 - M4,
   the change list misses companions:
   it now names
@@ -173,12 +172,11 @@ and two of them fail the typed ban independently
   and the warm per-event start,
   which the second revision left unmeasured,
   is measured this round.
-  Both warm starts are under a millisecond and their difference is smaller than the control's
-  own spread,
-  so this round reports that it cannot tell them apart
+  Both warm starts are near a millisecond,
+  and their difference is smaller than the control's own per-round spread,
+  so this round reports that it cannot resolve the gap between them
   (this round's warm logs;
-  run:
-  keep/host-warm-*.txt and keep/warm-analysis.txt).
+  run keep/host-warm-*.txt and keep/warm-analysis.txt).
 
 ### The thirteen Low findings
 
@@ -229,8 +227,7 @@ and two of them fail the typed ban independently
   which is `x` and not `--version`,
   because the read measured that today's rule would print `--version`
   (the `--version extra` line;
-  run:
-  keep/names-starts.log).
+  run keep/names-starts.log).
 
 ### What the owner's answers since add
 
@@ -569,8 +566,7 @@ and the `ZEVENT_TIME_*` values.
 This round's replay of that child step,
 with a fixture writing down what it was handed
 (from `keep/zed_replay.c` and `keep/replay_fixture.rs`;
-run:
-keep/zed-shape-report.txt):
+run keep/zed-shape-report.txt):
 
 ```text
 PROBE argv0=Some("history_event-mount_git_worktree_clone_datasets")
@@ -646,8 +642,7 @@ and ZED's `execle` and systemd's `ExecStart` fix the value.
 A start whose `argv[0]` a lower-privileged caller chose as the zedlet's name is a root-mode start as that caller,
 which is harmless for an account and is why none of this design's launchers passes a caller's choice through
 (cases 26 and 34;
-run:
-keep/dispatch-cases.log).
+run keep/dispatch-cases.log).
 
 ### An empty `argv[0]` and a NULL vector are one empty argument
 
@@ -656,8 +651,7 @@ and `execve` with one empty element,
 both reach the program as a single empty argument.
 Measured on this kernel
 (case 35;
-run:
-keep/dispatch-cases.log,
+run keep/dispatch-cases.log,
 through `keep/exec_empty_argv.c` and `keep/argv_view.c`).
 
 ```text
@@ -1046,8 +1040,7 @@ which is what lets a unit's line work at the installed path,
 and both are read before the service's words,
 which is what refuses `monochromatic-git-policy-cli service run` under the zedlet's name
 (the `service words` line;
-run:
-keep/names-starts.log).
+run keep/names-starts.log).
 
 ### `zfs-root` alone refuses with usage
 
@@ -1509,8 +1502,7 @@ The words are not in the build yet,
 so the `decides` line is the fixture's
 (cases 3,
 27 and 28;
-run:
-keep/dispatch-cases.log),
+run keep/dispatch-cases.log),
 and the `prints` line is what the modes print today
 (run keep/handler-usage.log).
 
@@ -2199,8 +2191,7 @@ a copy of the wrapper's bytes somewhere else,
 started as root under a name of its own,
 runs the whole wrapper
 (cases 20 and the stray other name;
-run:
-keep/dispatch-cases.log and keep/names-starts.log),
+run keep/dispatch-cases.log and keep/names-starts.log),
 and a start of any of these files under a caller-chosen `argv[0]` that is not the zedlet's
 is the wrapper as that caller.
 An account that can write root's install folder can replace any of these files,
@@ -2848,8 +2839,7 @@ No probe here measures either direction,
 and the design says so rather than claiming a measurement it did not make
 (it shows ZED cannot set one,
 which is neither direction's evidence;
-run:
-keep/zed-shape-report.txt).
+run keep/zed-shape-report.txt).
 
 The choice is separable,
 in one direction.
@@ -2903,8 +2893,7 @@ Built from the merge commit this round began at,
 and `.../mount-git-worktree-clone-datasets` is 3,418,256,
 which is 8.53 times
 (the log also holds the build's own `ls`;
-run:
-keep/handler-usage.log).
+run keep/handler-usage.log).
 
 ### The cold start, measured four ways
 
