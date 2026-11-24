@@ -809,6 +809,18 @@ since no failing test needs either and the capability lets a program pass every 
 and three reads by the browser `helium`,
 which is not this work's.
 
+The whole gate on `main` at `6f2b9ef708`,
+after the eighth batch and the stale lock controls' fix
+(run `native-JsS2Gw`,
+2026-11-24T00:50:45Z to 01:09:53Z),
+gave `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`.
+The two are the cause-H pair,
+which fail on a leftover scratch folder and failed on the Btrfs host too
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H"),
+so no test of the gate fails under this enforcement.
+The denials in that window were `umount`'s `dac_override` (three)
+and six reads by `helium`.
+
 `local/git_ssh` belongs to the `ssh` child of the `git` profile,
 so it is loaded with `/etc/apparmor.d/git`.
 Each batch after the fourth is appended,

@@ -280,3 +280,14 @@ whose author had ended at 11:00:13 with `2f3e2785ed`.
   the rule of 2026-11-12 that the wrapper moves nothing aside,
   and the morning's answer on the worktree removal)
   and the branch's save.
+
+From lines 6563 to 6568 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The owner's word and four answers** are under "Owner decisions in force",
+  "Answers on waking":
+  the temperature limits are lifted and stay lifted;
+  the cap steps to 20 under the probe;
+  the rotation keeps waiting for the masking;
+  a wrapper branch goes into a pass while its only open findings are in doc comments or test code.

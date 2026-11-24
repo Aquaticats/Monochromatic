@@ -148,3 +148,58 @@ The proposal branch also changed shipped code:
 with its only control in a module the default build does not compile.
 That change is not part of this decision;
 whether `main` answers a reftable repository's replace refs correctly is a separate question for its own branch.
+
+## Moved from the old handover
+
+From lines 386 to 391 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The size read's reviewed branch merges now and its measured step cost is fixed next:
+  "A:
+  merge now,
+  fix next (Recommended)",
+  recorded in the size read's entry under "Build and diagnosis runs".
+
+From lines 1603 to 1640 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The size read
+  (`feat/git-policy-cli-fence-size-read-beside-source-check` at `f752fe3cab`):
+  its Sonnet recheck found nothing high and no add slower
+  (`~/temp/agent/integration-recheck-fence-size-read-never-fetches-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-fence-size-read-never-fetches-and-abandon-sticks` at `9a6fb83af0`,
+  made on `main` at `f4746ec6a0`,
+  before issue 6344's merge).
+  It called the branch fit if one cost is accepted:
+  on a declined add the step that chooses the rung takes 5.91 ms against `main`'s 0.67 ms,
+  about half of it the adding thread freeing a map of 24,634 entries,
+  with the add's total not slower.
+  The owner chose "A:
+  merge now,
+  fix next (Recommended)" in the question tool on 2026-11-22,
+  worded as a merge after a build and the touched tests pass on the merged result.
+  The same reviewer merged `main` into that integration branch (`568f9ff721`),
+  ran the build,
+  both clippy tasks,
+  `lint:types` and the touched modules' host tests,
+  whose failures are the same 29 names as before
+  (the btrfs controls and cause A),
+  and wrote `keep/reverify-on-current-main.md` beside its review:
+  fit by the owner's wording.
+  Merged into `main` as `e37566df9c` at 2026-11-22T20:46:57-05:00;
+  the wrapper handed the integration worktree's removal to the commit service.
+  `native:check` on `main` after the merge ended with status 0
+  (unit `check-main-after-the-size-read-merge`,
+  56 s).
+  The follow-up is running meanwhile:
+  `pi-fence-size-read-recheck-findings-declined-add-step-cost`,
+  on `continuation-recheck-findings.md` in
+  `~/temp/agent/fence-size-read-never-fetches-and-abandon-sticks-2026-11-22/`
+  (the step's cost found whole and removed,
+  the release text corrected,
+  the two reaped-id windows closed or reworded,
+  the recheck's six new controls taken in).
+  Then a recheck of the follow-up alone,
+  on a new integration branch.

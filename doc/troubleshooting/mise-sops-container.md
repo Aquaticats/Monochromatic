@@ -216,3 +216,21 @@ search was run because the decision is that there is nothing to file:
 no issue draft and no comment draft are kept,
  and this section is the
 explicit record of that outcome.
+
+## Moved from the old handover
+
+From lines 11834 to 11844 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The review brief says what the change is and where its diff stands**,
+  the fresh run,
+  ended 02:12:03 at `1bcee2933e`.
+  The four sightings answered in the template and the writer:
+  the range,
+  the diff's file,
+  what the listed files are,
+  and a command that builds under a disposable home
+  (`MISE_SOPS_STRICT=false mise --yes run --skip-tools <task>`;
+  it measured that `mise exec` under a disposable `HOME` fails to decrypt and that `--no-env` does not help `run`),
+  with a troubleshooting section for it.

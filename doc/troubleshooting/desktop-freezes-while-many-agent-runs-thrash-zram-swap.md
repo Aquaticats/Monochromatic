@@ -1301,3 +1301,17 @@ moved verbatim on 2026-11-23:
   35.1 GB in 12.7 GB); load 19 to 27 on 30 processors. What held work back was the order of work and not the machine: none
   of the designs the plan marks as blocking steps 10 to 19 was written. Step 10's "Depends on" (steps 2, 3, 6 and 8) is
   met, but its "Open items" block it on the add-time Git lock, and its binding record has no home (plan lines 1479 and 2864
+
+From lines 1364 to 1372 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The freeze's troubleshooting document:
+  its revision after the short review is merged.
+  A reading taken at 2026-11-23T04:20:03-05:00 while these rounds ran is in the freeze's scratch folder,
+  `keep/counters-during-the-rounds-of-the-early-morning-of-2026-11-23.txt`:
+  over the night kswapd did 73.1% of the scanning and tasks were stalled on memory 1.97% of the time,
+  with free memory at 6,572 MiB at the read.
+  It is an average over a night nobody watched,
+  not the comparison under a load like the freeze's,
+  which is still owed (task 463).

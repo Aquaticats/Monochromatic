@@ -97,3 +97,55 @@ change, Sonnet alone. Where short ends and long begins, answered the same evenin
 Sonnet review only at an integration pass before main, a release, or a design put to the owner; every other review is
 short and goes to DeepSeek. Declined: long meaning a review that builds or reproduces, or one above a size. Written into
 `AGENTS.md` rules `KRV` and `LHZ` and the pi-as-subagent skill's section "Who writes and who reviews" the same evening.
+
+From lines 1921 to 1930 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Reviewer bench (task 387):** all four resumed reviews ended `idle` on `opencode-go` with no rate-limit error
+  (`a13faa0d55` runs 1 and 2: 92 and 152 turns; `3822c44c2f` run 1: 33; `915ef30e09` run 2: 49); all six now have a
+  review. Scored by a Claude Sonnet subagent (a second pass, same vendor as one side):
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3, partly 2, missed 47 (7 of them read and called
+  sound); 7 DeepSeek-only findings, none contradicted by source; the two runs of a case shared no headline finding; no
+  run read Sonnet's review or the handover; neither side caught pass 58's five failing controls. Two of its claims were
+  spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
+  "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
+  closed; its run folders stay because the scoring report cites their review files.
+
+From lines 44962 to 44963 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+**Pi writes into `/tmp` (owner, 2026-11-19: "What are you doing, why are you saving stuff to /tmp when a rule bans
+it?").** Checked: nothing of the coordinator's own went to `/tmp` (its scratch is in `~/temp/agent`); the `/tmp` paths
+
+From lines 44977 to 44978 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+**Owner, 2026-11-19, on the writer model:** "Don't just look at the same topic. And if you think GPT is giving us too
+much trouble, cull it entirely." The decision is delegated to the coordinator's judgement on evidence. A second Sonnet
+
+From lines 45433 to 45433 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+(23 lines added, 48 removed). The owner chose "Save as patch (Recommended)": the paragraph is saved as
+
+From lines 45754 to 45757 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Writers and reviewers:** "Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
+  then "Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
+  "We already have a package about pi as subagents in the workspace." and "If that wasn't obvious from the skill, edit the skill."
+  Then through the question tool: the writer's provider "A: openai (Recommended)", so `--provider openai --model gpt-6.2-sol`;
+
+From lines 45762 to 45764 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **`AGENTS.md` rewrite:** the owner picked "A: Rewrite; audits go to DeepSeek (Recommended)" with the note
+  "Rewrite, audits stay sonnet, but Synthetic, then ... are implementation details in our driver package and shouldn't take up precious tokens.
+  Also you're supposed to bench deepseek as reviewer against what we had before and challenge me if you think we need more changes."
