@@ -3041,8 +3041,7 @@ which is the condition that answer set for dropping the limit there
 "The dirty-tree limit on Btrfs (D2)",
 and `doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`,
 "Was the clone no slower than Git's own checkout on Btrfs?").
-So a btrfs source with changes is cloned whatever its size,
-as a clean one is.
+So a btrfs source with changes is cloned whatever its size.
 The measurements below were taken on ZFS,
 so the whole-tree limit applies on ZFS and on a filesystem nobody measured,
 while the changed-file cut applies on every filesystem.
