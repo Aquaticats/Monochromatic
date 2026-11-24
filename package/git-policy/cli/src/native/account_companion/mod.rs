@@ -62,7 +62,8 @@
 //! - `companion_child.rs`:
 //!   the child's sequence and its records.
 //! - `companion_scratch.rs`:
-//!   the run's directory under `$XDG_RUNTIME_DIR` and its sweep.
+//!   the runtime folder the caller resolves,
+//!   the run's directory under it and its sweep.
 //! - `companion_deadline.rs`:
 //!   the bound the parent enforces,
 //!   beside its measurement.
@@ -127,6 +128,12 @@ pub mod companion_parent;
 /// The check the add's preflight runs before its first write,
 /// printing every line it carries.
 pub use companion_parent::the_managed_attach_may_go_ahead;
+/// The account's runtime folder,
+/// which the add route resolves once and hands to the check.
+pub use companion_scratch::RuntimeFolder;
+/// The add's answer when the environment names no runtime folder,
+/// with the line a person reads.
+pub use companion_parent::the_accounts_runtime_folder;
 /// What one run means for the add.
 pub use companion_lines::{CompanionVerdict, Refusal, Skip, THE_FALLBACK_ROUTE};
 /// The bound the parent enforces.

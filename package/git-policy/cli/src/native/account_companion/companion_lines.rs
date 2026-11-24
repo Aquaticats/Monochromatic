@@ -173,6 +173,21 @@ impl CompanionVerdict {
             CompanionVerdict::Refused { refusal } => vec![refusal.line()],
         };
     }
+
+    /// What:
+    ///  Write every line this verdict carries to standard error,
+    ///  which is where a person reads it.
+    /// Why:
+    ///  One writer for every ending,
+    ///  so no call site decides what a person reads
+    ///  and a refusal the add resolves before the check prints the same way as
+    ///  one the check answers.
+    pub fn report(&self) {
+        use std::io::Write as _;
+        for line in self.lines() {
+            let _written: std::io::Result<()> = writeln!(std::io::stderr(), "{line}");
+        }
+    }
 }
 
 /// What:

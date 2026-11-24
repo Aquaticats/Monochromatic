@@ -22,8 +22,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! beforeTheAdd() {
-//!   const run = makeRunDirectory(); const pid = forkWithRetry();
+//! beforeTheAdd(runtime) {
+//!   const run = makeRunDirectory(runtime); const pid = forkWithRetry();
 //!   const ended = poll(pidfd, deadline) ? readRecords() : killGroup(pid);
 //!   removeRunDirectory(run); return verdictOf(ended);
 //! }
@@ -37,7 +37,7 @@ use super::companion_deadline::the_deadline;
 use super::companion_lines::{CompanionVerdict, Refusal, Skip};
 use super::companion_process_calls::{Exit, effective_ids, fork, is_alive, kill_group, pause, pid_descriptor, pipe_pair, read_available, ready_within, reap_now};
 use super::companion_records::{Decoded, decode_all};
-use super::companion_scratch::{RunDirectory, ScratchRefusal, make_run_directory, remove_run_directory};
+use super::companion_scratch::{RunDirectory, RuntimeFolder, ScratchRefusal, make_run_directory, remove_run_directory};
 use super::companion_settings::{self, Settings};
 use super::companion_steps::{CompanionStep, STEP_COUNT, STEPS_IN_ORDER, is_skip};
 use super::companion_test_switch::{Switch, from_environment};
@@ -56,7 +56,8 @@ pub const FORK_RETRY_PAUSE: Duration = Duration::from_millis(50);
 const STATUS_BYTES: usize = 256;
 
 /// What:
-///  The check as the add calls it:
+///  The check as the add calls it,
+///  with the runtime folder the add resolved:
 ///  prints every line the run carries and answers whether the managed attach
 ///  may go ahead.
 /// Why:
@@ -64,13 +65,30 @@ const STATUS_BYTES: usize = 256;
 ///  so no call site decides what a person reads,
 ///  and a refusal leaves the route at once,
 ///  which is what puts the slot on the reflink or ordinary Git route.
-pub fn the_managed_attach_may_go_ahead() -> bool {
-    use std::io::Write as _;
-    let verdict: CompanionVerdict = before_the_add();
-    for line in verdict.lines() {
-        let _written: std::io::Result<()> = writeln!(std::io::stderr(), "{line}");
-    }
+pub fn the_managed_attach_may_go_ahead(runtime: &RuntimeFolder) -> bool {
+    let verdict: CompanionVerdict = before_the_add(runtime);
+    verdict.report();
     return verdict.the_managed_attach_goes_ahead();
+}
+
+/// What:
+///  The account's runtime folder as this process's environment names it,
+///  or the line a person reads when it names none.
+/// Why:
+///  The add route resolves the folder once and hands it to the check as an input,
+///  so the check reads no environment and every control passes a folder of its
+///  own;
+///  the words of a missing folder stay beside the other refusals,
+///  where a person's line is written.
+pub fn the_accounts_runtime_folder() -> Option<RuntimeFolder> {
+    return match RuntimeFolder::from_environment() {
+        Ok(folder) => Some(folder),
+        Err(refusal) => {
+            let refused: CompanionVerdict = CompanionVerdict::Refused { refusal: Refusal::Scratch { message: refusal.message } };
+            refused.report();
+            None
+        }
+    };
 }
 
 /// What:
@@ -79,40 +97,25 @@ pub fn the_managed_attach_may_go_ahead() -> bool {
 ///  The add calls this before its first write,
 ///  so a refusal leaves no managed object,
 ///  and a skip lets the managed attach go ahead.
-pub fn before_the_add() -> CompanionVerdict {
+pub fn before_the_add(runtime: &RuntimeFolder) -> CompanionVerdict {
     let switch: Switch = from_environment();
-    return run_under(switch, the_deadline(switch.is_set()));
+    return run_under(runtime, switch, the_deadline(switch.is_set()));
 }
 
 /// What:
-///  One run with the deadline named rather than read,
+///  One run inside the runtime folder the caller resolved,
+///  with the deadline named rather than read,
 ///  which is what the controls use so no test changes another's environment.
-pub fn run_under(switch: Switch, deadline: Duration) -> CompanionVerdict {
+pub fn run_under(runtime: &RuntimeFolder, switch: Switch, deadline: Duration) -> CompanionVerdict {
     if switch == Switch::Disabled {
         return CompanionVerdict::NotRun;
     }
     let settings: Settings = companion_settings::read();
-    let run: RunDirectory = match make_run_directory() {
+    let run: RunDirectory = match make_run_directory(runtime) {
         Ok(run) => run,
         Err(refusal) => return CompanionVerdict::Refused { refusal: Refusal::Scratch { message: refusal.message } },
     };
     let verdict: CompanionVerdict = run_the_check(&run, switch, &settings, deadline);
-    return verdict;
-}
-
-/// What:
-///  One run under the switch this process was given,
-///  which the controls call directly.
-pub fn decide(switch: Switch) -> CompanionVerdict {
-    if switch == Switch::Disabled {
-        return CompanionVerdict::NotRun;
-    }
-    let settings: Settings = companion_settings::read();
-    let run: RunDirectory = match make_run_directory() {
-        Ok(run) => run,
-        Err(refusal) => return CompanionVerdict::Refused { refusal: Refusal::Scratch { message: refusal.message } },
-    };
-    let verdict: CompanionVerdict = run_the_check(&run, switch, &settings, the_deadline(switch.is_set()));
     return verdict;
 }
 
