@@ -24,11 +24,12 @@
 
 use super::commit::{keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, give_service_environment, observe_raw, repository, start_fixture_service, stderr_of,
-    wrapper_first_path, FixtureService,
+    Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, give_service_environment, observe_raw, repository, stderr_of, wrapper_first_path,
+    FixtureService,
 };
-use git_policy_cli::service_fault::AFTER_PROMOTE;
+use git_policy_cli::service_fault::AFTER_THE_VERDICT;
 use git_policy_cli::service_work::work_directory;
+use git_policy_cli::work_item::{HELD, state_directory};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -78,8 +79,6 @@ struct World {
     repo: PathBuf,
     /// The bare origin.
     origin: PathBuf,
-    /// The service of the fixture.
-    service: FixtureService,
     /// The `PATH` the shell that commits in this control searches,
     /// which holds that shell's own stand-in `git-lfs` and not the service's list.
     shell_path: OsString,
@@ -125,9 +124,53 @@ fn world(name: &str) -> World {
     std::fs::create_dir_all(stand_in.as_path()).expect("the stand-in's own folder");
     executable(stand_in.join("git-lfs").as_path(), stand_in_source().as_bytes());
     let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
-    let service: FixtureService = start_fixture_service(&fixture);
-    service.serve(&fixture, repo.join(".git").as_path());
-    return World { fixture, repo, origin, service, shell_path, stand_in };
+    // The first wrapped command starts the fixture's own service, in the runtime directory it hands that command, and this
+    //  control stops and starts that one (`the_service_lock`).
+    return World { fixture, repo, origin, shell_path, stand_in };
+}
+
+/// What:
+///  The registry holding the fixture's own service,
+///  which every wrapped command of this fixture reaches.
+/// Why:
+///   The settings a push needs live in the memory of the service the command spoke to,
+/// so a control that takes them away has to stop that service.
+/// A service the control starts itself sits in a runtime directory of its own,
+/// which no command of this fixture is told about:
+/// it holds none of the settings,
+/// and stopping it proves nothing (issue 6447).
+fn the_service_lock(fixture: &Fixture) -> std::sync::MutexGuard<'_, Option<FixtureService>> {
+    return fixture.service.lock().expect("the fixture's service");
+}
+
+/// The runtime directory the fixture's service listens in,
+/// which every wrapped command of this fixture is told.
+fn service_runtime_of(fixture: &Fixture) -> PathBuf {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    return started.runtime.clone();
+}
+
+/// What the manager does when the worktree's service has gone:
+/// ends it and everything it started,
+/// and with the process its memory of the settings.
+fn stop_the_service(fixture: &Fixture) {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    started.stop_all();
+}
+
+/// What:
+///  Starts the worktree's service again,
+///  in the runtime directory the commands of this fixture already look in.
+/// Why:
+///   The manager starts one instance per worktree,
+/// and the fixture has none,
+/// so the control starts the new one where the last one listened and holds nothing of its memory.
+fn serve_the_service(fixture: &Fixture, git_dir: &Path) {
+    let service: std::sync::MutexGuard<'_, Option<FixtureService>> = the_service_lock(fixture);
+    let started: &FixtureService = service.as_ref().expect("a wrapped command started the fixture's service");
+    started.serve(fixture, git_dir);
 }
 
 /// What:
@@ -149,6 +192,17 @@ fn shell_path(fixture: &Fixture, stand_in: &Path) -> OsString {
 /// The Git directory of the working repository.
 fn git_dir(world: &World) -> PathBuf {
     return world.repo.join(".git");
+}
+
+/// The names of the records waiting in one state of a worktree's queue,
+/// sorted,
+/// and none when that state was never made.
+fn names_in(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    names.sort();
+    return names;
 }
 
 /// Run one wrapped command in the repository,
@@ -223,7 +277,7 @@ fn files_under(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 /// so one walk covers them.
 fn files_holding(world: &World, value: &str) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
-    for root in [world.fixture.root.clone(), world.service.runtime.clone()] {
+    for root in [world.fixture.root.clone(), service_runtime_of(&world.fixture)] {
         for (path, bytes) in files_under(root.as_path()) {
             if bytes.windows(value.len()).any(|window| { return window == value.as_bytes(); }) {
                 found.push(path);
@@ -285,7 +339,7 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
     for value in [FAKE_TRANSPORT_ONE, FAKE_TRANSPORT_TWO, FAKE_PROXY] {
         assert!(files_holding(&world, value).is_empty(), "{value} reaches no file: {:?}", files_holding(&world, value));
     }
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
@@ -298,23 +352,42 @@ fn a_commit_and_a_typed_push_write_neither_command_line_anywhere() {
 /// so after a restart the push must not run through the manager's transport;
 /// it stops within its bound,
 /// and the person is handed the one command that sends the commit.
+///  The scene the control names is made by the control,
+/// never by a race:
+/// the command is killed once its gate approved the push and before it promoted the record,
+/// so the record waits in `held`,
+/// which no round drains.
+/// The service that holds the settings is stopped while the record waits there,
+/// and only then does the control take the step the killed command would have taken.
+/// A push a service that still held the settings ran would complete,
+/// which removes the scene's premise rather than refuting anything:
+/// the control would then wait out its bound for words about a push nothing had taken the settings from.
 #[test]
 fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
     let world: World = world("push-programs-restarted");
-    // A wrapper killed after it promoted the push record leaves it waiting, and the service still held the settings.
+    // A wrapper killed after its gate approved the push leaves the record held, and the service that landed the commit still
+    //  holds the settings in its memory.
     let mut committing: Command = wrapped_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--allow-empty"]);
     committing.env("GIT_SSH_COMMAND", FAKE_TRANSPORT_ONE);
-    committing.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_PROMOTE);
+    committing.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_THE_VERDICT);
     let killed: std::process::Output = committing.output().expect("the wrapped commit runs");
     assert!(!killed.status.success(), "the wrapper was killed at the fault point");
     let commit: String = head_of(&world);
     assert_ne!(origin_main(&world), commit, "the push has not been made");
+    // The approved record is the one thing the killed command left behind, and no round lists the state it waits in.
+    let work: PathBuf = work_directory(git_dir(&world).as_path());
+    let held: Vec<String> = names_in(state_directory(work.as_path(), HELD).as_path());
+    assert_eq!(held.len(), 1, "the push the gate approved is the one record held: {held:?}");
     // The values are on no disk even with the client gone.
     assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "a killed client leaves no file holding the value: {:?}", files_holding(&world, FAKE_TRANSPORT_ONE));
 
-    // What the manager does when its service has gone: a new one, which holds nothing of the old one's memory.
-    world.service.stop_all();
-    world.service.serve(&world.fixture, git_dir(&world).as_path());
+    // What the manager does when its service has gone: the service that held the settings ends, and its memory with it.
+    stop_the_service(&world.fixture);
+    // What the killed command would have done next: the approved record becomes runnable while no service runs to take it.
+    assert!(git_policy_cli::work_item_holding::promote(work.as_path(), held[0].as_str()), "the approved record is promoted");
+    assert!(names_in(state_directory(work.as_path(), HELD).as_path()).is_empty(), "the promoted record no longer waits where no round looks");
+    // The manager's next instance of this worktree, which holds nothing of the memory the last one had.
+    serve_the_service(&world.fixture, git_dir(&world).as_path());
     let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(git_dir(&world).as_path());
     wait_until("the push records what stopped it", &|| { return std::fs::read_dir(notice.as_path()).is_ok_and(|entries| { return entries.flatten().next().is_some(); }); });
     // A plain `git status` is not a command whose output a program reads, so it shows the record.
@@ -348,7 +421,7 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
         .expect("the printed command runs");
     assert!(pushed.status.success(), "the printed command pushes: {}\n{}", String::from_utf8_lossy(pushed.stdout.as_slice()), String::from_utf8_lossy(pushed.stderr.as_slice()));
     assert_eq!(origin_main(&world), commit, "the commit the stopped push held is on the remote");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
@@ -387,7 +460,7 @@ fn a_transport_value_that_could_not_travel_stops_the_push_and_names_that_cause()
     assert!(words.contains("nothing was sent through another transport"), "no other transport was used: {words}");
     assert!(words.lines().any(|line| { return line.trim_start().starts_with("Run this in ") && line.contains("git push "); }), "the command that pushes is printed: {words}");
     assert_ne!(origin_main(&world), commit, "and nothing reached the remote");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }
@@ -416,7 +489,7 @@ fn the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command() {
     assert!(!staged.exists(), "and so is the staging file of one of its writes");
     assert!(files_holding(&world, FAKE_TRANSPORT_ONE).is_empty(), "no value of that record is left on any disk: {:?}", files_holding(&world, FAKE_TRANSPORT_ONE));
     assert!(folder.is_dir(), "the work records' own folder stays");
-    world.service.stop_all();
+    stop_the_service(&world.fixture);
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
 }

@@ -14758,17 +14758,18 @@ The step:
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
   which ends at the last `@` of its authority;
-  every path segment that is not a plain label of short words,
-  a label being the letters `a` to `z` and the separators `-`,
+  every path segment of more than `LONGEST_PLAIN_WORD` characters,
+  and every path segment that carries a percent encoding or another punctuation mark,
+  a segment being a plain label while it is the letters `a` to `z` and `A` to `Z`,
+  the digits and the separators `-`,
   `.`,
   `_` and `~` alone,
   which is what `lfs`,
   `objects`,
-  `batch` and `info` are,
-  so a capital,
-  a digit,
-  a percent encoding or another punctuation mark is hidden,
-  and so is a path word of 20 or more unbroken lowercase letters
+  `batch`,
+  `info`,
+  `Org` and `Repo.git` are,
+  so a capital and a digit are shown and a longer segment is hidden
   (`LONGEST_PLAIN_WORD` in `src/native/lfs/lfs_output_mask.rs`);
   and every value of its query and of its fragment,
   with a key kept only while it is a plain label,
@@ -14780,17 +14781,22 @@ The step:
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  A token of fewer than 20 lowercase letters alone still reads as a label and is not hidden,
-  which the owner accepted when choosing this rule on 2026-11-19T16:58:00-05:00
-  ("Hide long words only",
-  `doc/handover/cli-git-rust-implementation.md`,
-  the entry beginning "owner answered H1 and M4"):
+  A path segment of `LONGEST_PLAIN_WORD` characters or fewer with no percent encoding
+  and no other punctuation mark prints as written and is not hidden,
+  which the owner accepted when choosing this rule on 2026-11-24
+  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
+  "Short path segments stay shown in a relayed git-lfs line"):
   the whole path after the host is not hidden,
   because `objects`,
   `info` and a repository's own name must stay readable,
-  and a long real folder name is hidden by the same rule.
+  and a short token in a path now prints,
+  which the option the owner chose named.
+  The length is the segment's and not a word's inside it,
+  so a folder name of short words is hidden once the whole segment passes the limit,
+  where the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only")
+  hid a segment only when it held an unbroken run of 20 lowercase letters.
   A query or fragment key of that shape is not hidden either:
-  the rule is about path words.
+  the rule is about path segments.
   When that file cannot be made,
   the push is refused with the ways forward.
   A run that fails is never run again by the wrapper,

@@ -310,7 +310,8 @@ State:
 plan steps 1 to 10 are built and on `main`,
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
-Pieces of steps 13,
+Pieces of steps 12,
+13,
 15,
 16 and 18 are built ahead and on `main`,
 unwired.
@@ -400,19 +401,27 @@ Both rounds decided points the designs leave open
 (`keep/state-so-far.md` in
 `~/temp/agent/zfs-step-10-add-route-to-a-verified-fill-2026-11-23/`).
 
-Running:
-`pi-zfs-step-10-binding-design-takes-the-build-decisions`,
-putting both rounds' decisions and the eleventh read's two fixes into the designs.
+The build decisions are in both designs (`3e651a9678`);
+the eleventh read's two fixes were already in.
+That round found the build short of its accepted designs in four places
+(its report in `~/temp/agent/zfs-step-10-binding-design-takes-the-build-decisions-2026-11-24/keep/`):
+the preflight reads no grants,
+the refusal beside a standing plan names the removal even where the plan design says it refuses,
+the account companion the start-probe record put in step 10 is unbuilt,
+and the gate serves only the step 19 dataset;
+and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
-(it was rising at 2026-11-24T01:25-05:00 with a whole gate and nine rounds running):
-the round on T27 and T28,
-whose prompt is ready in `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`
-(start it with `start-a-fresh-build-round.ts zfs-step-10-reboot-and-power-loss-arms-2026-11-24
-zfs-step-10-reboot-and-power-loss-arms test/git-policy-cli-zfs-step-10-reboot-and-power-loss-arms
-pi-zfs-step-10-reboot-and-power-loss-arms`).
+(`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
+`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`,
+whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
+the first also writes up what widening the gate would need, for the owner.
+Running too,
+once the memory stall fell:
+`pi-zfs-step-10-reboot-and-power-loss-arms`,
+the round on T27 and T28
+(folder `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`).
 
 Next:
-start the T27 and T28 round when the stall eases;
 merge both when they end.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
@@ -471,13 +480,42 @@ the owner answered "Lift it for the ZED hook only (Recommended)"
 only the zedlet's file name selects a root mode,
 and units,
 adoption and a person use words.
-Running:
-`pi-zfs-root-modes-after-the-start-name-answer`,
-revising the proposal to that answer and the review
-(folder `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
+The revision to that answer and the review merged as a proposal,
+`1e5f417430`:
+the zedlet's file name or the words `monochromatic-git-policy-cli zfs-root` select a root mode,
+probed over nineteen fixture starts with the guard predicates replayed,
+and six choices left open (the group word,
+what root's install holds,
+where the dispatch sits,
+what `--version` says,
+the account's short name,
+and whether release keeps the modes' test-only variables),
+each ranked.
+Its cold first-start read ran on the host with each file's pages evicted
+(the wrapper 6.04 ms slower than the handler at the median),
+because mvm's Fedora guest refused every file route
+(`keep/state-so-far.md` in `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
+Its Sonnet re-read
+(`re-read-of-the-revised-one-program-design.md` in `~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/keep/`)
+found it not ready:
+under the recommended install a unit's words are selected by the zedlet's name,
+which is not the answer's letter,
+and the proposed guard admits a call site,
+not one name;
+it drafted a rule that keeps both the answer and a fail-closed install.
+Waiting for the memory stall to ease
+(rising at 2026-11-24T01:55-05:00 with 7.2 GiB available):
+`pi-zfs-root-modes-second-revision`,
+prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
+(branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
+Running too:
+`pi-mvm-fedora-guest-refuses-every-file-route`,
+with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
+(branch `fix/mvm-fedora-guest-refuses-every-file-route`).
 
 Next:
-put the choices it re-poses to the owner,
+start the second revision when the stall eases,
+then put its choices to the owner,
 then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
@@ -523,23 +561,33 @@ step 16's one-request snapshot delete (`ca9d947b71`),
 step 13's managed lock distinction (`915aa6638b`)
 and step 18's `doctor` checks for steps 2 to 9 (`fcfda032e3`).
 Each round's report under its folder's `keep/` says what the wiring step should know.
-Step 12's move refusal and unmounted report is built;
-its merge stopped on conflicts in `mise.toml`,
-`binary_tests.rs` and `lib.rs`,
-and `pi-zfs-step-12-merge-main-after-the-night-merges` is merging `main`.
+Step 12's move refusal and unmounted report merged too (`3ea4fa16c3`).
 Step 19's two open design parts merged as a proposal,
 `9ab8cd0055`
 (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:
 `zfs-mount.service` mounts the checkout on this host,
 with the ordering and its failure control shown in a guest over unattended reboots).
+Its Sonnet gate review
+(`review-of-the-step-19-design.md` in
+`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/keep/`)
+found it not ready:
+the ZED hook is a `.sh` script,
+the option the owner declined;
+the failure control ran without the configuration it recommends,
+and the provider's failing status came from the nested dataset;
+three boots' logs were overwritten,
+so their quoted lines rest on the journal or on nothing;
+and `After=zfs-mount.service` carries a provider restart to the gate,
+which two accepted designs rely on.
 Running:
-its Sonnet gate review
-(`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/`),
-asked also whether its units still hold under the one-program and start-name records.
+`pi-zfs-step-19-design-after-its-gate-review`,
+folding the review in and running the arms again in a guest
+(folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
 
 Next:
-merge step 12 when it ends;
-fold step 19's review in and put the design to the owner.
+merge step 19's revision as a proposal,
+have the reviewer read its diff,
+then put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
 
@@ -678,6 +726,27 @@ whose round is running.
 Its denials showed `systemd-oomd` refused its cgroup reads,
 fixed by the owner's "Add the read rule now (Recommended)"
 (the account's "systemd-oomd reading the cgroup tree").
+The gate on `main` at `8519c599d0`
+(run `native-bNr3O6`, 2026-11-24T06:18:44Z to 06:46:59Z)
+gave `10745 tests run: 10741 passed (7 slow), 4 failed, 41 skipped`:
+the cause-H pair;
+the source guard `the_release_code_keeps_blocking_work_off_the_runtime`,
+on two `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`, `add_route_plan.rs:265`);
+and the `statmount` control,
+whose call answers `ENOSYS` inside the rootless container though the host kernel has it.
+The end-to-end push program controls passed in about 5 ms each,
+so they declined there too:
+the gate image now holds a real `git-lfs`.
+Its new denials (`git` asking `dac_override`,
+`git//ssh` running `/work/stubs/askpass`,
+`ssh-agent` asking `setgid` and making sockets,
+`ssh` running `true`, `false`, `cat` and `echo`)
+map to no failure and have no rule yet.
+Waiting for the memory stall to ease,
+with prompts ready in their folders under `~/temp/agent/`:
+`zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
+`statmount-control-in-the-gate-container-2026-11-24`
+and `end-to-end-push-program-controls-run-in-the-gate-2026-11-24`.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -749,19 +818,36 @@ and the clone rung pass's as `5c84ab3368`.
 The commit pass's L2 is answered,
 "Show any segment under 20 chars (Recommended)"
 (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`),
-and built in `pi-lfs-url-mask-shows-short-segments`.
+and merged as `51e90be69e`,
+with the build's narrower reading (a short segment with `%` or other punctuation still hides) recorded there,
+veto open.
 Its L4 waits in `doc/handover/questions-for-the-owner.md`,
-with `pi-typed-network-command-next-step-at-a-new-host-key-design` designing its options under the one-program and
-start-name records.
+and its options merged as a proposal,
+`41bdf36a2a`
+(`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+ranked B > D > C > E > A, B being the wrapper as the askpass program),
+with its Sonnet gate review running
+(`~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
 issue 6447,
-with `pi-push-control-restarted-service-scene` on it.
+fixed as `0127911061` and closed:
+the control stopped a second fixture service no command reached.
+The same fixture pattern sits in `binary_push_programs_end_to_end_tests.rs`,
+whose controls decline wherever a real `git-lfs` is in `/usr/bin`;
+whether they still run anywhere after the gate image gained `git-lfs` is read from the next gate.
+
+The next alpha waits for the one-program build round:
+the record says "alpha.45 shipped with the second program,"
+and "the change starts with the release after it"
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+so a release cut before the second `[[bin]]` is gone would ship it again.
 
 Next:
 merge each round when it ends;
-put L4's options to the owner.
+put L4's options to the owner;
+release the next alpha once the one-program build has merged.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
@@ -781,9 +867,15 @@ the files that unmerged branches change
 (among them `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` with 580 findings and
 `package/pi-shared/subagent-driver/README.md`),
 everything under `package/git-policy/cli/`,
-and two files whose fix changed more than whitespace,
-step 19's proposal and `doc/troubleshooting/cachyos-apparmor-missing-dbus-profile-boot-failure.md`
-(their fix is kept as `two-files-left-out.patch` there).
+and step 19's proposal,
+whose fix changed more than whitespace
+(kept as `two-files-left-out.patch` there)
+and which its gate review is reading by line number.
+The other such file,
+`doc/troubleshooting/cachyos-apparmor-missing-dbus-profile-boot-failure.md`,
+is fixed:
+its one change beyond whitespace was a blockquote marker on a split quotation,
+and `pandoc` renders it to the same HTML.
 `monochromatic-lint` is not on the main checkout's `PATH`,
 so `mise run //:lint:monochromatic-lint` fails with "command not found";
 the binary is under `~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-lint/`.
@@ -791,15 +883,21 @@ the binary is under `~/.local/share/monochromatic-dev/toolchain/cargo-monochroma
 Next:
 when those branches have merged,
 run `fix-whitespace-only-line-breaks.ts` again for the rest,
-and fix the two left-out files by hand.
+and fix step 19's proposal once its review has ended.
 
 #### Tests that failed once and are not diagnosed
 
 Issues 6348 to 6352 on GitHub hold them,
 each with the journal text that was kept.
 Nobody is working on them.
-Issue 6399's repair control failed in a second gate on 2026-11-24 (commented there),
-and `pi-repair-control-hand-over-after-the-bound-start-race` is on it.
+Issue 6399's repair control is fixed as `d1af169091` and the issue closed:
+a test-only seam waits for the fixture's first write,
+so the scene is forced rather than raced.
+Its round found issue 6448:
+a control that makes a non-UTF-8 folder name fails on this host,
+whose home dataset is `utf8only`;
+its round waits for the memory stall with the one-program second revision,
+prompt ready in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
 
 ### The desktop stays usable under agent runs
 

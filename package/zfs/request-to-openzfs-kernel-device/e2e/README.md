@@ -657,7 +657,8 @@ which only this step sets:
 - `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_POOL`:
   `zfsstep16`.
 - `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_SBIN`:
-  the guest's OpenZFS `sbin`, which
+  the guest's OpenZFS `sbin`,
+  which
   the arm runs `zfs` from.
 
 The three arms and what each proves:
@@ -680,7 +681,8 @@ The three arms and what each proves:
   and every snapshot is still there.
   A refused request destroys
   none of its set
-  (`module/zfs/dsl_destroy.c:596` to `:600`, OpenZFS `zfs-2.4.4`),
+  (`module/zfs/dsl_destroy.c:596` to `:600`,
+  OpenZFS `zfs-2.4.4`),
   so the arm
   cannot show the rest being destroyed;
   a removal reports the hold and stops.
@@ -722,5 +724,9 @@ From lines 43098 to 43099 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
-  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
+  `main` too).
+  The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls,
+  which
+  defeats the guard (briefs now forbid it).
+  GOING:
+  the faster size reader's design and measurement
