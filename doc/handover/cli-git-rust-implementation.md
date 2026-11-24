@@ -403,16 +403,13 @@ Both rounds decided points the designs leave open
 Running:
 `pi-zfs-step-10-binding-design-takes-the-build-decisions`,
 putting both rounds' decisions and the eleventh read's two fixes into the designs.
-Waiting for the memory stall to ease
-(it was rising at 2026-11-24T01:25-05:00 with a whole gate and nine rounds running):
-the round on T27 and T28,
-whose prompt is ready in `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`
-(start it with `start-a-fresh-build-round.ts zfs-step-10-reboot-and-power-loss-arms-2026-11-24
-zfs-step-10-reboot-and-power-loss-arms test/git-policy-cli-zfs-step-10-reboot-and-power-loss-arms
-pi-zfs-step-10-reboot-and-power-loss-arms`).
+Running too,
+once the memory stall fell:
+`pi-zfs-step-10-reboot-and-power-loss-arms`,
+the round on T27 and T28
+(folder `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`).
 
 Next:
-start the T27 and T28 round when the stall eases;
 merge both when they end.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
@@ -471,13 +468,31 @@ the owner answered "Lift it for the ZED hook only (Recommended)"
 only the zedlet's file name selects a root mode,
 and units,
 adoption and a person use words.
+The revision to that answer and the review merged as a proposal,
+`1e5f417430`:
+the zedlet's file name or the words `monochromatic-git-policy-cli zfs-root` select a root mode,
+probed over nineteen fixture starts with the guard predicates replayed,
+and six choices left open (the group word,
+what root's install holds,
+where the dispatch sits,
+what `--version` says,
+the account's short name,
+and whether release keeps the modes' test-only variables),
+each ranked.
+Its cold first-start read ran on the host with each file's pages evicted
+(the wrapper 6.04 ms slower than the handler at the median),
+because mvm's Fedora guest refused every file route
+(`keep/state-so-far.md` in `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
 Running:
-`pi-zfs-root-modes-after-the-start-name-answer`,
-revising the proposal to that answer and the review
-(folder `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
+a Sonnet re-read of the revision
+(`~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/`).
+Running too:
+`pi-mvm-fedora-guest-refuses-every-file-route`,
+with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
+(branch `fix/mvm-fedora-guest-refuses-every-file-route`).
 
 Next:
-put the choices it re-poses to the owner,
+fold the re-read in and put the six choices to the owner,
 then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
@@ -532,14 +547,28 @@ Step 19's two open design parts merged as a proposal,
 (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:
 `zfs-mount.service` mounts the checkout on this host,
 with the ordering and its failure control shown in a guest over unattended reboots).
+Its Sonnet gate review
+(`review-of-the-step-19-design.md` in
+`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/keep/`)
+found it not ready:
+the ZED hook is a `.sh` script,
+the option the owner declined;
+the failure control ran without the configuration it recommends,
+and the provider's failing status came from the nested dataset;
+three boots' logs were overwritten,
+so their quoted lines rest on the journal or on nothing;
+and `After=zfs-mount.service` carries a provider restart to the gate,
+which two accepted designs rely on.
 Running:
-its Sonnet gate review
-(`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/`),
-asked also whether its units still hold under the one-program and start-name records.
+`pi-zfs-step-19-design-after-its-gate-review`,
+folding the review in and running the arms again in a guest
+(folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
 
 Next:
 merge step 12 when it ends;
-fold step 19's review in and put the design to the owner.
+merge step 19's revision as a proposal,
+have the reviewer read its diff,
+then put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
 
