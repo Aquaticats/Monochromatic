@@ -1538,17 +1538,19 @@ step 9:
   and what they measured sits in
   `package/git-policy/cli/doc/holder-scan-across-mount-namespaces-2026-11-22.md`.
 
-The other half of this step is another round's,
-on `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach`:
+The other half of this step was another round's on
+`feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach`,
+and it is merged into `main` (`534000d680`) with this half (`cf5c7ddb8d`):
 the unmount from a fresh process,
 the staging folder and the reattach,
 which add their own files under
 `package/git-policy/cli/src/native/worktree_clone_mount_handler/` and own the
 `shutdown-unmount` mode this build still refuses.
-Neither round's files stand in the other's way:
+Neither round's files stood in the other's way:
 this round added `holder_scan_mode.rs` and the handler folder's two `uses/`
 links,
-and changed the mode grammar by adding one word and two options.
+and changed the mode grammar by adding one word and two options,
+and the merge kept both guest modules and both arms in the guest driver.
 
 What the steps that read this result will find:
 
@@ -1682,11 +1684,12 @@ The holder scan half of this step is built by the round of 2026-11-22 and its
 notes above say what remains open in it:
 the scan answers one dataset's holders across mount namespaces,
 and the unmount,
-the staging folder and the reattach this step also owns are another round's.
+the staging folder and the reattach this step also owns are built and merged
+with it (`534000d680` and `cf5c7ddb8d`).
 Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
-step 16 and step 18 read the result this step records.
+step 16 and step 18 read the result this step answers.
 
 #### Depends on
 
@@ -1747,9 +1750,11 @@ a holder's `EBUSY` and the checked reattach back to the slot,
 the same clone's unmount after the holder ended,
 and two removals at once.
 The arm's output is in the round's keep folder.
+The all-namespace holder scan this step also owns is built and merged into
+`main` with it (`cf5c7ddb8d`),
+and its own note above says what it answers and what it leaves to steps 16 to
+18.
 Still owed by this step:
-the all-namespace holder scan is another round's,
-built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
 the stacked-mount rollback in the guest,
 a reboot with a staged record,
 the repeat of VM items 3,
