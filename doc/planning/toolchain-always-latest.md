@@ -331,6 +331,8 @@ a failed group never stops the next one.
     after both updates so the floors see the new locks),
     `sync:files` (renders the Rust catalog into the manifests),
     `pnpm install` (the pnpm lock satisfies the new catalog),
+    `pnpm install --frozen-lockfile` (the check the release workflows run,
+    so a lock left out of step with the catalog fails this step and lands nothing),
     `cargo-shadow install` (each `Cargo.lock` satisfies the new manifests),
     `check:files` (nothing generated is stale).
     The two updates are soft steps:
@@ -676,6 +678,22 @@ private bus:
 the whole-path test hosts the update in the nested-wayland-session notification recorder (below),
 and a
 probe refuses to start unless the hosted environment has a private bus address and no runtime directory.
+
+From lines 38896 to 38906 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
 
 ### Tests
 

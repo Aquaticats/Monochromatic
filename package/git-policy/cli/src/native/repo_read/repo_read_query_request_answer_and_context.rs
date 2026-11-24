@@ -149,7 +149,7 @@ pub(crate) struct Context {
 impl Context {
     /// The object database.
     pub(crate) fn database(&self) -> Option<ObjectDatabase> {
-        return ObjectDatabase::open(self.layout.common_dir.as_path(), self.objects.as_deref(), self.layout.object_format);
+        return ObjectDatabase::open_where_the_layout_proved_the_store(&self.layout, self.objects.as_deref());
     }
 
     /// The index entries.

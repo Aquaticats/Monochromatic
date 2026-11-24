@@ -621,3 +621,12 @@ image and key folder.
 `mvm-destroy.log` and `mvm-list-after-destroy.log`.
 Keep those with
 `versions.log` and the two suite logs when recording a run.
+
+## Moved from the old handover
+
+From lines 43098 to 43099 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
+  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement

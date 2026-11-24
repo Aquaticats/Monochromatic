@@ -170,7 +170,7 @@ mod unix {
     /// The names of the LFS objects the plan's push introduces;
     /// `None` when the readers decline.
     pub(super) fn scan(plan: &UploadPlan, layout: &RepoLayout) -> Option<Vec<String>> {
-        let database: ObjectDatabase = ObjectDatabase::open(layout.common_dir.as_path(), None, layout.object_format)?;
+        let database: ObjectDatabase = ObjectDatabase::open_where_the_layout_proved_the_store(layout, None)?;
         let refs: Refs = Refs::new(layout.common_dir.as_path(), layout.object_format.hex_length());
         let listing = refs.list()?;
         let mut tips: Vec<String> = Vec::new();

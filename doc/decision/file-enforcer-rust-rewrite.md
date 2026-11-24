@@ -654,3 +654,15 @@ and accepted with this record:
   oxc refreshes data on main daily but its 5.0.2 release PR has been open since 2026-08-13.
   Details:
   `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
+
+## Moved from the old handover
+
+From lines 39131 to 39135 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  not now (owner,
+  verbatim:
+  "That means we missed porting notifications on changes of managed files in watch mode when we rewrote it to rust from ts.
+  Add this as a future task and persist it,
+  but do not do it now as it's not immediately fatal."):

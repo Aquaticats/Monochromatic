@@ -52,6 +52,16 @@ impl SweepRun {
         return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Attached { .. })).count();
     }
 
+    /// How many clones unmounted.
+    pub fn unmounted(&self) -> usize {
+        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Unmounted { .. })).count();
+    }
+
+    /// How many clones reattached.
+    pub fn reattached(&self) -> usize {
+        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Reattached { .. })).count();
+    }
+
     /// How many clones asked for nothing.
     pub fn nothing_asked(&self) -> usize {
         return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::NothingAsked { .. })).count();
@@ -84,11 +94,13 @@ impl SweepRun {
             None => String::from("The listing reached the end of the parent's children."),
         };
         return format!(
-            "the clone-mount sweep reached {} of the {} children of `{}`: {} attached, {} asked for nothing, {} refused, {} failed and {} held for another sweep. {closing}",
+            "the clone-mount sweep reached {} of the {} children of `{}`: {} attached, {} unmounted, {} reattached, {} asked for nothing, {} refused, {} failed and {} held for another sweep. {closing}",
             self.reached.len(),
             self.children,
             self.parent_dataset,
             self.attached(),
+            self.unmounted(),
+            self.reattached(),
             self.nothing_asked(),
             self.refused(),
             self.failed(),

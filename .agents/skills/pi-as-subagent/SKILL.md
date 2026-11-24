@@ -117,9 +117,11 @@ the owner wrote:
 "In practice,
 opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
 so prefer neuralwatt."
-New runs fill standard Neuralwatt,
+New runs filled standard Neuralwatt,
 then flex with twice the wall clock,
-then `opencode-go`.
+then `opencode-go`,
+until the owner closed standard Neuralwatt on 2026-11-11 and put `opencode-go` first on 2026-11-16;
+the order now is under "Who writes and who reviews".
 On 2026-11-11 from 01:19Z,
 16 runs ended on Neuralwatt's 429
 "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
@@ -231,10 +233,27 @@ and routing around the filter needed relaying refused content to other vendors;
 the audit found no correctness difference either way.
 
 - **A writer**, a run that changes code or documents,
-  is DeepSeek V4.1 Flash in the order runs used before 2026-11-17:
-  `--provider=neuralwatt --model=deepseek-v4.1-flash`,
-  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex` with the doubled wall clock flex runs get,
-  then `--provider=opencode-go --model=deepseek-v4.1-flash`.
+  is DeepSeek V4.1 Flash on the driver's default pools,
+  in the order of `PROVIDER_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`:
+  `--provider=opencode-go --model=deepseek-v4.1-flash` first
+  (the owner,
+  2026-11-16:
+  "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."),
+  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex`,
+  each with the doubled wall clock those pools get.
+- **Standard Neuralwatt DeepSeek** (`--provider=neuralwatt --model=deepseek-v4.1-flash`) is closed,
+  and no run names it.
+  The owner,
+  2026-11-11:
+  "Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017".
+  This section listed it first for writers until 2026-11-23,
+  and launchers that call `drive-pi-subagent.ts` directly,
+  past the pool gate that moves such a run,
+  put writer rounds on it.
+  The owner,
+  2026-11-23:
+  "I'm seeing a lot of deepseek-v4.1-flash (standard) calls in neuralwatt which has drained a lot of my quota.
+  This shouldn't happen."
 - **A reviewer**, a run that reviews a change outside a gate (the short, frequent kind),
   is DeepSeek V4.1 Flash from one pool in the owner's order:
   `--provider=qwen-token-plan-individual --model=deepseek-v4.1-flash-1017` first
@@ -372,7 +391,7 @@ which `mise run toolchain:install` makes.
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
-      --provider=neuralwatt --model=deepseek-v4.1-flash \
+      --provider=opencode-go --model=deepseek-v4.1-flash \
       --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 

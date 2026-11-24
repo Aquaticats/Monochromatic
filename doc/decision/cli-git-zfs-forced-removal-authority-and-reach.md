@@ -236,6 +236,58 @@ Not chosen:
 the first wording alone,
 which refuses only when the command's own parent is the service manager.
 
+## The unmount inside a holder's namespace, confirmed as a direction on 2026-11-23
+
+Asked in the question tool on 2026-11-23,
+after the forced removal design's Tier 0 arms ran on kernel 6.8 in a throwaway guest and on this machine's kernel 7.3 in a
+rootless container over ZFS,
+and its Tier 1 arms on a file-backed pool,
+all with hand-made mounts
+(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
+the reviewer's read against the logs:
+`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-second-probe-round.md`).
+It confirms a direction,
+not a build:
+the design's third group of measurements needs step 17's code.
+
+How the copy is taken out of a holder's view:
+the project chose "A:
+unmount by the marker (Recommended)":
+"Where the marker exists,
+unmount the copy where it stands and change no sharing;
+otherwise,
+or where the service shares its mount with the host both ways,
+stop that one mount sharing,
+move the copy onto a short-lived 0700 folder in the checkout,
+unmount it there,
+remove the folder."
+Not chosen:
+"B:
+always make private,
+move,
+unmount",
+and "C:
+refuse and name the service".
+
+A sandbox that holds no copy but receives from the checkout's mount,
+when the second route stops that mount sharing:
+the project chose "Go ahead and report it (Recommended)":
+"The removal finishes;
+the report names the sandbox and the later mounts it will no longer receive."
+Not chosen:
+"Refuse and name the sandbox".
+
+A sandbox whose own mount sits on the very folder where its copy of the clone is mounted:
+the project chose "Go ahead and report it (Recommended)":
+"The kernel removes the hidden copy;
+the sandbox's `findmnt` at the folder still shows its own mount;
+the report names the sandbox and its mount."
+Not chosen:
+"Take the second route for it".
+A mount lower down,
+such as on `one/target`,
+is a case the design refuses and no test ran.
+
 ## What this record does not decide
 
 How long the record of a cancelled removal's loss lives,

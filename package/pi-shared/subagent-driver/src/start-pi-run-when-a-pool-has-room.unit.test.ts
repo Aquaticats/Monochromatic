@@ -766,6 +766,11 @@ await describe({
         },);
         expect(refused.status,).not.toBe(0,);
         expect(refused.stderr,).toContain('no-such-pool',);
+        // The gate counts every pool, so it cannot answer from a setting it cannot read: the setting is named with its fault and
+        // the gate ends without counting the shipped table as though the caller had said nothing.
+        expect(refused.stderr,).toContain(POOL_LIMITS_VARIABLE,);
+        expect(refused.stderr,).not.toContain('\n    at ',);
+        expect(refused.stdout,).toBe('',);
       },
     },),
     it({

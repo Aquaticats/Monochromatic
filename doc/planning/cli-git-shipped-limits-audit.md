@@ -481,6 +481,12 @@ the index catches up when the lock is free;
   slow start,
   a client killed mid-request) is resolved without the user".
 
+From lines 36242 to 36242 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The owner chose "Remove all three (Recommended)" for the other limits and "Add it (Recommended)" for a rule.
+
 ## Summary
 
 - Limits listed:

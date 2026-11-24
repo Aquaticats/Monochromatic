@@ -27,7 +27,14 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-/// Which folder a runtime directory stands in, and the runtime directory built to a length inside it;
+/// A mount table whose text a control writes,
+///  for the rules that count mounted datasets;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod mounted_dataset_table;
+
+/// Which folder a runtime directory stands in,
+/// and the runtime directory built to a length inside it;
 ///  never part of the release executable.
 #[cfg(test)]
 pub(crate) mod runtime_directory_folders;

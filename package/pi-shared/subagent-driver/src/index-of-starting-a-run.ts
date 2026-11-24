@@ -30,6 +30,7 @@ export {
   limitsIn,
   membershipOf,
   poolNamed,
+  poolOfThatNameIn,
   poolsARunOfThatNameCouldHold,
   poolsWithTheseLimits,
   poolTakesNoNewRun,
@@ -74,6 +75,20 @@ export {
   gateOutcomeOf,
   poolChoiceFor,
 } from './pool-gate.ts';
+export {
+  CLOSED_POOL_EXIT_STATUS,
+  ClosedPoolRefusalError,
+  refuseARunOnAClosedPool,
+} from './refusal-of-a-run-on-a-closed-pool.ts';
+export {
+  type PoolOfARunNamingNoProvider,
+  poolOfARunNamingNoProvider,
+} from './pool-of-a-run-naming-no-provider.ts';
+export {
+  NoPoolTakesTheRunError,
+  type WorktreeLaunchPlacement,
+  poolPlacementOfAWorktreeLaunch,
+} from './pool-placement-of-a-worktree-launch.ts';
 export {
   type LauncherArguments,
   launcherArgumentsOf,

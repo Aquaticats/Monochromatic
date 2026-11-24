@@ -97,6 +97,25 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+From lines 37014 to 37027 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Its nine questions for the owner,
+not yet asked:
+under `trustLockfile = true` with base `HEAD` a committed merge's lockfile is already base,
+so cases 1 and 2 do not fire locally (compare with upstream,
+check every entry locally,
+or keep);
+release age versus trust under `trustLockfile`;
+CI still warns and runs `--locked` on a refusal;
+the window between cargo writing the live lockfile and the checks;
+the restore read-then-rename gap;
+strict cutoff with exemptions;
+`--breaking` sync failure;
+a killed `--breaking` run's manifests;
+whether the trust line must name the publisher account.
+
 ## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
 
 Each is built and in main;
@@ -872,3 +891,153 @@ Ranking: C > A > B > D. C over A because the dirty path is the common one here, 
 its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
 D because D leaves the design for a guessed threshold. The round's report, with every measurement:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.
+
+## Moved from the old handover
+
+From lines 46556 to 46556 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
+
+From lines 2755 to 2822 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Added 2026-11-15T22:34:53-05:00,
+  from the run on the automatic push of a branch never pushed
+  (tip `c11272e4b6`, six controls and no product change:
+  a commit on such a branch is pushed to `origin` with its upstream set, as `SPEC.md` lines 9204 and 9205 say;
+  what pass 53 saw were two `git merge` commands, which the trigger declines for a branch with no upstream),
+  not blocking work:
+  - Should a merge on a branch never pushed push it and set its upstream, as a commit there does?
+    Today the trigger declines it (`upstream-not-single`) and `SPEC.md` near line 9048 and `README.md` line 556 say so.
+  - A declined push says nothing to the person; only the trigger's record file explains it.
+    Is one line of notice wanted, or a README line naming the record file?
+  - Three settings the author measured where the rule can be read either way, left as built:
+    `push.default=nothing` with no upstream and an `origin` (the wrapper pushes; plain Git refuses);
+    `remote.pushDefault` naming another remote with no `origin` (skipped in silence);
+    `branch.<name>.remote` naming another remote with no `.merge` (pushed to `origin`; plain Git refuses).
+- Added 2026-11-15T02:12:39-05:00,
+  from two authors' reports of that hour,
+  not blocking work:
+  - The review brief's template
+    (branch tip `1bcee2933e`,
+    in review):
+    a review that states "4 of 9 listed files read in full" is counted as covering its change,
+    since its statement does not contradict the brief.
+    Should a review count only when it states that it read every listed file?
+- Added 2026-11-14T22:38:58-05:00,
+  from the report of the run on a refused service start
+  (`~/temp/agent/controls-of-a-service-start-refused-agree-with-wrapper-2026-11-14/keep/`,
+  branch tip `2df2853ed6`,
+  in review),
+  not blocking work:
+  - Before it ends,
+    the wrapper now waits up to 250 ms for its log thread to write what was handed to it
+    (`WAIT_BEFORE_AN_EXIT`,
+    with its measurement beside it:
+    a median of 3,160 µs against 3,052 µs on an exit,
+    inside the spread).
+    Is 250 ms the bound wanted?
+- Added 2026-11-14T11:41-05:00,
+  each from an author's report of that morning and none blocking work:
+  - The commit service started by the wrapper itself (tip `77f5d525e3`):
+    does a scope's service that answers after `START_WAIT` get a grace period,
+    and is the claim file,
+    which is now transient,
+    given another name?
+  - mpm-shadow's cleanup (tip `3a96da6dbf`):
+    are one year for the work limit and one hundred years for the age floor the right largest values?
+  - The queue of runs filled from the package, its third answer (tip `a634fbf060`, added 2026-11-14T17:41-05:00):
+    does a put-back finish an interrupted set-aside itself?
+  - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
+    a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
+    and the command ends after up to two minutes;
+    is a shorter bound wanted with the same words?
+  - mpm-shadow's install removes no version, the fresh run's second answer
+    (tip `937485686f`, added 2026-11-14T19:22-05:00):
+    is keeping a version when all 32 claim names are taken the trade wanted?
+  - mpm-shadow's cleanup of old versions, its fourth answer (tip `b416f1e2b0`, added 2026-11-14T16:23-05:00):
+    on Windows,
+    where no inode is read,
+    is the write time alone enough to say an entry is the one judged?
+  - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
+    a `current` link can dangle until the next sync repairs it;
+    no store-wide lock is adopted to close that window,
+    by the project's rule on concurrency,
+    open to veto.
+  - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
+    is half an hour the right bound for the notice that the filling has stalled;
+    is an entry whose batch gave up waiting for a place at its two-hour deadline put back
+    (a fresh run now covers a launcher that fails or gives up)?
+
+From lines 3597 to 3601 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Whether the hand-written writes to standard error and the commit's reports (about sixty files, its row six) go through the door next.
+  **Kept for the owner**:
+  that would make an error's own text and a command's last words lines that can be dropped after 250 ms,
+  which is a different trade from a `debug` line, and no record settles it.
+
+From lines 8699 to 8712 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The stop of a stopped push**,
+  its author's second run,
+  ended 07:12:27 at `2da23e4478`:
+  a stop with no worker still reaps its child and judges the locks it left;
+  a stop answers inside its bound while the blocking pool cannot sweep,
+  and the sweep is recorded as owed with the repositories named.
+  Every wait of a stop is listed with its bound in the module's doc.
+  Both controls fail with the fix out
+  (a zombie;
+  300.6 ms against a bound of 100 ms).
+  Two new constants,
+  50 ms for the reap after the kill and 200 ms for the sweep after the stop,
+  are marked by the author as questions for the owner;
+  kept.
+
+From lines 11473 to 11487 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The push of a branch that is not checked out**,
+  its author's seventh run,
+  ended 02:42:04 at `cae78e1d7e`.
+  The four findings answered:
+  a person's file at a path the repair would write is left alone;
+  a failed worktree listing is not read as no worktree;
+  the move writes a durable record before `update-ref`,
+  swept at every command;
+  an index that agrees while the worktree holds the merge is reported as holding.
+  Seven controls,
+  each quoted failing with its fix out.
+  Cost:
+  +13.1 ms paired at the median over the rounds without a stall,
+  the price of the one durable write,
+  kept as a question for the owner.
+
+From lines 31101 to 31108 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Open, for the owner:
+
+- A merge whose answer passes the ceiling is admitted whatever its part count,
+  and its commit message and journal entry grow with that count
+  (35 MB for 103,000 parts).
+  Whether the part list keeps a cap, and whether a merge that deterministically exceeds the 300-second step
+  ceiling should be retried, are the owner's decisions;
+  today the service retries it.
+
+From lines 34613 to 34616 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  The third finding,
+  a `packageId` requirement on `cargo-git` rows,
+  stays as it is:
+  no entry uses that route and it goes to the owner as a choice.

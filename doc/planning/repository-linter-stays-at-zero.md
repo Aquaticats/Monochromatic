@@ -32,6 +32,18 @@ That commit's own cutover handover,
 recorded the Markdown and Rust counts at that time,
 and no commit after it burned them down.
 
+From lines 49126 to 49133 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The semantic line breaks:
+"Put the semantic line break findings on hold."
+then,
+"Put the semantic line break findings on hold.
+They aren't the most serious issues right now."
+The rule,
+its history and the count it stands at are in `doc/planning/repository-linter-stays-at-zero.md`.
+
 ## Why nothing caught it
 
 Four separate gaps each let the count grow,
@@ -238,6 +250,12 @@ Cons:
   and the check stays advisory.
 - It checks changed files only,
   so a file that becomes dirty without being touched is never seen.
+
+From lines 39013 to 39013 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  `doc/decision` 1,785 (answered on 2026-11-10: form-only prose fixes, and moved-path notes only);
 
 ## Ranking
 
