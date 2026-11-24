@@ -24,6 +24,7 @@
 
 use super::commit::remove_settled;
 use super::support::{Fixture, bounded_for, fixture, pseudo_terminal_slave_name, wrapper_first_path};
+use git_policy_cli::child_environment::NO_ANSWER_SENTENCE;
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -39,32 +40,45 @@ const TERMINAL_BOUND_SECONDS: &str = "30";
 /// so a run that asks waits until the bound.
 const KEY_PASSPHRASE: &str = "correct horse battery staple";
 
-/// What OpenSSH writes when the program it runs in place of asking a person could not start.
-///  An answer nobody gave and a program nobody could start are the same refusal to the connection,
-/// so the terminal transcript,
-/// the status and the connection's own sentence cannot tell them apart;
-///  this line on standard error is the only trace of the difference
-///  (`readpass.c:74-80` at `V_10_6_P2`,
-///  where the child whose `execlp` failed reports it).
-///  An arm whose transcript holds it proves nothing about the wrapper's no-answer program,
-///  because both an empty answer and a refused program end in the same silence.
-const REFUSED_ASKPASS_LINE: &str = "ssh_askpass: exec(";
+/// What:
+///  The line OpenSSH prints when the value the no-prompt rule gives `SSH_ASKPASS` is not a program it can start.
+/// Why:
+///   The rule writes [`NO_ANSWER_SENTENCE`] there,
+///  `ssh_askpass` cannot start a name that long (`readpass.c:77` at `V_10_6_P2`),
+///  and it prints its own failure with the whole value inside it
+///  (`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`).
+///  This line is the wrapper's next step reaching the person,
+///  so every control here reads the whole of it and not a phrase:
+///  a wording that stopped saying what to do would still pass a control that looked only for `ssh_askpass`.
+fn askpass_sentence_line() -> String {
+    return format!("ssh_askpass: exec({NO_ANSWER_SENTENCE}): File name too long");
+}
 
 /// What:
-///  Fail the control when the transcript shows that the program OpenSSH was given in place of asking a person
-///  could not start.
+///  Fail the control unless the transcript shows the wrapper's sentence where OpenSSH prints it,
+///  and before the refusal the arm met.
 /// Why:
-///   Every wrapped arm here reads the terminal and the status,
-///  and a refused askpass program leaves both exactly as an empty answer does,
-///  so an arm that read only those would pass while proving nothing
-///  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
-///  "The tests that would pass with their program refused").
-///  The line is in the transcript because [`run_at`] appends the command's standard error to it.
-fn assert_the_no_answer_program_ran(transcript: &str) {
-    assert!(
-        !transcript.contains(REFUSED_ASKPASS_LINE),
-        "the program OpenSSH runs in place of asking a person could not start, so this arm's silence proves nothing: {transcript:?}"
-    );
+///   The sentence is the whole of what this rule adds,
+///  and the other order would leave the person the refusal with the next step after it instead of above it;
+///  a control that only searched for both could pass with them in either order.
+fn assert_the_askpass_sentence_came_first(transcript: &str, refusal: &str) {
+    let line: String = askpass_sentence_line();
+    let Some(sentence_at) = transcript.find(line.as_str()) else {
+        panic!("the wrapper's sentence is what OpenSSH could not start: {transcript:?}");
+    };
+    let Some(refusal_at) = transcript.find(refusal) else {
+        panic!("the arm met {refusal:?}: {transcript:?}");
+    };
+    assert!(sentence_at < refusal_at, "the sentence comes before {refusal:?}: {transcript:?}");
+}
+
+/// What:
+///  Fail the control when the transcript holds a line where OpenSSH could not start its `SSH_ASKPASS` value.
+/// Why:
+///   A command that meets no question must print no such line,
+///  so an arm whose key asks nothing proves its silence only while no question was asked at all.
+fn assert_no_question_was_asked(transcript: &str) {
+    assert!(!transcript.contains("ssh_askpass: exec("), "no question reached the askpass value: {transcript:?}");
 }
 
 /// A pseudo-terminal the control keeps open:
@@ -452,11 +466,12 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
         None,
     );
     assert!(
-        !wrapped.transcript.to_lowercase().contains("passphrase"),
+        !wrapped.transcript.contains("Enter passphrase for key"),
         "the wrapper's command asked for the key's passphrase at a terminal: {:?}",
         wrapped.transcript
     );
-    assert_the_no_answer_program_ran(wrapped.transcript.as_str());
+    // The sentence itself names the passphrase, so only OpenSSH's own question is what this arm looks for above.
+    assert_the_askpass_sentence_came_first(wrapped.transcript.as_str(), "Permission denied (publickey");
     assert_eq!(
         wrapped.code,
         Some(128),
@@ -480,10 +495,11 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
 ///  No `SSH_AUTH_SOCK` reaches either child:
 ///  the environment is built from named values only,
 ///  and `-o IdentityAgent=none` keeps OpenSSH from finding an agent by itself.
-///  Neither arm needs the check [`assert_the_no_answer_program_ran`] makes:
-///  this key asks nothing,
-///  so a program that could not start would leave the connection succeeding exactly as no program does,
-///  and both arms assert that success.
+///  Neither arm needs more than its own assertions:
+///  the key asks nothing,
+///  so no question reaches the askpass value and no line about one can appear,
+///  which [`assert_no_question_was_asked`] holds,
+///  and both arms the connection that succeeded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -540,6 +556,7 @@ fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
         at_terminal.transcript
     );
     assert!(!at_terminal.transcript.contains("Permission denied"), "the key was accepted: {:?}", at_terminal.transcript);
+    assert_no_question_was_asked(at_terminal.transcript.as_str());
     assert!(!at_terminal.transcript.to_lowercase().contains("passphrase"), "no passphrase was asked for: {:?}", at_terminal.transcript);
 
     // Arm two: no terminal at all, where a command that asked would find nothing to read.
@@ -581,9 +598,9 @@ fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
 ///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  The project's answer of 2026-11-20 keeps that refusal and puts the way out in the words the wrapper owns,
 ///  which plain `ssh` at this same terminal still shows a question.
-///  The wrapped arm also fails when OpenSSH could not start the program it runs instead of asking,
-///  which ends in the same refusal
-///  ([`REFUSED_ASKPASS_LINE`]).
+///  The wrapped arm also reads the sentence the no-prompt rule gives `SSH_ASKPASS`,
+///  which OpenSSH prints where it could not start that value
+///  ([`askpass_sentence_line`]).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -640,7 +657,7 @@ fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
         None,
     );
     assert!(!wrapped.transcript.contains("Are you sure"), "the host key was never asked about: {:?}", wrapped.transcript);
-    assert_the_no_answer_program_ran(wrapped.transcript.as_str());
+    assert_the_askpass_sentence_came_first(wrapped.transcript.as_str(), "Host key verification failed");
     assert!(
         wrapped.transcript.contains("Host key verification failed"),
         "OpenSSH's refusal names the host key: {:?}",
@@ -650,3 +667,275 @@ fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
     drop(server);
     remove_settled(&fixture);
 }
+
+//region The sentence in `SSH_ASKPASS`, at a new host key and at a key nobody can unlock
+
+/// What:
+///  A throwaway server on loopback with one served repository,
+///  one client key protected by `phrase` (`""` for none),
+///  and the command line a person's own `GIT_SSH_COMMAND` carries for them.
+/// Why:
+///   The controls below meet the same two refusals through a clone and a fetch,
+///  so one helper builds the server, the repository and the options,
+///  and each control names only the command it runs and the passphrase it gives.
+///  The account's own keys, agent and `known_hosts` stay out of it, as in the controls above.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { url, commandLine, server } = servedOverSsh(fixture, ssh, keygen, sshd, '');
+/// ```
+fn served_over_ssh(fixture: &Fixture, ssh: &Path, keygen: &Path, sshd: &Path, phrase: &str) -> (String, String, Sshd) {
+    let ssh_directory: PathBuf = fixture.root.join("ssh");
+    std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
+    make_ssh_keys(keygen, ssh_directory.as_path(), phrase);
+    let port: u16 = free_port();
+    let server: Sshd = start_sshd(sshd, fixture, port, ssh_directory.as_path());
+    let served: PathBuf = fixture.root.join("served.git");
+    let served_text: String = served.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
+    assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    let options: Vec<OsString> = ssh_arguments(ssh_directory.as_path(), ssh_directory.join("client_key").as_path(), port, "ask");
+    return (format!("ssh://127.0.0.1:{port}{served_text}"), ssh_command(ssh, options.as_slice()), server);
+}
+
+/// What:
+///  Run one Git command with a person's own ssh options and no terminal,
+///  and answer with its status and its standard error.
+/// Why:
+///   Both refusals below are written to standard error,
+///  where the person reads them,
+///  and keeping the streams apart reads the order of OpenSSH's own lines rather than the order of two merged buffers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stderr } = runGit(program, ['clone', url, directory], commandLine);
+/// ```
+fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_line: &str) -> (Option<i32>, String) {
+    let mut command: Command = bounded_for(fixture, program, wrapper_first_path(fixture).as_os_str(), TERMINAL_BOUND_SECONDS);
+    command
+        .args(arguments)
+        .env("GIT_SSH_COMMAND", ssh_command_line)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let run: std::process::Output = command.output().expect("the command starts");
+    return (run.status.code(), String::from_utf8_lossy(run.stderr.as_slice()).into_owned());
+}
+
+/// What:
+///  A typed `git clone` at a host key this machine does not know prints the wrapper's sentence,
+///  then OpenSSH's refusal,
+///  and the same command with the real Git prints the question OpenSSH asks instead.
+/// Why:
+///   This is the first contact with a host,
+///  the case the owner's answer of 2026-11-20 sends the person to plain `ssh` for,
+///  and the sentence has to arrive before the refusal the person reads it beside.
+///  The control with the real Git shows that the sentence and the question are the same question:
+///  the difference is the no-prompt rule's `SSH_ASKPASS` value and not the fixture.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain(`ssh_askpass: exec(${sentence}): File name too long`); expect(stderr.indexOf(sentence)).toBeLessThan(stderr.indexOf('Host key verification failed'))
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal() {
+    let fixture: Fixture = fixture("ssh-terminal-clone-new-host-key");
+    let (Some(ssh), Some(keygen), Some(sshd), Some(real_git)) =
+        (program("ssh"), program("ssh-keygen"), program("sshd"), program("git"))
+    else {
+        eprintln!("skipped: ssh, ssh-keygen, sshd or git is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "");
+    let clone: PathBuf = fixture.root.join("clone");
+    let clone_text: String = clone.to_string_lossy().into_owned();
+    let control_clone: PathBuf = fixture.root.join("control-clone");
+    let control_clone_text: String = control_clone.to_string_lossy().into_owned();
+
+    // The control: the same clone with the real Git, which carries no no-prompt rule, asks the question OpenSSH asks.
+    let (control_code, control_stderr) = run_git(&fixture, real_git.as_path(), &["clone", url.as_str(), control_clone_text.as_str()], command_line.as_str());
+    assert!(
+        control_stderr.contains("Are you sure you want to continue connecting"),
+        "the fixture asks OpenSSH's own question when nothing forbids it: {control_stderr:?}"
+    );
+    assert_no_question_was_asked(control_stderr.as_str());
+    assert_eq!(control_code, Some(128), "the real Git was refused the unknown key: {control_stderr:?}");
+
+    // The claim: the same clone through the wrapper reads the sentence, then OpenSSH's refusal.
+    let (code, stderr) = run_git(&fixture, fixture.root.join("bin/git").as_path(), &["clone", url.as_str(), clone_text.as_str()], command_line.as_str());
+    assert_the_askpass_sentence_came_first(stderr.as_str(), "Host key verification failed");
+    assert_eq!(code, Some(128), "the clone was refused the unknown key: {stderr:?}");
+    assert!(!clone.exists(), "nothing was cloned: {stderr:?}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A typed `git fetch` at a host key this machine does not know prints the wrapper's sentence,
+///  then OpenSSH's refusal.
+/// Why:
+///   `fetch` reaches the server without `clone`'s first line and from a repository that already exists,
+///  so a sentence that only arrived on the clone path would leave the commonest network command without it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain(`ssh_askpass: exec(${sentence}): File name too long`); expect(code).toBe(128)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal() {
+    let fixture: Fixture = fixture("ssh-terminal-fetch-new-host-key");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), "");
+    let repository: PathBuf = fixture.root.join("repository");
+    let repository_text: String = repository.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--quiet", repository_text.as_str()]);
+    assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+
+    let (code, stderr) =
+        run_git(&fixture, fixture.root.join("bin/git").as_path(), &["-C", repository_text.as_str(), "fetch", url.as_str()], command_line.as_str());
+    assert_the_askpass_sentence_came_first(stderr.as_str(), "Host key verification failed");
+    assert_eq!(code, Some(128), "the fetch was refused the unknown key: {stderr:?}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A typed `git clone` at a key whose passphrase nobody can give prints the wrapper's sentence,
+///  then OpenSSH's refusal.
+/// Why:
+///   No agent holds this key and nothing may ask for its passphrase,
+///  so OpenSSH skips it and the connection fails before any login;
+///  this is the second refusal the sentence has to reach,
+///  and it reads the same text as the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain(`ssh_askpass: exec(${sentence}): File name too long`); expect(stderr).toContain('Permission denied (publickey')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal() {
+    let fixture: Fixture = fixture("ssh-terminal-clone-passphrase-key");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE);
+    let clone: PathBuf = fixture.root.join("clone");
+    let clone_text: String = clone.to_string_lossy().into_owned();
+
+    let (code, stderr) = run_git(&fixture, fixture.root.join("bin/git").as_path(), &["clone", url.as_str(), clone_text.as_str()], command_line.as_str());
+    assert_the_askpass_sentence_came_first(stderr.as_str(), "Permission denied (publickey");
+    assert_eq!(code, Some(128), "the clone was refused every key it had: {stderr:?}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A typed `git fetch` at a key whose passphrase nobody can give prints the wrapper's sentence,
+///  then OpenSSH's refusal.
+/// Why:
+///  `fetch` is where a passphrase-protected key hurts most,
+///  because the person meets it on every update of a clone they already have;
+///  a sentence only on the clone path would leave that second meeting without words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain(`ssh_askpass: exec(${sentence}): File name too long`); expect(code).toBe(128)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal() {
+    let fixture: Fixture = fixture("ssh-terminal-fetch-passphrase-key");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let (url, command_line, server) = served_over_ssh(&fixture, ssh.as_path(), keygen.as_path(), sshd.as_path(), KEY_PASSPHRASE);
+    let repository: PathBuf = fixture.root.join("repository");
+    let repository_text: String = repository.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--quiet", repository_text.as_str()]);
+    assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+
+    let (code, stderr) =
+        run_git(&fixture, fixture.root.join("bin/git").as_path(), &["-C", repository_text.as_str(), "fetch", url.as_str()], command_line.as_str());
+    assert_the_askpass_sentence_came_first(stderr.as_str(), "Permission denied (publickey");
+    assert_eq!(code, Some(128), "the fetch was refused every key it had: {stderr:?}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A key whose passphrase nobody can give is skipped for one that works,
+///  the clone succeeds,
+///  and the wrapper's sentence is on standard error anyway.
+/// Why:
+///   The question arrives before anything knows the outcome,
+///  so this is the cost the owner accepted with J:
+///  a line about a question on a command that then worked.
+///  The sentence's last clause says so,
+///  and this control keeps the two facts together:
+///  the command ends 0, and the whole sentence is still in the transcript.
+///  A control that only read the sentence would pass on a clone that failed,
+///  and one that only read the status would pass with the sentence gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stderr).toContain(`ssh_askpass: exec(${sentence}): File name too long`); expect(code).toBe(0)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_with_the_sentence() {
+    let fixture: Fixture = fixture("ssh-terminal-passphrase-skipped");
+    let (Some(ssh), Some(keygen), Some(sshd)) = (program("ssh"), program("ssh-keygen"), program("sshd")) else {
+        eprintln!("skipped: ssh, ssh-keygen or sshd is not installed, so no real SSH connection was exercised");
+        remove_settled(&fixture);
+        return;
+    };
+    let ssh_directory: PathBuf = fixture.root.join("ssh");
+    std::fs::create_dir_all(ssh_directory.as_path()).expect("the ssh directory");
+    // The key OpenSSH meets first is protected by a passphrase nobody can give; the one after it is protected by nothing.
+    make_ssh_keys(keygen.as_path(), ssh_directory.as_path(), KEY_PASSPHRASE);
+    let second: PathBuf = ssh_directory.join("second_key");
+    let made_second: std::process::Output = Command::new(keygen.as_path())
+        .args(["-q", "-t", "ed25519", "-N", "", "-f", second.to_str().expect("a UTF-8 path")])
+        .output()
+        .expect("ssh-keygen starts");
+    assert!(made_second.status.success(), "ssh-keygen failed: {}", String::from_utf8_lossy(made_second.stderr.as_slice()));
+    let mut authorized: String = std::fs::read_to_string(ssh_directory.join("authorized_keys")).expect("the authorized keys");
+    authorized.push_str(std::fs::read_to_string(ssh_directory.join("second_key.pub")).expect("the second public key").as_str());
+    std::fs::write(ssh_directory.join("authorized_keys"), authorized.as_bytes()).expect("authorized_keys");
+    let port: u16 = free_port();
+    let server: Sshd = start_sshd(sshd.as_path(), &fixture, port, ssh_directory.as_path());
+    let served: PathBuf = fixture.root.join("served.git");
+    let served_text: String = served.to_string_lossy().into_owned();
+    let made: std::process::Output = git_through_wrapper(&fixture, &["init", "--bare", "--quiet", served_text.as_str()]);
+    assert!(made.status.success(), "git init failed: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    let url: String = format!("ssh://127.0.0.1:{port}{served_text}");
+
+    // Both keys are named, so OpenSSH tries the protected one before the one that works, as a person's own key list would.
+    let mut options: Vec<OsString> = ssh_arguments(ssh_directory.as_path(), ssh_directory.join("client_key").as_path(), port, "ask");
+    options.splice(4..4, [OsString::from("-i"), second.into_os_string()]);
+    let command_line: String = ssh_command(ssh.as_path(), options.as_slice());
+    let clone: PathBuf = fixture.root.join("clone");
+    let clone_text: String = clone.to_string_lossy().into_owned();
+
+    let (code, stderr) = run_git(&fixture, fixture.root.join("bin/git").as_path(), &["clone", url.as_str(), clone_text.as_str()], command_line.as_str());
+    assert!(stderr.contains(askpass_sentence_line().as_str()), "the sentence is printed for a question the command survived: {stderr:?}");
+    assert!(!stderr.contains("Permission denied"), "the second key was accepted: {stderr:?}");
+    assert_eq!(code, Some(0), "the clone succeeded with the key that works: {stderr:?}");
+    assert!(clone.join("HEAD").exists(), "the clone wrote its own HEAD: {stderr:?}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+//endregion

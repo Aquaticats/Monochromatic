@@ -927,6 +927,30 @@ fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_give
     assert!(!explanation.contains("`ssh <host>`"), "the placeholder is only for a destination that names no host: {explanation}");
 }
 
+/// What:
+///  An upload refused for an unknown host key still gets its sentence when the words hold the wrapper's own askpass line.
+/// Why:
+///   Every upload child carries the no-prompt rule,
+///  so OpenSSH prints the rule's sentence inside its failed start before its refusal,
+///  and the transcript this explanation is chosen from holds that line;
+///  the full measured transcript and the reading itself are held by
+///  `an_unknown_host_key_while_the_askpass_value_is_the_wrappers_sentence` in `lfs_pre_push_tests.rs`,
+///  and this arm holds the face a person reads.
+///  Without it the upload's sentence could stop printing while the reading still answered true.
+#[test]
+fn an_upload_refused_for_an_unknown_host_key_reads_words_that_hold_the_wrappers_askpass_line() {
+    let destination: &std::ffi::OsStr = std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
+    let output: String = format!(
+        "ssh_askpass: exec({}): File name too long\nHost key verification failed.\nfatal: Could not read from remote repository.\n",
+        crate::child_environment::NO_ANSWER_SENTENCE
+    );
+    let explanation: String =
+        crate::lfs_upload_explanations::explanation_after_failure("exited with status 2", destination, output.as_bytes());
+    assert!(explanation.contains("this machine does not know the SSH host key"), "{explanation}");
+    assert!(explanation.contains("plain `ssh git.example.invalid`"), "the host the destination names is named: {explanation}");
+    assert!(!explanation.contains("needed a login"), "a host key is not a credential the upload needed: {explanation}");
+}
+
 /// A failure that says nothing about a login gets no login paragraph:
 /// a missing object keeps the words it had.
 #[test]
