@@ -510,7 +510,7 @@ pub const ASKPASS_REQUIRE_FORCE: &str = "force";
 ///  so this text names neither,
 ///  and neither the login nor the key detector may fire on it,
 ///  because the line prints on commands that succeed as well.
-///  `the_wrappers_own_askpass_text_turns_no_reading_on` holds all three.
+///  `the_wrappers_sentence_for_openssh_turns_no_reading_on` holds all three.
 ///  The sentence prints where nothing failed:
 ///  `AddKeysToAgent=ask` with an agent that does not hold the key yet,
 ///  and a key whose passphrase nobody can give, skipped for one that works, both end 0 with the line on standard
