@@ -494,7 +494,7 @@ which decides whether a person keeps the ladder's worktree:
   the gate (not ZFS,
   or another dataset leaf),
   a destination that is not a direct child of `<checkout>/.claude/worktrees`
-  (`add_route_gate.rs`:131 to :135),
+  (`add_route_gate.rs`:132 to :134),
   an add that is not the main worktree (:149 and :193),
   and an account companion that refuses (`add_route_run.rs`:66 to :68).
 - **a refusal,
