@@ -938,7 +938,7 @@ the session makes itself.
   the lost count stayed at 69,301.
   Those three are not a denial and not a rule:
   their own control kills the wrong process,
-  measured on 2026-11-23 (section "The three stale lock controls killed the `timeout` and not the Git" below).
+  measured on 2026-11-23 (section "The three stale lock controls killed the `timeout` and not the Git").
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
 
@@ -963,7 +963,7 @@ so `Held::kill` sent `SIGKILL` to that `timeout`
 and the Git behind it kept running, still waiting on its `reference-transaction` hook.
 Ending the hook then made that Git abort the prepared transaction
 (`fatal: in 'prepared' phase, update aborted by the reference-transaction hook`)
-and remove the reference lock, the packed-refs lock and the packing staging file,
+and remove the reference lock, the packed-refs lock and the `packed-refs.new` staging file,
 so the walk of `ref_lock_candidates` found no candidate,
 the wrapper printed no notice, and the fetch it ran succeeded.
 
