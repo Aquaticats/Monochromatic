@@ -115,7 +115,7 @@ impl Fixture {
 
     /// The clone container's dataset name.
     fn container(&self) -> String {
-        return format!("{}/{CONTAINER_LEAF}", self.pool);
+        return format!("{}/ROOT/home/{CONTAINER_LEAF}", self.pool);
     }
 
     /// The common Git directory.
