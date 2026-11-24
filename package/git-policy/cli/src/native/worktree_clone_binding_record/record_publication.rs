@@ -26,7 +26,8 @@
 //! ```
 
 use super::binding_bound::BINDING_MAXIMUM_BYTES;
-use super::binding_inventory::{InventoryKind, InventoryRecord, parse_inventory};
+use super::binding_inventory::{InventoryKind, InventoryRecord};
+use super::binding_inventory_parse::parse_inventory;
 use super::binding_parse::parse_binding;
 use super::binding_record::BindingRecord;
 use super::record_refusal::RecordRefusal;

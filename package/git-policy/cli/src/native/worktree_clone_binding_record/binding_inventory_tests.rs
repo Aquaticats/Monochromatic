@@ -4,7 +4,8 @@
 //!  a count that disagrees with its lines,
 //!  and a kind that disagrees with the file's name.
 
-use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord, parse_inventory};
+use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
+use crate::worktree_clone_binding_record::binding_inventory_parse::parse_inventory;
 use crate::worktree_clone_binding_record::record_refusal::RecordRefusal;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
