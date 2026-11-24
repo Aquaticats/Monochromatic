@@ -214,10 +214,9 @@ fn install_the_handlers() {
     std::fs::set_permissions(ZEDLET_PATH, std::fs::Permissions::from_mode(0o755)).expect("the zedlet's mode");
     std::fs::create_dir_all(Path::new(CONFIGURATION_PATH).parent().expect("the configuration folder")).expect("the configuration folder");
     let document: String = format!(
-        "{{\n  \"cloneMounts\": {{\n    \"checkout\": \"{CHECKOUT}\",\n    \"parent\": \"{}\",\n    \"checkoutDataset\": \"{}\"\n  }},\n  \"account\": \"{}\"\n}}\n",
+        "{{\n  \"cloneMounts\": {{\n    \"checkout\": \"{CHECKOUT}\",\n    \"parent\": \"{}\",\n    \"checkoutDataset\": \"{}\"\n  }}\n}}\n",
         container_dataset(),
-        checkout_dataset(),
-        ACCOUNT
+        checkout_dataset()
     );
     std::fs::write(CONFIGURATION_PATH, document).expect("the configuration");
     std::fs::set_permissions(CONFIGURATION_PATH, std::fs::Permissions::from_mode(0o644)).expect("the configuration's mode");
