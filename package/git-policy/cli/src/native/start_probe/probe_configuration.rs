@@ -110,17 +110,26 @@ fn clone_container_in_use(document: &str) -> Option<String> {
 ///  so both keys come from the same bytes and a file changed between the two
 ///  reads cannot make them disagree,
 ///  and a file that is not there is no longer a refusal.
+///  The probe runs as root and the file names the datasets the route acts on,
+///  so it is opened without following a link and refused unless this program's
+///  own account owns it and no group or other write bit is set
+///  (`crate::file_only_root_may_write`).
 ///
 /// # Errors
-/// The file is there and unreadable.
+/// The file is there and unreadable,
+/// or it is not one this program alone may write.
 pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> {
-    return match std::fs::read_to_string(path) {
+    return match crate::file_only_root_may_write::read_file_only_root_may_write(path) {
         // A file that is there and holds nothing is refused rather than read as a file that names nothing:
         // the project's answer of 2026-11-22 says an empty file is not the same as no file.
-        Ok(text) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty { path: path.to_path_buf() }),
-        Ok(text) => Ok(Some(text)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(SourceRefusal::ConfigurationUnreadable { path: path.to_path_buf(), reason: error.to_string() }),
+        Ok(Some(text)) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty { path: path.to_path_buf() }),
+        Ok(text) => Ok(text),
+        // A file that could not be opened or read at all is a read failure and keeps that word; a file that is there
+        // and fails a term of root control answers which term, so a record never says one for the other.
+        Err(refusal @ crate::file_only_root_may_write::FileControlRefusal::Open { .. }) => {
+            Err(SourceRefusal::ConfigurationUnreadable { path: path.to_path_buf(), reason: refusal.reason() })
+        }
+        Err(refusal) => Err(SourceRefusal::ConfigurationNotUnderRootControl { path: path.to_path_buf(), reason: refusal.reason() }),
     };
 }
 
