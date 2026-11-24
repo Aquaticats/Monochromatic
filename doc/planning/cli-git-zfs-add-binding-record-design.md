@@ -2551,7 +2551,10 @@ What the fallback does from `snapshotted` is its own entry list's matter,
 and that is not a resume.
 
 The five readers of the plan folder are named here,
-because the plan design's "Readers that do not exist" says an add reads none:
+because the plan design's "Readers that do not exist" now records one of them for the first time
+(its "The add (plan step 10) reads the plan folder to refuse and for nothing else",
+written at `c54601afd8`),
+and its heading is that design's to change:
 the removal,
 in the plan design's "Which resume path a removal takes";
 the finish pass,
