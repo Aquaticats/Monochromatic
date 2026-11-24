@@ -1098,21 +1098,25 @@ which is not this branch.
 Two kernels,
 one program.
 
-- **The guest**,
-  `zfs-tier1-handle-and-68-reruns`,
-  made through `mvm --backend libvirt create` from the cached
+- **The guests**,
+  two of them,
+  one per pass that ran a guest:
+  `zfs-tier1-handle-and-68-reruns` for the second pass and
+  `zfs-probe-third-round-handle-and-quota` for the third,
+  each made through `mvm --backend libvirt create` from the cached
   template `template-ubuntu.qcow2`,
-  nothing downloaded.
-  It reports kernel `6.8.0-147-generic` and `Ubuntu 24.04.5 LTS`,
+  nothing downloaded,
+  and each destroyed through `mvm` when its pass ended.
+  Both report kernel `6.8.0-147-generic` and `Ubuntu 24.04.5 LTS`,
   with `mount`,
   `unshare` and `findmnt` from util-linux `2.39.3`,
   and the root filesystem is ext4 on `/dev/vda1` (`dev=253:1`).
-  For Tier 1 it holds a file-backed pool of its own:
+  Each holds a file-backed pool of its own for Tier 1:
   a 2 GiB sparse file,
   ZFS `2.2.2-0ubuntu9.5`,
   module and userspace the same,
   from the distribution's packages.
-  Tier 0's arms ran inside fresh private mount namespaces in it,
+  Tier 0's arms ran inside fresh private mount namespaces in each,
   as before.
 - **The container**,
   a rootless `podman` container from the repository's CachyOS base image
