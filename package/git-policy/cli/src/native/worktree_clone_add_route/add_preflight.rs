@@ -1,6 +1,7 @@
 //! What:
 //!  The route's preflight:
-//!  everything A0 proves before the claim writes anything.
+//!  everything A0 proves before the claim writes anything,
+//!  and the one source it declines the whole route for.
 //! Why:
 //!  A0 is one step with no write,
 //!  so its checks live together and the runner calls them once and hands what
@@ -12,10 +13,17 @@
 //!  and the delegation is read here because a granted permission no later step
 //!  can repair
 //!  (`super::add_grants`).
+//!  A source refused only for its uncommitted changes is not this route's yet:
+//!  the owner's interim of 2026-11-19 is that such an add takes rung 3 while plan
+//!  step 11's verified dirty restore is unlanded
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//!  lines 1858 to 1862),
+//!  so the preflight answers nothing and the add reaches the ladder as it does
+//!  for a checkout the route does not serve.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const preflight = preflightTheAdd(route, plan, context, arguments); // throws the sentence a person reads
+//! const preflight = preflightTheAdd(route, plan, context, arguments); // null: the ordinary add
 //! ```
 
 use super::add_git_words::person_lock_word;
@@ -60,7 +68,7 @@ pub(super) struct Preflight {
 }
 
 /// Prove the supported form,
-/// the clean source,
+/// the source,
 /// the datasets,
 /// the account's delegation,
 /// the handler's readiness and the destination.
@@ -76,10 +84,15 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
-    // A checkout with uncommitted edits is a source too: the clone route restores
-    // the copy to the commit the caller asked for, so it serves the same adds the
-    // ladder's other rungs serve (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-    // "The restore"; the interim that sent a dirty checkout to rung 3 ends here).
+    // What:
+    //  A checkout with uncommitted edits is a source too.
+    // Why:
+    //  The clone route restores the copy to the commit the caller asked for, so it
+    //  serves the same adds the ladder's other rungs serve
+    //  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+    //  "The restore").
+    //  This replaces the interim of 2026-11-19 (issue 6452), which sent such an add
+    //  to rung 3 until this step landed.
     let source: SnapshotSource = source_or_dirty(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
     if let Some(reason) = snapshot_blocker(&source) {
         return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));

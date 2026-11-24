@@ -309,7 +309,16 @@ and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-pl
 State:
 plan steps 1 to 10 are built and on `main`;
 step 11 is being built (`pi-zfs-step-11-dirty-main-restore`),
-with issue 6452 (a dirty checkout takes rung 3 until then) fixed in its own round;
+with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
+`main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
+fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
+and every writer round now runs the `source_guard` module before it reports;
+the gate on `main` at `adcb708071` (run `native-mEmcZt`) gave `10855 tests run: 10843 passed (6 slow), 12 failed, 42 skipped`:
+the cause-H pair, that guard,
+and nine companion tests that read the host's `XDG_RUNTIME_DIR`,
+which the gate's container does not set;
+fixed: the companion takes its runtime folder from its caller and its controls pass their own (35 of 35 in the gate image);
+the gate on `main` at `c4b0b123ab` (run `native-AoVnL6`) then gave `10865 tests run: 10863 passed (5 slow), 2 failed, 42 skipped`, the cause-H pair alone;
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
@@ -424,7 +433,7 @@ and `pi-zfs-step-10-answers-into-proposal-and-plan` writes them in;
 the revision merged as `dc0635971e` (choice 1 `E > C > G > A` with H asked on its own and W an add-on; choice 2 `2C > 2F > 2E > 2A`; choice 3 `3C > 3B > 3A > 3D`);
 a Sonnet read of it writes the owner's questions (`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`);
 its two defects on `main` are issues 6450 (the add printed a `Debug` dump; fixed as `ca615ddbe1`, controls red then green)
-and 6451 (the scope finding prints no command; its fix round runs);
+and 6451 (the scope finding printed no command; fixed, each wide grant now prints the narrowing `zfs allow` before the `zfs unallow`);
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
@@ -528,9 +537,17 @@ the zedlet's name selects only ZED's no-argument start,
 nothing at the root path reaches Git (probed on 28 starts),
 the guards hold every variant the re-read planted,
 and a disk-cold start in a guest costs the wrapper 1.87 times the handler (+6.06 ms).
+Its read (`read-of-the-second-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/keep/`)
+found the one-name guard admitting other names;
+the third revision merged as `2ad0c2ab7d`,
+with the guard pinned to one comparison line,
+typed Clippy bans on `std::env::args` and `args_os`,
+and the two modes the owner's answers need:
+`record-checkout --checkout <path>` (step 10's option E)
+and `mount-path-descendant --dataset <name>` (step 19's later mounter).
 Running:
-a Sonnet read of that revision's diff
-(`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/`).
+a Sonnet read of it that writes the eight choices for the owner
+(`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
@@ -925,7 +942,11 @@ and B and E meeting the owner's self-start rule in `doc/planning/cli-git-no-self
 which is the owner's call.
 The third revision merged as `077c006094`,
 ranked both ways: rule read strictly `J > C > C2 > D > A`, exception granted `B > J > C > E > C2 > D > A`.
-A Sonnet read of it writes the owner's question (`~/temp/agent/gate-review-typed-network-command-third-revision-2026-11-24/`).
+The owner answered never B, never E, and J
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`);
+J is built and merged: `SSH_ASKPASS` carries a 571-byte sentence that names no host key outside quotes,
+seven controls red with `false` and green with J in the gate image,
+and the detector and the upload and push-record sentences pinned unchanged.
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:

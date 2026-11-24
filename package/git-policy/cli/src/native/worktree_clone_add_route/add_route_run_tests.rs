@@ -1,8 +1,11 @@
 //! Controls for the route's gate through its entry point:
 //!  a main checkout on this test machine's own filesystem keeps the ordinary add,
 //!  a command that creates no worktree with a known plan is never the route's,
-//!  and a removal's plan that still names the clone refuses the record's first write
-//!  in the plan stop's own sentence.
+//!  a removal's plan that still names the clone refuses the record's first write
+//!  in the plan stop's own sentence,
+//!  and a checkout with uncommitted changes makes the runner decline before the
+//!  claim, so the add reaches the ladder as it does for every checkout the route
+//!  does not serve.
 //!
 //! Why the plan's refusal is driven here:
 //!  the plan read is the record writer's first statement,

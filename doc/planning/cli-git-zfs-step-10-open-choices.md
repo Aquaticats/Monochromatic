@@ -1,31 +1,41 @@
-# Step 10's three open choices, revised after the read
+# Step 10's three choices, as the owner answered them
 
 ## Status
 
-A proposal.
-Not a decision,
-not approved,
-and not final:
-only the project declares otherwise.
+The owner answered the three choices on 2026-11-24T14:10:00-05:00,
+through the question tool,
+and the answers are recorded at
+`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`.
 
-Second revision.
-The first was
-`doc/planning/cli-git-zfs-step-10-open-choices.md` as merged in `dce1e893a3`,
-written by the round
-`~/temp/agent/zfs-step-10-open-choices-proposal-2026-11-24/`.
-This revision answers the read of it,
-`~/temp/agent/gate-review-zfs-step-10-open-choices-2026-11-24/keep/read-of-the-step-10-open-choices.md`,
-and was written in the worktree
-`.claude/worktrees/zfs-step-10-open-choices-revision`,
-branch `docs/planning-cli-git-zfs-step-10-open-choices-revision`,
-made from `main` at `06d3e542b8`.
-
-The read is a same-vendor second pass,
+This is the third revision of this document.
+The first was merged in `dce1e893a3`,
+the second in `dc0635971e`,
+and the questions the second carried were built from a same-vendor read of it,
+whose full text is in that round's
+`keep/read-of-the-step-10-open-choices-revision.md`,
+under `~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`.
+That read is a second pass by a Claude model,
 not an independent review.
-Nothing here is approved,
-and the project has not been asked anything by this round.
 
-No wrapper code changed.
+This revision is no longer a proposal:
+it states the design the owner chose.
+It is not final,
+and nothing here is built:
+only the project declares a design complete,
+and no wrapper code changed for this round.
+
+It was written in the worktree
+`.claude/worktrees/zfs-step-10-answers-into-proposal-and-plan`,
+branch `docs/planning-cli-git-zfs-step-10-answers-and-plan-order`,
+made from `main` at `1ef4afefa8` and merged with `main` at `28267d769d`.
+
+Citations were re-read against `main` at `28267d769d`.
+Between the revision's base `06d3e542b8` and that commit,
+the only change in this package is issue 6450's fix,
+`79d644b9c8` (2026-11-24T13:52:28-05:00),
+which is why the defect the second revision counted as a cost of every
+option is gone (the heading "What the add reads today, and what it prints").
+
 Nothing under `doc/decision/` or `doc/handover/` was touched.
 No container gate,
 guest,
@@ -39,150 +49,123 @@ it names the file and line the sentence comes from,
 or the probe that printed it,
 or says that the sentence belongs to a design that is not built.
 
-## What this revision changed
+## The answers, in the owner's words
 
-The read made three high findings,
-eleven medium ones and eight lows.
-Every one is folded below,
-and this heading says where each landed,
-so a reader can check the folding without reading the whole document twice.
+The record quotes each answer as the question tool gave it back.
+Both the question texts and the answers were shaped by the read named above.
+
+- Choice 1,
+  which checkouts the add route serves:
+  "E: a root command records it (Recommended)".
+- Choice 2,
+  what the add prints beside a standing removal plan:
+  "2C: read the plan and the pool (Recommended)".
+- Choice 3,
+  which grants the add checks before it claims:
+  "3C: refuse on six, warn on three (Recommended)".
+- When the checkout migrates:
+  "After removal exists (Recommended)".
+- Who runs the migration,
+  the owner's second reply:
+  "You run it whenever you feel convenient."
+
+The record also adopts one earlier answer without a new question:
+a dirty main checkout takes rung 3 until step 11 lands,
+as the owner answered on 2026-11-19
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`:1858 to :1862).
+The code refuses such a source instead,
+which is issue 6452.
+
+## Where the read's findings landed
+
+The read made two high findings,
+seven medium ones and six lows.
+Each is folded where it bears on the chosen answers,
+and this heading says where,
+so a reader can check the folding without reading the document twice.
 
 ### The high findings
 
-- **The dirty checkout.**
-  Wherever the route reaches,
-  an add from a checkout with uncommitted changes is refused until step 11,
-  and the first revision ranked reach without saying so.
-  That is now a fact every option meets
-  (the heading "A checkout with uncommitted changes is refused"),
-  a cost in every option that widens reach,
-  and the ground of a ranked add-on
-  (the heading "Add-on W:
-  what an add does on a checkout with uncommitted changes").
-- **What the add prints.**
-  Both plan reads format the stop with `{stop:?}`,
-  so a person reads a Rust value and not the sentence the design quotes.
-  That is now a defect stated once
-  (the heading "What the add prints today is a Rust `Debug` value"),
-  a cost in every option of choice 2,
-  and a finding this round did not fix.
-  No issue was filed:
-  the coordinator files it,
-  as the round's brief says.
-- **Choice 3,
-  option 3B.**
-  Its example had the wrong head word,
-  the wrong command,
-  and a cost that belongs to the design's removal preflight rather than to 3B.
-  All three are corrected in 3B's own heading,
-  and the 3C-over-3B reason is rebuilt on the correction.
+- H1,
+  the dirty checkout.
+  Its correction is right and it is now the owner's own answer:
+  rung 3 stands until step 11,
+  so the refusal on `main` is the defect (issue 6452),
+  not the design.
+  It is the shared fact "A checkout with uncommitted changes takes the ladder
+  until step 11",
+  and the build of these answers carries the fall-through with its narrow
+  condition.
+- H2,
+  reach before a removal exists.
+  The owner answered it:
+  the migration runs after steps 14 to 16,
+  so no route-made worktree stands on a machine whose wrapper cannot remove it.
+  It is the shared fact "What the route makes can be removed only once steps
+  14 to 16 land",
+  and the plan's step 19 records the order.
 
-### The medium findings, each where it landed
+### The medium findings
 
 - M1,
-  the private checkout mount,
-  is a shared fact
-  ("The checkout's own mount must not be shared")
-  and a precondition named in every option that widens the gate.
+  the `root` field that `MountHoldingAPath` does not have,
+  is corrected in the shared fact
+  "The checkout path must be its dataset's own mount point"
+  and again in Finding 1.
+  The second revision's "correction" was the error.
 - M2,
-  the sentence each of the sweep's three file cases prints,
-  is corrected in the shared facts.
-  The consequence it draws for B and D is stronger than the read's
-  and is the ground on which B and D are no longer ranked at all.
+  2F's `gone` arm,
+  is corrected in that option's own entry under
+  "The options not chosen",
+  and the correction is what puts it below 2C.
 - M3,
-  the step 8 record's "no person edits that file by hand" and its rejected "setup writes whole file",
-  is folded into C's cost,
-  which now says that naming a dataset step 19 did not create is E's writer.
+  that a plan cannot stand before step 14,
+  is the first paragraph of choice 2,
+  true of the chosen answer as it was of every option.
 - M4,
-  the two axes and the one-record-per-machine bound,
-  is the heading "The two axes this choice turns on",
-  and E's cost now carries the readiness-record change G was alone charged with.
+  that the step 11 expiry also ends 3B's premise,
+  is the last heading of choice 3.
+  The chosen 3C survives the expiry as a rewrite;
+  3B does not.
 - M5,
-  A2 as a complement,
-  moved A2 out of the ranking
-  and into "Two add-ons,
-  not alternatives".
+  choice 1's pair reasons,
+  is folded into the chosen answer's grounds:
+  the measured baseline is cited,
+  and E over C is stated as the re-created dataset, not as the renamed one.
 - M6,
-  the own-root precondition and "only B would have closed it",
-  is the shared fact
-  ("The checkout path must be its dataset's own mount point"),
-  and Finding 1 no longer names B.
+  choice 2's pair reasons,
+  is corrected in the chosen answer's own text:
+  2C does not name one command in every state,
+  and the cancel line is separable from the presence read.
 - M7,
-  V24's cancel arm,
-  is in the shared facts of choice 2 and in 2C's cost,
-  and the two texts a person would read are shown.
-- M8,
-  the fifteen states,
-  is the heading "The decided command for every state",
-  is what puts the new 2F above 2E,
-  and is stated as a cost in every option of choice 2.
-- M9,
-  the five outcome kinds,
-  is the heading "What the preflight judges today,
-  and the five outcomes",
-  and each option of choice 3 now says what it does for each kind.
-- M10,
-  the expiry at step 11,
-  is in 3C's heading and cost,
-  and in the last paragraph of choice 3's ranking.
-- M11,
-  H left out of the ranking,
-  is answered by putting H to the owner as its own question,
-  which is the choice the brief's "ranked or stated as its own question" allows.
+  B's regression sentence,
+  is corrected in B's entry:
+  the regression is an own-root checkout under another leaf name.
 
 ### The lows
 
-- L1's three arithmetic slips are corrected where they stood.
-- L2's citation drift is corrected:
-  `clone_mount_readiness_admission.rs` `:132` and `:138`,
-  `add_grants.rs` `:85` and `:86`,
-  and `add_zfs.rs` `:56`.
-- L3's four more bounds are listed with the gate and the preflight,
-  each with the shape of its answer.
-- L4's three points are in the shared fact about the root-owned file and in Finding 3.
-- L5 is C's cost:
-  a typo is refused before the claim in every case this round could find but one.
-- L6 is 2C's cost:
-  an adapter,
-  one stats read per child,
-  and the 4,096-child bound.
-- L7 and L8 are findings this round did not fix.
-
-### What the read found that did not hold
-
-Nothing.
-This round re-read the code for every finding and every citation it could check,
-and each one holds.
-Two needed a small correction,
-given here so a reader does not have to find them:
-
-- The read's "the add cannot reach the snapshot that way" is exact for the code on `main`,
-  and the reason is one step later than the read places it:
-  the gate passes a subtree of a design-leaf dataset,
-  the record's checkout path is that dataset's own mount point,
-  and `admit_the_handler` compares the two
-  (`add_preflight.rs`:134 to :136).
-  The refusal is the readiness record's,
-  not the gate's.
-- The read's M2 says the ladder is lost "when the account companion passes".
-  The companion is a weaker escape than that:
-  the ladder is reached only when the companion refuses
-  (`add_route_run.rs`:66 to :68,
-  and `the_managed_attach_goes_ahead`,
-  `companion_lines.rs`:154 to :156),
-  so on a machine where the companion skips for want of user namespaces the add is still refused.
-
-### What this round found beyond the read
-
-The "too wide" delegation finding says
-"the narrowed command is printed for each"
-and prints no command
-(`delegation_checks.rs`:527),
-and its control asserts the field name and the two dataset names and nothing else
-(`delegation_checks_tests.rs`:115 to :125).
-A person who meets that finding is promised a command that is not in the sentence.
-It is the sixth of the findings this round did not fix,
-and it decides one of 3C's five outcome kinds.
+- L1 is corrected:
+  `doctor` judges the configuration file's facts
+  (`handler_checks.rs`:329 to :342)
+  and does not call the owner-argument reader,
+  whose release callers are the sweep and the probe only.
+- L2's citation is fixed:
+  the design's sentence is at
+  `cli-git-zfs-worktree-design-proposal.md`:1557 to :1558.
+- L3 is corrected in the shared fact about the source refusals:
+  `source_refusal` also refuses a sparse checkout and a worktree-scope Git
+  configuration,
+  and `snapshot_blocker` is a refusal of its own.
+- L4 is the heading "What the add reads today, and what it prints":
+  both call sites print the stop's sentence,
+  because issue 6450 was filed and fixed on `main`,
+  and issue 6451 is filed.
+  The second revision's "no issue was filed" is out of date.
+- L5 is cited in the shared fact about the shared mount:
+  step 19's gate makes the checkout private first,
+  by the owner's answer V5 of 2026-11-24.
+- L6 is 3C's cost:
+  the warning prints on every add while the grant stays missing.
 
 ## The example, and what is measured about it
 
@@ -206,8 +189,10 @@ Every option is measured on the example the build round used:
 Three facts about this machine decide what could be probed here,
 and what the person in the example would meet on it today.
 
-`/home/user/Monochromatic` is not its own dataset here:
-`/proc/self/mountinfo` holds `zpcachyos/ROOT/cos/home` at `/home` with the `shared:216` tag,
+`/home/user/Monochromatic` is not its own dataset here.
+`/proc/self/mountinfo` holds `zpcachyos/ROOT/cos/home` at `/home` with the
+`shared:216` tag,
+re-read this round,
 so the checkout's dataset leaf is `home`,
 and the checkout is a subtree of `zpcachyos/ROOT/cos/home`.
 The gate answers `OtherDataset` for this repository,
@@ -218,20 +203,26 @@ D,
 E or G.
 
 The home dataset's mount is shared,
-and every nested dataset under it is too:
-`.cache` is `shared:234` and `.cargo/build` is `shared:240`.
-That second fact is the one that decides whether naming this checkout in a root-owned file would make the route
-run here,
+and it was already shared when the first revision measured it.
+The same table holds `zpcachyos/nosnap/vm-builder-output` at
+`/home/user/Monochromatic/package/vm-builder/cli/output` with `shared:246`,
+which is the nested dataset the owner's answer of 2026-11-24 sets
+`canmount=noauto` and orders a unit after the gate
+(`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
+"V4 and V9, nested datasets under the checkout").
+That second fact decides whether naming this checkout in a root-owned file
+would make the route run here,
 and it would not:
 the sweep records a shared checkout mount as `not-ready`
-(`sweep_preconditions.rs`:401 to :428),
+(`sweep_preconditions.rs`:401 to :430),
 and the add refuses a `not-ready` record
 (`clone_mount_readiness_admission.rs`:144 to :148).
-So on this host the route needs step 19's private propagation before it needs anything else.
+So on this host the route needs step 19's private propagation before it needs
+anything else.
 
 This repository's tree at `06d3e542b8` is 526,754,210 tracked bytes in 25,276 files,
 a mean of 20,840 bytes a file,
-from `git ls-tree -r -l HEAD`.
+from `git ls-tree -r -l`, re-measured this round.
 That decides which rung of the ladder an add takes today:
 on ZFS a clean source is cloned only when its mean tracked file is at least 2,600 bytes
 (`worktree_clone_rung_limits.rs`:199),
@@ -253,14 +244,14 @@ no mount at the slot,
 no record and no lock,
 instead of the snapshot and clone the route makes.
 
-## What every option here meets
+## What the chosen answers meet
 
-Six facts shape every option below.
-Each is a property of the code on `main`,
-so no option can design it away,
-and each is charged to the options that widen reach rather than repeated in each.
+Seven facts shape all three answers.
+Each is a property of the code on `main` or of a record the project decided,
+so no answer designs it away,
+and each is charged to the answers that widen reach rather than repeated in each.
 
-### A checkout with uncommitted changes is refused
+### A checkout with uncommitted changes takes the ladder until step 11
 
 `preflight_the_add` proves the source with `source_refusal`
 (`add_preflight.rs`:76),
@@ -282,61 +273,47 @@ The refusal names no way forward:
 the sentence is the clean check's reason and nothing else,
 which `DGT` asks a diagnostic to remedy.
 
-This is by design and not a defect of reach:
-the accepted design's A0 says the preflight
-"refuses a source that is not clean,
-so a dirty main checkout stops the add before the claim instead of falling to the ladder's rung 3"
-(`cli-git-zfs-add-binding-record-design.md`:1857 to :1859),
-and the decision record's own allocation is "the dirty half of the restore is step 11's"
-(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`:42 to :44),
-which is the plan's
-"Step 11:
-The dirty-main restore and the frozen proof".
+The owner's answer is not that refusal.
+On 2026-11-19 the owner answered "Ship step 10 first (Recommended)":
+while step 11 is unlanded,
+an add from a dirty main checkout takes rung 3,
+as today
+(plan `:1858 to :1862`).
+The record of 2026-11-24 adopts that answer without a new question.
+The merge bar the refusal would cross is recorded too:
+"a branch may make nothing `main` does well worse"
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`:229).
 
-The consequence for this document is narrow and it is the reason it is stated first:
-**an option that widens reach lowers what a person with uncommitted changes gets,
-until step 11.**
-Under A they get a worktree today and after the migration;
-under C,
-E,
-G or H they get a refusal the day the names are written.
-The add-on W is the question that can change this,
-and it is separable from every option here.
+The code deviates from that answer,
+and issue 6452 records the deviation.
+So the obligation these answers carry is the fall-through,
+narrowed to exactly this refusal,
+with a control that shows no other preflight refusal falls through.
+It applies before and after the migration,
+because the route refuses a dirty source wherever it reaches:
+a person with uncommitted changes gets the ladder's worktree today and after
+step 19 moves the checkout.
 
-### What the add prints today is a Rust `Debug` value
+### The source refusals the preflight already makes
 
-Both plan reads answer with a `PlanStop`,
-and both call sites format it with `{stop:?}`:
+The refusal list a person can meet before the claim is wider than "not clean",
+and each sentence is its own:
 
-- `add_preflight.rs`:85 to :86,
-  in the preflight;
-- `add_route_run.rs`:230,
-  at A2.
+- `source_refusal` (`add_preflight.rs`:76) refuses a sparse checkout
+  (`worktree_snapshot_source.rs`:601 to :602),
+  a worktree-scope Git configuration (`configuration_refusal`,
+  :129 to :139),
+  a source whose Git configuration cannot be read (:631),
+  and every reason the cleanliness check gives;
+- `snapshot_blocker` (`add_preflight.rs`:77) refuses a nested worktree reached
+  through a symbolic link and an ordinary nested worktree that a snapshot
+  would turn into an empty stub (`worktree_snapshot_source.rs`:741 to :750);
+- the preflight itself refuses a repository whose Git does not ignore
+  `.claude/cli-git-trash` (`add_preflight.rs`:80 to :84).
 
-`PlanStop` derives `Debug` and has no `Display`
-(`plan_folder_read.rs`:99 to :112),
-so what a person reads is
-
-```text
-NamesTheClone(PlanNamesTheClone { plan: "<path>", sentence: "a removal's plan at <path> names the clone this add would fill, ..." })
-```
-
-and not the sentence the design quotes.
-The sentence exists as a value,
-`PlanStop::sentence()` (`plan_folder_read.rs`:109 to :115),
-and no caller uses it.
-
-No control asserts the add's printed text:
-the `plan_folder_read` controls run the reader,
-and `add_preflight_tests.rs` and `add_route_run_tests.rs` assert the stop's own fields.
-So this is a defect on `main` that the tests could not catch,
-and the fix is two substitutions plus one control that prints the refusal and asserts the sentence.
-Every option of choice 2 carries that fix as a cost,
-because every one of them changes what this sentence says.
-
-The read's probe printed the `Debug` form and the sentence side by side
-(`review-probes-output-debug-format.txt` in the read's `keep/`),
-and this round re-read both call sites.
+The second revision listed the clean check and the trash rule only.
+That is why the dirty case is stated first here:
+it is the one refusal of that group the owner has already answered.
 
 ### The root side needs a name only root writes
 
@@ -344,7 +321,7 @@ and this round re-read both call sites.
 With no configuration file it takes the one mounted dataset whose last name component is the design's
 (`sweep_configuration.rs`:197 to :200,
 through `the_one_mounted_checkout`,
-`the_designs_datasets_in_the_mount_table.rs`:157 to :174).
+`the_designs_datasets_in_the_mount_table.rs`:157 to :178).
 With a file it takes the names the file holds (`sweep_configuration.rs`:187 to :188),
 and it publishes one readiness record per run (`boot_reconcile_mode.rs`:131 to :136 and :162).
 
@@ -353,8 +330,8 @@ and which one a person reads decides whether the remedy the route prints is one 
 The read ran the sweep's own parser on the example's mount table,
 and this round re-read the three arms:
 
-- **no file,
-  or a file without `cloneMounts`**:
+- no file,
+  or a file without `cloneMounts`:
   `NoneMounted`
   (`mounted_dataset_refusal.rs`:147 to :150 and :202 to :204),
   whose remedy reads:
@@ -367,22 +344,20 @@ and this round re-read the three arms:
   which this release carries no setup that creates or mounts.
   ```
 
-- **a file naming `cloneMounts.checkout` alone**:
+- a file naming `cloneMounts.checkout` alone:
   `LeafNameDiffers`
   (:170 to :174 and :214 to :216),
-  whose sentence is the one the first revision quoted,
-  and whose remedy is one that works,
+  whose remedy is one that works,
   because it names `cloneMounts.checkoutDataset` and that entry alone parses;
-- **a file naming `cloneMounts.checkoutDataset` alone**:
+- a file naming `cloneMounts.checkoutDataset` alone:
   it parses,
-  and the path comes from that dataset's one own-root mount.
+  and the path comes from that dataset's one own-root mount
+  (`sweep_configuration.rs`:193 to :195).
 
-So the first revision quoted the second case's sentence for the first case,
-and it is the second case's sentence that names a working edit.
-Both facts stand in the shared record:
-
-**the root side acts on a name that only root writes,
-and a file that names one checkout is the only form of that name the code on `main` reads.**
+So a file that names one checkout is the only form of that name the code on
+`main` reads,
+and the root side acts on a name only root writes.
+The answer E builds exactly that writer as a command, with the identity proved.
 
 ### The checkout's own mount must not be shared
 
@@ -397,22 +372,20 @@ delivered to another namespace; this route requires a not-shared immediate paren
 (`sweep_preconditions.rs`:420 to :427).
 Two controls cover it
 (`sweep_preconditions_tests.rs`,
-`a_shared_checkout_is_refused_with_its_own_reason` and `a_shared_checkout_is_not_ready`).
+`a_shared_checkout_is_refused_with_its_own_reason` and
+`a_shared_checkout_is_not_ready`).
 
 Nothing in `worktree_clone_mount_handler/` sets propagation:
 the folder reads the tag and refuses on it,
 and no file there makes a mount private.
-Plan step 19 builds "the private propagation the unit sets on the verified checkout,
-and what re-applies it after a
-replacement mount"
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-"Step 19:
-The one-time migration,
-the immutable entry and the boot and shutdown units").
+Plan step 19 builds the private propagation,
+and the owner has since answered where it runs:
+"V5: the gate makes the checkout private first"
+(`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
+"V1, V3, V5 and V7, accepted as the design ranks them").
 
-So every option that widens the gate needs a part of step 19 before a person on a host like this one meets the route:
-the private propagation,
-applied to the checkout's own mount.
+So every answer that widens the gate needs that part of step 19 before a person
+on a host like this one meets the route.
 That is not the migration,
 and it is the piece the route cannot work without.
 
@@ -425,9 +398,19 @@ and the design puts it there
 "Dataset and path layout").
 The gate does not check it:
 it compares the dataset's last name component and nothing else
-(`the_designs_datasets_in_the_mount_table.rs`:236 to :238),
-and the `MountHoldingAPath` the gate receives has a `root` field
-(`mounted_dataset_instance.rs`:85) that `holding_of` never fills (:182 to :184).
+(`the_designs_datasets_in_the_mount_table.rs`:236 to :238).
+
+The struct the gate receives carries no root:
+`MountHoldingAPath` has three fields,
+the dataset, the filesystem type and the mount point
+(`mounted_dataset_instance.rs`:50 to :58).
+`MountedDatasetInstance.root` (:85) belongs to the other struct,
+and `holding_of` (:182 to :185) builds the three-field one.
+The root the table already read is dropped on the way:
+`MountFacts.root` exists (`subvolume/fs_mount_options.rs`:61),
+and `holding_of` does not carry it.
+So the second revision's "the struct has a `root` field" was false,
+and the first revision's "it carries no root field at all" was right.
 
 The read's probe showed a checkout at `/u/repo` under a dataset named `monochromatic-git-checkout` mounted at `/u`
 passing the gate,
@@ -439,13 +422,18 @@ because the record's checkout path is the dataset's own mount point and the add'
 
 So the defect is real and latent:
 it is not reachable through the gate alone,
-and it becomes reachable through any option that lets a root-written name pair a path with a dataset,
-because the sweep accepts the pair as text.
-On this host a file naming the home dataset would make the route snapshot and clone all of `/home`.
-It is therefore a precondition of C,
-E and G,
-and the fix is the one the code already has the parts for:
-`instances_of` and `shows_the_datasets_own_root`.
+and it becomes reachable through the chosen answer,
+because a root command records a path beside a dataset,
+and the sweep accepts the pair as text.
+On this host a record naming the home dataset would make the route snapshot
+and clone all of `/home`.
+It is therefore a precondition of E,
+and the fix takes one of the two shapes the code already has:
+carry `MountFacts.root` through `holding_of`,
+or take the row from `instances_of`
+(`the_designs_datasets_in_the_mount_table.rs`:137)
+and ask `shows_the_datasets_own_root`
+(`mounted_dataset_instance.rs`:91).
 
 ### The handler must be installed, and this boot's record must have been published
 
@@ -459,260 +447,92 @@ Two root acts are outside the add and outside the gate:
 - the readiness record is published by `boot-reconcile`,
   one per run,
   so a boot whose unit never ran has no record and the add refuses
-  (`add_preflight.rs`:120 to :133).
+  (`add_preflight.rs`:125 to :137).
 
 Both are step 19's,
 and neither is the migration.
 
-## Choice 1: how far the add route reaches
+### What the route makes can be removed only once steps 14 to 16 land
 
-### What decides reach today
+A worktree the route makes is locked,
+and the lock's sentence sends the person to Git's own removal:
+"remove the worktree with git worktree remove"
+(`lock_words.rs`:34).
+The wrapper leaves a locked worktree to Git
+(`worktree_remove.rs`:343 to :348),
+and Git refuses it "plain and with one force"
+(`cli-git-zfs-add-time-git-lock-design.md`:344).
+No removal of a route-made clone is built:
+the plan's own status says step 1 alone is built (plan `:18` to `:19`),
+and removal is steps 14 to 16.
 
-`the_routes_add` makes two host reads
-(`add_route_gate.rs`:192):
-`filesystem_kind(worktree_root)`,
-and then `the_checkout_dataset_at`
-(`the_designs_datasets_in_the_mount_table.rs`:228).
-The second finds the mount holding the path,
-takes its dataset name,
-and refuses unless the dataset's last component is
-`monochromatic-git-checkout`
-(:236 to :238).
-Any refusal becomes `CheckoutMount::OtherDataset`
-(`add_route_gate.rs`:202),
-`decide_the_routes_add` answers `Ok(None)` (:152),
-`run_a_zfs_add` returns `None` (`add_route_run.rs`:58),
-and `run_served` falls through to the ladder
-(`worktree_copy_forward.rs`:378).
+So reach without removal leaves a person holding a worktree the wrapper cannot
+take back,
+and until the owner's answer below, step 19's own dependency list named none
+of them,
+because the migration's own code reads no removal record.
+The owner's answer is the order:
+"After removal exists",
+steps 14 to 16 land before the migration runs,
+so every worktree the route makes on this machine can be removed with the
+wrapper from the first day.
+The plan now records that order in step 19.
 
-Several bounds stand between a person and the route.
-The gate is the one a reader meets first,
-and each bound answers in one of two shapes,
-which decides whether a person keeps the ladder's worktree:
+## Choice 1: a root command records the checkout (E)
 
-- **silent,
-  the ladder runs**:
-  the gate (not ZFS,
-  or another dataset leaf),
-  a destination that is not a direct child of `<checkout>/.claude/worktrees`
-  (`add_route_gate.rs`:132 to :134),
-  an add that is not the main worktree (:149 and :193),
-  and an account companion that refuses (`add_route_run.rs`:66 to :68).
-- **a refusal,
-  nothing else runs**:
-  the preflight's own refusals,
-  which are the person's `--lock`,
-  `--reason` or `--checkout`
-  (`add_preflight.rs`:69 to :74),
-  a repository whose Git does not ignore `.claude/cli-git-trash` (:80 to :84),
-  a source that is not clean (:76),
-  a plan that names the clone (:85 to :86),
-  a slot parent that is not the account's (:87 and the function below it),
-  a device,
-  a dataset or a container that does not answer (:88 to :96),
-  a delegation that is not the decided one (:97),
-  and no readiness record,
-  or one of another boot,
-  pool or checkout (:98 and :125 to :137).
+### What the owner answered
 
-The load-bearing consequence is this:
-**the root side must be told which checkout to reconcile,
-and it must be told in a place only root writes.**
+"E: a root command records it (Recommended)".
+The answer and the sentence below it are the record's,
+section "Choice 1, which checkouts the route serves"
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`).
 
-The gate is the visible half of reach;
-the readiness record,
-the handler install and the checkout's propagation are the invisible half,
-and every option here is judged on both.
+The record's sentence:
+a root command records the checkout's path,
+dataset and GUID,
+container and pool,
+and the add serves the checkout that record names,
+refusing a dataset swapped in under the same name.
 
-### The two axes this choice turns on
+What the route is worth to a person is measured on this machine,
+and the measurement is of today's ladder:
+ten adds through the wrapper build of 2026-11-17T18:33:13-05:00 took
+13.0 to 58.4 s each (median 24.6 s),
+and one new worktree is 5,820 MiB by `du`
+(`doc/decision/heavy-worktree-use-waits-for-the-zfs-route.md`:25 and :28).
+That is the baseline the route exists to beat,
+and no round has measured the route against it;
+what the chosen answer adds is the reach that makes the comparison possible on
+a checkout other than the design's own.
 
-The round's options and the first revision's mix two questions,
-and separating them is what makes the ranking below short.
+### What E builds
 
-- **How many checkouts one machine can serve.**
-  Today:
-  one.
-  The readiness record names one checkout
-  (`ReadinessRecord`,
-  `clone_mount_readiness.rs`:227 to :246,
-  one `checkout_path`),
-  `boot_reconcile_mode::run_at` reads one `SweepConfiguration` and publishes one record
-  (:131,
-  :136 and :162),
-  and `admit_attach` compares that one path (`clone_mount_readiness_admission.rs`:138).
-  So a second repository named in a file is not served until the record,
-  the boot unit and the add's admission
-  all change.
-  That change is a design change to a record the project decided,
-  and it is the same change for C,
-  for G and for E.
-- **What the name is.**
-  The design's own leaf name (A),
-  text a root writes and the add re-reads (C,
-  G),
-  or an identity a root-run command proved when it wrote it (E).
-  The design's own ground is the third:
-  "Root configuration pins the account UID,
-  the checkout path,
-  pool and dataset names and GUIDs"
-  (`cli-git-zfs-worktree-design-proposal.md`:336).
+A root command,
+run once per repository,
+that proves each name it is given against the pool and then writes them to a
+root-owned record:
 
-A choice that answers the first axis "many" pays the record change;
-a choice that answers the second "proved" pays the writer.
-C,
-E and G answer the first axis the same way until that change is made,
-so they differ on delivery only along the second,
-and that is where the ranking's adjacent pairs come from.
+- the checkout path and its dataset;
+- that dataset's GUID;
+- the container dataset and the pool.
 
-### A. Keep the gate until step 19's migration
+The add,
+the sweep and the probe read that record.
+The add serves the checkout the record names and only that one,
+and it compares the dataset's GUID with the recorded one before it claims anything,
+so a dataset swapped in under the same name is refused at the gate.
 
-Nothing changes in the wrapper.
-The route serves a checkout only after root moves it onto its own dataset.
+This is a design for the next round and not built.
+Two things it closes over do not exist yet in the shape it needs:
+the checkout name today is the fixed leaf `monochromatic-git-checkout`
+(`the_designs_datasets_in_the_mount_table.rs`:236 to :238),
+and the readiness record carries "no field that names the checkout dataset or
+the container" (Finding 2).
 
-What the person sees for the example,
-measured in a throwaway repository on this host whose checkout sits on this machine's dataset rather than on
-`tank/home/u/work/Monochromatic`
-(the heading "What was probed,
-and what was not" names the run):
-no line about the route,
-because the gate's answer is dropped silently (`add_route_gate.rs`:202);
-the add succeeds,
-and the wrapper prints the ladder's own lines,
-`copied 0 ignored filesystem entries ... into 1 new worktree`,
-and,
-for a source the clone rung served,
-`this worktree was not made as a snapshot, so it took longer, because <the source> is not a btrfs subvolume`;
-and no record folder appears,
-so the route wrote no claim,
-no binding and no plan folder.
-For a clean tree of this size whose recorded file times match,
-the add is the clone rung's;
-for a dirty one it is Git's own checkout.
-If they also run the boot unit,
-`boot-reconcile` fails with the `NoneMounted` sentence quoted at
-"The root side needs a name only root writes",
-and `doctor` reports nothing about the route,
-because `route_checks` has no live caller
-(`doctor_zfs_route/route_checks.rs`:112 is called only from controls and the guest arm).
+### What a person sees
 
-What it delivers:
-a worktree for every add,
-including every add from a checkout with uncommitted changes,
-and the ladder's block-sharing copy inside the source's dataset.
-
-What stops it:
-nothing.
-It is the shape the plan drew,
-and the accepted decision's own text says the route's dataset
-"exists only after plan step 19's one-time migration"
-(`cli-git-zfs-add-binding-record-design.md`,
-"What step 10 takes,
-and from which document").
-
-What it costs:
-the route is code no person meets.
-Its first live run is the migration's own road test,
-which is the least forgiving moment for a first run of a path that takes a snapshot,
-a clone,
-a claim,
-a lock and a record.
-The accepted question's sentence,
-that step 10
-"builds the first working `git worktree add` for a repository on ZFS",
-stays unmet until then.
-
-### B. Serve any checkout that is its own dataset's root
-
-The leaf comparison goes,
-and the mount at the path must be the dataset's own mounted root.
-
-What it delivers:
-nothing that A or C does not already deliver.
-Every checkout the sweep reconciles is either the design's dataset,
-which A already serves,
-or a dataset a root-owned file named,
-which C serves.
-B changes the add's half of the gate and leaves the root side's half,
-so its extra reach is empty.
-
-What the person meets for the example on `main`'s code with only B changed:
-the add opens the device and reads the checkout,
-the pool and the container,
-judges the delegation,
-and then `admit_the_handler` refuses,
-because no record names this checkout:
-
-```text
-no handler readiness report stands for this boot, so no attach is admitted
-(/run/...). Ways forward: start the boot unit's `boot-reconcile` and run the add again
-```
-
-(`add_preflight.rs`:128 to :133).
-`boot-reconcile` on that machine answers the `NoneMounted` sentence,
-so the way forward cannot be followed.
-The person is sent to a command that cannot succeed,
-which is a closed loop rather than a refusal,
-and they have lost the worktree A would have given them.
-
-What stops it:
-the root side has no name to find the checkout by.
-The build round named the only candidate the code carries,
-each clone's origin,
-and that candidate hands the account the choice of which dataset root reconciles and mounts,
-which is exactly the bound the fixed leaf name provides
-(`cli-git-zfs-worktree-design-proposal.md`,
-"Scoped delegation":
-`:335 to :345`).
-Every other discovery rule with no root-written name
-(a mount under `/home` that holds both a `.git` folder and a `.claude/worktrees` folder,
-every dataset at depth two or more under the pool)
-is steered by an account in the same way.
-
-What it costs:
-one deleted comparison,
-one added comparison,
-and a regression:
-every add on this machine's shape,
-a ZFS checkout that is a subtree of its dataset,
-falls through today and is refused under B,
-because the gate stops answering `Ok(None)`.
-`DGT` would also ask B's refusal for a way forward,
-and the only one available is C's file.
-
-### C. Serve the checkout the root-owned configuration file names
-
-The add reads the same file the sweep and the probe read,
-`/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,
-and serves an add only when the repository's root is its `cloneMounts.checkout`.
-The dataset and the container come from `cloneMounts.checkoutDataset` and `cloneMounts.parent`.
-
-For the example the file holds:
-
-```jsonc
-// /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc
-{
-  "cloneMounts": {
-    "checkout": "/home/u/work/Monochromatic",
-    "checkoutDataset": "tank/home/u/work/Monochromatic",
-    "parent": "tank/home/u/work/monochromatic-git-worktree-clone-datasets"
-  },
-  "startProbe": {
-    "checkout": "/home/u/work/Monochromatic",
-    "dataset": "tank/nosnap/git-worktree-probe"
-  }
-}
-```
-
-`startProbe.dataset` is not decoration:
-without it the probe's `found_source` calls `the_checkout_dataset_at` on the named path and refuses with the
-leaf-name sentence
-(`probe_configuration.rs`:277 to :288).
-`startProbe.checkout` must equal `cloneMounts.checkout`,
-or `parse_configuration` refuses with `CheckoutsDiffer`
-(`sweep_configuration.rs`:266 to :270).
-
-What the person sees for the example,
-once the file is in place,
+For the example,
+once root has run the command,
 the checkout's mount is private,
 the handler is installed and `boot-reconcile` has published this boot's record:
 the route runs,
@@ -720,380 +540,137 @@ the snapshot lands on `tank/home/u/work/Monochromatic`,
 the clone lands in the container,
 and the add prints the filled note (`FILLED_NOTE`,
 `add_route_run.rs`:45).
-A container that does not answer under the name the file gives is refused before the claim,
+
+A container that does not answer under the recorded name is refused before the claim,
 with the preflight's sentence that the route's layout is half-made
 (`add_preflight.rs`:91 to :96).
 A wrong dataset name is refused before the claim too,
-at the dataset identity read (`add_preflight.rs`:89),
-unless it names another existing dataset the account is delegated over,
-in which case it is caught at the frozen-content comparison after the snapshot and the clone.
+at the dataset identity read (`add_preflight.rs`:89).
+A dataset re-created under the recorded name is refused at the GUID comparison,
+before the snapshot.
 
-What stops it:
-no disqualifying problem this round found,
-with four limits to state.
-
-**One checkout per machine** under the current record,
-as the heading "The two axes this choice turns on" sets out.
-
-**The file's names are text**,
-so a dataset renamed or replaced since the file was written is not refused at the gate,
-and a file rewritten between the boot's read and the add's read can name another dataset at the same path and in the
-same pool,
-because the record proves the path and the pool and nothing else
-(Finding 2).
-
-**No file names this repository's checkout unless setup writes one.**
-The step 8 record says the setup writes both names and that
-"no person edits that file by hand"
-(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"The datasets the sweep acts on").
-The example's dataset is not one step 19 creates,
-so setup needs an adopt mode for it,
-which is the writer E describes.
-C and E therefore differ more in where the names live than in whether a root-run writer exists.
-
-**With no file,
-or a file that does not name this repository,
-the add keeps the ladder.**
+With no record,
+or a record that does not name this repository,
+the add keeps the ladder.
 The accepted answer of 2026-11-22 is "no file needed"
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "With no configuration file"),
-so a missing file is not an error and the route simply does not serve the add.
+so a missing record is not an error and the route simply does not serve the add.
 
-What it costs:
-the add's own read of the file,
-with `read_file_only_root_may_write_owned_by(path, 0)`
-(`file_only_root_may_write.rs`:162,
-and the wrapper at :140),
-which already takes the owner and which `doctor` already calls with the same two terms
-(`handler_checks.rs`:329 to :342);
-one refusal and its control for a file that exists and fails those terms;
-the setup that writes the file,
-which is step 19's and must land before the route reaches anyone,
-plus the adopt mode above for a dataset step 19 did not create;
-and the own-root check on the pair the file holds,
-which is the gate fix the heading
-"The checkout path must be its dataset's own mount point" describes;
-and the refusal of a checkout with uncommitted changes until step 11,
-which the heading "A checkout with uncommitted changes is refused" states.
+### What it delivers over the option the read preferred
+
+E and C reach the same one checkout with the same route and the same lines.
+They differ in what the name can prove,
+and the difference is narrower than the second revision's ranking said.
+
+A dataset renamed after the name was written is refused under both:
+the record proves the path,
+and the add's identity read (`add_preflight.rs`:89) refuses a dataset name that
+does not answer,
+which is the sentence the second revision already charged to C.
+What C cannot refuse is a dataset destroyed and re-created under the same name at
+the same path,
+because C's name is text and the record it is checked against proves the path and
+the pool and nothing else.
+E refuses that case at the GUID comparison.
+
+The price is the mirror image:
+a legitimate restore of the checkout dataset gives it a new GUID,
+and E refuses the add until root re-adopts the checkout with the command.
+C does not refuse that restore.
+
+### What E costs
+
+- the command,
+  its proof of the dataset and the container it records,
+  its grammar and refusals,
+  and its controls;
+- a setup step in plan step 19 that runs it,
+  which the plan now names;
+- a reader in every later step that names a checkout:
+  the removal at step 14 and `doctor` at step 18;
+- the own-root check on the pair the record holds,
+  which is the gate fix the heading
+  "The checkout path must be its dataset's own mount point" describes;
+- the record's shape,
+  which names one checkout per machine until the readiness record can name
+  more (the second axis of the second revision's choice 1,
+  which is a design change to a record the project decided);
+- the fall-through for a dirty checkout, until step 11;
+- the root-owned file's read,
+  with `read_file_only_root_may_write_owned_by(path, 0)`
+  (`file_only_root_may_write.rs`:162,
+  and the wrapper at :140);
+- and one sentence that is wrong today and will be read on this path:
+  the `Owner` refusal says "its owner is user {found} and this program runs as
+  user {wanted}" (`file_only_root_may_write.rs`:107 to :108),
+  which for an add run as account 1000 with `wanted = 0` reads "this program runs
+  as user 0" and is false (Finding 3).
 
 The file's mode needs a word of its own:
-`doctor` accepts `0600` and the account cannot read it,
+`doctor` accepts `0600` and the account cannot read it
+(`handler_checks.rs`:329 to :342),
 so a root-owned `0644` is the mode this needs,
 and the add's read must not assume `doctor` would have reported a mode it cannot use.
 
-### D. Make the delegation the gate
+`doctor` judges that file's facts and does not call the reader itself;
+the reader's release callers are the sweep
+(`sweep_configuration.rs`:304) and the probe
+(`probe_configuration.rs`:122).
+The second revision said `doctor` already called it, which is false.
 
-The gate widens,
-and `check_delegation` becomes what refuses an unmanaged checkout.
+### The bounds that decide whether an add meets the route at all
 
-What it delivers:
-nothing B does not,
-and it is the weaker half of the same mistake:
-D opens the add and leaves the root side unable to name the checkout,
-then adds a device read and a delegation judgement to every ZFS add in a repository of any dataset,
-including the ones the ladder serves today.
+The gate is the visible half of reach;
+the readiness record,
+the handler install and the checkout's propagation are the invisible half.
+Several bounds stand between a person and the route,
+and each answers in one of two shapes,
+which decides whether a person keeps the ladder's worktree:
 
-What the person meets for the example:
-B's sentence in the end,
-with the delegation finding printed before it on a dataset that carries none.
+- silent,
+  the ladder runs:
+  the gate (not ZFS,
+  or another dataset leaf,
+  `add_route_gate.rs`:197 to :203),
+  a destination that is not a direct child of `<checkout>/.claude/worktrees`
+  (`add_route_gate.rs`:132 to :134),
+  an add that is not the main worktree (:149 and :193),
+  and an account companion that refuses (`add_route_run.rs`:66 to :68).
+- a refusal,
+  nothing else runs:
+  the preflight's own refusals,
+  which begin with the person's `--lock`,
+  `--reason` or `--checkout` (`add_preflight.rs`:69 to :74),
+  then the source refusals of the shared fact above,
+  a plan that names the clone (:85 to :86),
+  a slot parent that is not the account's (:87),
+  a device,
+  a dataset or a container that does not answer (:88 to :96),
+  a delegation that is not the decided one (:97),
+  and no readiness record,
+  or one of another boot,
+  pool or checkout (:98 and :128 to :133).
 
-What stops it:
-the root side,
-exactly as for B,
-and the fact that the delegation cannot stand in for a name:
-a checkout whose dataset carries the design's nine grants is still a checkout the sweep never reconciled.
+E changes the first bound's answer for the checkout the record names,
+and leaves every other one as it is.
 
-What it costs:
-one more device read on every ZFS add,
-the same empty delivery as B,
-the same regression of the ladder,
-and the refusal of a checkout with uncommitted changes until step 11.
+## Choice 2: the add reads the plan and the pool (2C)
 
-### E. Serve a checkout a root-run adoption command records
+### What the owner answered
 
-A root command records,
-per repository,
-the checkout path,
-its dataset and GUID,
-the container and the pool,
-in a root-owned record the add,
-the sweep and the probe read.
+"2C: read the plan and the pool (Recommended)".
+The answer and the sentence below it are the record's,
+section "Choice 2, what the add prints beside a standing removal plan"
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`).
 
-What the person sees for the example:
-the same as under C,
-after they or root has run the adoption command once instead of setup writing a file.
-
-What it delivers:
-C's route for one checkout,
-and one thing C does not:
-the names are identities a command proved when it wrote them,
-so a dataset renamed,
-replaced or re-created since is refused at the gate,
-where C's text is checked only at the points the work has already been done.
-Its stated reach of one checkout per repository needs the readiness-record change
-the heading "The two axes this choice turns on" describes,
-so E does not deliver "many checkouts" until then either.
-
-What stops it from being a separate design:
-nothing about the add.
-Its difference from C is the writer and the proof,
-and the sweep at boot reads the same folder either way.
-
-What it costs:
-that command,
-its proof of the dataset and container it records,
-its grammar and refusals,
-its controls,
-a setup step,
-a reader in every later step that names a checkout,
-the readiness-record change for its own stated reach,
-and the refusal of a checkout with uncommitted changes until step 11.
-The record must also be trusted by the removal and by `doctor`,
-which the plan builds at steps 14 and 18.
-
-### G. Serve the checkouts a root-owned file lists
-
-C's file,
-with `cloneMounts` holding a list of checkouts rather than one.
-
-What the person sees for the example:
-the same as under C.
-
-What it delivers:
-C's route for one checkout,
-and for two checkouts it delivers nothing more until the readiness record can name two,
-which is the same design change E needs.
-The list is a future delivery bought now.
-
-What stops it:
-the one-record-per-machine bound:
-one record file serves the whole machine
-(`READINESS_DIRECTORY`,
-`clone_mount_readiness.rs`:43,
-and `record()`,
-`clone_mount_readiness_file.rs`:227),
-and one record names one checkout (`ReadinessRecord`,
-`clone_mount_readiness.rs`:227 to :246),
-so a machine with two checkouts needs one record per checkout,
-which is a change to a record the project decided,
-or a second file,
-which is a change to the root side's own layout.
-
-What it costs:
-the file's grammar,
-the sweep's loop over checkouts,
-the probe's refusal of two checkouts,
-the readiness record's shape,
-and the refusal of a checkout with uncommitted changes until step 11.
-
-### H. Do the migration now
-
-Not a change to the gate:
-root moves the checkout onto its own dataset with the design's names,
-and A's gate then serves it.
-
-What the person sees:
-everything C delivers,
-plus the design's own layout,
-the immutable covered entry,
-the private propagation,
-`snapdir=disabled`,
-and a checkout that no later step has to migrate.
-
-What stops it from being this choice's answer:
-the migration's own recovery depends on steps 12 and 18,
-which are later in the plan:
-unmounted and pruned worktrees have no reader,
-and `doctor` has no live caller,
-so a migration interrupted in the middle has nothing a person can read.
-It also cannot be done by an agent at all:
-the design puts it in the owner's hands,
-with every session stopped.
-It is therefore stated as its own question at
-"H,
-put to the owner as its own question".
-
-What it costs:
-steps 12,
-18 and 19 as they stand,
-a root-run move of a live checkout,
-and the refusal of a checkout with uncommitted changes until step 11.
-
-On this host H is the only option that reaches the route:
-the checkout is a subtree of the shared home dataset,
-so the private propagation H brings is a precondition of every other route option here as well.
-
-### Two add-ons, not alternatives
-
-Two questions sit beside the six options and compose with any of them.
-Neither belongs in the ranking,
-because neither is a way of reaching the route:
-one changes what the route says when it does not serve an add,
-the other changes what it does when it serves one it cannot finish.
-
-#### Add-on A2: say why the route declined
-
-The same gate as A or C or E or G,
-plus one line from the add when the gate answers `OtherDataset` or `NotZfs`,
-naming the dataset found and the way forward.
-
-What it delivers:
-the person learns that a route exists and why it did not serve this add.
-Under A alone the remedy has to be the migration;
-under C,
-E or G it is the file entry,
-which works.
-
-What stops it as an alternative to A:
-the remedy the code has today is a file entry the add's own gate would still ignore under A,
-and a line whose way forward is known not to work is worse than silence (`DGT`).
-That is why A2 composes with C,
-E and G and not with A.
-
-What it costs:
-one field on `CheckoutMount` to carry the refusal,
-one sentence,
-and its control.
-
-#### Add-on W: what an add does on a checkout with uncommitted changes
-
-This is the question the high finding leaves open,
-and it is separable from every option above.
-Three arms:
-
-- **W1,
-  refuse as today.**
-  The accepted A0 stands.
-  What it delivers:
-  nothing to the person;
-  the refusal is a fact.
-  What it costs:
-  the worktree A would have given them,
-  and a sentence that names no way forward.
-- **W2,
-  fall through to the ladder for exactly this refusal.**
-  What it delivers:
-  the worktree the person asked for,
-  from the route's own decision point,
-  and it composes with C,
-  E,
-  G and H.
-  What it costs:
-  a re-decision of A0's own sentence,
-  which chose the refusal over the ladder's rung 3,
-  and the slow full copy that choice was made to avoid;
-  and it must not fall through for any other preflight refusal,
-  so the arm needs its own narrow condition and its own control.
-- **W3,
-  refuse and name the way forward.**
-  What it delivers:
-  the one thing the person needs to act,
-  which is that the route takes a clean source and that committing or stashing is what makes this checkout one,
-  and that step 11 removes the condition.
-  What it costs:
-  one sentence and its control,
-  and it leaves the worktree unsaved.
-
-They compose:
-W3 belongs whichever arm the project picks,
-because the current sentence breaches `DGT` on its own terms.
-So the ranked question is the first two,
-and W3 is a defect fix either way.
-
-Ranking:
-**W2 > W1**,
-because W2 delivers the worktree the person asked for and W1 delivers none.
-W2 is ranked first with its cost stated,
-not because the cheaper arm should win:
-A0's ground was a slow copy,
-and a slow copy is what the person asked for.
-
-### The ranking for choice 1
-
-`E > C > G > A`.
-
-B and D are not ranked.
-They deliver nothing A and C do not,
-because every checkout the root side can name is either the design's dataset,
-which A serves,
-or one a root-written name points at,
-which C serves;
-and they take away the ladder's worktree on every other ZFS checkout.
-This is stronger than the first revision's ground,
-which said they could not be completed:
-they can be completed,
-and completing them buys nothing.
-
-- **E beats C**:
-  both reach one checkout,
-  and E's name is an identity a root command proved when it wrote it,
-  so a dataset renamed or replaced after the record was written is refused at the gate;
-  C's name is text re-read on every add,
-  and the record it is checked against proves the path and the pool and nothing else.
-- **C beats G**:
-  they deliver the same reach today,
-  one checkout named by text,
-  and G's list buys nothing until the readiness record can name a second checkout,
-  which is the same design change E needs for its own stated reach.
-  G's extra delivery is a future one,
-  and the price is the record's shape and the sweep's loop.
-- **G beats A**:
-  G delivers the route's snapshot and clone,
-  the checkout left where it is,
-  the clone's own dataset,
-  the mount at the slot,
-  the record and the lock;
-  A delivers the ladder's block-sharing copy inside the source's dataset,
-  with no dataset of its own and nothing for steps 14 and 16 to read.
-
-One limit on that order,
-stated as the cost it is:
-until step 11,
-A delivers a worktree to a person whose checkout has uncommitted changes,
-and E,
-C and G deliver a refusal.
-How much that matters is a fact about how people work,
-which this round did not measure and cannot:
-if the owner weighs the period before step 11 equally,
-A moves up,
-and the add-on W is the lever.
-After step 11 the order above is unaffected.
-
-### Whether choice 1 is separable from the other two
-
-Yes.
-Choice 1 decides which adds meet the route;
-choices 2 and 3 change what the route does on the adds it already serves.
-A project that answers choice 1 with A can still build 2C and 3C,
-and the two would run on the first add after the migration,
-which is a testable state and not a dead one.
-Nothing in choices 2 or 3 needs to know which option of choice 1 was chosen,
-with one exception worth stating:
-2C's device read and 3C's grant judgement both live in `preflight_the_add`,
-so they meet in one function and the order of the two builds matters to a merge,
-not to the design.
-
-### H, put to the owner as its own question
-
-H is not a fourth answer to this choice,
-and it is too large to leave unasked:
-
-> Step 10's route reaches nobody until step 19's migration moves the checkout onto its own dataset,
-> and step 10 is the step whose question says it builds the first working `git worktree add` for a repository on ZFS.
-> Should step 10 land with the route unreachable (A),
-> or should the project pull steps 12,
-> 18 and 19 forward so the
-> migration is the first thing that runs (H)?
-> H is the only option that reaches the route on this machine,
-> because this checkout is a subtree of the shared home dataset,
-> and it needs the owner's own hands for the move and for a session-free window.
-
-The two arms are priced above at A and H.
-H's cost is steps 12 and 18 built before their turn,
-which the plan's own order puts after step 10 for reasons of recovery.
-
-## Choice 2: what the add prints beside a standing removal plan
+The record's sentence:
+once removal plans exist,
+the add reads the plan's head word and whether a child of the container still
+carries the clone,
+and prints the one command that ends the plan,
+the finish-pass wait line where the pool cannot prove the clone gone,
+and the cancel command when nothing has started.
 
 ### What the add reads today, and what it prints
 
@@ -1105,7 +682,7 @@ refuses when a plan's `cloneGuid=` or `cloneDataset=` line names this clone
 and refuses a file it cannot read.
 Its sentence is one constant,
 whatever the plan says
-(:213 to :220):
+(:213 to :219):
 
 ```text
 a removal's plan at <path> names the clone this add would fill, so the add stops
@@ -1114,10 +691,15 @@ plan belongs to, which resumes from the plan and ends it; then run the add again
 the slot.
 ```
 
-What a person reads today is not that sentence.
-It is the `Debug` value of the stop,
-as the shared fact "What the add prints today is a Rust `Debug` value" sets out,
-and that is a defect every option here pays for.
+A person reads that sentence today.
+Both call sites print `stop.sentence()`
+(`add_preflight.rs`:85 to :86 and `add_route_run.rs`:230),
+which is what issue 6450's fix, `79d644b9c8`, made true;
+before it,
+both formatted the stop with `{stop:?}`.
+So the sentence exists and a person reads it,
+and what 2C changes is which sentence it is,
+not how it is printed.
 
 The two readings that sentence needs are both absent:
 
@@ -1150,19 +732,30 @@ The design is explicit that V24 wants the decided command and not a constant.
 
 and the design's own plan row is by "the plan's head word and the live pinned parent".
 
-One more clause is part of V24 and absent from every option the first revision designed.
-Where the plan's tuples are all `planned`,
+One more clause is part of V24,
+and the owner's answer of 2026-11-24 names it:
+where the plan's tuples are all `planned`,
 so that the plan witnesses nothing destroyed,
 the refusal also names the cancel command,
 "so a person who wants the worktree kept is not told only how to finish removing it"
 (`cli-git-zfs-add-binding-record-design.md`:6024 to :6028).
 That clause came in with `57d1e966f6` (2026-11-23T19:20:03-05:00),
-the next commit after the `aa6a5f18f0` the decision record accepts,
-and the decision record's own words are "at `aa6a5f18f0` or its next commit"
-(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`:6).
-So the clause is accepted,
-and the sentence the owner saw when accepting says only
-"names the command the plan design's 'Which resume path a removal takes' gives for the plan's head word".
+the next commit to that design after the `aa6a5f18f0` the decision record
+accepts.
+
+### When a person can meet it
+
+No plan can stand before step 14
+(`plan_folder_read.rs`:10 to :12,
+and the same in `add_route_run.rs`:226 to :228),
+the settling command is step 16
+(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`:40),
+and the cancel command is step 17 (plan `:2373`).
+
+So the add's read is built at step 10 and finds nothing until step 14,
+and two of the commands 2C prints do not exist until steps 16 and 17.
+That timing is true of the chosen answer as it was of every option,
+and it is why this choice adds nothing to the plan's step order.
 
 ### The decided command for every state
 
@@ -1172,114 +765,55 @@ The read tabulated them by running `command_for` (`review-probes-output.txt` in 
 this round re-read the function and got the same answers
 (`add_state_commands.rs`:238 to :252):
 
-- **the clone stands** (a child of the container carries the recorded GUID,
+- the clone stands (a child of the container carries the recorded GUID,
   under any name):
   the removal,
-  for every head word;
-- **the clone is proved gone**,
+  for every head word (:239 to :241);
+- the clone is proved gone,
   no child carrying the GUID:
   the settling command for `present` and `refused`,
   the removal for `requested`,
-  `gone` and `unknown`;
-- **the absence cannot be proved** (the listing refused or came back partial):
+  `gone` and `unknown` (:248 to :251);
+- the absence cannot be proved (the listing refused or came back partial):
   the settling command for every head word but `gone`,
   and for `gone` the finish pass,
-  whose line names no command and says to wait for the pool.
+  whose line names no command and says to wait for the pool (:242 to :246).
 
 That is the removal in eight of the fifteen states,
 the settling command in six,
 and the finish pass in one.
 The single constant sentence is right in eight and wrong in seven.
 
-### 2A. Print the removal for every state, as today
+### What a person sees, state by state
 
-The constant sentence,
-with the defect above fixed so the sentence is what a person reads.
-
-What the person sees,
-in V24's own example
-(a removal refused at its second deferred-origin check leaves a plan at `head=present` beside the live clone):
-the removal,
-which is the right command.
-
-What the person meets whenever the clone does not stand,
-which this option cannot tell:
-the same sentence,
-and then the removal refuses.
-Where the clone is proved gone and the plan's head is `present` or `refused`,
-the removal refuses with the outside destroy and names the settling command;
-where the pool could not prove the absence,
-it refuses with the failed read and names the settling command,
-except at a head of `gone`,
-where the finish pass is the route and no command accepts the state.
-So in six of the seven wrong states the person runs one command that refuses and tells them the next,
-and in the seventh,
-`gone` beside an absence the pool cannot prove,
-they read a refusal that names no command.
-
-What it delivers:
-one right command in the two ordinary states,
-and a wrong one that corrects itself in six more.
-
-What it costs:
-the printed-text fix from the shared fact,
-with its control,
-the knee of the fifteen-state table above,
-and the one cell where the correction names no next step.
-
-### 2B. Read the head word only
-
-The add parses `head=` and calls `command_for` with `clone: None`.
-
-What the person sees,
-in V24's own example:
-the settling command,
-because that is what `command_beside_a_standing_plan` answers for `present` when no clone was looked for
-(`add_state_commands.rs`:238 to :251,
-and the read's probe line
-`head=present clone=not-looked-for => TheSettlingCommand`).
-The settling command refuses a binding whose clone stands,
-and names `git worktree remove`.
-So the add sends the person to a command that refuses,
-in the one scene V24 uses to justify the rule.
-
-What stops it:
-V24's own example.
-Disqualified.
-
-What it costs:
-the printed-text fix from the shared fact,
-with its control,
-and one parsed line and its refusals.
-
-### 2C. Read the head word and the pinned parent, and print `command_for`
-
-The add parses `head=`,
+2C parses `head=`,
 enumerates the container's immediate children,
 and builds the `ClonePresence` `command_for` reads:
 `Stands` when a child of the container carries the recorded GUID,
 whatever its name;
 `GoneProved` when the recorded name is absent and no child carries the recorded GUID;
-and `GoneUnprovable` when the listing refused or came back partial.
+and `GoneUnprovable` when the listing refused or came back partial
+(`add_state_commands.rs`:44 to :55).
 It then prints the one command for that pair of facts,
 and,
 where the all-planned clause applies,
 the cancel command beside it.
 
-What the person sees for the example,
-state by state,
-is the one command the pair of facts allows:
+For the example,
+a removal refused at its second deferred-origin check leaves a plan at
+`head=present` beside the live clone,
+and the person reads the removal,
+which is the right command.
+The rest of the states print the one command the pair allows:
 
 - `present` and the clone stands:
-  the removal,
-  as V24's example asks;
+  the removal;
 - `present` and the clone is proved gone:
   the settling command,
   which accepts it;
 - `present` and the absence is unprovable:
   the settling command,
-  which refuses a proved-destroyed clone and names
-  the read that failed;
+  which refuses a proved-destroyed clone and names the read that failed;
 - `requested`,
   `unknown` or `gone`,
   proved gone:
@@ -1297,164 +831,68 @@ is the one command the pair of facts allows:
 - a plan whose every tuple is `planned`:
   the same command,
   and the cancel command beside it;
-- the name carrying another clone's GUID:
+- the recorded name carrying another clone's GUID:
   no command settles it,
-  and today no `ClonePresence` arm says so;
-- a `head=` line absent or carrying a word outside the five:
-  a refusal naming the plan and no command.
+  and today no `ClonePresence` arm says so.
 
-What it delivers:
-one right command and never a wrong one,
-in every one of the fifteen states,
-plus the way out for a person who wants the worktree kept.
+The second revision claimed 2C "names exactly one command in every state".
+It does not,
+and the record's own sentence is narrower on purpose:
+the finish-pass cell names no command,
+an all-planned plan names two,
+and a reused name names none.
+What 2C does deliver is a right command wherever a command exists,
+and the wait line where waiting is the route.
 
-What stops it:
-nothing that argues against the option;
-three gaps to close in the build:
-the reused-name arm `ClonePresence` does not have,
-the `head=` refusals,
-and the all-planned clause,
-which needs the `tuple=` lines and so widens a read V24 calls "the smallest one that can refuse".
+### What 2C costs
 
-What it costs:
-the printed-text fix from the shared fact,
-with its control;
-the `head=` line in the add's reader with its refusals;
-the plan read moved after `OpenedDevice::open`
-(`add_preflight.rs`:85 and :88),
-because presence needs the device,
-which also means a plan that stops the add no longer stops it before the device opens;
-an adapter from the preflight's opened device to the `DatasetReader` seam `each_child` takes
-(`sweep_dataset_reader.rs`:302 to :320),
-because `ZfsDatasetReader` owns its own device (:191 to :205);
-one stats read per child for the GUID match,
-up to the 4,096-child bound (`MAXIMUM_CHILDREN`,
-:90),
-and a statement of that bound beside the read,
-because the step 8 record treats growth on a waiting path as a defect;
-a fourth `ClonePresence` arm for the reused name;
-the `tuple=` read and the cancel command for the all-planned clause;
-and both plan reads carrying the same answer
-(`add_preflight.rs`:85 to :86 and `add_route_run.rs`:230),
-or the same state prints two different sentences.
+- the `head=` line in the add's reader,
+  with its refusals for an absent line and for a word outside the five;
+- the plan read moved after `OpenedDevice::open`
+  (`add_preflight.rs`:85 and :88),
+  because presence needs the device,
+  which also means a plan that stops the add no longer stops it before the device opens;
+- an adapter from the preflight's opened device to the `DatasetReader` seam
+  `each_child` takes
+  (`sweep_dataset_reader.rs`:302 to :320),
+  because `ZfsDatasetReader` owns its own device (:196 to :205);
+- one stats read per child for the GUID match,
+  up to the 4,096-child bound (`MAXIMUM_CHILDREN`,
+  :90),
+  and a statement of that bound beside the read,
+  because the step 8 record treats growth on a waiting path as a defect;
+- a fourth `ClonePresence` arm for a name reused by another GUID;
+- the `tuple=` read and the cancel command for the all-planned clause,
+  which widens a read the design calls "the smallest one that can refuse";
+- and both plan reads carrying the same answer
+  (`add_preflight.rs`:85 to :86 and `add_route_run.rs`:230),
+  or the same state prints two different sentences.
 
-### 2D. Print the facts and no command
+### What 2C does not settle
 
-The add prints the plan,
-the head word,
-and whether the clone answers,
-and says the command is the removal's or the settling command's.
+The add changes nothing:
+the read refuses,
+and the plan,
+the clone and the binding stay as they were.
+So the person's next step is the command,
+never the add.
 
-What stops it:
-V24 asks for the command,
-and `DGT` asks a diagnostic to name what a person runs.
-Disqualified.
+## Choice 3: refuse on six, warn on three (3C)
 
-### 2E. Print both commands with the condition that chooses
+### What the owner answered
 
-The add prints the head word's two candidate commands,
-with the fact that decides between them,
-and the person looks at the container.
+"3C: refuse on six, warn on three (Recommended)".
+The answer and the sentence below it are the record's,
+section "Choice 3, which grants the add checks before it claims"
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`).
 
-What the person sees for the example:
-two commands and one question,
-instead of one command.
-
-What it delivers:
-never a wrong command,
-in any of the fifteen states,
-and no device read.
-
-What stops it:
-nothing that argues against the option,
-and it hands the person a judgement the wrapper can make with one read it already has the device for.
-
-What it costs:
-the printed-text fix from the shared fact,
-with its control,
-the `head=` line and its refusals,
-and a two-command sentence whose second half is the question the wrapper could answer.
-
-### 2F. Print one command by the head word, and both only where the head word cannot decide
-
-The option the first revision did not consider.
-The add parses `head=` and nothing else.
-For `requested` and `unknown` it prints the removal.
-For `present`,
-`refused` and `gone` it prints both the removal and the settling command with the fact that chooses,
-because those three head words are exactly the ones whose answer turns on the clone.
-
-Why `gone` is in the second group and not the first:
-a `gone` plan beside a clone the pool cannot prove gone is the finish pass,
-and the removal names no command there,
-so a head-word-only rule that printed the removal for `gone` would leave that person with a refusal and no next step.
-The read's variant printed the removal for `gone`;
-this is the correction,
-and it is one head word.
-
-What the person sees for the example:
-one command in the six states whose head word is `requested` or `unknown`,
-and two commands and a question in the nine whose head word is `present`,
-`refused` or `gone`.
-
-What it delivers:
-a right command in thirteen of the fifteen states and never a wrong one that has no next step;
-the two wrong states are `requested` and `unknown` beside an unprovable absence,
-where the removal refuses with the failed read and names the settling command.
-It needs no device read,
-so it keeps the plan read where it is,
-before the device opens.
-
-What stops it:
-nothing that argues against the option;
-it asks the person a question in the nine states where the head word cannot answer,
-and one of those nine is V24's own example.
-
-What it costs:
-the printed-text fix from the shared fact,
-with its control,
-the `head=` line and its refusals,
-two sentence forms instead of one,
-and the two states above.
-
-### The ranking for choice 2
-
-`2C > 2F > 2E > 2A`.
-
-2B and 2D are not ranked:
-2B sends the person to a command that refuses in V24's own example,
-and 2D names no command at all.
-
-- **2C beats 2F**:
-  both never name a wrong command that has no next step,
-  and 2C names exactly one command in every state,
-  where 2F asks the person a question in the nine states whose head word is `present`,
-  `refused` or `gone`,
-  including the ordinary V24 scene.
-- **2F beats 2E**:
-  both never name a wrong command,
-  and 2F names exactly one in the six states whose head word decides alone,
-  where 2E names two in all fifteen.
-- **2E beats 2A**:
-  2E never names a command that refuses,
-  and 2A names a removal that refuses in seven states,
-  one of which names no next command.
-
-Every option here also carries the printed-text fix described in
-"What the add prints today is a Rust `Debug` value",
-so the first thing any of them delivers is the sentence the design thinks it already prints.
-
-### Whether choice 2 is separable
-
-Yes.
-Its change is the plan read and the two call sites,
-and it needs nothing from choices 1 or 3.
-Its value depends on choice 1 only in the sense that a person meets it only on an add the route serves.
-One overlap with choice 3 is worth stating:
-2C's device read and the grant judgement of choice 3 both change `preflight_the_add`,
-and 2C's move of the plan read after `OpenedDevice::open` decides which order the two changes merge in.
-
-## Choice 3: which grants the preflight judges
+The record's sentence:
+the add refuses when one of the six permissions it uses is missing,
+and warns,
+naming the `zfs allow` command,
+when one of the other three is missing.
+The split moves at plan step 11,
+when the add's own failure path starts using both `destroy` grants.
 
 ### What the preflight judges today, and the five outcomes
 
@@ -1477,24 +915,27 @@ and stops at the first:
 
 - `permission`:
   the account or everyone holds a lineage-changing grant,
-  and the line names the `zfs unallow` for each;
+  and the line names the `zfs unallow` for each (:491);
 - `everyone`:
   a route permission is granted to everyone,
-  and the line lists them;
+  and the line lists them (:500);
 - unknown:
   a route permission reaches the account through a named set,
-  and the members are not in the reply;
+  and the members are not in the reply (:509);
 - `grant`:
   a decided permission is missing,
-  and the line names the `zfs allow` for each;
+  and the line names the `zfs allow` for each (:517);
 - `scope`:
   a decided permission is effective but wider than the design scopes it,
-  and the line says "the narrowed command is printed for each" and prints none,
-  which is the sixth finding this round did not fix.
+  and the line says "the narrowed command is printed for each" and prints none
+  (:527),
+  which is Finding 6.
 
 `refuse_unless_the_decided_ones` refuses for all five
 (`add_grants.rs`:105 to :114),
 because it asks only whether the report passed.
+
+### The nine permissions and the three groups
 
 The proposal splits the nine itself,
 in "Scoped delegation"
@@ -1516,7 +957,7 @@ For the example,
 account 1000 and the two datasets,
 the second and third groups are these three commands
 (`allow_command`,
-`delegation_checks.rs`:431 to :439):
+`delegation_checks.rs`:431 to :438):
 
 ```text
 zfs allow -d -u 1000 destroy tank/home/u/work/monochromatic-git-worktree-clone-datasets
@@ -1541,13 +982,25 @@ and on a failure it keeps what it made rather than destroying it
 The first destroy in the whole route is step 11's fallback,
 then steps 14 and 16.
 
-### 3A. Judge all nine, as today
+### What a person sees
 
-What the person sees for the example on a machine that has the six and is missing only the clone removal's
-`destroy`:
-the add refuses before the claim with
-(`add_grants.rs`:110 to :113,
-and the read's probe line in `review-probes-output-three.txt`):
+For the example on a machine missing only the clone removal's `destroy`:
+
+```text
+monochromatic-git-policy-cli: this add will finish, and the wrapper cannot destroy
+this clone until you run, as root:
+zfs allow -d -u 1000 destroy tank/home/u/work/monochromatic-git-worktree-clone-datasets
+The add changed nothing about that yet.
+```
+
+and then the clone,
+the mount and the filled worktree.
+
+A machine missing one of the six is refused before the claim,
+with the sentence that names the permission and its `zfs allow`
+(`add_grants.rs`:105 to :114,
+and the read's probe line for a missing clone `destroy` in
+`review-probes-output-three.txt`):
 
 ```text
 the ZFS clone route cannot run with this account's delegation: zfs: delegation:
@@ -1557,100 +1010,7 @@ destroy tank/home/u/work/monochromatic-git-worktree-clone-datasets). Ways forwar
 the command the finding names, then run the add again; the add changed nothing.
 ```
 
-They run one `zfs allow` as root,
-and the add then runs.
-The permission they granted is one the add never uses;
-it is the clone removal's,
-four steps later for the removal,
-and six for the destroy that step 16 makes.
-
-What it delivers:
-one machine's delegation is either the decided shape or it is not,
-so the add and `doctor` judge the same bytes.
-
-What it costs:
-a root command and a second add,
-for a permission the add's own commands do not use,
-in a state where the person's first add would otherwise have finished.
-
-What it does for each outcome kind:
-refuses all five,
-as today,
-including the three that say nothing about a missing permission.
-
-### 3B. Judge only the six the add's own steps use
-
-The preflight refuses on the six,
-and the other three are left to the step that uses them
-or to `doctor` at step 18.
-
-What the person sees for the example,
-missing only the clone removal's `destroy`:
-the add finishes,
-and the missing `destroy` meets them at the first removal.
-The design requires that removal's preflight to read the same grants:
-"keep descendant `destroy` and require `doctor` and removal preflight to verify the scoped effective grants"
-(`cli-git-zfs-worktree-design-proposal.md`:1556 to :1557).
-With that read built,
-the first removal refuses before any plan is written,
-naming the `zfs allow` command.
-Plan step 14's own build list does not name that read,
-although step 14 builds the plan,
-the intent and the refusal before the first delete
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-"Step 14:
-Removal:
-the lineage proof,
-the plan and the removal intent").
-So on today's plan the refusal arrives from the kernel instead,
-at step 16's first destroy,
-after the plan is written and the intent recorded:
-a snapshot destroy in the batch,
-or the head destroy when the clone has no snapshot of its own.
-
-What the plan holds then depends on which request was first,
-and neither answer makes the add's sentence wrong:
-a clone with its own snapshots has them refused first,
-in the snapshot batch,
-and the plan stands with its attempt lines and `head=present`;
-a clone with none has the head destroy refused,
-and the plan stands at `head=refused`.
-In both the clone still stands,
-and `command_beside_a_standing_plan` answers the removal for every head word beside a standing clone
-(`add_state_commands.rs`:239 to :241),
-so the add at that slot names the removal,
-which refuses again on the same missing grant.
-The first revision's 3B example had all three of those wrong.
-
-What it delivers:
-the add the person asked for finishes,
-and the refusal it defers lands where the missing permission is used.
-
-What it costs:
-the six as a second name for one judgement,
-a decision about which ground decides a later step's refusal,
-and the correction to plan step 14 that the design already requires and the plan's list omits.
-Without that correction,
-3B's deferred refusal arrives with a plan standing and a person who must read two commands to learn one grant is
-missing.
-
-What it does for each outcome kind:
-refuses `permission`,
-`everyone` and unknown as today
-(none of the three is about which six),
-refuses a missing permission in the six,
-and leaves a missing permission in the removal's or the origin group to the step that uses it.
-It refuses `scope` as today,
-which is the kind a breadth defect arrives as,
-and the design's option scopes descendant `destroy` precisely to catch one.
-
-### 3C. Judge the nine and split the verdict
-
-One judgement,
-unchanged:
-`check_delegation` still answers for the nine.
-The difference is what the preflight does with the answer,
-by group:
+### What it does for each outcome kind
 
 - `permission`,
   `everyone` and unknown refuse,
@@ -1664,29 +1024,26 @@ by group:
   the `broad-removal-destroy` line);
 - a missing permission in the six refuses,
   as today;
-- a missing permission in the removal's group or the origin group is printed as one line,
+- a missing permission in the removal's group and in the origin group is printed as one line,
   and the add goes on.
 
-What the person sees for the example,
-missing only the clone removal's `destroy`:
+### What 3C costs
 
-```text
-monochromatic-git-policy-cli: this add will finish, and the wrapper cannot destroy
-this clone until you run, as root:
-zfs allow -d -u 1000 destroy tank/home/u/work/monochromatic-git-worktree-clone-datasets
-The add changed nothing about that yet.
-```
+- a way to name the missing permissions in a form the caller can read,
+  which means `check_delegation` or a sibling giving back the values rather than
+  only formatting them into a sentence;
+- the group table,
+  which needs `check_delegation`'s own order to survive it,
+  because the check stops at the first kind it finds;
+- the `scope` finding's missing command,
+  which a refusal for a removal-group `destroy` now depends on (Finding 6);
+- the warning line and its two controls,
+  one where it stays quiet and one where it prints;
+- and the warning's own cost while the grant stays missing:
+  it prints on every add,
+  and a person who reads it and does nothing reads it again.
 
-and then the clone,
-the mount and the filled worktree.
-
-What it delivers:
-the add finishes,
-and the person learns which permission is missing and what command settles it,
-before the removal asks them for it.
-
-What stops it:
-nothing that argues against the option,
+What stops it is nothing that argues against it,
 with one thing to state:
 the split is a rule about which step uses which permission,
 and the proposal's three groups are its ground,
@@ -1694,112 +1051,414 @@ not a measurement.
 An arm in the guest,
 with the six granted and one of the three withheld,
 should confirm that the add's own requests never fail for want of the withheld one,
-before this is built as more than a proposal.
+before this is built as more than a design.
 
-What it costs:
-a way to name the missing permissions in a form the caller can read,
-which means `check_delegation` or a sibling giving back the values rather than only formatting them into a sentence;
-the group table,
-which needs `check_delegation`'s own order to survive it,
-because the check stops at the first kind it finds;
-the `scope` finding's missing command,
-which a refusal for a removal-group `destroy` now depends on;
-the warning line and its two controls (one where it stays quiet,
-one where it prints);
-and the table's own expiry,
-which is the next paragraph.
+### The expiry at step 11
 
-The expiry is the sharpest cost.
 The add's own fallback destroys the clone and the origin snapshot
 (A22 and A23,
 `cli-git-zfs-add-binding-record-design.md`:2284 to :2318),
 and "the route's grants carry the destroy" is the design's own words in A22.
 No `destroy` appears in any non-test file of `worktree_clone_add_route/` on `main`,
 so the table holds today.
+
 After step 11 it does not:
-the add itself then uses the removal group's `destroy` on its own failure path,
-and 3C's warning would tell a person the wrapper cannot destroy a clone the wrapper is about to try to destroy.
+the add itself then uses the removal group's `destroy` and the origin group's
+`destroy` on its own failure path,
+so the six become eight,
+and 3C's warning would tell a person the wrapper cannot destroy a clone or an
+origin the wrapper is about to try to destroy.
 So the group table is a constant step 11 rewrites,
 the warning's wording must come from the table and not be a fixed sentence,
 and the two builds have to meet.
 
-### 3D. Judge only the forbidden nine
+The expiry is not 3C's alone.
+3B's premise, "the six the add's own steps use", ends at the same step and for
+the same reason,
+so the six-and-three split buys one step's worth of difference.
+That is why the owner's answer is a rewrite owed at step 11 and not a rule that
+lasts.
 
-Missing required permissions are left to the kernel's own `EPERM` at the first request that needs them.
+## The options not chosen
 
-What the person sees for the example on a machine missing `snapshot`:
-the add takes the claim,
+Each option below was priced in the second revision and put to the owner.
+The evidence that decided against it is kept here,
+so the next round does not re-derive it.
+
+### Choice 1
+
+#### A: keep the gate until step 19's migration
+
+Nothing changes in the wrapper,
+and the route serves a checkout only after root moves it onto its own dataset.
+
+A person sees no line about the route during an add,
+because the gate's answer is dropped silently (`add_route_gate.rs`:202),
+and reads the ladder's own lines:
+`copied 0 ignored filesystem entries ... into 1 new worktree`,
+and,
+for a source the clone rung served,
+the line that says the worktree was not made as a snapshot.
+No record folder appears,
+and `doctor` reports nothing about the route,
+because `route_checks` has no live caller
+(`route_checks.rs`:112).
+
+A delivers a worktree for every add,
+and the ladder's block-sharing copy inside the source's dataset.
+What decided against it is that the route then has no first live run before the
+migration,
+and the migration is the least forgiving moment for a path that takes a
+snapshot,
+a clone,
+a claim,
+a lock and a record.
+
+#### C: serve the checkout the root-owned configuration file names
+
+The add reads the same file the sweep and the probe read,
+`/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,
+and serves an add only when the repository's root is its `cloneMounts.checkout`,
+with the dataset and container from `cloneMounts.checkoutDataset` and
+`cloneMounts.parent`.
+
+For the example the file holds:
+
+```jsonc
+// /etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc
+{
+  "cloneMounts": {
+    "checkout": "/home/u/work/Monochromatic",
+    "checkoutDataset": "tank/home/u/work/Monochromatic",
+    "parent": "tank/home/u/work/monochromatic-git-worktree-clone-datasets"
+  },
+  "startProbe": {
+    "checkout": "/home/u/work/Monochromatic",
+    "dataset": "tank/nosnap/git-worktree-probe"
+  }
+}
+```
+
+`startProbe.dataset` is not decoration:
+without it the probe's `found_source` calls `the_checkout_dataset_at` on the named path and refuses with the
+leaf-name sentence
+(`probe_configuration.rs`:277 to :288).
+`startProbe.checkout` must equal `cloneMounts.checkout`,
+or `parse_configuration` refuses with `CheckoutsDiffer`
+(`sweep_configuration.rs`:266 to :270).
+
+What decided against it is the identity:
+a dataset re-created under the same name at the same path passes C,
+because the record C is checked against proves the path and the pool and
+nothing else,
+and E refuses that case.
+C's own four limits stand as evidence:
+
+- one checkout per machine under the current record;
+- the file's names are text;
+- no file names this repository's checkout unless setup writes one:
+  the step 8 record says the setup writes both names and that
+  "no person edits that file by hand"
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  "The datasets the sweep acts on"),
+  and the example's dataset is not one step 19 creates,
+  so setup needs an adopt mode,
+  which is the writer E describes;
+- with no file,
+  or a file that does not name this repository,
+  the add keeps the ladder,
+  which the step 8 record's "no file needed" answer permits.
+
+#### G: serve the checkouts a root-owned file lists
+
+C's file with a list of checkouts.
+What decided against it is that the list delivers nothing until the readiness
+record can name a second checkout:
+one record file serves the whole machine
+(`READINESS_DIRECTORY`,
+`clone_mount_readiness.rs`:43,
+and `record()`,
+`clone_mount_readiness_file.rs`:227),
+and one record names one checkout (`ReadinessRecord`,
+:227 to :246).
+So G buys the file's grammar,
+the sweep's loop over checkouts,
+the probe's refusal of two checkouts and the record's shape,
+for a delivery that waits on the same design change E's stated reach waits on.
+
+#### B: serve any checkout that is its own dataset's root
+
+The leaf comparison goes,
+and the mount at the path must be the dataset's own mounted root.
+
+What decided against it is that it delivers nothing E does not,
+and takes the ladder's worktree away from some checkouts.
+Every checkout the root side can name is either the design's dataset,
+which the route already serves after the migration,
+or one a root-written name points at,
+which E serves.
+
+The regression is narrower than the second revision said:
+an own-root checkout under a leaf name other than the design's is refused
+under B,
+because the gate stops answering `Ok(None)` and no record names it,
+while a subtree checkout such as the example's keeps the ladder exactly as
+today,
+because it fails B's own own-root test.
+The read's M7 is this correction.
+
+`boot-reconcile` also cannot name the checkout for such a machine,
+so the person is sent to a command that cannot succeed:
+
+```text
+no handler readiness report stands for this boot, so no attach is admitted
+(/run/...). Ways forward: start the boot unit's `boot-reconcile` and run the add again
+```
+
+(`add_preflight.rs`:128 to :133),
+while `boot-reconcile` answers the `NoneMounted` sentence of the shared fact.
+
+#### D: make the delegation the gate
+
+The gate widens,
+and `check_delegation` becomes what refuses an unmanaged checkout.
+
+What decided against it is that it is the weaker half of B's mistake:
+it opens the add and leaves the root side unable to name the checkout,
+and it adds a device read and a delegation judgement to every ZFS add in a
+repository of any dataset,
+including the ones the ladder serves today.
+It delivers nothing B does not.
+
+#### H: do the migration now, as its own question
+
+Not a change to the gate:
+root moves the checkout onto its own dataset with the design's names,
+and the gate then serves it.
+
+H delivers what E delivers plus the design's own layout,
+the immutable covered entry,
+the private propagation,
+`snapdir=disabled`,
+and a checkout that no later step has to migrate.
+What stopped it from being an alternative was never its cost but its order:
+the migration's own recovery depends on steps 12 and 18,
+the plan keeps those in step 19's dependency list for that reason,
+and an interrupted migration has nothing a person can read until those land.
+
+The owner answered the order question,
+and the answer is not "now in the plan's old order" and not "keep the route
+unreachable":
+the migration happens after steps 14 to 16,
+and the agent runs it with sudo when no process has the checkout open.
+So H is no longer an alternative to A.
+It is the route's arrival,
+ordered behind removal,
+and the plan's step 19 records that.
+
+### What the dirty checkout comes to
+
+The second revision left this open as an add-on with three arms.
+The owner's earlier answer settles it:
+
+- W2, fall through to the ladder for exactly this refusal,
+  is the owner's answer of 2026-11-19,
+  and the code's instead refusing is issue 6452.
+  It delivers the worktree the person asked for,
+  from the route's own decision point.
+  It costs the narrow condition and its control,
+  and it must not fall through for any other preflight refusal.
+- W3, refuse and name the way forward,
+  remains worth its sentence either way:
+  the current refusal breaches `DGT` on its own terms,
+  because it names no way forward.
+- W1, refuse as today,
+  is the arm the code implements and the record does not choose.
+
+### Choice 2
+
+#### 2A: print the removal for every state
+
+The constant sentence,
+which a person now reads as written,
+is right in eight states and wrong in seven.
+Where the clone is proved gone and the plan's head is `present` or `refused`,
+the removal refuses and names the settling command;
+where the pool could not prove the absence it refuses and names the settling
+command,
+except at a head of `gone`,
+where the finish pass is the route and no command accepts the state.
+What decided against it is the seventh state:
+a refusal that names no command.
+
+#### 2F: read the head word only, and print both where it cannot decide
+
+The option the second revision invented,
+and the read corrected its `gone` arm:
+
+- `requested` and `unknown` print the removal;
+- `present` and `refused` print the removal and the settling command with the
+  fact that chooses;
+- `gone` prints the removal **plus the finish-pass line**:
+  where the pool cannot prove the absence,
+  the removal refuses naming no command,
+  and the finish pass is the route once the pool answers
+  (`cli-git-zfs-removal-destruction-plan-record-design.md`,
+  "Which resume path a removal takes",
+  `:1754 to :1765`).
+
+That corrected arm is right in thirteen of the fifteen states,
+and its two wrong ones are `requested` and `unknown` beside an unprovable
+absence,
+where the removal refuses and names the settling command.
+The correction also takes away the two reasons the second revision used for it:
+it never names a wrong command that has no next step only because of the
+finish-pass line,
+and "thirteen of fifteen" is at most twelve without it.
+
+What decided against it is that it asks the person a question in the nine states
+whose head word is `present`,
+`refused` or `gone`,
+and V24's own example is one of them.
+It needs no device read,
+so it keeps the plan read where it is.
+
+#### 2E: print both commands with the condition that chooses
+
+The add prints the head word's two candidate commands with the fact that decides
+between them,
+and the person looks at the container.
+
+What decided against it is that it hands the person a judgement the wrapper can
+make with one read it already has the device for,
+in fifteen states,
+and it is undefined for `gone`.
+It never names a wrong command,
+which is not enough against a right one.
+
+#### 2B: read the head word only and print `command_for`'s answer
+
+The add parses `head=` and calls `command_for` with `clone: None`.
+In V24's own example that is the settling command,
+because that is what `command_beside_a_standing_plan` answers for `present` when
+no clone was looked for
+(`add_state_commands.rs`:238 to :251,
+and the read's probe line
+`head=present clone=not-looked-for => TheSettlingCommand`).
+The settling command refuses a binding whose clone stands and names
+`git worktree remove`,
+so the add sends the person to a command that refuses in the scene V24 uses to
+justify the rule.
+
+#### 2D: print the facts and no command
+
+V24 asks for the command,
+and `DGT` asks a diagnostic to name what a person runs.
+
+### Choice 3
+
+#### 3A: judge all nine, as today
+
+The person with only the clone removal's `destroy` missing sees the refusal
+quoted in choice 3,
+runs one `zfs allow` as root,
+and adds again.
+The permission they granted is one the add never uses;
+it is the clone removal's,
+four steps later for the removal,
+and six for the destroy that step 16 makes.
+
+What decided against it is that it blocks an add for a permission the add does
+not use,
+and it costs a root command and a second add in a state where the first add
+would otherwise have finished.
+Its compensating value stands:
+the add and `doctor` judge the same bytes.
+
+#### 3B: judge only the six the add's own steps use
+
+The add finishes and the missing permission meets the person at the removal.
+The design requires that removal's preflight to read the same grants:
+"keep descendant `destroy` and require `doctor` and removal preflight to verify
+the scoped effective grants"
+(`cli-git-zfs-worktree-design-proposal.md`:1557 to :1558).
+With that read built,
+the first removal refuses before any plan is written,
+naming the `zfs allow` command.
+
+Plan step 14's own build list does not name that read,
+although step 14 builds the plan,
+the intent and the refusal before the first delete
+(plan `:2153 to :2227`).
+So on today's plan text the refusal arrives from the kernel instead,
+at step 16's first destroy,
+after the plan is written and the intent recorded:
+a snapshot destroy in the batch,
+or the head destroy when the clone has no snapshot of its own.
+What the plan holds then depends on which request was first,
+and neither answer makes the add's sentence wrong:
+a clone with its own snapshots has them refused first,
+and the plan stands with its attempt lines and `head=present`;
+a clone with none has the head destroy refused,
+and the plan stands at `head=refused`.
+In both the clone still stands,
+and `command_beside_a_standing_plan` answers the removal for every head word
+beside a standing clone (`add_state_commands.rs`:239 to :241),
+so the add at that slot names the removal,
+which refuses again on the same missing grant.
+
+What decided against it is that it leaves the person to meet the refusal at the
+removal,
+with a plan already written,
+where 3C names the permission before it is needed.
+Its premise also ends at step 11,
+as the last heading of choice 3 sets out.
+
+#### 3D: judge only the forbidden nine
+
+Missing required permissions are left to the kernel's own `EPERM` at the first
+request that needs them.
+A machine missing `snapshot` takes the claim,
 writes the binding,
 registers the worktree,
 takes the lock,
-and then the snapshot is refused
-(`add_zfs.rs`,
-`snapshot_the_checkout`'s sentence).
-The claim,
-the slot,
-the registration and the lock stand,
-and the next add resumes on them.
+and then the snapshot is refused.
 
-What stops it:
-nothing that argues against the option,
-but it moves a refusal the wrapper can make for free to a point where it has already written four durable objects,
+What decided against it is that it moves a refusal the wrapper can make for free
+to a point where it has already written four durable objects,
 which is the opposite of A0's reason for existing.
+It also leaves a too-wide removal `destroy` uncaught and an unproved
+delegation unjudged.
 
-What it costs:
-nothing to build beyond deleting a call,
-and the state a person then reads.
+## What these answers add to the plan's steps
 
-What it does for each outcome kind:
-refuses `permission` and `everyone`,
-and leaves `grant`,
-`scope` and unknown unjudged,
-so a missing permission waits for the kernel,
-a too-wide removal `destroy` is not caught before the add at all,
-and an account whose delegation is unproved through a named set goes on.
+The plan,
+`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+now records the answers where they are work,
+and the record of 2026-11-24 is the authority for each.
 
-### The ranking for choice 3
+- Step 10 gains three things.
+  The add's gate reads the record root's command writes and serves the checkout
+  it names,
+  refusing a dataset swapped in under the same name (choice 1).
+  The preflight reads a standing removal plan's head word and the container's
+  children,
+  and prints the one command that pair allows (choice 2).
+  The grant judgement splits: the six the add uses refuse,
+  and the other three warn (choice 3).
+- Step 11 gains the split's move.
+  Its own failure path then uses both `destroy` grants,
+  so the six become eight and the group table is rewritten (choice 3).
+- Step 19 gains the root recording command choice 1 needs,
+  and records the order:
+  its migration runs after steps 14 to 16,
+  and the agent runs the migration of steps 12,
+  18 and 19 and the `canmount=noauto` change on
+  `zpcachyos/nosnap/vm-builder-output` with sudo at a time no process has the
+  checkout open.
 
-`3C > 3B > 3A > 3D`.
-
-- **3C beats 3B**:
-  both let the add finish when only a later step's permission is missing,
-  and 3C also names that permission and its command before the person needs it,
-  where 3B leaves them to meet the refusal at the removal,
-  with the plan already written on today's plan text.
-- **3B beats 3A**:
-  3B finishes the add the person asked for;
-  3A stops it before the claim for a permission the add's own path never uses.
-- **3A beats 3D**:
-  both refuse where a permission the add needs is missing,
-  3A refuses before the claim with the command that settles it,
-  and 3D refuses after the claim,
-  the binding,
-  the registration and the lock.
-
-Three limits on that order,
-each a reason to ask rather than to answer:
-
-- 3C's advantage over 3B expires in part at step 11,
-  so a project that cares mainly about the build before step 11 should weigh 3C as a stopgap with a rewrite owed;
-- 3C needs the `scope` finding's command to be a person's next step,
-  and today that finding promises one and prints none;
-- 3B is firmer than the first revision said,
-  because the design's removal preflight would refuse cleanly before any plan,
-  and it needs plan step 14 to gain the read the design already requires.
-
-If the owner wants the smaller promise,
-3B is the safe pick until step 11,
-and it needs the step 14 correction stated above.
-
-### Whether choice 3 is separable
-
-Yes,
-with one dependency that is not on the other choices:
-its table expires at step 11.
-Nothing in it needs choice 1's answer or choice 2's,
-and a project that answers choice 1 with A can still build it.
-It shares `preflight_the_add` with 2C,
-which is a merge matter.
+No other step's content changes,
+and the chosen answers add no step.
 
 ## Findings this round did not fix
 
@@ -1812,21 +1471,23 @@ so each of these is described and left for the round that takes the code it live
 (`the_designs_datasets_in_the_mount_table.rs`:229 to :235)
 and compares the dataset's leaf name (:236 to :238).
 It never compares the mount's own mount point with the path,
-and the `MountHoldingAPath` the gate receives has a `root` field
-(`mounted_dataset_instance.rs`:85) that `holding_of` never fills (:182 to :184).
+and the struct it receives carries no root
+(`mounted_dataset_instance.rs`:50 to :58),
+because `holding_of` (:182 to :185) drops `MountFacts.root`
+(`subvolume/fs_mount_options.rs`:61).
 So a checkout at `/u/repo`,
 on a dataset named `monochromatic-git-checkout` mounted at `/u`,
 passes the gate,
 and a bind mount of a subtree at the path passes it too.
 On `main` the add is then refused at the readiness record,
 so the defect is latent;
-it becomes reachable through any root-written name that pairs a path with a dataset,
-which makes it a precondition of C,
-E and G and not of B alone.
-On this host a file naming the home dataset would make the route snapshot and clone all of `/home`.
-The code already has the parts for the fix:
-`instances_of` (`the_designs_datasets_in_the_mount_table.rs`:137) and `shows_the_datasets_own_root`
-(`mounted_dataset_instance.rs`:91).
+it becomes reachable through the chosen answer's record,
+which makes it a precondition of E.
+On this host a record naming the home dataset would make the route snapshot and
+clone all of `/home`.
+The fix is to carry `MountFacts.root` through `holding_of`,
+or to use `instances_of` (`the_designs_datasets_in_the_mount_table.rs`:137) and
+`shows_the_datasets_own_root` (`mounted_dataset_instance.rs`:91).
 
 ### Finding 2: the readiness record proves no dataset
 
@@ -1840,13 +1501,13 @@ and `admit_attach` compares the pool and the checkout path
 No field names the checkout dataset or the container.
 Today the leaf rule makes the dataset name nearly a constant,
 so the gap is masked;
-every option that widens the gate unmasks it,
-because the add then takes a dataset name from somewhere the root side's record does not compare.
+the chosen answer unmasks it,
+because the add then takes a dataset name from a record the root side's
+readiness record does not compare.
 Closing it means a field in a record the project decided,
 which is a design change and not a build's to make.
-The same record's one-checkout shape is what stops C,
-E and G from serving two repositories,
-which is the second axis of choice 1.
+The same record's one-checkout shape is what stops E from serving two
+repositories.
 
 ### Finding 3: the file a root side owns is readable by the account, and two edges of that
 
@@ -1863,9 +1524,8 @@ and `doctor`'s own handler-configuration check demands exactly
 So the add calls the existing function with `0`,
 which is the same two terms `doctor` judges,
 and adds no reader of its own.
-This removes that report's reason for ranking C first.
 
-Two edges the read found and this round confirms:
+Two edges stand:
 
 - `doctor` accepts a `0600` file the account cannot read,
   so `doctor` can pass where the add's read would fail with `EACCES`.
@@ -1876,8 +1536,7 @@ Two edges the read found and this round confirms:
   (`file_only_root_may_write.rs`:107 to :108),
   which for an add run as account 1000 with `wanted = 0` reads
   "this program runs as user 0" and is false.
-  C,
-  E and G all meet this refusal path,
+  The chosen answer meets this refusal path,
   so the sentence needs a form that names the caller and the wanted owner.
 
 ### Finding 4: the sweep already serves a named checkout, and the sentences differ by case
@@ -1890,27 +1549,24 @@ taking the path from that dataset's one own-root mount
 The three cases print three different sentences,
 which the shared fact "The root side needs a name only root writes" sets out.
 The root side is therefore already capable of reconciling the example's checkout,
-and the only parts that are not are the add's gate and the probe's fallback.
+and the parts that are not are the add's gate and the probe's fallback.
 
 ### Finding 5: the fallback's line names btrfs to a ZFS checkout
 
 The line an add prints when the snapshot route did not serve it is
 `this worktree was not made as a snapshot, so it took longer, because <the source> is not a btrfs subvolume`,
 and the reason behind it is `snapshot_refusal`
-(`worktree_snapshot_source.rs`:234 to :247),
+(`worktree_snapshot_source.rs`:235 to :248),
 which knows two causes:
 the source is no subvolume root,
 and the source and the destination are not on one btrfs filesystem.
 On a ZFS checkout both answers are beside the point:
 the design's snapshot route is step 10's,
 and what kept it away there is the dataset leaf name,
-the file's names,
+the record's names,
 the shared mount or the missing handler.
 So the one line a person on ZFS reads about the missing snapshot names a filesystem they are not on,
 and `DGT` asks a diagnostic to name the cause the person can act on.
-The fix belongs to the round that takes this line,
-and the add-on A2 does not settle it either:
-a second line saying the ZFS route declined would still have to name a remedy that works.
 
 ### Finding 6: the too-wide delegation finding promises a command and prints none
 
@@ -1919,9 +1575,9 @@ a second line saying the ZFS route declined would still have to name a remedy th
 and joins no command into the line
 (`delegation_checks.rs`:519 to :528).
 Its control asserts the field name and the two dataset names and nothing else
-(`delegation_checks_tests.rs`:115 to :125).
+(`delegation_checks_tests.rs`:115 to :124).
 A person who meets a removal-group `destroy` granted on an ancestor reads a promise and no command,
-and choice 3's 3C makes that finding the refusal for exactly that permission.
+and 3C makes that finding the refusal for exactly that permission.
 The fix is either the command or the sentence,
 and the control should assert whichever the project wants.
 
@@ -1935,17 +1591,16 @@ and not this round's to change:
   (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`:5 to :9);
 - the same module's doc says the read asks only for `cloneGuid=` and `cloneDataset=`,
   which is true,
-  and choice 2's 2C is what makes it read more.
+  and 2C is what makes it read more.
 
 ## What was probed, and what was not
 
 This round ran no build,
 no test and no probe of its own.
-Its evidence is the code on `main` at `06d3e542b8`,
+Its evidence is the code on `main` at `28267d769d`,
 the records,
 and the probe outputs the read kept in its `keep/`:
 
-- the add's printed form of a plan stop (`review-probes-output-debug-format.txt`);
 - the fifteen-state command table,
   the example's three file cases,
   and the gate on a subtree and a bind mount (`review-probes-output.txt`);
@@ -1957,23 +1612,26 @@ and the probe outputs the read kept in its `keep/`:
 
 What this round did itself:
 
-- re-read every call site and record the read cites,
-  and corrected the citations the read reported as drifted
-  (`clone_mount_readiness_admission.rs`:132 and :138,
-  `add_grants.rs`:85 and :86,
-  `add_zfs.rs`:56),
-  adding the four refusal sentences' lines,
-  which the first revision cited by range and no more;
-- measured this host's mount table for the shared tag on `/home` and its nested datasets;
+- re-read every call site and record the read and the second revision cite,
+  and corrected the ones that had drifted:
+  `MountHoldingAPath`'s fields,
+  the design's `:1557 to :1558`,
+  the `scope` control's range,
+  `instances_of` and `the_one_mounted_checkout`'s ranges in the mount table,
+  and the second revision's "`doctor` already calls" the owner-argument reader;
+- measured this host's mount table for the shared tag on `/home` and for the
+  nested dataset under the checkout;
 - measured this repository's tree at `06d3e542b8`;
 - read plan steps 10,
   11,
+  12,
   14,
+  15,
   16,
   18 and 19,
   the two accepted designs,
   the destruction plan design's grammar and resume headings,
-  and the step 8 record.
+  and the step 8 and step 19 records.
 
 Not probed,
 and why:
@@ -1994,42 +1652,42 @@ and why:
 - no container gate,
   as the round's rules say,
   and no `mise run toolchain:install`;
-- no count of how often a checkout has uncommitted changes,
-  which is the one number that could move A above the widening options in the ranking.
+- no count of how often a checkout has uncommitted changes.
 
 ## What the next round would do
 
-If the project chooses C,
-E or G:
-the add's own read of the file or the record,
-the gate rebuilt on the names it holds,
-the probe's `startProbe.dataset` fallback,
-Finding 1's own-root comparison in the same round because that gate is the one being opened,
-and a statement of what the add does with no file.
-If the project chooses E or G,
-the readiness record's per-checkout shape is a design question first.
+For choice 1's answer:
+the root recording command and its record,
+the add's gate rebuilt on the names it holds,
+Finding 1's own-root comparison in the same round because that gate is the one
+being opened,
+the record's shape for one checkout,
+and the statement that the add keeps the ladder with no record.
+The readiness record's per-checkout shape is a design question first,
+and E's stated reach of one checkout waits on it.
 
-If the project chooses W2:
+For the dirty checkout:
 the narrow fall-through in `run_a_zfs_add`,
 its control showing that no other preflight refusal falls through,
-and the sentence fix W3 either way.
+and the sentence fix either way.
 
-If the project chooses 2C:
-the `stop.sentence()` at both call sites,
+For choice 2's answer:
 the `head=` line,
 the fourth `ClonePresence` arm,
 the adapter and the child bound,
 the plan read moved after the device opens,
 the all-planned clause with its `tuple=` read and cancel command,
 and both plan reads answering the same way.
-If the project chooses 2F instead:
-the `head=` line,
-two sentence forms,
-and the same printed-text fix.
 
-If the project chooses 3C:
+For choice 3's answer:
 a way to name the missing permissions as values,
 the group table as a constant step 11 rewrites,
 the `scope` finding's command or its sentence,
 the warning line,
 and the guest arm that withholds one of the three.
+
+For the order:
+nothing in code,
+because the plan's step 19 now records it,
+and the migration is run by the agent with sudo when no process has the
+checkout open.

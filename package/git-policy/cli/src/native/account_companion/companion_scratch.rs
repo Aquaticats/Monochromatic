@@ -1,6 +1,7 @@
 //! What:
 //!  The run's scratch directory under the account's runtime directory:
-//!  its name,
+//!  the folder the caller resolves,
+//!  the run directory's name,
 //!  its making,
 //!  the sweep of the directories a killed run left,
 //!  and its removal.
@@ -20,14 +21,23 @@
 //!  after proving the process that made it is gone from this PID namespace:
 //!  a directory of another namespace is left alone and named,
 //!  because a live mount of a live foreign child would be detached by a guess.
+//!  The runtime directory is an input the add route resolves once,
+//!  and not a variable this module reads:
+//!  a control passes a folder under its own fixture root,
+//!  so no control reads or changes the environment of the process it runs in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const run = makeRunDirectory(); sweepOlderRuns(parent); ... removeRunDirectory(run);
+//! const runtime = RuntimeFolder.fromEnvironment(); const run = makeRunDirectory(runtime);
+//! sweepOlderRuns(parent); ... removeRunDirectory(run);
 //! ```
 
 use super::companion_process_calls::is_alive;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// The variable that names the account's runtime directory.
+pub const RUNTIME_VARIABLE: &str = "XDG_RUNTIME_DIR";
 
 /// The folder under `$XDG_RUNTIME_DIR` the companion keeps its runs in.
 pub const COMPANION_FOLDER: &str = "monochromatic-git-policy-cli/account-companion";
@@ -73,6 +83,89 @@ pub struct ScratchRefusal {
 }
 
 /// What:
+///  The account's runtime directory,
+///  which the add route resolves once and hands to the companion.
+/// Why:
+///  The folder is an input of the run rather than a variable the run reads,
+///  so the route is the one place the environment is read
+///  and a control passes the folder it made under its own fixture root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runtime = RuntimeFolder.fromEnvironment(); // RuntimeFolder | ScratchRefusal
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeFolder {
+    /// The directory the variable named.
+    path: PathBuf,
+}
+
+impl RuntimeFolder {
+    /// What:
+    ///  The account's runtime directory as this process's environment names it,
+    ///  which the add route reads once before the check.
+    /// Why:
+    ///  A variable that names nothing is the refusal a person already reads,
+    ///  and it is answered here rather than by the call site.
+    ///
+    /// # Errors
+    /// The variable is unset,
+    ///  or what it names is no directory.
+    pub fn from_environment() -> Result<RuntimeFolder, ScratchRefusal> {
+        return RuntimeFolder::from_name(std::env::var_os(RUNTIME_VARIABLE));
+    }
+
+    /// What:
+    ///  The folder one name resolves to,
+    ///  which is the whole of what the environment contributes.
+    /// Why:
+    ///  A control proves the words an unset variable prints,
+    ///  and the words a name that is no directory prints,
+    ///  by passing the name rather than by changing the environment of the process
+    ///  it runs in.
+    ///
+    /// # Errors
+    /// Nothing is named,
+    ///  or what is named is no directory.
+    pub fn from_name(named: Option<OsString>) -> Result<RuntimeFolder, ScratchRefusal> {
+        let Some(name) = named else {
+            return Err(ScratchRefusal {
+                message: format!(
+                    "{RUNTIME_VARIABLE} is not set, so the account companion has no runtime directory to keep its scratch in. Ways forward: log in again, or set {RUNTIME_VARIABLE} to this account's runtime directory, then run the add again"
+                ),
+            });
+        };
+        return RuntimeFolder::at(Path::new(name.as_os_str()));
+    }
+
+    /// What:
+    ///  The folder a caller names,
+    ///  which is where a control keeps its run.
+    /// Why:
+    ///  Every directory the companion makes lives under this one,
+    ///  and a run that cannot name it refuses rather than mounting elsewhere.
+    ///
+    /// # Errors
+    /// The path is no directory.
+    pub fn at(path: &Path) -> Result<RuntimeFolder, ScratchRefusal> {
+        if !path.is_dir() {
+            return Err(ScratchRefusal {
+                message: format!(
+                    "{RUNTIME_VARIABLE} names {}, which is no directory, so the account companion cannot keep its scratch there. Ways forward: log in again so the session makes it, then run the add again",
+                    path.display()
+                ),
+            });
+        }
+        return Ok(RuntimeFolder { path: path.to_path_buf() });
+    }
+
+    /// The directory the variable named.
+    pub fn path(&self) -> &Path {
+        return self.path.as_path();
+    }
+}
+
+/// What:
 ///  Make this run's directory and its scratch mount point,
 ///  after sweeping what a killed run left.
 /// Why:
@@ -81,11 +174,9 @@ pub struct ScratchRefusal {
 ///  dead.
 ///
 /// # Errors
-/// The runtime directory is unset or unwritable,
-///  or a directory could not be made.
-pub fn make_run_directory() -> Result<RunDirectory, ScratchRefusal> {
-    let base: PathBuf = runtime_base()?;
-    let folder: PathBuf = base.join(COMPANION_FOLDER);
+/// A directory could not be made.
+pub fn make_run_directory(runtime: &RuntimeFolder) -> Result<RunDirectory, ScratchRefusal> {
+    let folder: PathBuf = runtime.path().join(COMPANION_FOLDER);
     std::fs::create_dir_all(folder.as_path()).map_err(|error| return refused(folder.as_path(), error))?;
     sweep(folder.as_path());
     let root: PathBuf = folder.join(run_name());
@@ -104,31 +195,6 @@ pub fn make_run_directory() -> Result<RunDirectory, ScratchRefusal> {
 ///  from that namespace.
 pub fn remove_run_directory(run: &RunDirectory) {
     let _removed: std::io::Result<()> = std::fs::remove_dir_all(run.root.as_path());
-}
-
-/// What:
-///  The account's runtime directory.
-/// Why:
-///  Every directory the companion makes lives under it,
-///  and a run that cannot name it refuses rather than mounting elsewhere.
-fn runtime_base() -> Result<PathBuf, ScratchRefusal> {
-    let Some(base) = std::env::var_os("XDG_RUNTIME_DIR") else {
-        return Err(ScratchRefusal {
-            message: String::from(
-                "XDG_RUNTIME_DIR is not set, so the account companion has no runtime directory to keep its scratch in. Ways forward: log in again, or set XDG_RUNTIME_DIR to this account's runtime directory, then run the add again",
-            ),
-        });
-    };
-    let path: PathBuf = PathBuf::from(base);
-    if !path.is_dir() {
-        return Err(ScratchRefusal {
-            message: format!(
-                "XDG_RUNTIME_DIR names {}, which is no directory, so the account companion cannot keep its scratch there. Ways forward: log in again so the session makes it, then run the add again",
-                path.display()
-            ),
-        });
-    }
-    return Ok(path);
 }
 
 /// What:
@@ -190,8 +256,13 @@ fn sweep(folder: &Path) {
 fn refused(path: &Path, error: std::io::Error) -> ScratchRefusal {
     return ScratchRefusal {
         message: format!(
-            "the account companion's scratch directory {} cannot be made ({error}), so the managed attach is refused as unproven. Ways forward: free some space under XDG_RUNTIME_DIR or check that it is writable, then run the add again",
+            "the account companion's scratch directory {} cannot be made ({error}), so the managed attach is refused as unproven. Ways forward: free some space under {RUNTIME_VARIABLE} or check that it is writable, then run the add again",
             path.display()
         ),
     };
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "companion_scratch_tests.rs"]
+mod tests;

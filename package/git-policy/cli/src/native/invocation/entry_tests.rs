@@ -18,7 +18,7 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay, ssh_no_answer_overlay};
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, NO_ANSWER_SENTENCE, never_prompt_overlay, ssh_no_answer_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
@@ -212,7 +212,7 @@ fn every_command_the_wrapper_forwards_never_prompts() {
     for (name, wanted) in [
         ("GIT_ASKPASS", ""),
         ("GIT_TERMINAL_PROMPT", "0"),
-        ("SSH_ASKPASS", "false"),
+        ("SSH_ASKPASS", NO_ANSWER_SENTENCE),
         ("SSH_ASKPASS_REQUIRE", "force"),
     ] {
         assert!(

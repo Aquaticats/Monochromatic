@@ -79,6 +79,36 @@ a private tmpfs at `/run/user/0` and `--env XDG_RUNTIME_DIR=/run/user/0`
 (`--tmpfs /run/user/0:mode=0700`) in the container cargo runs,
 as `nested-wayland-session` does.
 
+### The Git wrapper's companion read the same variable in its own controls
+
+Recorded 2026-11-24T14:58:19-05:00 by the round `fix-companion-tests-inject-their-runtime-dir-2026-11-24`,
+on branch `fix/git-policy-cli-companion-tests-inject-runtime-dir`,
+whose one code commit is `338dfbb57b`.
+Not approved and not final:
+no whole container gate ran in this round.
+
+The whole gate on `main` at `adcb708071` (run `native-mEmcZt`) failed nine
+`account_companion::companion_parent::tests` between 14:15:42 and 14:37:51,
+each printing
+`managed add refused: the account companion's scratch failed: XDG_RUNTIME_DIR is not set, ...`,
+while the same nine passed on this host.
+The companion read `XDG_RUNTIME_DIR` from the process it ran in when it made the run's directory,
+so the variable this container never sets reached the shipped check through the controls that run it.
+Fix:
+the runtime folder is an input the add route resolves once (`RuntimeFolder` in
+`package/git-policy/cli/src/native/account_companion/companion_scratch.rs`),
+and every control passes a folder under its own fixture root,
+so no control reads or sets the process's environment.
+The refusal a container without the variable prints did not move,
+and a control asserts that sentence word for word.
+
+Which repair is right depends on who needs the variable.
+A control that runs the product's own socket or state path takes the container's runtime directory,
+which the section above makes;
+a control of a function that takes a folder as an input passes a folder of its own.
+The shape to watch for is a control that passes on the host and fails only in the gate with "is not set":
+it is reading a variable the container never has.
+
 ## A test that fails on both images
 
 `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis` fails with

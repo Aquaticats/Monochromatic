@@ -2,7 +2,7 @@
 //!  Controls of the effective delegation:
 //!  the nine decided grants,
 //!  a missing grant,
-//!  a grant wider than the design scopes it,
+//!  a grant wider than the design scopes it and the two commands that narrow it,
 //!  a lineage-changing grant,
 //!  a permission given to everyone,
 //!  and a grant reached through a named set.
@@ -19,6 +19,10 @@
 use super::{DelegationFacts, Grant, Inheritance, Who, check_delegation, grants_of};
 use crate::health::doctor_zfs_route::route_test_facts::{ACCOUNT, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation, healthy_grants};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
+
+/// The dataset above both the checkout and the clone container,
+/// which a control grants a permission on when the design scopes it lower.
+const ANCESTOR_DATASET: &str = "zpcachyos/ROOT/cos/home";
 
 /// The decided facts with one grant added.
 fn with_grant(granted: Grant) -> DelegationFacts {
@@ -110,17 +114,49 @@ fn a_missing_grant_is_a_finding_with_the_command() {
 }
 
 /// A decided grant that reaches the dataset only through an ancestor is a
-/// finding naming the scope.
+/// finding naming the scope and the two commands that narrow it:
+/// the `zfs allow` where the design puts the permission,
+/// then the `zfs unallow` of the ancestor's wider grant.
 #[test]
-fn a_grant_carried_by_an_ancestor_is_a_scope_finding() {
+fn a_grant_carried_by_an_ancestor_is_a_scope_finding_with_its_narrowing_pair() {
     let mut facts: DelegationFacts = without_grant("destroy", CONTAINER_DATASET, Inheritance::Descendants);
-    facts.grants.push(grant("zpcachyos/ROOT/cos/home", "destroy", Who::User(ACCOUNT), Inheritance::Descendants));
+    facts.grants.push(grant(ANCESTOR_DATASET, "destroy", Who::User(ACCOUNT), Inheritance::Descendants));
     let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
         panic!("a wider grant is a finding");
     };
     assert_eq!(field, "scope");
     assert!(detail.contains(CONTAINER_DATASET), "{detail}");
-    assert!(detail.contains("zpcachyos/ROOT/cos/home"), "{detail}");
+    assert!(detail.contains(ANCESTOR_DATASET), "{detail}");
+    let narrow: String = format!("zfs allow -d -u {ACCOUNT} destroy {CONTAINER_DATASET}");
+    let wide_removal: String = format!("zfs unallow -d -u {ACCOUNT} destroy {ANCESTOR_DATASET}");
+    assert!(detail.contains(&narrow), "{detail}");
+    assert!(detail.contains(&wide_removal), "{detail}");
+    let narrow_at: usize = detail.find(&narrow).expect("the narrowed grant is printed");
+    let wide_removal_at: usize = detail.find(&wide_removal).expect("the wider grant's removal is printed");
+    assert!(narrow_at < wide_removal_at, "the grant comes before the wider one goes: {detail}");
+}
+
+/// One ancestor grant can make two decided permissions effective,
+/// so both narrow grants are printed and the wider grant is removed after them.
+#[test]
+fn one_wide_grant_serving_two_permissions_is_removed_once_after_both_grants() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    facts.grants.retain(|grant| return !(grant.permission == "mount" && (grant.carried_by == CHECKOUT_DATASET || grant.carried_by == CONTAINER_DATASET) && grant.inheritance == Inheritance::Descendants));
+    facts.grants.push(grant(ANCESTOR_DATASET, "mount", Who::User(ACCOUNT), Inheritance::Descendants));
+    let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+        panic!("a wider grant is a finding");
+    };
+    assert_eq!(field, "scope");
+    let checkout_narrow: String = format!("zfs allow -d -u {ACCOUNT} mount {CHECKOUT_DATASET}");
+    let container_narrow: String = format!("zfs allow -d -u {ACCOUNT} mount {CONTAINER_DATASET}");
+    let wide_removal: String = format!("zfs unallow -d -u {ACCOUNT} mount {ANCESTOR_DATASET}");
+    assert!(detail.contains(&checkout_narrow), "{detail}");
+    assert!(detail.contains(&container_narrow), "{detail}");
+    assert_eq!(detail.matches(&wide_removal).count(), 1, "the one wider grant is removed once: {detail}");
+    let checkout_narrow_at: usize = detail.find(&checkout_narrow).expect("the checkout's narrowed grant is printed");
+    let container_narrow_at: usize = detail.find(&container_narrow).expect("the container's narrowed grant is printed");
+    let wide_removal_at: usize = detail.find(&wide_removal).expect("the wider grant's removal is printed");
+    assert!(checkout_narrow_at < wide_removal_at && container_narrow_at < wide_removal_at, "both grants come before the wider one goes: {detail}");
 }
 
 /// Every forbidden permission is a finding naming it and the unallow command.

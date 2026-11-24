@@ -4,9 +4,11 @@
 //!  repairs the new worktree and hands its trash over.
 //! Why:
 //!  The wrapper's one add path asks this before it builds a ladder,
-//!  and `None` keeps every add on another filesystem or another checkout dataset
+//!  and `None` keeps every add on another filesystem, another checkout dataset,
+//!  or in a checkout whose only fault is its uncommitted changes,
 //!  exactly as it was
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10).
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10, and
+//!  lines 1858 to 1862 for the interim that leaves a dirty checkout to rung 3).
 //!  A failed or killed add keeps the claim, the slot and the locked
 //!  registration, and the next add at the slot reads the record's phase and
 //!  continues from it
@@ -48,8 +50,11 @@ pub const FILLED_NOTE: &str = "monochromatic-git-policy-cli: made the worktree a
 ///  Run the ZFS route for one add, or leave it to the ordinary path.
 /// Why:
 ///  `None` is the answer for every add the route does not serve,
-///  which is every add on another filesystem and every add in a checkout that
-///  is not the design's dataset.
+///  which is every add on another filesystem, every add in a checkout that is
+///  not the design's dataset, and every add whose source is a main checkout with
+///  uncommitted changes until plan step 11's verified dirty restore lands
+///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+///  lines 1858 to 1862).
 pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
     let WorktreeIdentity::MainWorktree { common_dir, .. } = &facts.identity else { return None };
     let destination: &std::path::Path = facts.destination.as_deref()?;
@@ -63,7 +68,10 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
     };
     // The account companion runs in this add's own process, after the gate above and before the claim,
     // so a refusal leaves no managed object (`doc/decision/cli-git-zfs-start-probe.md`, Q-a and Q6).
-    if !crate::account_companion::the_managed_attach_may_go_ahead() {
+    // Its runtime folder is read here, once, and handed to the check as an input: a variable that names no folder,
+    // or a folder that is not a directory, refuses the managed attach in the same words a person already reads.
+    let runtime = crate::account_companion::the_accounts_runtime_folder()?;
+    if !crate::account_companion::the_managed_attach_may_go_ahead(&runtime) {
         return None;
     }
     let context: GitContext = GitContext { real_git: real_git.to_path_buf(), overlay: overlay.to_vec(), global_prefix: Vec::new(), common_dir: Some(common_dir.clone()) };
@@ -81,7 +89,12 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
     };
 }
 
-/// The route's own run, whose success is the lines the person reads.
+/// What:
+///  The route's own run,
+///  whose success is the lines the person reads.
+/// Why:
+///  A refusal anywhere before the end is returned with the sentence it prints;
+///  the route serves every add its gate admits, and its gate is what decides.
 fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, context: &GitContext, real_git: &std::path::Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Result<Vec<String>, StepRefusal> {
     let stops: Stops = Stops::from_environment().map_err(StepRefusal::refused)?;
     let preflight: Preflight = preflight_the_add(route, plan, context, arguments)?;

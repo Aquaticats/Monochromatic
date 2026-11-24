@@ -1875,3 +1875,32 @@ paths and the custom Helium profile.
 Do not file a report from this document.
 Reassess only if a reproducible defect remains after the
 application and profile agree on the intended path and behavior.
+
+## Tenth batch: git listing the folders on PATH, 2026-11-24
+
+In the window of the whole gate run `native-mEmcZt` on `main` at `adcb708071`
+(2026-11-24T14:15:42-05:00 to 14:37:51-05:00),
+the `git` profile was denied `open` with read access on four folders,
+each twice:
+`~/.cargo/bin/`,
+`~/.local/share/pnpm/bin/`,
+`~/.jbcontext/bin/` and `/opt/rocm/bin/`.
+Git opens each folder on `PATH` when it lists the commands it can run,
+as `git help --all` does.
+No test failed because of it.
+
+Applied in `/etc/apparmor.d/local/git`,
+by the owner's standing answer to add rules for whatever the work is denied:
+
+```text
+# /etc/apparmor.d/local/git
+owner @{HOME}/.cargo/bin/ r,
+owner @{HOME}/.local/share/pnpm/bin/ r,
+owner @{HOME}/.jbcontext/bin/ r,
+/opt/rocm/bin/ r,
+```
+
+`apparmor_parser --replace /etc/apparmor.d/git` exited 0,
+and `git help --all` afterwards exited 0 with no `git` denial in the kernel log.
+The same window's `umount` request for `dac_override` stays refused,
+as the ninth batch decided.

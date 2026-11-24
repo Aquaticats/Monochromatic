@@ -11,6 +11,10 @@ use super::{THE_ADDS_OWN_STEPS, refuse_unless_the_decided_ones};
 use crate::doctor_zfs_route::route_test_facts::{ACCOUNT, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation};
 use crate::doctor_zfs_route::{DelegationFacts, Inheritance, Who};
 
+/// The dataset above both the checkout and the clone container,
+/// which a fixture grants a permission on when the design scopes it lower.
+const ANCESTOR_DATASET: &str = "zpcachyos/ROOT/cos/home";
+
 /// Facts whose one required permission is gone,
 /// named so a control reads as the change it makes.
 fn without(permission: &str, place: &str, inheritance: Inheritance) -> DelegationFacts {
@@ -95,4 +99,17 @@ fn a_delegation_through_a_named_set_refuses_as_unproved() {
     let refusal: String = refuse_unless_the_decided_ones(&facts).expect_err("the set's members are not in the reply").message;
     assert!(refusal.contains("named set backup"), "{refusal}");
     assert!(refusal.contains("unproved"), "{refusal}");
+}
+
+/// A permission granted wider than the design scopes it refuses the add with
+/// the two commands that narrow it,
+/// because the refusal carries the `scope` finding's own line.
+#[test]
+fn a_wide_permission_refuses_with_the_two_narrowing_commands() {
+    let mut facts: DelegationFacts = without("destroy", CONTAINER_DATASET, Inheritance::Descendants);
+    facts.grants.push(grant(ANCESTOR_DATASET, "destroy", Who::User(ACCOUNT), Inheritance::Descendants));
+    let refusal: String = refuse_unless_the_decided_ones(&facts).expect_err("a wider grant refuses").message;
+    assert!(refusal.contains(&format!("zfs allow -d -u {ACCOUNT} destroy {CONTAINER_DATASET}")), "{refusal}");
+    assert!(refusal.contains(&format!("zfs unallow -d -u {ACCOUNT} destroy {ANCESTOR_DATASET}")), "{refusal}");
+    assert!(refusal.contains("then run the add again"), "{refusal}");
 }

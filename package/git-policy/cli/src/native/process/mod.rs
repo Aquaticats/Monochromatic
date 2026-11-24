@@ -107,7 +107,9 @@ pub mod child_awaited_through_a_pidfd;
 
 /// The children this command stopped waiting for,
 /// gathered by a thread of their own,
-/// and kept when the system refuses that thread.
+/// and kept when the system refuses that thread,
+/// whether the starter still holds a `Child` the standard library made
+/// or only the number a raw fork left.
 pub mod stuck_children_reaped_when_the_kernel_lets_go;
 
 /// A child waited for by the thread that owns it,
