@@ -559,50 +559,29 @@ quoted to the owner on 2026-11-23.
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
 Outcome:
-the owner accepts the two designs.
+the forced design's text carries the owner's V10 answer.
 
 State:
-both are on `main` as proposals
-(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
-`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`).
-The owner confirmed the direction on 2026-11-23:
-unmount by the marker inside a holder's namespace,
-and go ahead and report for both sandbox cases
-(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
-"The unmount inside a holder's namespace,
-confirmed as a direction on 2026-11-23").
-That rests on Tier 0 on kernel 6.8 and in a rootless container on 7.3 over ZFS,
-and Tier 1 on a guest pool
-(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
-read against the logs in `review-second-probe-round.md` in
-`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`).
+the owner accepted both designs on 2026-11-23
+and answered V10 "Stop that unit (Recommended)":
+a locked holder that is a unit of the account's own user manager is stopped through that manager and the removal proceeds,
+while a locked holder that is not such a unit is still refused,
+as the session's reading of the answer's scope
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
+The question rested on T0-14 in a guest with systemd 255
+(a `PrivateMounts=yes` user unit there is not locked;
+an `unshare --user --mount` holder is,
+with `EINVAL` for the move and the unmount)
+and on a read on this machine under systemd 262,
+where such a unit's mount namespace is owned by a user namespace of its own.
+T0-10 showed that root lists and enters a mount namespace no task holds.
 Tier 2 needs step 17's code.
-The probe round on the second read merged as `a93edae332`,
-and the design writer's V9 and Q10 edits as `93f7b4378d`.
-The reviewer's third read
-(`review-third-read-after-the-probe-rounds.md` beside the second)
-found the measurements sound,
-and one high point that blocks the forced design's question as worded:
-by its reading of systemd `v262`,
-a unit of a person's own user manager with `PrivateMounts=`,
-`PrivateTmp=`,
-`ProtectHome=` or a bind option gets a user namespace of its own,
-so it is in the class the design refuses,
-and the preflight's `MNT_LOCKED` read names no interface a handler can read.
 Running:
-the forced design's round on that and three lows
-(`continuation-third-read-user-namespace-holders.md`),
-the cancelled design's refresh
-(`continuation-third-read-refresh.md`),
-and `pi-zfs-forced-removal-probe-arms-that-need-no-step-17`:
-T0-14 in a real user-manager unit,
-T0-10 with the handler's privileges,
-and T0-3's delivery control.
+the forced design's round on V10's answer (`continuation-v10-answered-stop-the-unit.md`).
 
 Next:
-merge each when it ends;
-then the acceptance question,
-with the forced design's choice for a sandboxed user unit if its writer names one.
+merge it;
+the designs then wait for step 17 under "Accepted designs that wait for their build steps".
 
 #### Accepted designs that wait for their build steps
 
