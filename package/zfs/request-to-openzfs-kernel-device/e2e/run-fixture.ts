@@ -1456,6 +1456,19 @@ function step10Pool(options: Options): void {
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
     `zfs create -o mountpoint=${STEP10_CHECKOUT_PATH} ${STEP10_CHECKOUT}`,
     `zfs create -o mountpoint=legacy -o canmount=off ${STEP10_CONTAINER}`,
+    // The design's scoped delegation, granted to the account the arms run as.
+    // The route's preflight refuses an add whose delegation is not this shape, so
+    // the fixture that never granted it could not reach a single one of its steps:
+    // the arms met the companion first and this read second.
+    `zfs allow -l -u 0 snapshot ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 clone ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 mount ${STEP10_CHECKOUT}`,
+    `zfs allow -d -u 0 destroy ${STEP10_CHECKOUT}`,
+    `zfs allow -l -u 0 create ${STEP10_CONTAINER}`,
+    `zfs allow -l -u 0 mount ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 mount ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 userprop ${STEP10_CONTAINER}`,
+    `zfs allow -d -u 0 destroy ${STEP10_CONTAINER}`,
     `mount --make-rprivate ${STEP10_CHECKOUT_PATH}`,
     // The handler's readiness report the route's preflight requires, as the
     // boot unit would publish it; the test itself rewrites it with this boot's
