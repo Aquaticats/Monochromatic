@@ -403,16 +403,13 @@ Both rounds decided points the designs leave open
 Running:
 `pi-zfs-step-10-binding-design-takes-the-build-decisions`,
 putting both rounds' decisions and the eleventh read's two fixes into the designs.
-Waiting for the memory stall to ease
-(it was rising at 2026-11-24T01:25-05:00 with a whole gate and nine rounds running):
-the round on T27 and T28,
-whose prompt is ready in `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`
-(start it with `start-a-fresh-build-round.ts zfs-step-10-reboot-and-power-loss-arms-2026-11-24
-zfs-step-10-reboot-and-power-loss-arms test/git-policy-cli-zfs-step-10-reboot-and-power-loss-arms
-pi-zfs-step-10-reboot-and-power-loss-arms`).
+Running too,
+once the memory stall fell:
+`pi-zfs-step-10-reboot-and-power-loss-arms`,
+the round on T27 and T28
+(folder `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`).
 
 Next:
-start the T27 and T28 round when the stall eases;
 merge both when they end.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
@@ -489,9 +486,9 @@ because mvm's Fedora guest refused every file route
 Running:
 a Sonnet re-read of the revision
 (`~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/`).
-Waiting for the memory stall to ease:
+Running too:
 `pi-mvm-fedora-guest-refuses-every-file-route`,
-whose prompt is ready in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
+with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
 (branch `fix/mvm-fedora-guest-refuses-every-file-route`).
 
 Next:
