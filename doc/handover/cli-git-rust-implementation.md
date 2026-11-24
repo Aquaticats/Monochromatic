@@ -727,20 +727,24 @@ now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mut
 That audit read only `delete` items,
 so the owner's words inside `issue`,
 `home` and `open` items were never checked;
-"Move hall-monitor to package-paused altogether." (old-file line 45973,
-in an `issue` item) is held by no tracked file but the frozen one.
+"Move hall-monitor to package-paused altogether.",
+at old-file line 45973 in an `issue` item,
+is held by no tracked file but the frozen one.
 Running:
-three of the five Sonnet sorters of the run logs (lines 153 to 34,866;
-the two that ended scanned every non-move item, not only `delete` ones),
-briefed by `brief-sorter-run-logs.md` in that folder;
+three of the five Sonnet sorters of the run logs,
+lines 153 to 34,866,
+briefed by `brief-sorter-run-logs.md` in that folder
+(the two that ended scanned every non-move item,
+not only `delete` ones);
 an agent scanning every non-move item of the applied ledgers for the owner's words
 (`brief-owner-quotations-in-every-non-move-item.md`),
 whose amended ledger is applied like the others;
 and an agent filing the 35 issue drafts
 (`brief-file-the-sorters-issue-drafts.md`).
-The harness refuses a subagent's write of a report file
-("Subagents should return findings as text, not write report files."),
-so a sorter's report is its final message,
+The harness refuses a subagent's write of a report file:
+"Subagents should return findings as text,
+not write report files."
+So a sorter's report is its final message,
 saved by the coordinator as `keep/report-as-returned-to-the-coordinator.md`.
 
 Next:
