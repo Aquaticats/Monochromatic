@@ -166,6 +166,13 @@ The result settles it: the arm's own boot holds no record, and every record in t
 `systemd-getty-generator`'s `dac_override` denial, inside the earlier boot that built the packages.
 The earlier rounds' line counted the whole file and labelled it "this boot", which is why it read as
 a contradiction.
+**One detail of the finding does not hold.** It infers that the records "may belong to earlier boots'
+shutdowns (not shown by this evidence), which would include the stop pass".
+They do not: all fourteen fall inside the first boot's own window, between 12:02:49 and 12:06:58,
+while packages were being installed and systemd reloaded, and the helper that writes them runs on
+those reloads.
+The arm's boot held four, and its own `daemon-reload` is what wrote them.
+Nothing in the file belongs to a shutdown.
 
 ### The low findings
 
