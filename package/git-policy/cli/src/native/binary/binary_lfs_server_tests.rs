@@ -1018,21 +1018,86 @@ fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {
 
 //region A push nobody typed never opens the password dialog
 
-/// A recording stand-in for the desktop password program a host names in `SSH_ASKPASS`,
-/// as this machine names `/usr/bin/ksshaskpass`.
+/// The recording stand-in for the desktop password program a host names in `SSH_ASKPASS`,
+/// as this machine names `/usr/bin/ksshaskpass`,
+/// with the program and the log it writes.
 /// It records every question and answers one,
 /// so a route that asks a person is seen at once and never waits for an answer that will not come.
-fn recording_askpass(fixture: &Fixture) -> PathBuf {
+struct Recorder {
+    /// The program itself, in the fixture's own root.
+    program: PathBuf,
+    /// Every question it was asked, one per line;
+    /// absent until it starts.
+    log: PathBuf,
+}
+
+/// How long the positive arm's `git-lfs` run may take before the bound ends it.
+/// Why sixty:
+///  it makes one batch request to a server on the loopback and asks one question,
+///  and sixty is the bound one real-Git run of the harness carries,
+///  ten times this host's slowest measured disk stall (4.74 s,
+///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+const ASKPASS_PROBE_BOUND_SECONDS: &str = "60";
+
+/// Make the recording stand-in in the fixture's root.
+fn recording_askpass(fixture: &Fixture) -> Recorder {
+    let program: PathBuf = fixture.root.join("askpass");
     let log: PathBuf = fixture.root.join("askpass-questions.txt");
     let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nprintf 'someone\\n'\n", log = log.display());
-    super::support::executable(fixture.root.join("askpass").as_path(), script.as_bytes());
-    return log;
+    super::support::executable(program.as_path(), script.as_bytes());
+    return Recorder { program, log };
 }
 
 /// Every question the stand-in password program was asked,
 /// in order.
 fn questions(log: &Path) -> Vec<String> {
     return std::fs::read_to_string(log).unwrap_or_default().lines().map(str::to_owned).collect();
+}
+
+/// What:
+///  Run `git-lfs` the way the wrapper's upload does,
+///  against the server that demands a login,
+///  with the recorder named as the program to ask,
+///  and require the recorder's log to hold the question.
+/// Why:
+///   The controls beside this arm assert that the log stays empty,
+///  and an empty log is proof only while the program that writes it can start under the confinement the run is under:
+///  a program the confinement refuses leaves the log exactly as empty as the rule does
+///  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+///  "The tests that would pass with their program refused").
+///  The arm starts the same `git-lfs` link the fixture's `bin` holds,
+///  which is the path the wrapper's own search finds and the one a profile attaches to,
+///  in the same repository and against the same server,
+///  so the program that would write the log in the push starts here or nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync(gitLfs, ['push', '--object-id', 'origin', oid], { cwd: repo, env: { GIT_ASKPASS: recorder } });
+/// expect(questions(log)).not.toBeEmpty();
+/// ```
+fn the_recording_program_logs_its_question(fixture: &Fixture, repo: &Path, recorder: &Recorder) {
+    let oid: String = pointer_oid_at(fixture, repo, "HEAD:big.bin");
+    // The real Git, never the wrapper: `git-lfs` runs `git` itself, and a PATH that led it to the wrapper would have the
+    //  push tested here ask the wrapper instead.
+    let mut command: std::process::Command = super::support::bounded_for(
+        fixture,
+        fixture.root.join("bin/git-lfs").as_path(),
+        std::ffi::OsStr::new("/usr/bin:/bin"),
+        ASKPASS_PROBE_BOUND_SECONDS,
+    );
+    command
+        .current_dir(repo)
+        .env("GIT_ASKPASS", recorder.program.as_os_str())
+        .args(["push", "--object-id", "origin", oid.as_str()]);
+    let ran: std::process::Output = command.output().expect("the positive arm's git-lfs starts");
+    let asked: Vec<String> = questions(recorder.log.as_path());
+    assert!(
+        !asked.is_empty(),
+        "the recording program answered the login this server demands, so its empty log in the control means the rule \
+         held rather than that the program never started; git-lfs ended {:?} and wrote: {}",
+        ran.status.code(),
+        String::from_utf8_lossy(ran.stderr.as_slice())
+    );
 }
 
 /// A pseudo-terminal the test keeps open:
@@ -1169,6 +1234,7 @@ fn published_url_form(fixture: &Fixture, origin: &Path) -> String {
 /// the command's session has no controlling terminal,
 /// and the upload fails at once with the login the caller can act on,
 /// under the same no-prompt rule a command a person typed runs under.
+/// The arm before it shows the recorder answering this server, so the empty log below means the rule held.
 #[test]
 fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog() {
     let fixture: Fixture = fixture("lfs-real-no-terminal");
@@ -1176,8 +1242,10 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
         return;
     };
     server.state.lock().expect("state").login_required = true;
-    let log: PathBuf = recording_askpass(&fixture);
-    let askpass: String = fixture.root.join("askpass").to_string_lossy().into_owned();
+    let recorder: Recorder = recording_askpass(&fixture);
+    the_recording_program_logs_its_question(&fixture, repo.as_path(), &recorder);
+    std::fs::remove_file(recorder.log.as_path()).expect("the arm's log goes before the control reads it");
+    let askpass: String = recorder.program.to_string_lossy().into_owned();
     let destination: String = format!("file://{}", origin.display());
     let refspec: String = format!("HEAD:{URL_FORM_DESTINATION}");
     let pushed: Observed = observe_push(
@@ -1188,7 +1256,7 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
         None,
     );
     let stderr: String = stderr_of(&pushed);
-    assert!(!log.exists(), "the desktop password program was started: {:?}", questions(log.as_path()));
+    assert!(!recorder.log.exists(), "the desktop password program was started: {:?}", questions(recorder.log.as_path()));
     assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
     assert_eq!(published_url_form(&fixture, origin.as_path()), "absent", "nothing was published: {stderr}");
     assert!(server.uploads().is_empty(), "{stderr}");
@@ -1207,6 +1275,8 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
 /// with a controlling terminal in its session,
 /// the same login-requiring server still reaches no password program,
 /// because the owner decided on 2026-11-19 that no command the wrapper runs or forwards asks for a credential.
+/// One recorder serves both controls of this region,
+/// so each carries its own arm showing the recorder answering this server before the control reads its log.
 #[test]
 fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
     let fixture: Fixture = fixture("lfs-real-terminal");
@@ -1214,9 +1284,11 @@ fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
         return;
     };
     server.state.lock().expect("state").login_required = true;
-    let log: PathBuf = recording_askpass(&fixture);
+    let recorder: Recorder = recording_askpass(&fixture);
+    the_recording_program_logs_its_question(&fixture, repo.as_path(), &recorder);
+    std::fs::remove_file(recorder.log.as_path()).expect("the arm's log goes before the control reads it");
     let at: Terminal = terminal();
-    let askpass: String = fixture.root.join("askpass").to_string_lossy().into_owned();
+    let askpass: String = recorder.program.to_string_lossy().into_owned();
     let destination: String = format!("file://{}", origin.display());
     let refspec: String = format!("HEAD:{URL_FORM_DESTINATION}");
     let pushed: Observed = observe_push(
@@ -1227,7 +1299,7 @@ fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
         Some(&at.slave),
     );
     let stderr: String = stderr_of(&pushed);
-    assert!(!log.exists(), "the desktop password program was started at a terminal: {:?}", questions(log.as_path()));
+    assert!(!recorder.log.exists(), "the desktop password program was started at a terminal: {:?}", questions(recorder.log.as_path()));
     assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
     assert!(stderr.contains("never lets a command ask"), "the refusal says the wrapper never asks: {stderr}");
     drop(server);
