@@ -139,7 +139,11 @@ impl Fixture {
     }
 
     /// A repository with two files, one commit, and the trash place ignored.
+    /// The arms share one checkout, so the second arm finds the first's commit.
     fn make_the_repository(&self) {
+        if self.root.join(".git").is_dir() {
+            return;
+        }
         std::fs::write(self.root.join(".gitignore"), b".claude/\n").expect("the ignore rule");
         std::fs::write(self.root.join("plain.txt"), b"plain\n").expect("the tracked file");
         std::fs::write(self.root.join("second.txt"), b"second\n").expect("the second file");
@@ -174,10 +178,22 @@ impl Fixture {
         file.publish(&record).expect("the readiness report");
     }
 
+    /// The folder the wrapper is linked into, outside the checkout so the
+    /// source stays clean.
+    fn bin_folder(&self) -> PathBuf {
+        return PathBuf::from("/root/zfs-add-bin");
+    }
+
+    /// The home folder the wrappers and Git run with, outside the checkout.
+    fn home_folder(&self) -> PathBuf {
+        return PathBuf::from("/root/zfs-add-home");
+    }
+
     /// The link the arm starts as `git`.
     fn make_the_wrapper_link(&self) {
-        let bin: PathBuf = self.root.join("bin");
+        let bin: PathBuf = self.bin_folder();
         std::fs::create_dir_all(bin.as_path()).expect("the bin folder");
+        std::fs::create_dir_all(self.home_folder().as_path()).expect("the home folder");
         let link: PathBuf = bin.join("git");
         let _stale: std::io::Result<()> = std::fs::remove_file(link.as_path());
         std::os::unix::fs::symlink(WRAPPER, link.as_path()).expect("the wrapper's git link");
@@ -208,6 +224,9 @@ impl Fixture {
     fn git(&self, arguments: &[&str]) {
         let output: Output = Command::new("/usr/bin/git")
             .current_dir(self.root.as_path())
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.home_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
             .env("GIT_AUTHOR_NAME", "Fixture")
@@ -217,7 +236,13 @@ impl Fixture {
             .args(arguments)
             .output()
             .unwrap_or_else(|error| panic!("git {arguments:?} could not start: {error}"));
-        assert!(output.status.success(), "git {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        assert!(
+            output.status.success(),
+            "git {arguments:?} was refused ({:?}): stdout `{}`, stderr `{}`",
+            output.status.code(),
+            String::from_utf8_lossy(output.stdout.as_slice()),
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
     }
 
     /// The binding one slot holds,
@@ -230,12 +255,13 @@ impl Fixture {
 
     /// One add's command, with the harness's hermetic environment.
     fn add_command(&self, name: &str, stop_after: Option<&str>) -> Command {
-        let mut command: Command = Command::new(self.root.join("bin").join("git"));
+        let mut command: Command = Command::new(self.bin_folder().join("git"));
         command
             .args(["worktree", "add", self.slot(name).to_str().expect("a text path")])
             .current_dir(self.root.as_path())
-            .env("PATH", format!("{}:/usr/bin:/bin", self.root.join("bin").display()))
-            .env("HOME", self.root.join("home"))
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", self.bin_folder().display()))
+            .env("HOME", self.home_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
             .env("GIT_AUTHOR_NAME", "Fixture")
@@ -301,7 +327,14 @@ impl Fixture {
                 let _gone: Output = self.zfs(&["destroy", snapshot]);
             }
         }
-        let _removed = Command::new("/usr/bin/git").current_dir(self.root.as_path()).args(["worktree", "remove", "--force", slot.to_str().expect("a text path")]).status();
+        let _removed = Command::new("/usr/bin/git")
+            .current_dir(self.root.as_path())
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.home_folder())
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .args(["worktree", "remove", "--force", slot.to_str().expect("a text path")])
+            .status();
         let records: PathBuf = self.common().join("monochromatic-git-policy-cli").join("worktree-clones");
         let _cleared: std::io::Result<()> = std::fs::remove_dir_all(records.as_path());
     }
@@ -360,7 +393,13 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
         let mut child: Child = fixture.add_command(name.as_str(), Some(step)).spawn().expect("the add starts");
         fixture.mount_when_the_clone_appears(name.as_str(), &mut child);
         let killed: Output = child.wait_with_output().expect("the killed add ends");
-        assert_eq!(killed.status.signal(), Some(libc::SIGKILL), "the control's switch killed the add at {step}: {:?}", killed.status);
+        assert_eq!(
+            killed.status.signal(),
+            Some(libc::SIGKILL),
+            "the control's switch killed the add at {step} ({:?}); the add said `{}`",
+            killed.status.code(),
+            String::from_utf8_lossy(killed.stderr.as_slice())
+        );
         let record: BindingRecord = fixture.binding(name.as_str()).unwrap_or_else(|| panic!("the {step} kill left a binding"));
         assert_eq!(record.phase, left, "the {step} kill left the phase the step before it wrote");
         match step {
@@ -412,4 +451,9 @@ fn a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration(
     assert!(resumed.status.success(), "the resume after the full pool failed: {}", String::from_utf8_lossy(resumed.stderr.as_slice()));
     assert_eq!(fixture.binding("full").expect("the resumed binding").phase, Phase::Filled);
     fixture.clear_the_slot("full");
+    // The checkout returns to the two tracked files, so an arm that runs after
+    // this one reads the same source.
+    let _gone: std::io::Result<()> = std::fs::remove_file(big.as_path());
+    fixture.git(&["add", "-A"]);
+    fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
 }
