@@ -784,6 +784,11 @@ Cons:
 
 ### Ranking of choice 2
 
+The earlier text had no words form at all,
+because it reached units and adoption by the modes' own file name,
+so this choice is new and has no earlier ranking to change.
+The answer is what raised it.
+
 Ranking:
 A > B > C.
 
@@ -963,6 +968,15 @@ Cons:
   which is the failure this route can least afford.
 
 ### Ranking of choice 3
+
+The earlier text's choice 2 ranked symlinks to a root-owned copy above hard links, copies
+and a link into the account's install,
+and the review changed the name half of it:
+the regular file carries the ZED hook's name rather than the wrapper's,
+which is this choice's option A.
+The ranking underneath is unchanged,
+so options C and D keep the earlier reasons,
+and the review's version and ancestor checks are what make a link that a package manager replaces visible.
 
 Ranking:
 A > B > C > D.
@@ -1234,6 +1248,14 @@ and it lands in root's journal under a unit.
 
 ### Ranking of choice 4
 
+The review leaves the earlier order as it was and narrows the reason for A over C and D:
+under ZED the working directory is `/`,
+so the lock pass finds no repository,
+and the cost C and D carry is a person's start from inside a checkout,
+such as an adoption.
+It also adds the panic-hook question,
+answered inside A.
+
 Ranking:
 A > B > C > D.
 
@@ -1306,6 +1328,11 @@ Cons:
 
 ### Ranking of choice 5
 
+This choice is new:
+the answer makes the modes reachable through one name and the words,
+so a file no longer carries the program's name,
+and the earlier text never had to choose what `--version` says.
+
 Ranking:
 A > B.
 
@@ -1334,6 +1361,12 @@ and a person's read-only questions through the account's own wrapper:
 ```text
 git monochromatic-git-policy-cli zfs-root --help
 ```
+
+`--help` prints the mode words,
+the words' spelling,
+and the installed path;
+and `doctor` prints the adoption line with the checkout's device and inode filled in,
+beside the three unit lines the setup writes.
 
 Pros:
 
@@ -1368,6 +1401,11 @@ Cons:
   so it saves typing, not thinking.
 
 ### Ranking of choice 6
+
+The earlier ranking stands,
+and the review adds one reason to it:
+a short name linked to the account's copy would let a `sudo` that preserves `PATH` run an account-writable file as root,
+which is one more path to an escalation this design does not need.
 
 Ranking:
 A > B.
@@ -1410,6 +1448,15 @@ which is root.
 
 ### Option A: keep them
 
+A control starts the installed file with a switch set and reads the record it wrote:
+
+```text
+CLI_GIT_TEST_ONLY_START_PROBE=disabled <the installed file> monochromatic-git-policy-cli zfs-root start-probe
+```
+
+and the record's verdict is skipped with its skip reason `test-switch`.
+A unit's or a person's start that sets none of them behaves as it does today.
+
 Pros:
 
 - the modes' controls keep running against the release build,
@@ -1437,6 +1484,10 @@ Cons:
   for no measured behaviour at root.
 
 ### Ranking of choice 7
+
+The earlier text said a root mode reads no variable at all,
+and the review found five it does read,
+so this choice is new.
 
 Ranking:
 A > B.
