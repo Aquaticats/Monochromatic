@@ -42,9 +42,8 @@ use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{
     RequestResult, send_request,
 };
 use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
-use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::{
-    BatchOutcome, NameOutcome,
-};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
+use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
 use monochromatic_zfs_request_to_openzfs_kernel_device::requests::ElementError;
 use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
 use std::path::PathBuf;

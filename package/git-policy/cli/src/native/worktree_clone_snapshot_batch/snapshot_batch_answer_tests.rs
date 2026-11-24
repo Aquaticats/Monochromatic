@@ -16,9 +16,11 @@
 //! expect(outcomeOfAnswer(pool, names, refusal(EBUSY, [second])).names()[0].outcome).toEqual({ kind: 'intact' });
 //! ```
 
-use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::{
-    BatchOutcome, MORE_ERRORS_KEY, NameOutcome, outcome_of_answer,
+use crate::worktree_clone_snapshot_batch::snapshot_batch_answer::{
+    MORE_ERRORS_KEY, outcome_of_answer,
 };
+use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
+use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
 use monochromatic_zfs_request_to_openzfs_kernel_device::requests::{
     ElementError, MAXIMUM_ELEMENTS_KEPT, MAXIMUM_REPLY_SIZE, ReplyRefusal, ReplyRefusalReason,
 };

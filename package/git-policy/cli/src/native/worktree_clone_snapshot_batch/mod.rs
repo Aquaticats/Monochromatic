@@ -46,10 +46,15 @@
 //!   its encoded size,
 //!   and the proof it names no `defer` key.
 //! - `snapshot_name_outcome.rs`:
-//!   the kernel's per-name answer read as `destroyed`,
+//!   one submitted name's answer as `destroyed`,
 //!   `refused`,
 //!   `intact` or
 //!   `unknown`.
+//! - `snapshot_batch_outcome.rs`:
+//!   one request's outcome as a value,
+//!   with the kernel's per-name list kept.
+//! - `snapshot_batch_answer.rs`:
+//!   reading a live answer into those outcomes.
 //! - `snapshot_batch_plan.rs`:
 //!   the sort and the largest fitting prefix over the budget.
 //! - `snapshot_batch_send.rs`:
@@ -72,6 +77,8 @@ pub mod request_budget;
 pub mod request_refusal;
 pub mod snapshot_destroy_request;
 pub mod snapshot_name_outcome;
+pub mod snapshot_batch_outcome;
+pub mod snapshot_batch_answer;
 pub mod snapshot_batch_plan;
 pub mod snapshot_batch_send;
 
@@ -82,9 +89,9 @@ pub use snapshot_batch_send::{RequestResult, SnapshotDestroyDevice, send_request
 pub use snapshot_destroy_request::{
     DEFER_KEY, carries_no_defer, destroy_request, encoded_request_bytes,
 };
-pub use snapshot_name_outcome::{
-    BatchOutcome, MORE_ERRORS_KEY, NameOutcome, SubmittedName, outcome_of_answer,
-};
+pub use snapshot_batch_answer::{MORE_ERRORS_KEY, outcome_of_answer};
+pub use snapshot_batch_outcome::BatchOutcome;
+pub use snapshot_name_outcome::{NameOutcome, SubmittedName};
 
 /// The guest arms of step 16's snapshot batch,
 /// compiled for tests only.

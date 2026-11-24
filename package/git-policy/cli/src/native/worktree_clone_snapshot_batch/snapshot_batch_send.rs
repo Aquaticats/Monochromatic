@@ -36,11 +36,13 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, Re
 
 /// The refusal a set this route will not submit reports.
 use super::request_refusal::BatchRefusal;
+/// The per-name outcome of one answer.
+use super::snapshot_batch_answer::outcome_of_answer;
+/// One request's outcome as a value.
+use super::snapshot_batch_outcome::BatchOutcome;
 /// The one request builder,
 /// its encoded bytes and its `defer` absence.
 use super::snapshot_destroy_request::{carries_no_defer, destroy_request};
-/// The per-name outcome of one answer.
-use super::snapshot_name_outcome::{BatchOutcome, outcome_of_answer};
 
 /// What:
 ///  The one device call this route makes,
