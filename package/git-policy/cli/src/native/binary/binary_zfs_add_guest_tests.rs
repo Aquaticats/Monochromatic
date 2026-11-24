@@ -298,7 +298,7 @@ impl Fixture {
             if let Some(_status) = child.try_wait().expect("the add is asked how it is") {
                 return;
             }
-            if self.dataset_stands(clone.as_str()) && slot.is_dir() && !self.mounted_at(slot.as_path()) {
+            if self.dataset_stands(clone.as_str()) && self.intent_says_mount(clone.as_str()) && slot.is_dir() && !self.mounted_at(slot.as_path()) {
                 let mounted: Output = Command::new("/usr/bin/mount")
                     .args(["-t", "zfs", "-o", "nosuid,nodev", clone.as_str(), slot.to_str().expect("a text path")])
                     .output()
@@ -307,6 +307,12 @@ impl Fixture {
             }
             std::thread::sleep(POLL);
         }
+    }
+
+    /// Whether the add wrote the clone's durable mount request.
+    fn intent_says_mount(&self, clone: &str) -> bool {
+        let output: Output = self.zfs(&["get", "-H", "-o", "value", "org.monochromatic:git-worktree-clone-mount-desired-state", clone]);
+        return String::from_utf8_lossy(output.stdout.as_slice()).contains(":mount");
     }
 
     /// Whether a mount stands at one path in this process's table.
@@ -337,7 +343,7 @@ impl Fixture {
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", self.home_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
-            .args(["worktree", "remove", "--force", slot.to_str().expect("a text path")])
+            .args(["worktree", "remove", "--force", "--force", slot.to_str().expect("a text path")])
             .status();
         let records: PathBuf = self.common().join("monochromatic-git-policy-cli").join("worktree-clones");
         let _cleared: std::io::Result<()> = std::fs::remove_dir_all(records.as_path());
@@ -442,14 +448,19 @@ fn a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration(
     std::thread::sleep(std::time::Duration::from_secs(1));
     fixture.git(&["add", "big.bin"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big"]);
-    fixture.zfs_ok(&["set", "quota=1m", fixture.container().as_str()]);
+    // The clone shares its blocks with the snapshot, so a quota on the
+    // container does not charge it; the arm fills the pool itself with a
+    // dataset of zeros and compression off.
+    let filler: String = format!("{}/filler", fixture.pool);
+    fixture.zfs_ok(&["create", "-o", "mountpoint=/root/zfs-filler", "-o", "compression=off", filler.as_str()]);
+    let _filled: Output = Command::new("/usr/bin/dd").args(["if=/dev/zero", "of=/root/zfs-filler/fill", "bs=1M"]).output().expect("dd fills the pool");
     let output: Output = fixture.run_add("full");
-    let _no_quota: Output = fixture.zfs(&["set", "quota=none", fixture.container().as_str()]);
-    assert!(!output.status.success(), "the add with a full container is refused");
+    let _gone: Output = fixture.zfs(&["destroy", "-r", "-f", filler.as_str()]);
+    assert!(!output.status.success(), "the add with a full pool is refused");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert!(said.contains("ENOSPC") || said.contains("No space left") || said.contains("space"), "the refusal names the pool's space: {said}");
     let record: BindingRecord = fixture.binding("full").expect("the refused add's binding");
-    assert_eq!(record.phase, Phase::Snapshotted, "the clone's refusal leaves the snapshot phase and the registration");
+    assert_eq!(record.phase, Phase::Registered, "the snapshot's refusal leaves the registration phase");
     assert!(fixture.slot("full").join(".git").is_file(), "the slot and its pointer stand");
     assert!(!fixture.dataset_stands(fixture.clone("full").as_str()), "no clone was made");
     let resumed: Output = fixture.run_add("full");
@@ -458,7 +469,7 @@ fn a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration(
     fixture.clear_the_slot("full");
     // The checkout returns to the two tracked files, so an arm that runs after
     // this one reads the same source.
-    let _gone: std::io::Result<()> = std::fs::remove_file(big.as_path());
+    let _big_gone: std::io::Result<()> = std::fs::remove_file(big.as_path());
     fixture.git(&["add", "-A"]);
     fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
 }

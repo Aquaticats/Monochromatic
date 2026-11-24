@@ -131,7 +131,17 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
     let phase_before: Phase = record.phase;
     match phase_before {
         Phase::Claimed | Phase::Slot => step_slot(&steps, &mut record)?,
-        _unmounted => verify_the_slot_identity(&steps, &record)?,
+        // Before the intent is written the slot must be the underlay the
+        // registration names; from the intent on, a handler may have mounted the
+        // clone there, and the design compares the mount's source instead.
+        Phase::Cloned => {
+            let mounted: Option<crate::worktree_clone_mount::attached_mount_identity::MountIdentity> = super::add_mount::the_mount_at(route.destination.as_path(), record.clone_dataset.as_str()).map_err(StepRefusal::refused)?;
+            if mounted.is_none() {
+                verify_the_slot_identity(&steps, &record)?;
+            }
+        }
+        Phase::Registered | Phase::Snapshotted => verify_the_slot_identity(&steps, &record)?,
+        _mounted => {}
     }
     if phase_before == Phase::Claimed || phase_before == Phase::Slot {
         step_git(&steps, &mut record)?;
