@@ -409,6 +409,10 @@ the preflight reads no grants,
 the refusal beside a standing plan names the removal even where the plan design says it refuses,
 the account companion the start-probe record put in step 10 is unbuilt,
 and the gate serves only the step 19 dataset;
+those are merged as `2d9fa02ea5` but for the gate,
+the add's printed sentence and the grant set,
+which `pi-zfs-step-10-open-choices-proposal` writes up for the owner,
+ranked by what each delivers;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
@@ -508,10 +512,16 @@ which is not the answer's letter,
 and the proposed guard admits a call site,
 not one name;
 it drafted a rule that keeps both the answer and a fail-closed install.
+The second revision merged as a proposal,
+`37143a1daf`:
+words select every mode on any file,
+the zedlet's name selects only ZED's no-argument start,
+nothing at the root path reaches Git (probed on 28 starts),
+the guards hold every variant the re-read planted,
+and a disk-cold start in a guest costs the wrapper 1.87 times the handler (+6.06 ms).
 Running:
-`pi-zfs-root-modes-second-revision`,
-with its prompt in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
-(branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
+a Sonnet read of that revision's diff
+(`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
@@ -596,9 +606,15 @@ every boot kept its own log,
 and a start bound (V8) and a unit per nested dataset (V9) are new;
 its arms ran on systemd 258 in a Fedora guest set permissive,
 so no result is about an enforcing boot.
+Its Sonnet re-read
+(`re-read-of-the-revised-step-19-design.md` in `~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/keep/`)
+found V9's unit running a mode no grammar holds,
+V8's timeout evidence cited to logs that do not hold it,
+the proposed unit never booted as written,
+and the ZED hook not allowed by this host's `zed` AppArmor profile.
 Running:
-a Sonnet re-read of that revision
-(`~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/`).
+`pi-zfs-step-19-third-revision`
+(folder `~/temp/agent/zfs-step-19-third-revision-2026-11-24/`).
 
 Next:
 the re-read,
