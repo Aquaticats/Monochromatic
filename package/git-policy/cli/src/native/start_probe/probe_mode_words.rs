@@ -25,6 +25,8 @@ use super::probe_record::ProbeRecord;
 use super::probe_record_files::{RecordFileRefusal, RecordPlace};
 use super::probe_errno_names::ErrnoWord;
 use super::probe_report::{ProbeReport, ProbeVerdict};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
+use std::path::{Path, PathBuf};
 
 /// The line the mode says about a run it could not start.
 pub fn unstarted(what: &str, errno: i32) -> String {
@@ -49,8 +51,9 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
             )
         }
         ProbeVerdict::Blocked { arm } => format!(
-            "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}",
-            arm.name()
+            "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}.{}",
+            arm.name(),
+            blocked_hint(report)
         ),
         ProbeVerdict::TimedOut { in_flight, last_finished } => format!(
             "start probe missed its deadline: the step in flight was `{}` and the last one that finished was `{}`, so the record in {record} is not current and managed attaches stay blocked",
@@ -58,6 +61,116 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
             last_finished.map_or("none", |step| return step.name())
         ),
         ProbeVerdict::Skipped { gate_step } => format!("start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists in {record}"),
+    };
+}
+
+/// What:
+///  The command a blocked record's reader needs,
+///  where the arm that did not run was asking for a source the pool does not
+///  hold.
+/// Why:
+///  The design requires the words a person reads to say which setup command
+///  creates the probe dataset
+///  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+///  "The source:
+/// the probe dataset"),
+///  and the record's own reason word is a closed word rather than a command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hint = blockedHint(report); // ' The probe dataset ... `zfs create` ...' or ''
+/// ```
+fn blocked_hint(report: &ProbeReport) -> String {
+    let mut hint: String = String::new();
+    for line in report.lines() {
+        let super::probe_status_line::StepAnswer::NotExercised { reason, .. } = &line.answer else {
+            continue;
+        };
+        if *reason == "missing-source" {
+            let dataset: String = format!("<pool>/{}", crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_PROBE_DATASET_UNDER_THE_POOL);
+            hint.push_str(&format!(
+                " The source that step asked for does not exist in this pool: plan step 19's setup creates it with `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false {dataset}` and its empty snapshot with `zfs snapshot {dataset}@ready`, and `git monochromatic-git-policy-cli doctor` prints both commands with this pool's own name once plan step 18 adds that."
+            ));
+        }
+    }
+    return hint;
+}
+
+/// What:
+///  The reason word a step that did not run carries,
+///  when that word is one the configuration produced.
+/// Why:
+///  The record holds closed words and no prose
+///  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+///  "The result record and its fingerprint"),
+///  so the mode has to recognise the words a person needs a sentence for.
+///  The project's second answer of 2026-11-22 asks for the rows when the
+///  look-up finds none or several
+///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+///  "Four further answers on the look-up with no configuration file"),
+///  and its fourth asks the empty file's message to say what it is,
+///  which binds the probe as much as the sweep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const word = refusalWord(report); // 'configuration-empty' | 'several-mounted-checkouts' | ... | undefined
+/// ```
+pub fn refusal_word(report: &ProbeReport) -> Option<&'static str> {
+    return report.lines().iter().find_map(|line| {
+        return match &line.answer {
+            super::probe_status_line::StepAnswer::NotExercised { reason, .. } if is_configuration_word(reason) => Some(*reason),
+            _ => None,
+        };
+    });
+}
+
+/// Whether one reason word is a refusal about the configuration file,
+/// which the mode has a sentence for.
+fn is_configuration_word(word: &str) -> bool {
+    return matches!(
+        word,
+        "configuration-unreadable"
+            | "configuration-empty"
+            | "configuration-unparsable"
+            | "name-not-text"
+            | "name-refused"
+            | "no-mounted-checkout"
+            | "several-mounted-checkouts"
+            | "mount-table-unreadable"
+    );
+}
+
+/// What:
+///  The sentence the mode prints for the refusal the worker reported,
+///  in the probe's own words.
+/// Why:
+///  Each of the probe's file refusals carries prose that names the file,
+///  the key and what settles it,
+///  and the mode prints the one whose reason word the worker wrote.
+///  The look-up is recomputed in this process,
+///  which is in the host mount namespace,
+///  so none or several lists every row the table held with its path.
+///  A refusal that no longer holds prints nothing:
+///  the file or the table changed between the worker's read and this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sentence = refusal_sentence('several-mounted-checkouts', configuration, liveMountedDatasets);
+/// ```
+pub fn refusal_sentence(word: &str, configuration: &Path, mounts: &dyn MountedDatasets) -> Option<String> {
+    let document: Option<String> = match super::probe_configuration::read_configuration(configuration) {
+        Ok(document) => document,
+        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+        Err(_) => return None,
+    };
+    let checkout: PathBuf = match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
+        Ok(checkout) => checkout,
+        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+        Err(_) => return None,
+    };
+    return match super::probe_configuration::source_name(document.as_deref(), configuration, mounts, Some(checkout.as_path())) {
+        Err(refusal) if refusal.word() == word => Some(refusal.message(configuration)),
+        _ => None,
     };
 }
 

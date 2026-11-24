@@ -27,7 +27,7 @@
 //! ```
 
 use super::probe_deadline::{deadline_from_environment, deadline_passed, remaining};
-use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
+use super::probe_mode_words::{namespace_of, refusal_sentence, refusal_word, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
 use super::probe_test_switch::{TestSwitch, keep_descriptor_from_environment, test_switch_from_environment};
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_holder_control::{Arrival, Holder, reports_of};
@@ -264,7 +264,16 @@ impl<'a> ProbeMode<'a> {
             skip_reason: None,
         };
         self.place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
-        return Ok(verdict_line(verdict, &report));
+        let line: String = verdict_line(verdict, &report);
+        // A refusal about the configuration file gets its sentence in the mode as well: the record keeps closed words,
+        // and a person reads what the file, the table or the setup command needs (the project's second and fourth
+        // answers of 2026-11-22).
+        if let Some(word) = refusal_word(&report)
+            && let Some(sentence) = refusal_sentence(word, self.configuration, &crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets)
+        {
+            return Ok(format!("{line}\n{sentence}"));
+        }
+        return Ok(line);
     }
 }
 

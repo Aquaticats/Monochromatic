@@ -38,6 +38,9 @@
 //!   the checkout's own mount,
 //!   its dataset and its propagation,
 //!   read from the kernel's table.
+//! - `sweep_configuration_refusal.rs`:
+//!   why the sweep has no names to act on,
+//!   and the words a person reads for each cause.
 //! - `attaching_sweep_mode.rs`:
 //!   the default invocation's sweep,
 //!   which step 8 builds.
@@ -83,8 +86,12 @@ pub mod attaching_sweep_mode;
 /// its dataset and its propagation.
 pub mod sweep_checkout_mount;
 
-/// The names the sweep takes from the handler's configuration.
+/// The names the sweep takes from the configuration and the mount table.
 pub mod sweep_configuration;
+
+/// Why the sweep has no names to act on,
+/// and the words for each cause.
+pub mod sweep_configuration_refusal;
 
 /// What one dataset the sweep reached says about itself.
 pub mod sweep_dataset_facts;
