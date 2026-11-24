@@ -75,15 +75,6 @@ use std::path::{Path, PathBuf};
 /// Module tag for diagnostics.
 const TAG: &str = "sweepOneClone";
 
-/// The step a receipt names when an unmount request reaches this build.
-///
-/// Why:
-///  The unmount is plan step 9's,
-///  and a caller that asked for one learns that from the reply and the
-///  handler's journal,
-///  while the durable intent stays on the clone unchanged.
-pub const UNMOUNT_AWAITS_STEP_NINE: &str = "unmount-awaits-step-9";
-
 /// The step a receipt and the first attach's record name when the slot's own
 /// first observation could not be read or recorded.
 pub const IDENTITY_RECORD_STEP: &str = "identity-record";
@@ -291,6 +282,26 @@ pub enum CloneOutcome {
         /// What the step answered.
         said: String,
     },
+    /// The clone's mount and its staging bind left.
+    Unmounted {
+        /// The dataset.
+        name: String,
+        /// The slot.
+        slot: String,
+        /// The mount that left.
+        mount_id: u64,
+    },
+    /// A busy unmount put the same mount back at its slot.
+    Reattached {
+        /// The dataset.
+        name: String,
+        /// The slot.
+        slot: String,
+        /// The clone's mount number.
+        mount_id: u64,
+        /// Whether the staging bind left too.
+        bind_gone: bool,
+    },
     /// Another sweep holds this slot.
     Held {
         /// The dataset.
@@ -306,7 +317,13 @@ impl CloneOutcome {
     /// The dataset this outcome is about.
     pub fn name(&self) -> &str {
         return match self {
-            CloneOutcome::NothingAsked { name, .. } | CloneOutcome::Attached { name, .. } | CloneOutcome::Refused { name, .. } | CloneOutcome::Failed { name, .. } | CloneOutcome::Held { name, .. } => {
+            CloneOutcome::NothingAsked { name, .. }
+            | CloneOutcome::Attached { name, .. }
+            | CloneOutcome::Unmounted { name, .. }
+            | CloneOutcome::Reattached { name, .. }
+            | CloneOutcome::Refused { name, .. }
+            | CloneOutcome::Failed { name, .. }
+            | CloneOutcome::Held { name, .. } => {
                 name.as_str()
             }
         };
@@ -320,6 +337,8 @@ impl CloneOutcome {
         return match self {
             CloneOutcome::NothingAsked { name, slot, why } => format!("nothing {name} slot={slot} why={why}"),
             CloneOutcome::Attached { name, slot, mount_id, canonical_slot } => format!("attached {name} slot={slot} mount={mount_id} at={}", canonical_slot.display()),
+            CloneOutcome::Unmounted { name, slot, mount_id } => format!("unmounted {name} slot={slot} mount={mount_id}"),
+            CloneOutcome::Reattached { name, slot, mount_id, bind_gone } => format!("reattached {name} slot={slot} mount={mount_id} bind-gone={bind_gone}"),
             CloneOutcome::Refused { name, slot, step, said } => format!("refused {name} slot={} step={step}: {said}", slot.as_deref().unwrap_or("none")),
             CloneOutcome::Failed { name, slot, step, said } => format!("failed {name} slot={} step={step}: {said}", slot.as_deref().unwrap_or("none")),
             CloneOutcome::Held { name, slot, said } => format!("held {name} slot={slot}: {said}"),
@@ -375,7 +394,7 @@ fn sweep_one_clone_once(context: &SweepContext<'_>, name: &str, may_read_again: 
         IntentReading::Request(request) => request,
     };
     if request.operation == MountOperation::Unmount {
-        return answer_unmount(&verified, &request);
+        return answer_unmount(context, &verified, &request);
     }
     return mount_the_clone(context, name, &verified, &request, may_read_again);
 }

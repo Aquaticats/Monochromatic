@@ -315,6 +315,40 @@ pub mod worktree_clone_index;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
 
+/// The clone rung for a source with uncommitted changes:
+/// the paths the proof settles cloned,
+/// the index built from the tree,
+/// and the rest written by Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial;
+
+/// Which tracked paths of a source with changes a clone may take,
+/// and which Git writes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_split;
+
+/// The new worktree's index built from the tree of its `HEAD`,
+/// with the stat fields of the files the clones made.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_index;
+
+/// The source's index and the tree of its `HEAD`,
+/// the paths Git writes,
+/// and the stat fields the new index records.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_tracked;
+
+/// The live listing of the paths the source staged,
+/// and the refusal of a staged path among the clones.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_staged;
+
+/// The two provisional limits that send an add to Git's own checkout:
+/// a whole-tree size threshold and a changed-file cut,
+/// each with the measurement it rests on.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_rung_limits;
+
 /// Git's conversion rules for one path,
 /// read from its attributes and `core.autocrlf`/`core.eol`,
 /// as the decision whether a clone may carry the file.

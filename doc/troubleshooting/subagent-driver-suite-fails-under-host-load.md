@@ -405,6 +405,12 @@ Nothing in the driver's store reader is implicated:
 it parses the file it was given, and the file was short.
 A suite run that fails this way should keep the fixture folder the message names before anything is concluded.
 
+From lines 46408 to 46408 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Two more runs ended at 16:19.** The author of the push of a branch that is not checked out ended its thirteenth run at `a38c6dbcc7` and reports it **incomplete**: of the review's findings the first, fourth, sixth, seventh and eighth are fixed and the fifth closed in code; a staged `git rm` is still restored, `git rm --cached` still makes every command in that worktree exit 2, and four of the branch's own reconcile controls fail since its last rule change. A thirteenth run that stopped short gets a fresh run on a new branch from its tip. The fixture run for `env-local-json` ended at `74dbe1200e` (two files): the fixture joined a program's output at `exit` where the pipe closes later, the mechanism behind the driver suite's occasional "is not the JSON a sops store is"; a cut store reproduces that text, and 120 rounds cut none, so the rate stays unmeasured. Its review is to be queued. The idle-window review measured the rate on main on 2026-11-18 (its `keep/probes/`): that test file alone failed 5 of 6 rounds with 6 of 18 stores empty for their whole life, and a probe of the fixture's own shape with eight children in flight captured nothing in 4 of 80 waits for `exit` and the whole document in 80 of 80 waits for `close`.
+
 ## Limits of this record
 
 - The failing test name from the original report was never kept,

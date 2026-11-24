@@ -622,16 +622,22 @@ a clean source with its data written out took 0.51 to 1.57 times as long as Git'
 twenty-three interleaved rounds in five runs,
  once the clones ran in slices,
 where one thread took 1.76 to 2.23 times as long.
-A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
+A source with uncommitted changes paid the source checks and then ended in Git's own checkout:
 0.80 to 1.59 times the same build of `main`,
  medians of 1.25,
  0.93,
  1.24 and 1.17 in its four runs,
- about 0.2 seconds.
-That cost is the check that rung 2 requires and no snapshot can carry out here;
- the measurements,
- the options and
-their costs are with the integration pass that found it.
+ about 0.2 seconds,
+which is the cost the dirty-source waiver recorded
+(`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`).
+That cost ends where the partial clone lands:
+such a source clones every tracked path its proof settles and lets Git write the rest,
+and the two provisional limits that send an add to Git's own checkout instead are pinned,
+with the measurements they rest on,
+in `package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+A linked worktree with uncommitted changes still pays the source checks and then ends in Git's own checkout,
+and step 11's verified dirty restore is still the snapshot's.
 
 The guest arm was written and run on 2026-11-20,
  and the work is **unapproved and not final**.
@@ -1396,6 +1402,72 @@ Steps 2,
 4,
 6 and 8.
 
+#### Notes of the first build, 2026-11-22
+
+The unmount half is built in
+`package/git-policy/cli/src/native/worktree_clone_unmount/`,
+reached from one dispatch arm in
+`sweep_one_clone_answers.rs`.
+It holds the per-removal staging name and record,
+the `user-cache` pin,
+the identity comparisons and the turn that binds,
+moves,
+proves and unmounts from the held descriptor,
+the checked reattach,
+the later sweep from the record's handle,
+the staging claim and the wrapper's `rmdir`-only cleanup.
+The interface steps 14,
+16 and 17 call is
+`staged_unmount::unmount_the_staged_mount` for a held descriptor and
+`staged_unmount::finish_a_staged_unmount` for a fresh process.
+Step 16 will find the retained clone and bind named by the turn's `cancelled` receipt,
+and it must still mount the all-namespace holder scan before its snapshot requests.
+Step 17 will find the reattach's `cancelled` receipt,
+whose failed step names whether the bind is gone,
+which its cancel path reuses.
+Step 18 will find the folder,
+record and claim under the names the SPEC section states,
+and the record's boot id and namespace pair for its print.
+
+The four interrupted states a kill leaves are finished by a later run in the guest
+(2026-11-23):
+a staged clone,
+a left bind,
+a bind over the slot's clone,
+and nothing mounted
+but the record,
+each ending `unmounted` with its `done` receipt and no row at the slot.
+The file handle round trip is a guest arm too:
+one process writes the record,
+a second
+reopens the folder from it.
+The acceptance round of 2026-11-23 gave a stopped unmount its own answer:
+a `cancelled`
+receipt,
+with the clone's mount fields when it is back at its slot and the bind's state in
+the failed step.
+
+Guest arms run on the design's dataset layout in a throwaway guest on 2026-11-22:
+the plain unmount by a handler that did not attach,
+its `done` receipt,
+the clone's destroy after it,
+a holder's `EBUSY` and the checked reattach back to the slot,
+the same clone's unmount after the holder ended,
+and two removals at once.
+The arm's output is in the round's keep folder.
+Still owed by this step:
+the all-namespace holder scan is another round's,
+built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
+the stacked-mount rollback in the guest,
+a reboot with a staged record,
+the repeat of VM items 3,
+4 and 15,
+and M1's stacking arms and M3 to M9 stay owed;
+the unmount's own deadline is unsized here and remains step 22's.
+The `user-cache` pin is read from
+`/var/lib/monochromatic-git-policy-cli/user-cache-pin`,
+which step 19's setup must write before the first removal binds.
+
 ### Step 10: The add route from registration to verified fill
 
 #### What it builds
@@ -1416,9 +1488,12 @@ the wait for the matching mount,
 verified in the caller's namespace;
 the frozen-content comparison inside the clone,
 the omission of the boundaries the design names,
-and the discarded copied Git administration;
-the pointer install,
-the verified fill and the dependency-repair queue;
+and the copied Git administration,
+kept until the pointer's exchange and then left in the wrapper's trash for the disposal;
+the pointer install as that exchange,
+the verified fill and the dependency-repair queue
+(the wording the project chose on 2026-11-23:
+`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`);
 the durable binding record keyed on repository,
 registration and clone GUID;
 the account companion's check code,
@@ -1492,9 +1567,11 @@ holds the whole route back for nothing it protects,
 so the plan takes the design's own order.
 Step 13 then adds `doctor`'s distinction,
 recovery after pointer loss and the release.
-The dirty half stays step 11's,
-with the interim the owner decided on 2026-11-19,
-answering "Ship step 10 first (Recommended)".
+The dirty half's add is served by the partial clone,
+which landed after step 10 with the two provisional limits its decision record names,
+and step 11's verified restore is still rung 1's:
+a snapshot of a dirty subvolume restores the changes afterwards,
+which a clone cannot.
 The binding record's home is a gap this plan names.
 Also blocked by issue 6323,
 found 2026-11-20:
@@ -1577,6 +1654,24 @@ merge now,
 fix it next (Recommended)".
 So step 3 with the fence merges carrying that cost as a limitation,
 and the up-front skip is built and measured against `main` next.
+On 2026-11-21 the project accepted the partial clone of a dirty source
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`):
+rung 2 takes a source with uncommitted changes,
+clones every tracked path its proof still settles,
+lets Git write the changed ones through the fence's one `git checkout-index`,
+and builds the new worktree's index from the tree of the source's `HEAD`.
+Two provisional limits send an add to Git's own checkout instead,
+a whole-tree size threshold and a changed-file cut,
+each pinned with the measurement it rests on in
+`package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
+and both open to the project's veto.
+So a dirty add from this checkout is rung 2's,
+where before the partial clone it was Git's own checkout,
+and the whole add is never slower than Git's own checkout on the shapes measured:
+the usual dirty state at 0.73 to 0.77 of it.
+The up-front skip is unchanged by this and still runs before either rung's copies,
+and the class it does not cover is the path the size proof hands to Git,
+which no sample draws (see "Open items").
 
 #### Depends on
 

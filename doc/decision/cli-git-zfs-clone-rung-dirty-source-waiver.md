@@ -128,3 +128,14 @@ their reviews and the coordinator all measured and reported the clean source as 
 on a machine whose main checkout is rarely clean.
 The project read that as the same mistake as waiting for a quiet host,
 and tightened rule `NQH` in `AGENTS.md` to name the dirty checkout beside the loaded host.
+
+From lines 42163 to 42168 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  it). Whole gate 9265 of 9267, the cause-H pair; touched modules 181 of 181; package list without `uses`. THE OWNER
+  ANSWERED (2026-11-20): asked why the clone path runs checks at all, then "Then this was an even worse decision made and
+  implies multiple agents missed the rule about the machine never being quiet." (the clean-source fast path was designed
+  and measured as the main case on a machine whose main checkout other sessions keep dirty), then "A: merge with cloning
+  on", recorded as the waiver `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`; "Tighten NQH" (committed);
+  and "Yes, design and measure it" for cloning the unchanged files of a dirty source. GOING: the integration pass

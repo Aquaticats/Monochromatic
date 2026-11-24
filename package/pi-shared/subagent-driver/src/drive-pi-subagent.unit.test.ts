@@ -38,11 +38,17 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  CLOSED_POOL_EXIT_STATUS,
   continuationPromptOf,
   FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
+  NEURALWATT_DEEPSEEK_FLEX,
+  NEURALWATT_STANDARD,
+  OPENCODE_GO,
   POLL_MILLISECONDS,
+  POOL_LIMITS_VARIABLE,
   PROCESSES_RECORD_KIND,
+  QWEN_PLAN_DEEPSEEK,
   SUMMARY_FILE_NAME,
   recordsIn,
   type RunSummary,
@@ -428,6 +434,16 @@ type RunRequest = {
   readonly withoutPi?: boolean;
 
   /**
+   The provider this run names, which is the stand-in provider unless a test asks about the pool a run may take.
+   */
+  readonly provider?: string;
+
+  /**
+   The model this run names, which is the stand-in model unless a test asks about the pool a run may take.
+   */
+  readonly model?: string;
+
+  /**
    Text of the prompt file, which no test leaves empty.
    */
   readonly promptText?: string;
@@ -796,6 +812,8 @@ async function runDriver(
     extraOptions = [],
     environment = {},
     withoutPi = false,
+    provider = 'stand-in',
+    model = 'stand-in-model',
     promptText = 'hello',
     withoutPrompt = false,
     extraPathEntries = [],
@@ -836,8 +854,8 @@ async function runDriver(
     `--run-folder=${runFolder}`,
     `--working-folder=${folder.path}`,
     `--prompt-file=${promptFile}`,
-    '--provider=stand-in',
-    '--model=stand-in-model',
+    `--provider=${provider}`,
+    `--model=${model}`,
     `--wall-seconds=${String(wallSeconds,)}`,
     `--idle-seconds=${String(idleSeconds,)}`,
     `--turn-cap=${String(turnCap,)}`,
@@ -2667,6 +2685,127 @@ await describe({
         const [status, standardError,] = await exitOf(execFileAsync(process.execPath, [DRIVER,], { encoding: 'utf8', },),);
         expect(status,).toBe(FAILED_STATUS,);
         expect(standardError,).toContain('--run-folder is required',);
+      },
+    },),
+    it({
+      name: 'refuses a run that names a pool closed to new runs before Pi starts and before anything reaches the run folder, and names the pools to take instead',
+      fn: async () => {
+        /**
+         The owner's reason the pool takes no new run, which the refusal carries.
+         */
+        const reason = NEURALWATT_STANDARD.closed?.reason ?? '';
+        expect(reason.length,).toBeGreaterThan(0,);
+        const run = await runDriver({
+          scenario: 'normal',
+          provider: NEURALWATT_STANDARD.provider,
+          model: NEURALWATT_STANDARD.model,
+        },);
+        expect(run.status,).toBe(CLOSED_POOL_EXIT_STATUS,);
+        // The pool it named, why the pool takes no new run, and the open pools a run that names no model of its own may take instead.
+        expect(run.standardError,).toContain(NEURALWATT_STANDARD.name,);
+        expect(run.standardError,).toContain(reason,);
+        // The driver's command line always names both words, so the refusal never says a default was read in their place.
+        expect(run.standardError,).not.toContain('named no provider',);
+        expect(run.standardError,).toContain(`--provider=${OPENCODE_GO.provider} --model=${OPENCODE_GO.model}`,);
+        expect(run.standardError,)
+          .toContain(`--provider=${NEURALWATT_DEEPSEEK_FLEX.provider} --model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
+        // Pi never started, and the run folder was never made, so a refusal leaves nothing a reader could take for a run.
+        expect(run.logWasWritten,).toBe(false,);
+        expect(run.runFolderWasMade,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'takes a run naming the closed pool once the limits variable gives the pool room, and runs it to its idle end',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: NEURALWATT_STANDARD.provider,
+          model: NEURALWATT_STANDARD.model,
+          environment: {
+            [POOL_LIMITS_VARIABLE]: `${NEURALWATT_STANDARD.name}=${String(NEURALWATT_DEEPSEEK_FLEX.limit,)}`,
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'takes a run that names an open pool',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'takes a run that names the qwen plan\'s DeepSeek pool, which the owner reopened for the short reviews',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: QWEN_PLAN_DEEPSEEK.provider,
+          model: QWEN_PLAN_DEEPSEEK.model,
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'takes a run whose provider and model belong to no pool, as an audit\'s account does',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: 'synthetic',
+          model: 'moonshotai/Kimi-K3.1-Pro',
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'refuses a run that names a pool when the pool limits setting cannot be read, naming the setting and its fault',
+      fn: async () => {
+        /**
+         A setting this command cannot read: a pair that names no pool of the table.
+         */
+        const unreadable = 'not-a-pool=3';
+        const run = await runDriver({
+          scenario: 'normal',
+          provider: NEURALWATT_STANDARD.provider,
+          model: NEURALWATT_STANDARD.model,
+          environment: { [POOL_LIMITS_VARIABLE]: unreadable, },
+        },);
+        // A setting the caller wrote wrong is no closed pool, so it carries the status of any other failure, not the refusal's.
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.standardError,).toContain(POOL_LIMITS_VARIABLE,);
+        expect(run.standardError,).toContain(unreadable,);
+        // The fault is named in the message, not thrown as a stack a reader has to unpack.
+        expect(run.standardError,).not.toContain('\n    at ',);
+        // Nothing was made and Pi was never started, as for any refusal.
+        expect(run.logWasWritten,).toBe(false,);
+        expect(run.runFolderWasMade,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'leaves a run that belongs to no pool alone when the pool limits setting cannot be read, since the setting touches no pool it names',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          idleSeconds: 0,
+          provider: 'synthetic',
+          model: 'moonshotai/Kimi-K3.1-Pro',
+          environment: { [POOL_LIMITS_VARIABLE]: 'not-a-pool=3', },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.standardError,).not.toContain(POOL_LIMITS_VARIABLE,);
+        expect(run.summary.endReason,).toBe('idle',);
       },
     },),
   ],

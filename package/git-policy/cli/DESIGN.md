@@ -38,6 +38,42 @@ The owner has said the same thing in other words earlier in this work:
 - On flaky tests:
   they "should be fixed properly".
 
+From lines 48306 to 48321 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The ceiling is about 16 s, and the three steps over it (2026-11-08)
+
+The owner was shown the scratch `git commit` steps of this repository's commit timing log
+(886 records that name the step,
+twelve of them past the 3,006 ms ceiling then in force),
+chose "About 16 seconds",
+three times the slowest ordinary step (5,444 ms),
+and added:
+"About 16s,
+and investigate what happened for those 3 commits.
+If we can't figure it out,
+then we have a defect and should log more."
+"Those 3 commits" are the steps that would still run past 16 s:
+26,256,
+36,651 and 171,383 ms.
+
+From lines 48912 to 48923 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Recorded here only (no other home found):
+- "We also have the advantage of git itself being OSS so we're not just wrapping a black box."
+  (2026-11-03T07:36:28-05:00).
+  Practice:
+  for every Git step the wrapper runs or replaces,
+  read Git 2.56.0's own source for what it locks,
+  waits on and can exit
+  nonzero for,
+  cite file and line,
+  and where a step moves in process port Git's logic so the result equals Git's.
+  A v2.56.0 clone is at `~/temp/agent/git-v2.56.0-2026-11-03`.
+
 ## Concurrent committers will keep growing
 
 The owner also said:

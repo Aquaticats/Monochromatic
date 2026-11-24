@@ -58,8 +58,9 @@ export type ProviderPool = {
 };
 
 /**
- The limit a pool carries while it takes no new run, which those the owner took out of use do: one the owner replaced, and the
- one that replaced it and was then taken out. A pool with a weekly limit carried it too while its week was spent.
+ The limit a pool carries when it takes no new run and keeps no other number, which standard Neuralwatt does because the qwen plan
+ replaced it. A pool the owner set aside with a number it returns to, such as Neuralwatt's Kimi pool, keeps that number and carries
+ a `closed` reason instead. A pool with a weekly limit carried this limit too while its week was spent.
 
  A closed pool keeps its place in the table because its runs are still counted where they are, and because a run that names the
  launcher's default provider and model is still read as a default run, which the first pool with room then takes.
@@ -67,14 +68,22 @@ export type ProviderPool = {
 export const CLOSED_POOL_LIMIT = 0;
 
 /**
- The qwen plan's DeepSeek pool, which no new run takes since the owner took it out of the pools on 2026-11-13.
+ The qwen plan's DeepSeek pool, which only a run naming its own model takes, and which the owner reopened for the short reviews on
+ 2026-11-18.
 
- The owner, 2026-11-13T14:5x-05:00: "Remove Qwen hosted Deepseek from the pool." So the limit is {@link CLOSED_POOL_LIMIT},
- and it was 18. The same plan answers the reviews on `qwen4-max-preview`, and that afternoon it had answered four of them
- "429 ... Allocated quota exceeded", which its documentation gives as a limit on tokens per second or minute; the runs of this
- pool drew on the same plan. The entry stays so that the runs already on it are counted where they are and finish there.
+ The owner, 2026-11-18: "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool." and "Orderings: qwen
+ individual token plan first." Those words supersede the removal of 2026-11-13T14:5x-05:00, "Remove Qwen hosted Deepseek from the
+ pool.", which had closed this pool at {@link CLOSED_POOL_LIMIT} for five days.
 
- What it was before: the owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen
+ The limit is 5, taken from {@link QWEN_PLAN_QWEN4_MAX_PREVIEW} on the same plan rather than measured on this model: that comment
+ reads the plan's answer "429 ... Allocated quota exceeded" as its limit on tokens a second or a minute, its own advice of six to
+ eight agents on its largest personal tier, and a retry after about a minute as what lets a run live through the answer. Nothing
+ has measured this model, so nothing argues for a different number.
+
+ `takesDefaultRuns` is false: the owner's order puts these reviews first among the pools, and a run that names no model of its own
+ must still take `opencode-go` first and then Neuralwatt's flex pool, because those are the writing pools.
+
+ What it was before the removal: the owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen
  itself. Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So
  default runs went here first, where they had gone to standard Neuralwatt, with the 18 slots that pool had.
 
@@ -89,12 +98,9 @@ export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
   name: 'qwen-plan-deepseek',
   provider: 'qwen-token-plan-individual',
   model: 'deepseek-v4.1-flash-1017',
-  limit: CLOSED_POOL_LIMIT,
+  limit: 5,
   wallFactor: 1,
-  takesDefaultRuns: true,
-  closed: {
-    reason: 'the owner took the qwen plan\'s DeepSeek model out of the pools on 2026-11-13',
-  },
+  takesDefaultRuns: false,
 };
 
 /**
@@ -104,7 +110,8 @@ export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
  {@link CLOSED_POOL_LIMIT} and it was 18. The entry stays so that the runs already on standard Neuralwatt are counted where
  they are, and so a run that names the launcher's default provider and model is still read as a default run and placed on the
  first pool with room. The pool that replaced it was itself taken out on 2026-11-13, and nothing was said then about this one,
- so it stays as it was: closed.
+ so it stays as it was: closed. Its `closed` field carries the reason the replacement gives, which is what a command refusing a
+ run that names this pool shows its caller.
 
  The owner, 2026-11-09 kept the account's own limit at 20: "Try 20, and if it doesn't blow up (in terms of api rate limits),
  we're permanently raising the practical limit to 20." Historical 429s that lowered it for a few hours are void: the owner wrote
@@ -117,11 +124,15 @@ export const NEURALWATT_STANDARD: ProviderPool = {
   limit: CLOSED_POOL_LIMIT,
   wallFactor: 1,
   takesDefaultRuns: true,
+  closed: {
+    reason: 'the owner replaced it with the qwen plan\'s DeepSeek pool on 2026-11-11',
+  },
 };
 
 /**
  Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes when `opencode-go` has no room or is
- closed: the owner prefers that pool since 2026-11-16, and the other pools before this one in the table are closed.
+ closed: the owner prefers that pool since 2026-11-16, and the pools before this one in the table are closed or take only their
+ own model.
 
  The owner, 2026-11-10: "You can use -flex postfix on neuralwatt models. They have their own separate pool of 22 slots. They're
  around 100% slower than standard in practice." A flex run therefore gets twice the wall clock, which is what `wallFactor` is
@@ -393,11 +404,46 @@ export function poolsWithTheseLimits({
       limit,
       wallFactor: pool.wallFactor,
       takesDefaultRuns: pool.takesDefaultRuns,
+      // A pool a caller closes says so, and a pool the owner had already closed says both: the caller's zero is what takes no new
+      // run now, and the owner's reason is why the pool was set aside in the first place. A reader told only about the zero would
+      // take a mistyped setting for the whole story.
       ...((limit > 0)
         ? {}
-        : { closed: pool.closed ?? { reason: `${POOL_LIMITS_VARIABLE} set its limit to zero`, }, }),
+        : { closed: { reason: closedReasonOf({ pool, },), }, }),
     };
   },);
+}
+
+/**
+ Says why a pool a caller closed takes no new run: the caller's zero, and, for a pool the owner had already closed, the owner's own
+ reason after it.
+
+ @param pool - the pool as it ships, which carries the owner's reason when the owner closed it
+
+ @returns the reason the pool takes no new run now
+
+ @example
+ ```ts
+ const reason = closedReasonOf({ pool: NEURALWATT_KIMI_FLEX, },);
+ ```
+ */
+function closedReasonOf({ pool, }: { readonly pool: ProviderPool },): string {
+  /**
+   What the caller's zero says, which is what takes no new run now.
+   */
+  const byTheCaller = `${POOL_LIMITS_VARIABLE} set its limit to zero`;
+  /**
+   The owner's own closing of this pool, when it carries one.
+   */
+  const { closed, } = pool;
+  if (closed === undefined) {
+    return byTheCaller;
+  }
+  /**
+   The owner's reason, which follows the caller's zero rather than standing in for it.
+   */
+  const byTheOwner = closed.reason;
+  return `${byTheCaller}, and ${byTheOwner}`;
 }
 
 /**
@@ -528,6 +574,41 @@ export function poolNamed({
     holds: 'a-pool',
     pool: found,
   };
+}
+
+/**
+ Reads the pool a table holds under the same name as another, so a limit a caller set applies to a pool whose provider and model
+ came from the shipped table.
+
+ A count is taken against the pools a caller handed over, which carry the limits a caller set, while the pool a run's own words
+ name comes from the shipped table, which knows neither that limit nor a closing. Reading the room off the shipped pool is how a
+ pool closed through the variable still took runs that named its model.
+
+ @param pool - the pool another table names
+
+ @param pools - the table to read it from
+
+ @returns that table's pool of that name, or the pool given when the table holds none
+
+ @example
+ ```ts
+ const counted = poolOfThatNameIn({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, pools: tallies.pools, },);
+ ```
+ */
+export function poolOfThatNameIn({
+  pool,
+  pools,
+}: {
+  readonly pool: ProviderPool;
+  readonly pools: readonly ProviderPool[];
+},): ProviderPool {
+  /**
+   The table's pool of that name, when it holds one.
+   */
+  const held = pools.find(function isTheSamePool(candidate,) {
+    return candidate.name === pool.name;
+  },);
+  return held ?? pool;
 }
 
 /**
