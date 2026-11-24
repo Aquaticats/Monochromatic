@@ -93,6 +93,9 @@ const POWER_SLOT: &str = "power";
 /// The variable that makes the power-loss arm's before half cut the guest's power when its work is done.
 const CUT_VARIABLE: &str = "CLI_GIT_ZFS_ADD_CUT_POWER";
 
+/// The OpenZFS release the guest's own module must answer, as the driver's recipe pins it (`OPENZFS_RELEASE`).
+const OPENZFS_RELEASE: &str = "2.4.4-1";
+
 /// What the before halves keep on the guest's own root disk, which a reboot and a cut both keep.
 const KEPT_FOLDER: &str = "/root/zfs-add-kept";
 
@@ -499,17 +502,35 @@ impl Fixture {
         self.make_the_checkout_private();
     }
 
-    /// Load the guest's own OpenZFS modules, which a boot leaves unloaded.
+    /// What:
+    ///  Make the guest's own OpenZFS module the loaded one.
+    /// Why:
+    ///  A boot loads nothing,
+    ///  and the first `zpool` or `zfs` command loads the distribution's own module through modprobe,
+    ///  which answers 2.2.2 here and which the wrapper's compatibility gate refuses,
+    ///  because only the module the driver built carries the type information at `/sys/kernel/btf/zfs`.
+    ///  So a loaded module whose release is not the pinned one is removed and the driver's own two are inserted.
     fn load_the_module(&self) {
-        if Path::new("/sys/module/zfs").is_dir() {
+        let loaded: String = std::fs::read_to_string("/sys/module/zfs/version").unwrap_or_default().trim().to_string();
+        if loaded == OPENZFS_RELEASE {
             return;
+        }
+        if !loaded.is_empty() {
+            for module in ["zfs", "spl"] {
+                let _removed: Output = Command::new("/usr/sbin/modprobe")
+                    .args(["--remove", module])
+                    .output()
+                    .unwrap_or_else(|error| panic!("modprobe --remove {module} could not start: {error}"));
+            }
         }
         let kernel: String = std::fs::read_to_string("/proc/sys/kernel/osrelease").expect("this kernel's release").trim().to_string();
         for module in ["spl", "zfs"] {
             let path: String = format!("/lib/modules/{kernel}/extra/{module}.ko");
-            let loaded: Output = Command::new("/usr/sbin/insmod").arg(path.as_str()).output().unwrap_or_else(|error| panic!("insmod {path} could not start: {error}"));
-            assert!(loaded.status.success(), "insmod {path} was refused: {}", String::from_utf8_lossy(loaded.stderr.as_slice()));
+            let inserted: Output = Command::new("/usr/sbin/insmod").arg(path.as_str()).output().unwrap_or_else(|error| panic!("insmod {path} could not start: {error}"));
+            assert!(inserted.status.success(), "insmod {path} was refused: {}", String::from_utf8_lossy(inserted.stderr.as_slice()));
         }
+        let now: String = std::fs::read_to_string("/sys/module/zfs/version").expect("the module's release").trim().to_string();
+        assert_eq!(now, OPENZFS_RELEASE, "the guest runs the OpenZFS module the driver built");
     }
 
     /// Make the checkout's mount share nothing,
@@ -965,12 +986,14 @@ fn the_boot_arm_reads_a_record_written_before_the_guest_rebooted() {
         return;
     };
     let fixture: Fixture = Fixture::bare();
+    // The first half imports too, because a half is run again after a cut that left the pool unimported, and the import
+    // is skipped when the pool already answers.
+    fixture.import_the_pool();
     if half == BEFORE {
         fixture.adopt_the_guest();
         boot_before(&fixture);
         return;
     }
-    fixture.import_the_pool();
     fixture.adopt_the_guest();
     if std::env::var("CLI_GIT_ZFS_ADD_PLANT").is_ok() {
         boot_plant(&fixture);
@@ -994,12 +1017,14 @@ fn a_flushed_write_is_read_back_after_the_guest_loses_power() {
         return;
     };
     let fixture: Fixture = Fixture::bare();
+    // The first half imports too, because a half is run again after a cut that left the pool unimported, and the import
+    // is skipped when the pool already answers.
+    fixture.import_the_pool();
     if half == BEFORE {
         fixture.adopt_the_guest();
         power_before(&fixture);
         return;
     }
-    fixture.import_the_pool();
     fixture.adopt_the_guest();
     power_after(&fixture);
 }

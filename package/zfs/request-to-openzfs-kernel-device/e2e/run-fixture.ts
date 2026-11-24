@@ -575,6 +575,22 @@ function step3Environment(options: Options): string {
     `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`;
 }
 
+/**
+ The guest's own OpenZFS module, loaded and checked, as shell lines a step runs before it touches a pool.
+ Why every such step does this: a boot of the guest loads nothing, and the first `zpool` or `zfs` command loads the
+ distribution's own module through modprobe, which answers 2.2.2 and which the wrapper's compatibility gate refuses,
+ because only the module this recipe built carries the type information at `/sys/kernel/btf/zfs`.
+ */
+const STEP10_LOAD_THE_MODULE = [
+  `if test "$(cat /sys/module/zfs/version 2>/dev/null)" != ${OPENZFS_RELEASE}; then`,
+  '  if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
+  '  if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
+  '  insmod /lib/modules/$(uname --kernel-release)/extra/spl.ko',
+  '  insmod /lib/modules/$(uname --kernel-release)/extra/zfs.ko',
+  'fi',
+  `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
+].join('\n');
+
 /** The OpenZFS userspace's library and program paths, as shell assignments. */
 const STEP3_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/bin:${OPENZFS_PREFIX}/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 
@@ -1421,6 +1437,7 @@ function step10Pool(options: Options): void {
   const script = [
     'set -eu',
     `export ${STEP10_OPENZFS}`,
+    STEP10_LOAD_THE_MODULE,
     `mkdir --parents ${STEP10_FIXTURE_ROOT}`,
     `chmod 0755 ${STEP10_FIXTURE_ROOT}`,
     `if zpool list -H -o name | grep --quiet "^${STEP10_POOL}$"; then zpool destroy -f ${STEP10_POOL}; fi`,
@@ -1460,6 +1477,8 @@ function step10Arms(options: Options): void {
   });
   const build = [
     'set -eu',
+    `export ${STEP10_OPENZFS}`,
+    STEP10_LOAD_THE_MODULE,
     'if test -f /mnt/shared/step10-wrapper.tar.gz; then cp /mnt/shared/step10-wrapper.tar.gz /root/step10-wrapper.tar.gz; fi',
     `mkdir --parents ${STEP10_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step10-wrapper.tar.gz --directory ${STEP10_WRAPPER_ROOT}`,
@@ -1511,7 +1530,7 @@ function step10SplitArm(options: Options, phase: string, test: string, log: stri
     `cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${test})" > /root/${log}.log 2>&1`,
     `tail --lines=40 /root/${log}.log`,
     `grep --quiet "^test zfs_add_guest::${test}" /root/${log}.log`,
-    'grep --quiet "^MEASUREMENT " /root/${log}.log',
+    `grep --quiet "^MEASUREMENT " /root/${log}.log`,
   ].join('\n');
   guest({ options, script, log: `${log}.log`, timeout: SUITE_TIMEOUT_MS });
 }
@@ -1565,10 +1584,12 @@ function step10BootPlant(options: Options): void {
   const moved = `${slot}-planted-away`;
   const script = [
     'set -eu',
-    // The reboot ended every mount, so the folder below the slot answers.
-    `test ! -e ${slot}/.git`,
+    // The reboot ended every mount, so the folder below the slot answers; it still holds the pointer file Git wrote
+    // there, which the record names in `pointer=`, and the replacement is a fresh empty folder that answers another
+    // inode and another birth time.
     `mv ${slot} ${moved}`,
     `mkdir --mode=0755 ${slot}`,
+    `test -d ${slot}`,
     `test ! -e ${slot}/.git`,
   ].join('\n');
   guest({ options, script, log: 'step10-boot-plant.log', timeout: RECORD_TIMEOUT_MS });
@@ -1635,7 +1656,9 @@ function step10PowerBefore(options: Options): void {
     `export ${step10Environment(options)}`,
     `export ${STEP10_PHASE_VARIABLE}=${STEP10_BEFORE}`,
     `export ${STEP10_CUT_VARIABLE}=1`,
-    `cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${STEP10_POWER_TEST})" > /root/${log} 2>&1 || true`,
+    // The output goes to this command's own stream rather than a guest file: the cut ends the record, so the copy the
+    // reader keeps has to be the one on this side of the connection.
+    `cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${STEP10_POWER_TEST})" || true`,
   ].join('\n');
   guestThroughTheCut({ options, script, log, timeout: SUITE_TIMEOUT_MS });
   const said: string = readFileSync(join(options.logDir, log), 'utf8');
@@ -1703,7 +1726,7 @@ function step10Record(options: Options): void {
  prepared, and pull the logs even when an arm failed.
 
  The order is one guest's: the suite's own arms, then T27's two records written, the guest rebooted, T27's record read
- after the reboot and after an export and import of its dataset (with the red control's replaced folder run in between),
+ after the reboot and after an export and import of its dataset, then the red control's replaced folder required to fail,
  then T28's record written and the guest's power cut the instant it is, and that record read back.
  */
 function step10(options: Options): void {
@@ -1713,8 +1736,10 @@ function step10(options: Options): void {
     step10Arms(options);
     step10BootBefore(options);
     step10BootReboot(options);
-    step10BootPlant(options);
+    // The read comes before the plant: the plant replaces a folder of the checkout, which a half after the reboot
+    // imports and mounts, and the green half must read the record before the red one is allowed to fail.
     step10BootAfter(options);
+    step10BootPlant(options);
     step10PowerBefore(options);
     step10PowerAfter(options);
   } catch (thrown) {
