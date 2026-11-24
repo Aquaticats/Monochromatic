@@ -666,9 +666,15 @@ and gives `git` the cgroup controller list.
 Denials are read from `/var/log/audit/audit.log` with `list-denials-in-a-window.ts`,
 since neither the journal nor `ausearch`'s window showed them
 (the account's "Rules added").
-Running:
-`gate-on-main-after-the-eighth-batch-20261123`,
-one whole gate on `main` at `6f2b9ef708`.
+The gate on `main` at `6f2b9ef708`,
+after the eighth batch and the `stale_ref_lock` fix,
+gave `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`:
+the cause-H pair alone,
+which is not AppArmor's
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H").
+Its only denials were `umount`'s `dac_override` (no test needs it)
+and the browser's.
+So AppArmor enforcement costs `main` no test now.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -680,11 +686,10 @@ by the owner
 ("Things a new session would not find elsewhere" has the owner's words).
 
 Next:
-read that gate;
-if only the cause-H pair fails,
-the baseline is cause H alone,
-which is not AppArmor's
-(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H").
+read the denials of each later batch gate with `list-denials-in-a-window.ts`
+and add rules for what this work meets;
+cause H is its own work
+(the account's "Cause H").
 
 #### Tests that failed once and are not diagnosed
 
