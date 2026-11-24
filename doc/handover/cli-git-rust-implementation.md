@@ -417,13 +417,28 @@ The owner answered its three questions
 no set-aside,
 read every thread and root,
 and the wrapper names the holders before each destroy.
+The fix round ended at `9969232138`:
+no set-aside,
+an unreadable namespace link named as an incomplete read,
+a nonce per scan,
+every thread and root read with four guest arms,
+25 plants each red without its guard,
+and `299 tests run: 299 passed` on the host
+(`keep/report-pi-zfs-step-9-holder-scan-integration-pass-findings.md` in
+`~/temp/agent/zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/`).
+A holder on a detached mount is found by no scan of processes;
+`SPEC.md` names it as a limit.
+Its merge stopped on conflicts with the unmount,
+which merged first,
+in `SPEC.md`,
+the guest end-to-end file and `binary_tests.rs`.
 Running:
-`pi-zfs-step-9-holder-scan-integration-pass-findings`,
-with the answers in its inbox.
+`pi-zfs-step-9-holder-scan-merge-main`,
+on the same branch.
 
 Next:
-a second Sonnet pass.
-This branch lands before the unmount.
+merge it when it ends;
+its Sonnet pass is the release's.
 
 #### Step 9: the unmount, staging and reattach
 
