@@ -736,3 +736,40 @@ fn a_restore_refuses_a_copy_whose_tracked_file_is_a_directory() {
     assert!(refusal.contains("a.txt") && refusal.contains("directory"), "{refusal}");
     remove(root.as_path());
 }
+
+/// What:
+///  A copy holding an untracked path the account cannot remove ends the restore
+///  at its clean,
+///  before the reset and the proof.
+/// Why:
+///  `git clean --force -d` fails to unlink a file inside a directory it cannot
+///  write,
+///  and this is the class of failure the route's preflight cannot rule out by
+///  reading the source:
+///  the immutable bit, a full disk and a filesystem that stops answering end a
+///  step the same way.
+///  The settle of plan step 14 is its answer, and the route's decline is for the
+///  shapes the proof and the removal refuse from the source's own bytes
+///  (`add_source_the_restore_cannot_prove.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync('d', 0o500); expect(restoreDirty(source, target, stage)).toContain('clean --force -d');
+/// ```
+#[test]
+fn a_restore_ends_at_the_clean_it_cannot_finish() {
+    let root: PathBuf = fixture("restore-unwritable-directory");
+    let repo: PathBuf = committed(root.as_path());
+    let held: PathBuf = repo.join("d");
+    std::fs::create_dir(held.as_path()).expect("the untracked directory");
+    std::fs::write(held.join("held.txt"), b"held\n").expect("a file inside it");
+    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the directory loses its write permission");
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--no-checkout", "--quiet", destination.to_string_lossy().as_ref(), "HEAD"]);
+    let (source, target) = the_source_and_target_of((root.as_path(), repo.as_path(), destination.as_path()));
+    let mut steps = real_steps(root.as_path());
+    let refusal: String = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment()).expect_err("the clean cannot unlink the file");
+    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the fixture gives the permission back");
+    assert!(refusal.contains("clean --force -d") && refusal.contains("ended with"), "{refusal}");
+    remove(root.as_path());
+}

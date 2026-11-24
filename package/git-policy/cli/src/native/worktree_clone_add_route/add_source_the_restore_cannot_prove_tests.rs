@@ -212,3 +212,33 @@ fn a_clean_checkout_is_asked_nothing() {
     assert_eq!(reasons, Vec::<String>::new());
     remove(root.as_path());
 }
+
+/// What:
+///  An untracked path the account cannot remove is no reason.
+/// Why:
+///  This is the boundary of the two questions:
+///  a clean that cannot unlink a path (`warning: failed to remove ...:
+///  Permission denied`, exit 1) is a step failure,
+///  not a refusal of the proof,
+///  and no read of the source can rule out every such failure (the immutable
+///  bit, a full disk, a filesystem that stops answering).
+///  The settle of plan step 14 is that class's answer,
+///  and the restore's own control shows the clean ending for this fixture
+///  (`worktree::worktree_dirty_restore::tests::a_restore_ends_at_the_clean_it_cannot_finish`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync('d', 0o500); expect(reasonsTheRestoreCannotProve(source)).toEqual([]);
+/// ```
+#[test]
+fn a_path_the_clean_cannot_remove_is_no_reason() {
+    let repo: PathBuf = a_dirty_checkout("shapes-unwritable-directory");
+    let held: PathBuf = repo.join("d");
+    std::fs::create_dir(held.as_path()).expect("the untracked directory");
+    std::fs::write(held.join("held.txt"), b"held\n").expect("a file inside it");
+    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the directory loses its write permission");
+    let reasons: Vec<String> = reasons_the_restore_cannot_prove((&git_context(), &the_source(repo.as_path()))).expect("Git answers");
+    std::fs::set_permissions(held.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the fixture gives the permission back");
+    assert_eq!(reasons, Vec::<String>::new(), "a step failure is the settle's, not this question's: {reasons:?}");
+    remove(repo.parent().expect("the fixture root"));
+}
