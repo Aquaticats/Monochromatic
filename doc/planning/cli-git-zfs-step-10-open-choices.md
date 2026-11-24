@@ -287,10 +287,11 @@ the accepted design's A0 says the preflight
 "refuses a source that is not clean,
 so a dirty main checkout stops the add before the claim instead of falling to the ladder's rung 3"
 (`cli-git-zfs-add-binding-record-design.md`:1857 to :1859),
-and the decision record gives the dirty half of the restore to step 11
-(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+and the decision record's own allocation is "the dirty half of the restore is step 11's"
+(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`:42 to :44),
+which is the plan's
 "Step 11:
-The dirty-main restore and the frozen proof").
+The dirty-main restore and the frozen proof".
 
 The consequence for this document is narrow and it is the reason it is stated first:
 **an option that widens reach lowers what a person with uncommitted changes gets,
