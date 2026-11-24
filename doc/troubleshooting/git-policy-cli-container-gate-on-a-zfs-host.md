@@ -2382,10 +2382,10 @@ The bound is derived from the control's own named ceiling and from `SHADOW_CREAT
 Contention only lengthens a wait,
 so the bound cannot flake on a busy host.
 What it rejects is an attempt that returned before its ceiling,
-which is a refusal returned as a finished command:
-the program ran,
-printed the system's words,
-and the start ended at once.
+which is a refusal returned as a finished command,
+where the program ran and printed the system's words,
+or a cut returned at once without a program behind it,
+which is the defect the bound was added to catch.
 Measured:
 a first start that prints the refusal and exits fails the bound at 548.950692ms
 (issue 6344's integration pass,
