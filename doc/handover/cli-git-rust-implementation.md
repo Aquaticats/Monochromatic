@@ -892,9 +892,14 @@ and B needing AppArmor rules in two stacked profiles per build,
 and added an option J:
 the sentence itself as `SSH_ASKPASS`'s value,
 which OpenSSH prints in its exec failure line.
+Its revision merged as a proposal,
+`082c3ff8eb`,
+ranked B > C > J > D > C2 > E > A with a run transcript for every option,
+B run live through a stand-in of its contract in an unconfined container,
+and J shown silent under `-q`.
 Running:
-`pi-typed-network-command-next-step-after-its-review`,
-with its prompt in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
+a Sonnet read of that revision
+(`~/temp/agent/gate-review-typed-network-command-revision-2026-11-24/`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
