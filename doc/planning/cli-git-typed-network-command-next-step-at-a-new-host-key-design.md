@@ -90,8 +90,6 @@ read from the source:
   (the owner's answer of 2026-11-19T16:58:00-05:00,
   recorded in `package/git-policy/cli/SPEC.md:8461` onward and in
   `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
-  A typed command's streams are the caller's own,
-  so the terminal is handed over and no part of the wrapper stays behind to read Git's standard error.
 - the wrapper already has the two sentences this document is about,
   and they reach only the two places where the wrapper owns the child:
   the LFS upload's explanation
@@ -113,7 +111,8 @@ section "Words for a typed command at an unknown host key or a missing passphras
 
 Read from `V_10_6_P2`,
 the release this machine runs (`ssh -V` prints `OpenSSH_10.6p2`).
-The files are in the round's `scratch/src/`.
+The files were fetched from `raw.githubusercontent.com/openssh/openssh-portable/V_10_6_P2/<file>`
+and are kept in the round's `keep/src/`.
 
 `ssh_askpass` runs the program,
 in `readpass.c:47` to `:108`:
@@ -216,7 +215,8 @@ and that an exec failure is one more way to give no answer.
 
 Read from Git 2.56.1 (`git --version`),
 the version the wrapper shadows here.
-The files are in the round's `scratch/src/git/`.
+The files were fetched from `raw.githubusercontent.com/git/git/v2.56.1/<file>`
+and are kept in the round's `keep/src/git/`.
 
 `git_prompt` and `do_askpass`,
 `prompt.c:12` to `:77`:
@@ -309,7 +309,8 @@ How Git reaches the server,
   (`src/native/source_guard/no_self_invocation_rules_tests.rs`).
   Nothing in the options below starts the wrapper as Git,
   and the guard's `own-executable` exception in `invocation/real_git.rs` already carries the wrapper's own path for
-  identification.
+  identification
+  (`std::env::current_exe()` at `src/native/invocation/real_git.rs:587`).
 
 ## The options
 
@@ -335,6 +336,12 @@ which the wrapper does not touch,
 or add the key to `known_hosts`.
 
 Cost: nothing.
+
+Its documentation-only complement:
+`package/git-policy/cli/README.md` and the man page could say that the first contact with a host needs one plain
+`ssh <host>`,
+which costs no code and does nothing for the person who meets the refusal without having read it.
+That is a complement to any option below and never an option of its own.
 
 Pros: no code,
 no new mode,
@@ -409,18 +416,37 @@ the mode itself could not be run on this machine, see "What the probes did not s
 
 ```text
 # git clone ssh://root@127.0.0.1:2222/work/served.git          (new host key)
+Cloning into '/work/clone-w'...
 monochromatic-git-policy-cli: this machine does not know the SSH host key of `[127.0.0.1]:2222`, and no command the
 wrapper runs asks whether to trust a new one, so the connection stopped before any login. Connect once with plain
 `ssh -p 2222 root@127.0.0.1`, which the wrapper does not touch and which still asks, or add the host key of that machine
 to `known_hosts`, then run this command again.
-Cloning into '/work/clone-w'...
 Host key verification failed.
 fatal: Could not read from remote repository.
 ...
 ```
 
-The sentence comes first because OpenSSH runs the program while it is deciding,
-before its own last line.
+```text
+# git clone ssh://root@127.0.0.1:2222/work/served.git          (key nobody could unlock)
+Cloning into '/work/clone-p-b'...
+monochromatic-git-policy-cli: this command needed the passphrase of the key `/root/.ssh/id_probe`, and no command the
+wrapper runs asks a person for one, so the connection stopped at the key. Start an agent with `eval "$(ssh-agent)"`
+...
+root@127.0.0.1: Permission denied (publickey).
+fatal: Could not read from remote repository.
+...
+```
+
+The sentence sits between Git's first line and OpenSSH's last one:
+Git writes `Cloning into` before the transport starts,
+which every clone transcript in `keep/probe-clone-transcripts.txt` shows,
+and OpenSSH prints its fault after the askpass program returned.
+That second half is measured rather than assumed:
+the exec denial this machine's confinement prints from inside the askpass child
+(`ssh_askpass: exec(...): Permission denied`)
+also appears before `Host key verification failed.`
+(`keep/probe-transcripts.txt`,
+arm `askpass`).
 
 Cost on a command that meets no prompt: no process and no read.
 The only difference from today is the value of `SSH_ASKPASS`,
@@ -512,7 +538,7 @@ command again.
 ```
 
 The words are the same as B's,
-after Git's own lines instead of before them,
+but after Git's last lines instead of between Git's first line and OpenSSH's,
 and they can name the remote's host because the wrapper resolved the remote,
 but not the key's path for the passphrase case
 (the login sentence names no key).
@@ -539,7 +565,7 @@ and is the shape the wrapper already uses where it owns a child
 (`run_real_git`,
 `src/native/invocation/forwarding.rs:216`).
 
-Cons, both measured, and both matter more than the cost:
+Cons, the first two measured, and both matter more than the cost:
 
 - the live progress display disappears.
   Git draws progress only when its standard error is a terminal,
@@ -623,6 +649,12 @@ which is 0.92 of the wrapper's own added cost:
 the wrapper's overhead on each network command would almost double.
 The check is also blind to a `HostName` alias whose key lives on a jump host,
 and to any known-hosts file a `ProxyCommand` or `ProxyJump` makes the far side read.
+
+Its degenerate variant prints the sentence before every network command over SSH with no check at all:
+no process,
+no cost,
+and words that cry wolf on every successful clone and fetch.
+That is why the check is part of the option rather than an omission from it.
 
 Pros: no change to how Git runs,
 no new mode,
@@ -821,8 +853,9 @@ so drift between rounds cancels (`keep/timings3.txt`):
   which is 1.00 by definition;
 - C's stand-in: +0.86 ms (range -5.99 ms to +10.67 ms),
   0.12 of the wrapper's added cost;
-- E's stand-in: +9.07 ms,
-  1.10 of the wrapper's added cost against its own direct-`ssh` control;
+- E's stand-in: +9.07 ms over plain `git`,
+  and +7.92 ms over its own control that names `ssh` itself,
+  which is 1.10 of the wrapper's added cost;
 - D's two processes: 4.53 ms and 2.09 ms,
   0.92 of the wrapper's added cost;
 - B: no process and no read on this path,
