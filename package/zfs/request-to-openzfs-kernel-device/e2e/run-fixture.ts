@@ -29,7 +29,7 @@
 // Every step writes one log per command under the log directory and prints it.
 
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync, } from 'node:fs';
+import { closeSync, mkdirSync, openSync, writeFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
 //region Constants
@@ -1420,6 +1420,8 @@ const STEP10_BOOT_TEST = 'the_boot_arm_reads_a_record_written_before_the_guest_r
 const STEP10_POWER_TEST = 'a_flushed_write_is_read_back_after_the_guest_loses_power';
 /** The slot the red control replaces the folder of, whose record was written before the reboot. */
 const STEP10_BOOT_PLANT_SLOT = 'boot-plant';
+/** The folder the split arms keep their evidence in: the guest's own root disk, which a reboot and a cut both keep. */
+const STEP10_KEPT = '/root/zfs-add-kept';
 /** The variable that makes T28's before half cut the guest's power the instant its own work is done. */
 const STEP10_CUT_VARIABLE = 'CLI_GIT_ZFS_ADD_CUT_POWER';
 /** The plant's own words, which the red run must carry, so a run that failed for another reason never passes it. */
@@ -1437,10 +1439,12 @@ function step10Pool(options: Options): void {
   const script = [
     'set -eu',
     `export ${STEP10_OPENZFS}`,
-    STEP10_LOAD_THE_MODULE,
     `mkdir --parents ${STEP10_FIXTURE_ROOT}`,
     `chmod 0755 ${STEP10_FIXTURE_ROOT}`,
+    // A pool left by an earlier run is torn down first, by whichever module holds it, because a module in use cannot be
+    // removed; only then is the recipe's own module the loaded one.
     `if zpool list -H -o name | grep --quiet "^${STEP10_POOL}$"; then zpool destroy -f ${STEP10_POOL}; fi`,
+    STEP10_LOAD_THE_MODULE,
     `rm --force ${STEP10_FIXTURE_ROOT}/pool.img ${STEP10_FIXTURE_ROOT}/raw-key`,
     `truncate --size 1G ${STEP10_FIXTURE_ROOT}/pool.img`,
     `head --bytes 32 /dev/urandom > ${STEP10_FIXTURE_ROOT}/raw-key`,
@@ -1621,7 +1625,7 @@ function guestThroughTheCut({ options, script, log, timeout }: GuestScript): voi
 
 /** Wait, bounded, until the guest answers again after its power cut and keep the probe's answer in its own log. */
 function step10WaitForTheGuest(options: Options, log: string): void {
-  const deadline: number = Date.now() + 300_000;
+  const deadline: number = Date.now() + 180_000;
   for (;;) {
     const probe = spawnSync(
       'mvm',
@@ -1632,7 +1636,7 @@ function step10WaitForTheGuest(options: Options, log: string): void {
     if (probe.status === 0 && probe.stdout.trim().length > 0)
       return;
     if (Date.now() > deadline)
-      throw new Error(`guest '${options.name}' did not answer within 300 s of its power cut; see ${log}`);
+      throw new Error(`guest '${options.name}' did not answer within 180 s of its power cut; see ${log}`);
     spawnSync('sleep', ['10'], { timeout: 30_000, });
   }
 }
@@ -1648,6 +1652,15 @@ function step10WaitForTheGuest(options: Options, log: string): void {
  */
 function step10PowerBefore(options: Options): void {
   const log = 'step10-power-before.log';
+  const kept = `${STEP10_KEPT}/power.binding`;
+  const bootOfTheCut = `${STEP10_KEPT}/power.boot-id`;
+  // The two copies this half leaves are what proves it reached the cut, so any earlier pair is removed first.
+  guest({
+    options,
+    script: `set -eu\nrm --force ${kept} ${bootOfTheCut}`,
+    log: 'step10-power-cleared.log',
+    timeout: RECORD_TIMEOUT_MS,
+  });
   const script = [
     'set -eu',
     `cd ${STEP10_WRAPPER_DIR}`,
@@ -1656,15 +1669,21 @@ function step10PowerBefore(options: Options): void {
     `export ${step10Environment(options)}`,
     `export ${STEP10_PHASE_VARIABLE}=${STEP10_BEFORE}`,
     `export ${STEP10_CUT_VARIABLE}=1`,
-    // The output goes to this command's own stream rather than a guest file: the cut ends the record, so the copy the
-    // reader keeps has to be the one on this side of the connection.
+    // The guest reboots under this command, so nothing after it runs and its own output is not judged here: what the
+    // half kept on the guest's root disk is judged instead.
     `cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${STEP10_POWER_TEST})" || true`,
   ].join('\n');
   guestThroughTheCut({ options, script, log, timeout: SUITE_TIMEOUT_MS });
-  const said: string = readFileSync(join(options.logDir, log), 'utf8');
-  if (!said.includes('MEASUREMENT before-cut'))
-    throw new Error(`the power-loss arm's first half did not print its measurement before the guest lost power; see ${log}`);
-  step10WaitForTheGuest(options, 'step10-power-cut.log');
+  step10WaitForTheGuest(options, 'step10-power-wait.log');
+  const judged = [
+    'set -eu',
+    // The record was kept, and the guest that answers now is another boot than the one that kept it: both are what the
+    // arm's own cut leaves, and either missing means this step proved nothing.
+    `test -s ${kept}`,
+    `test "$(cat ${bootOfTheCut})" != "$(cat /proc/sys/kernel/random/boot_id)"`,
+    `echo "power cut: kept ${kept} under boot $(cat ${bootOfTheCut}), answering under $(cat /proc/sys/kernel/random/boot_id)"`,
+  ].join('\n');
+  guest({ options, script: judged, log: 'step10-power-cut.log', timeout: RECORD_TIMEOUT_MS });
 }
 
 /** T28's second half: the record the route flushed read back after the guest lost power. */

@@ -843,7 +843,12 @@ fn boot_before(fixture: &Fixture) {
     for name in [BOOT_SLOT, BOOT_PLANT_SLOT] {
         fixture.clear_one_slot(name);
         let output: Output = fixture.run_add(name);
-        assert!(output.status.success(), "the add at {name} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+        assert!(output.status.success(), "the add at {name} failed: {said}");
+        assert!(
+            said.contains("made the worktree as a ZFS clone"),
+            "the add at {name} took the ordinary worktree path instead of the clone route, so no record was written: {said}"
+        );
         let record: BindingRecord = fixture.binding(name).unwrap_or_else(|| panic!("the filled add at {name} wrote no binding"));
         assert_eq!(record.phase, Phase::Filled, "the add at {name} filled the worktree");
         // The recorded identity is the empty slot folder's, and the clone now covers that path:
@@ -918,7 +923,12 @@ fn boot_plant(fixture: &Fixture) {
 fn power_before(fixture: &Fixture) {
     fixture.clear_one_slot(POWER_SLOT);
     let output: Output = fixture.run_add(POWER_SLOT);
-    assert!(output.status.success(), "the add at {POWER_SLOT} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert!(output.status.success(), "the add at {POWER_SLOT} failed: {said}");
+    assert!(
+        said.contains("made the worktree as a ZFS clone"),
+        "the add at {POWER_SLOT} took the ordinary worktree path instead of the clone route, so there is no record to lose: {said}"
+    );
     let bytes: Vec<u8> = fixture.binding_bytes(POWER_SLOT).unwrap_or_else(|| panic!("the filled add at {POWER_SLOT} wrote no binding"));
     let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| panic!("the record at {POWER_SLOT} is not this grammar's: {refusal:?}"));
     assert_eq!(record.phase, Phase::Filled, "the add at {POWER_SLOT} filled the worktree, so its last record write is the filled one");
