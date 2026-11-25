@@ -7,18 +7,20 @@ put to the owner.
 Nothing in it is approved or final:
 this revision is unapproved and non-final,
 and only the owner declares anything complete.
-What this round did is seven capped containers and one probe,
-all logged under its round folder;
+What this round did is one capped container, started twice
+(the second start corrected the first's missing `TERM`),
+after the sixth round's seven container runs (eighteen container starts);
 what it checked is named with every figure,
 and what it could not check is under "What the probes did not show".
 
 This text is the proposal as revised after the gate review kept at
-`~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`,
-whose verdict was "Not ready to put to the owner as written",
-with no High finding,
-nine Medium findings and a list of Low findings.
+`~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`,
+whose verdict was "not ready to put to the owner as written",
+with one High finding,
+eight Medium findings and a list of Low findings.
 Every finding is answered under "What this revision changed",
 each with the edit it caused or the measurement that showed it did not hold.
+That review read the revision at `cfbfa7aaf6` (2026-11-25T17:20:11-05:00).
 
 It designs the words a typed `git clone`,
 `fetch`,
@@ -37,16 +39,19 @@ because the owner answered "Put `false` back (Recommended)"
 That is the state every option here starts from.
 
 Worktree:
-`.claude/worktrees/host-key-next-step-design-sixth-revision`,
-branch `docs/planning-host-key-next-step-design-sixth-revision`,
-made from `main` at `568ef25e10`.
+`.claude/worktrees/host-key-next-step-design-seventh-revision`,
+branch `docs/planning-host-key-next-step-design-seventh-revision`,
+made from `main` at `4db44a2f1c`, merged with `main` at `69140e6791`
+(2026-11-25T18:22:14-05:00) as `80e89d20e9`.
 Round folder:
-`~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/`,
-whose `keep/` holds this round's seven container logs and their scripts,
-the stand-ins they ran,
-the sentences they printed,
-the derived medians,
-and a one-container probe of `insteadOf`.
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/`,
+whose `keep/` holds this round's container log and its script,
+the launch line that names the container's limits,
+`lib.sh`, the three stand-ins and the four sentence files.
+A bare `keep/...` path anywhere else in this document means the sixth round's folder,
+`~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`,
+whose log or file the sentence names with the arm it reads;
+this round's own log is always named with its full folder path.
 Only this file changed in the repository;
 no code was changed,
 and nothing under `doc/decision/` or `doc/handover/` was touched.
@@ -157,8 +162,11 @@ and the coordinator adds it to `doc/handover/questions-for-the-owner.md` when it
 
 This section stands alone:
 the result in plain words,
-what each option shows a person,
+one sentence per option,
+what each shows a person,
 which commands it covers,
+what it makes the wrapper own,
+what a signal sent to the typed process number does,
 what it costs,
 the ranking with a reason for every adjacent pair,
 what each answer leaves,
@@ -174,13 +182,31 @@ whether the words fit what happened,
 what the person gives up on the commands that meet no refusal,
 and what the wrapper has to own to say it.
 
+### What each option is, in one sentence
+
+`A` changes nothing: the wrapper's process becomes Git, so no part of the wrapper is left to say anything.
+`C` starts Git as the wrapper's child, reads its standard error through a pipe, and prints the sentence after the
+child ends when the transcript reads as a refusal.
+`K` does what C does but gives Git a pseudo-terminal on standard error instead of a pipe, so Git draws what a terminal
+gets, and relays the terminal's bytes before printing the sentence.
+`K2` is K when the wrapper's own standard error is a terminal and C's pipe when it is not, decided by one `isatty`
+call.
+`C2` starts Git as its child with the person's own streams untouched and, after exit 128, prints the sentence its
+known-hosts check calls for.
+`D` runs `ssh -G` and `ssh-keygen -F` before Git starts and prints the host-key sentence before the command when no
+file holds a key and the setting is `ask`.
+
 ### What each option shows a person at a new host key
 
-Each block is a measured transcript or, for A, the state on `main`;
+Each block is a measured transcript from this round's log,
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`,
+or, for A, the state on `main`;
 `probe` stands where the arm's own clone directory stood,
 and the sentence is cut short here and printed whole under "The words".
+A block whose carriage returns were turned into line ends, or whose repeated progress updates were dropped, says so
+in its label; no block here is composed.
 
-A, nothing:
+A, nothing (run, arm `o-newkey-a-wrappers-value`):
 
 ```text
 Cloning into 'probe'...
@@ -189,8 +215,8 @@ fatal: Could not read from remote repository.
 ```
 
 C, the wrapper keeps Git as a child and reads a pipe
-(run, `keep/run-11-the-words-as-revised.log`, arm `w-newkey-ask-direct-c-relay`;
-normalised; the sentence is under "The words"):
+(run, arm `o-newkey-c-relay`;
+normalised, the log's `err| ` prefixes and the arm's clone directory removed; the sentence is under "The words"):
 
 ```text
 Cloning into 'probe'...
@@ -202,19 +228,67 @@ and the repository exists.
 monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, ... run this command again.
 ```
 
-K and K2, at a terminal, print C's words, and keep the progress lines a terminal draws.
-Composed from the measured `TERMINAL` line of the typed run and from a refusal's lines
-(`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`):
+K, at the same refusal (run, arm `o-newkey-k-pty`; normalised, the log's `err| ` prefixes removed):
 
 ```text
-Receiving objects: 100% (2/2), done.
-remote: Counting objects: 100% (2/2), done.
+Cloning into 'probe'...
 Host key verification failed.
-...
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, ... run this command again.
+```
+
+K's captured bytes differ from C's even at this refusal: seven carriage returns against one (`o-newkey-k-pty`
+against `o-newkey-c-relay`).
+K2 at the same refusal is C's pipe and carries one (`o-newkey-k2-adaptive`).
+The three print the same lines, and what K and K2 buy appears only on a command that draws a progress display.
+
+### What K and K2 buy, and what each capture gets
+
+At a terminal, a successful clone of two thousand objects, normalised: each carriage return starts a new line, the
+`\033[K` erase-line prefix is dropped from the view, and the repeated percentage updates are dropped, so the block
+shows the lines a person ends up reading.
+Plain Git (run, arm `o-terminal-ok-a-wrappers-value`):
+
+```text
+Cloning into 'probe'...
+remote: Enumerating objects: 2002, done.
+remote: Counting objects: 100% (2002/2002), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 2002 (delta 0), reused 2002 (delta 0), pack-reused 0 (from 0)
+Receiving objects: 100% (2002/2002), 84.30 KiB | 9.37 MiB/s, done.
+```
+
+C at the same terminal (run, arm `o-terminal-ok-c-relay`):
+
+```text
+Cloning into 'probe'...
+```
+
+K2 at the same terminal (run, arm `o-terminal-ok-k2-adaptive`): plain Git's lines, with 8619 bytes against plain
+Git's 8617 and 216 carriage returns against 210, the six extra being the doubled line ends.
+
+With standard error captured alone, the same clone gives plain Git 37 bytes and K2 37 bytes, identical byte for
+byte (`o-capture-plain` and `o-capture-k2-adaptive`); K gives 8592 bytes, 210 carriage returns and 107 escape bytes
+(`o-capture-k-pty`).
+Shown through `cat -A`, which prints a carriage return as `^M` and an escape as `^[`:
+
+```text
+# plain Git and K2, the whole capture (37 bytes)
+Cloning into '/work/clones/probe'...$
+```
+
+```text
+# K, the first 320 bytes, the last line cut where the log cut it
+Cloning into '/work/clones/probe'...^M$
+^[[Kremote: Enumerating objects: 2002, done.^M$
+^[[Kremote: Counting objects:   0% (1/2002)^M^[[Kremote: ...
 ```
 
 C2, Git kept with the person's own streams, a sentence after exit 128
-(run, the same log, arm `w-newkey-ask-direct-c2-check-unknown`):
+(run, arm `o-newkey-c2-check-unknown`):
 
 ```text
 Cloning into 'probe'...
@@ -225,30 +299,76 @@ monochromatic-git-policy-cli: this machine does not know the SSH host key of `ta
 ```
 
 D, a check before Git starts
-(run, the same log, arm `w-newkey-ask-direct-d-precheck`):
+(run, arm `o-newkey-d-precheck`):
 
 ```text
 monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, ... run this command again.
 Cloning into 'probe'...
 Host key verification failed.
+...
 ```
 
 ### Which commands each option covers
+
+Measured on stand-ins, not on the wrapper.
+`keep/stand-ins/standin.c` starts Git as its child and relays, and no arm traced the wrapper's own paths.
+The wrapper has no single entry point for a typed network command, and a `pull` that merges runs its network step
+itself as `git fetch --update-head-ok` through `run_wrapper_own_git` (`merge/pull_isolation.rs`), so a `pull`'s
+fetch never passes the top-level forwarding arm.
+The coverage below is what the stand-ins show; the paths it would reach in the wrapper were not traced end to end.
 
 - C, K and K2 cover `clone`, `fetch`, `pull` and a non-LFS `push`, because they read a refusal's transcript and
   every one of those ends non-zero: 128 for `clone`, `fetch` and a `push`, and 1 for a `pull` at a new host key
   (run, `keep/run-11-the-words-as-revised.log`, arms `w-pull-newkey-c-relay`, `w-pull-newkey-k-pty` and
   `w-pull-newkey-k2-adaptive`; and `keep/run-7-unreachable-host-and-pull.log`, arms `c-newkey-fetch-c-relay` 128
   and `c-newkey-push-c-relay` 128).
-- C2 covers `clone`, `fetch` and a `push`, and does not cover `pull`: every C2 shape speaks on exit 128 only,
-  and a `pull` at a new host key ends 1 (run, `keep/run-11-the-words-as-revised.log`,
-  arms `w-pull-newkey-c2-status` and `w-pull-newkey-c2-check-unknown`, both exit 1 with no sentence;
-  the `pull` status was first measured in
+- C2 with its ranked gate, exit 128, covers `clone`, `fetch` and a `push`, and does not cover `pull`, because a
+  `pull` at a new host key ends 1 (run, `keep/run-11-the-words-as-revised.log`, arms `w-pull-newkey-c2-status` and
+  `w-pull-newkey-c2-check-unknown`, both exit 1 with no sentence; the `pull` status was first measured in
   `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`,
   arm `a-pull-newkey exit=1`).
-- D covers all four, because it speaks before the command whatever the command is
-  (run, the same log, arm `w-pull-newkey-d-precheck`, exit 1 with the sentence printed before `Cloning into`).
+  That gap is a gate choice and not a property of C2: a gate on any non-zero status would cover `pull`, but it would
+  also speak after every other non-zero end (a rejected push, a merge conflict) whenever its check finds no key, and
+  that variant is unrun, its effect an inference.
+- D covers all four, because it speaks before the command whatever the command is (run, this round's log, arm
+  `o-newkey-d-precheck`, and `keep/run-11-the-words-as-revised.log`, arm `w-pull-newkey-d-precheck`: exit 1, the
+  sentence's line first and `Host key verification failed.` second, because a `pull` prints no `Cloning into`).
 - A covers none.
+
+The SPEC passage every child-keeping option amends is the one saying a plain forwarded `git fetch` or `git push`
+replaces the wrapper process with Git, "so there is no \"after\" to look at"
+(`package/git-policy/cli/SPEC.md:14821`): C, K, K2 and C2 have an after.
+D adds a step before the handover and does not contradict that sentence, and A amends nothing.
+
+### What each option makes the wrapper own
+
+- C: the pipe, the read, the wait, the exit status and the signal ending, and the order of its own sentence after
+  Git's output.
+- K: C's list, plus the pseudo-terminal's life, the size it is given at the start, and its end after the child ends.
+- K2: K's list in both shapes, and the one `isatty` call that chooses between them.
+- C2: the child and the wait, the exit status and the signal ending, the sentence after exit 128, and on the failure
+  path the check's two starts.
+- D: the check's two starts before every command, and the sentence before the command.
+- A: nothing.
+
+### What a signal sent to the typed process number does
+
+Today a typed command is Git: the wrapper replaces its own process, so `kill` of the typed process number, a
+`timeout` or a harness stop reaches Git.
+Every option that keeps a child changes that:
+
+- C, K and K2: a terminal's control character signals the whole foreground group and still reaches Git, and a signal
+  sent to the wrapper's own process number reaches the wrapper and Git only if the wrapper publishes the child to
+  the relay it already has.
+  That relay's header says what it is for: "a signal a process sends to the wrapper reaches that child until the
+  token is dropped" (`package/git-policy/cli/src/native/process/signal_relay_relayed_child.rs`).
+  The design uses it; no arm sent such a signal, so this paragraph is source and design, not measurement.
+- C2: the wrapper starts Git with inherited streams and waits (`run_real_git` in `invocation/forwarding.rs`), which
+  has no signal relay today, so a signal to the wrapper's own process number reaches the wrapper alone unless C2
+  adds one; a terminal's control character still reaches Git because the child stays in the foreground group.
+- D: a signal during the check reaches the wrapper and ends the check, and a signal during the command reaches Git,
+  because the wrapper has replaced itself by then.
+- A: everything reaches Git, as today.
 
 ### What each option costs, including the read of the remote
 
@@ -295,8 +415,12 @@ and the owner is free to pick any of the six.
   Both give the same words and keep the progress display at a terminal.
   When the person's standard error is not a terminal, plain Git draws nothing, and K2's pipe presents exactly
   that: measured, its captured transcript is plain Git's, byte for byte, 37 bytes with no carriage returns and no
-  escapes, where K's is 8593 bytes with 210 carriage returns and 107 escapes
-  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`).
+  escapes, where K's is 8592 bytes with 210 carriage returns and 107 escapes
+  (run, this round's log, arms `o-capture-plain`, `o-capture-k2-adaptive` and `o-capture-k-pty`).
+  Shown through `cat -A`, K2's whole capture is `Cloning into '/work/clones/probe'...$`, and K's first line already
+  ends `...^M$` before a `^[[Kremote: ...` line, which is the change no flag removes.
+  Even a refusal, where Git draws nothing, carries seven carriage returns under K against one under C and K2
+  (`o-newkey-k-pty`, `o-newkey-c-relay`, `o-newkey-k2-adaptive`).
   K2 costs `+0.74 ms` where K costs `+0.85 ms`, a difference this harness does not resolve, so cost decides
   nothing here; what decides it is that K's captured-stream change falls on every agent session, hook, CI step
   and script that captures a typed command's output, and K2's falls on no one.
@@ -304,18 +428,25 @@ and the owner is free to pick any of the six.
   At a terminal, the place where a person watches a clone and meets a security key's touch notice,
   K behaves as plain Git does:
   measured, plain Git and K each draw the progress lines and C draws none
-  (run, the same log, the `TERMINAL` lines),
+  (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
+  the `TERMINAL` lines; and this round's log, arms `o-terminal-ok-*`),
   and OpenSSH writes the touch notice to standard error only when that stream is a terminal
   (`readpass.c:252`, `:253` and `:279`, source only).
+  C also loses Git's colour: on a failed push at a terminal plain Git writes five escape bytes (one `\033[K` and
+  four colour sequences on the rejected-ref and `error:` lines) and C writes none, while K writes the same five as
+  plain Git (run, `keep/run-5-remote-line-under-a-terminal.log`, arms `r-fail-plain-terminal`,
+  `r-fail-c-relay-terminal` and `r-fail-k-pty-terminal`).
   C's display comes back with `--progress`, and K's captured bytes come back with `--no-progress` once the
   terminal's output processing is cleared (measured: `redirect-k-pty-raw-no-progress` is 37 bytes, identical to
   plain Git's), so a flag the person types recovers each of those two in part.
   Two of K's four effects survive every flag: the escape `\033[K` in front of a relayed line stays with
   `--no-progress` and the processing cleared (run, `keep/run-9-check-without-a-source-and-no-progress.log`,
-  arm `n-fail-k-pty-raw-no-progress`, five escape bytes and the line printed as `\033[Kremote: ...`),
+  arm `n-fail-k-pty-raw-no-progress`, five escape bytes, one `\033[K` and four colour sequences, and the relayed
+  line printed as `\033[Kremote: ...`),
   and every descendant's own answer to `isatty(2)` stays too.
-  So neither stream is purely recoverable: C loses the display and the touch notice at a terminal, K adds a
-  carriage return per line, an escape per relayed line and a terminal answer for every descendant on a capture.
+  So neither stream is purely recoverable: C loses the display, the touch notice and Git's colour at a terminal, K
+  adds a carriage return per line, an escape per relayed line and a terminal answer for every descendant on a
+  capture.
   A reader who weighs captured logs over terminal displays would put C first; this document weighs the person at
   the terminal, because the refusal is met there and the capture is a machine's log.
 - C over C2.
@@ -325,23 +456,26 @@ and the owner is free to pick any of the six.
   arms `f-known-missing-direct-c-relay` and `f-locked-direct-c-relay`).
   C2's ranked shape reads a status and a known-hosts check, and it is silent at that same locked key,
   the refusal whose words the person most needs (measured, arm `f-locked-direct-c2-check-unknown`).
-  It is also silent for `pull` and, at an unreachable host, it speaks wrongly (both measured this round and
-  listed under "C2").
+  It is also silent for `pull` and, at an unreachable host, it speaks wrongly (both measured in the sixth round's
+  logs and listed under "C2").
   What C2 keeps over C is real:
   it holds the person's own streams, so its captured bytes are plain Git's and it loses neither the progress
-  display nor the touch notice;
-  it keeps the terminal's signals; and it survives `-q`, where C reads lines OpenSSH has stopped printing.
+  display nor the touch notice; and it survives `ssh -q` or `LogLevel=QUIET`, where C reads lines OpenSSH has
+  stopped printing (`git clone -q` is not that word: it leaves C's line, measured this round, arms
+  `o-quiet-clone-c` and `o-quiet-ssh-c`).
   Both pay one fork and one wait (`+0.68 ms` each in the same rounds).
-  The person trades words that fit the refusal for a `-q` transcript and an untouched terminal,
+  The person trades words that fit the refusal for a `ssh -q` transcript and an untouched terminal,
   and this document takes the words.
 - C2 over D.
   C2's check runs only after a failure, where D's two starts run before every command and its sentence can
   precede a command that then fails for another reason or succeeds.
-  Both were measured this round:
+  Both were measured:
   D speaks before a clone that ends 0 when its check has no source for the person's ssh options
   (run, `keep/run-9-check-without-a-source-and-no-progress.log`, arm `s-known-no-source-d-precheck`),
   and C2's ranked shape speaks the host-key sentence on a connection refused
   (run, `keep/run-11-the-words-as-revised.log`, arm `w-never-seen-c2-check-unknown`).
+  What favours the lower option is `pull`: D covers it and C2's ranked gate does not
+  (`keep/run-11-the-words-as-revised.log`, `w-pull-newkey-d-precheck` against `w-pull-newkey-c2-check-unknown`).
   So the older claim that C2's shape never announces a refusal that did not happen is withdrawn:
   both can be wrong, and the difference is when and how often.
   C2 is wrong only after a 128 with no key known to its check, D is wrong before every command whose
@@ -356,31 +490,47 @@ and the owner is free to pick any of the six.
 - D over A.
   D speaks for the plain new-key case, measured, and its words arrive before the refusal.
   A never speaks, and at the first contact with every host the person is left with no next step.
-  D pays with two extra process starts on every typed network command and with a sentence that can be wrong
-  about why the command failed; A pays nothing and says nothing.
+  D pays with two extra process starts on every typed network command, with a sentence that can be wrong about why
+  the command failed, and with a sentence before a clone that then succeeds when its check cannot read the person's
+  options (run, `keep/run-9-check-without-a-source-and-no-progress.log`, arm `s-known-no-source-d-precheck`, where
+  the clone ends 0); A pays nothing and says nothing.
 
 ### What each answer leaves
 
 - K2: the words arrive at both refusals OpenSSH prints, name the host as the person typed it,
-  and nothing changes in what a captured command writes;
-  at a terminal the person keeps the progress display and the touch notice.
-  A `-q` command still gets nothing, and a typed LFS push needs the double-sentence fix.
-- K: the same words, and every captured stream gains Git's progress bytes, a carriage return per line,
-  an escape per relayed line and a terminal answer for every descendant.
-- C: the same words, plain Git's bytes in every capture, and no progress display and no touch notice at a
+  and nothing changes in what a captured command writes: measured for standard error captured alone (37 bytes,
+  plain Git's) and for both streams merged into one file (a `git pull` of 245 bytes, identical to plain Git's;
+  `o-merged-plain` and `o-merged-k2`).
+  At a terminal the person keeps the progress display, Git's colour and the touch notice.
+  A `ssh -q` or `LogLevel=QUIET` command still gets nothing, and a typed LFS push needs the double-sentence fix.
+- K: the same words, and every captured stream gains Git's progress bytes, a carriage return per line, an escape per
+  relayed line, Git's colour and a terminal answer for every descendant.
+- C: the same words, plain Git's bytes in every capture, and no progress display, no colour and no touch notice at a
   terminal unless the person passes `--progress`.
-- C2: `-q` still works and nothing is lost on a successful command;
-  a key nobody can unlock, a `pull`, and any 128 whose check reads the wrong configuration still get no words
-  or the wrong ones.
-- D: advice before the command fails, one of the two refusals never covered, and two extra process starts on
-  every typed network command.
+- C2: `ssh -q` still works and nothing is lost on a successful command;
+  a key nobody can unlock, a `pull` under its ranked gate, and any 128 whose check reads the wrong configuration
+  still get no words or the wrong ones.
+- D: advice before the command fails, one of the two refusals never covered, a sentence that can precede a clone that
+  succeeds when the check cannot read the person's options, and two extra process starts on every typed network
+  command.
 - A: nothing changes, and a person at a new host key or with a key no agent holds still reads OpenSSH's line and
   Git's `fatal:` with no next step.
 
+Every sentence here offers `plain ssh <host>` as the way forward.
+That works when the person's options are in the configuration plain `ssh` reads; when they come from
+`GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH`, the advised `ssh` reads other settings, adds the key to another
+file, and the typed command is refused again: measured this round, plain `ssh -F <the person's config> target`
+accepted the key into the default `known_hosts` (one line) while the typed clone, whose known-hosts file was named
+by `GIT_SSH_COMMAND`, still ended 128 (`o-advice-gsc-ssh` and `o-advice-gsc-clone-after`); the same `ssh` with the
+person's own `-o UserKnownHostsFile=<their file>` accepted the key there and the clone then ended 0
+(`o-advice-gsc-ssh-with-option` and `o-advice-gsc-clone-after-option`).
+
 ### The second question: does the wrapper read the remote first
 
-The ranking under "The owner's question" assumes the wrapper reads the remote before it decides what to do,
-which is a separate decision and is put here as its own question.
+The ranking under "The owner's question" assumes the wrapper reads the remote before it decides whether to relay,
+or relays every transport.
+That is a separate decision.
+It changes C, K and K2; for C2, D and A it changes nothing.
 
 - Read the remote first, and relay only a remote ssh carries.
   For a `clone` the URL is in the command's own arguments, and the read is `git ls-remote --get-url`,
@@ -388,28 +538,51 @@ which is a separate decision and is put here as its own question.
   `gh:served.git` prints as `ssh://target/work/served.git` through both `git remote get-url` and
   `git ls-remote --get-url`).
   For a named remote it is one start, `+0.85 ms` on every typed network command.
-  An `https` clone never meets a pseudo-terminal and never has its bytes changed.
+  For a typed `push` it must be `git remote get-url --push`, because a `pushurl` or a `pushInsteadOf` can send a
+  push elsewhere and the read without `--push` does not return that URL
+  (`doc/planning/cli-git-no-self-invocation.md`, the note naming the push URL).
+  An `https` or `file` clone keeps its process replacement, its bytes and its signals.
 - Relay every typed network command whatever the transport.
   Nothing is read on the happy path, and the host for the sentence is read after a failure,
   which costs the same `+0.85 ms` only where a sentence is printed.
-  An `https` or `file` clone gets K's pseudo-terminal and K's four captured-stream effects, and no words,
-  because no ssh refusal can occur there.
+  Every non-ssh command pays the fork and the wait (between `+0.68` and `+0.85 ms` by shape), loses its process
+  replacement, and so no longer gives a signal sent to the typed process number straight to the transport; at a
+  terminal K and K2 also put a pseudo-terminal on an `https` or `file` clone's standard error, changing what its
+  descendants answer to `isatty(2)` and what a capture holds, where no ssh refusal can occur.
+
+What the first answer makes of this:
+
+- K2, K or C: read-first adds one Git start to every ssh command and keeps every other transport exactly as it is;
+  relay-everything saves that start on ssh commands and spends the fork, the wait, the process replacement and, at a
+  terminal, the pseudo-terminal on every other transport.
+- C2: moot for relaying, because C2 relays nothing; a transport read would add `+0.85 ms` to every command and change
+  nothing C2 prints, because its check already runs only after exit 128.
+- D: moot, because D reads the host before every command already.
+- A: moot, because A adds nothing.
 
 Ranking: read the remote first, over relaying everything.
-The read is inside the network round trip on every typed command that names a remote,
-while relaying an `https` clone changes the bytes of commands that can meet no such refusal,
-which is the cost K already carries and K2 exists to avoid.
-The person who pays one extra process start per command pays it to keep every unrelated command's bytes as
-plain Git left them.
+Read-first confines the change to commands ssh carries, while relaying everything changes the bytes, the process and
+at a terminal the terminal answer of commands that can meet no such refusal, which is the cost K already carries and
+K2 exists to avoid.
+The owner's recorded "Spawn reduction: save as many processes as possible"
+(`doc/planning/cli-git-spawn-and-sync-reduction.md`, "Decisions (user)") bears on both: read-first adds one Git
+start to every ssh command, and relay-everything adds a fork and a wait to every non-ssh command.
+The read may not need a start: the wrapper already reads `url.*.insteadof` and `url.*.pushinsteadof` in process for
+the LFS plan (`lfs/lfs_upload_plan.rs`, `url_aliases`, and `repo_read/repo_read_query_refs.rs`, which refuses the
+snapshot path when a rewrite exists), so a clone URL's rewrite can be applied in process; a named remote still pays
+one `remote get-url` for its URL (`doc/planning/cli-git-no-self-invocation.md`, the note beginning
+"Not changed: the interactive upload").
+That in-process read is source and inference, not measured, and the spawn decision was recorded for the commit path,
+so its reading here is this document's.
 
 ### The composition this document does not offer
 
-K2 and C2's check are complements in one sense: a K2 whose transcript is empty under `-q` could fall back on
+K2 and C2's check are complements in one sense: a K2 whose transcript is empty under `ssh -q` could fall back on
 the check.
 This document does not offer that combination, because the check's own failure is measured:
 at a connection refused for a host never seen it speaks the host-key sentence
 (run, `keep/run-11-the-words-as-revised.log`, arm `w-never-seen-c2-check-unknown`),
-and under `-q` that is exactly the transcript K2 would have to fall back from,
+and under `ssh -q` that is exactly the transcript K2 would have to fall back from,
 so the combination would answer "no words" with the wrong words.
 The owner may ask for it all the same;
 it would need the check narrowed to the refusals it can tell apart, which is the work C2 already does not do.
