@@ -11,7 +11,8 @@ The owner, that day: "So pay the debt."
 
 This guide adds to the repository's skill for writing code in a language other than TypeScript,
 `.agents/skills/dum-dum-non-ts/SKILL.md`,
-which sets the code's shape (the simplest constructs) and its comments (the What, Why and Gotcha template the crate uses);
+which sets the code's shape (the simplest constructs)
+and its comments (the What, Why and Gotcha template the crate uses);
 load that skill before your first Rust edit, then write by both.
 What follows is what that skill does not cover: how this crate's tests and children behave.
 
@@ -20,7 +21,8 @@ What follows is what that skill does not cover: how this crate's tests and child
 `cargo test --lib` runs a module's tests as threads of one process, and that is how rounds run them on this host.
 The container gate runs each test in a process of its own,
 so a test that only holds alone passes the gate and fails every threaded run.
-Before you report, run each module you touched threaded (`cargo test --locked --offline --lib <module>`, default threads)
+Before you report, run each module you touched threaded
+(`cargo test --locked --offline --lib <module> -- --skip guest --skip _arm_tests`, default threads, guest arms skipped)
 and name the run's `test result` line.
 A test that passes alone and fails threaded is a defect of that test until a measurement shows otherwise
 (`AGENTS.md`'s SUF);
@@ -50,10 +52,12 @@ Never write a fixed path outside the fixture root (no `/tmp`, no shared name und
 A child a test starts is the test's to end, on success, on failure and on a panic:
 start it with `test_support::spawn_owned`, whose child is ended with the test thread's fixtures however the test ends,
 so a failing assertion cannot leave it running.
-A control that needs a signal sent to the wrapper runs the wrapper in such a helper process and signals only `helper.id()`,
+A control that needs a signal sent to the wrapper runs the wrapper in such a helper process
+and signals only `helper.id()`,
 as `process/signal_relay_tests.rs` does:
 `lfs::lfs_upload`'s signal control once sent `libc::kill(libc::getpid(), libc::SIGTERM)`,
-and `getpid()` is the test binary, whose signal handlers are process-wide, so it ended every thread of the run (issue 6463).
+and `getpid()` is the test binary, whose signal handlers are process-wide,
+so it ended every thread of the run (issue 6463).
 Start a stand-in in a process group of its own, and signal only the process or group the test started and proved,
 never a group or session the test binary belongs to, never by name.
 A child must not keep the test's standard output or error open after the test:
