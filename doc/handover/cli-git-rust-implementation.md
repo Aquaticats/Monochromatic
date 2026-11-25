@@ -1185,7 +1185,33 @@ committed the bump as `955051b29f` and its publish job passed
 (note and logs in `~/temp/agent/release-wrapper-alpha-46-2026-11-25/keep/`; `native:release:wait` follows the publish run);
 issue 6448's second round merged as `f65bbdd316` after the dispatch (22 controls moved to the any-name root; issue closed);
 the release passes run as three Sonnet reads over `alpha.45..955051b29f`
-(`~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/`: the one program and its root modes, the ZFS add and removal route, and commit, push, LFS, lock and the rest).
+(`~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/`: the one program and its root modes, the ZFS add and removal route, and commit, push, LFS, lock and the rest);
+the one-program pass ended (`one-program-root-modes/keep/review.md`; same vendor, a second pass) with no high, four mediums and seven lows:
+M1 the `--help` text names an installed path no release installs (the design's own sentence, found at alpha.45 too),
+M2 the usage and refusals print `monochromatic-git-policy-cli zfs-root <mode>`, which typed as printed reaches Git as an unknown command,
+M3 `record-checkout --replace <kernel GUID>` also rewrites a differing recorded container while saying it keeps it (shown by a probe test),
+M4 the deadline guard's control never sets the variable, so 209 of 209 tests pass with the gating `cfg` lines deleted;
+the lows are refusal openings, misspelt-word naming, two-program prose left (README line 8485), an earlier release's `native:install` blaming the archive,
+the packaged crate omitting `clippy.toml` and `SPEC.md`, no control on `attach_with_attributes`' attributes, and a guest arm passing the now-ignored deadline variable;
+M1 and M2 rest on the design's wording, so their fix goes to the owner with the other passes' findings;
+the ZFS route pass ended (`zfs-add-and-removal-route/keep/review.md`; same vendor, a second pass), fit to stand for ordinary hosts
+(ordinary-host output of `worktree add`, `remove`, `move`, `prune`, `repair` the same as alpha.45 but one decided decline sentence; cost under 2 ms),
+with one high: the removal refusal plans only `remove`, `remove -f`, `--force` and one-force spellings
+(`worktree/worktree_remove_plan.rs:61` to `:93`), so `git worktree remove -f -f <slot>`, the override Git itself suggests at a locked registration,
+reaches Git and removes the registration and slot folder of a bound clone (host test red; reachable only after step 19's migration);
+`SPEC.md`'s "is refused for a slot whose record proves a whole worktree" settles the fix as refusing every spelling (its option A), so that is not an owner question;
+mediums: texts name `run the removal`, `cancel-worktree-removal` (also `README.md:2458`) and `monochromatic-git-policy-cli doctor` without the management word,
+and the managed lock's words name a command Git refuses at a locked registration;
+lows: a same-leaf plain worktree gets the bound slot's move refusal and repair report (the move refusal is decided text, so its change is the owner's: the reviewer ranks refusing only the slot itself first),
+an abbreviated `--dry` prune writes the pointer, the cut's guard bans two names only, host controls of the removal refusal can open `/dev/zfs`,
+about four percent added to `add`, `remove`, `prune` and `move` (mount-table reads before the record check), and stale step numbers in text;
+the reviewer disclosed that its `worktree_clone_add_route::` module run may have opened this host's `/dev/zfs` and sent read-only object-stats requests for names no pool holds (no write, no mount), against the brief;
+the cut held: `source_guard`'s scan went red when the command path named `enter_the_removal`;
+issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
+but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
+succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
+(correction posted on issue 6459; that round's docs-only branch was dropped);
+`pi-any-name-fixture-root-git-without-capabilities` runs since about 07:39 to make the inner half's `git` hold no refused capability.
 
 Next:
 merge each round when it ends;
