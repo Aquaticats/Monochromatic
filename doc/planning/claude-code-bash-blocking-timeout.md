@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:39:49-05:00.
+State recorded 2026-11-25T17:40:27-05:00.
 
 ## Requirement as stated
 
@@ -360,6 +360,13 @@ It returned exit code 143 with `Command timed out after 1s`,
 confirming the accepted no-fallback termination behavior.
 Clear and compact exclusion follows from the `startup` matcher;
 only startup and resume received live event probes.
+
+Noninteractive text output did not display the warning and returned only `ok`.
+An interactive PTY session using a disposable HOME did display
+`SessionStart:startup says: Claude Code background tasks are disabled ...`
+with the full consequence and remedies.
+The evidence therefore supports interactive warning visibility and headless structured-hook output,
+not a claim that every output surface renders `systemMessage`.
 
 ## Verification still owed
 
