@@ -90,12 +90,6 @@ pub fn remember_repository(common_dir: &Path) {
     let _set = REPOSITORY.set(common_dir.to_path_buf());
 }
 
-/// Whether a repository is remembered,
-/// which a control asks so it knows whether its fixture is armed.
-pub fn remembers_a_repository() -> bool {
-    return REPOSITORY.get().is_some();
-}
-
 /// What:
 ///  Add the line for `pid` to the remembered repository's record of what this process started.
 /// Why:

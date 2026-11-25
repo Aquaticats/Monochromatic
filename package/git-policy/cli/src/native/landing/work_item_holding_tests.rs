@@ -230,3 +230,23 @@ fn a_refusal_whose_verdict_is_already_there_gives_the_held_record_up() {
     assert_eq!(blocked_verdicts(work.as_path()).len(), 1, "one verdict for one commit");
     remove(root.as_path());
 }
+
+/// A held record that is a named pipe holds nothing back and states no refusal,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and this reading runs on every command of the worktree (issue 6415).
+#[test]
+fn a_held_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("held-named-pipe");
+    let work: PathBuf = crate::service_work::work_directory(root.as_path());
+    let held: PathBuf = state_directory(work.as_path(), HELD);
+    create_private_directory_all(held.as_path()).expect("held");
+    let record: PathBuf = held.join(format!("{}-{OID}", crate::work_item::WorkKind::Push.name()));
+    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600).expect("a named pipe where a held record goes");
+    let inside: PathBuf = work.clone();
+    let answered = crate::test_support::finished_within(move || return (blocked_verdicts(inside.as_path()), undecided_commits(inside.as_path(), "refs/heads/main")));
+    let Some((verdicts, undecided)) = answered else { panic!("a held record that is a named pipe held the reading") };
+    assert!(verdicts.is_empty(), "a pipe states no refusal");
+    assert!(undecided.is_empty(), "and holds no commit back");
+    remove(root.as_path());
+}

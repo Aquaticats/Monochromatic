@@ -1423,6 +1423,9 @@ One run at 4 GiB freed 1640 MiB of zram's RAM (7472 to 5832 MiB);
 then, on the owner's "Don't worry about wear to the old nvme. I can buy new drives when it breaks.",
 `/etc/systemd/system/zram-idle-writeback.service` dropped the limit (`writeback_limit_enable` 0)
 and writes every page idle for 5 minutes, every 5 minutes (`zram-idle-writeback.timer`).
+Its first unlimited run, ending about 16:45, took zram1's RAM from 5859 MiB to 2469 MiB
+with 19934 MiB of its 28685 MiB of pages then on the NVMe,
+and `MemAvailable` read 20170 MiB after it, against 13 MiB at 16:20.
 
 The caps were per unit, never total:
 each round's service had `MemoryMax=24G`, and the build scopes rounds start sat in `app.slice`, outside it.

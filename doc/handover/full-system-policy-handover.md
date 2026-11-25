@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T13:23:05-05:00
+## Status at 2026-11-25T17:32:08-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -99,6 +99,13 @@ Unprofiled development processes remain a residual risk.
   The exact confined PNG read changed from `Permission denied` to the independent SHA-256 match.
   The owner's real drag retry remains open; see
   `doc/troubleshooting/spectacle-screenshot-drag-helium-tempfile.md`.
+- Later on 2026-11-25, the owner explicitly approved read-only Helium access to all of
+  `~/Plain`, including its KeePassXC databases, for Dolphin file drags.
+  `/etc/apparmor.d/local/helium` grants only `owner @{HOME}/Plain/{,**} r`.
+  The exact confined Markdown read changed from `Permission denied` to the independent SHA-256
+  match, while `.bash_profile` remained denied.
+  The owner's real Dolphin-to-Helium drag then succeeded. See
+  `doc/troubleshooting/dolphin-file-drag-helium-plain-read.md`.
 - `/etc/apparmor.d/abstractions/app/chromium_crashpad_handler.d` audits the pre-existing
   crash-report path and permissions without adding a path or permission.
 - `/etc/apparmor.d/local/keepassxc` grants recursive directory-only `owner @{HOME}/**/ r` for the
@@ -111,8 +118,12 @@ Unprofiled development processes remain a residual risk.
   and the two observed udev metadata files.
   This exposes directory
   metadata without granting unrelated file contents.
-  Save and rename behavior at the selected
-  database path remains unexercised.
+  On 2026-11-25, the selected database rule gained Qt's exact
+  `main.kdbx* -> #@{int}` atomic-save relationship and `#@{int}` read/write access.
+  The confined create-write-rename-readback fixture passed without modifying the real database.
+  Three subsequent real KeePassXC atomic saves then completed successful open, link, and rename
+  syscalls with no new denial. See
+  `doc/troubleshooting/keepassxc-database-atomic-save-tempfile.md`.
 - On 2026-11-24, the same local KeePassXC rule gained `k` on its existing state-file paths after
   Qt 6.12.0's `QLockFile` blocked the GUI during Helium native messaging.
   The exact `KeePassXCrc.lock` fallback received the same narrow permission.
@@ -388,14 +399,14 @@ checked all 809 expected profile artifacts and live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-spectacle-drag-fix-2026-11-25T13-23-05-0500.json`.
+The latest such report is `verified-selected-dolphin-plain-drag-fix-2026-11-25T17-30-36-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T13-24-20-0500`.
-All 21
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T17-32-08-0500`.
+All 23
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.

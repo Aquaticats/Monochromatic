@@ -25,7 +25,7 @@
 
 use super::staged_folder_identity::{StagedFolderField, StagedFolderIdentity};
 use super::slot_walk_calls::SlotWalk;
-use super::staging_calls::{StagingCallRefusal, StagingCalls};
+use super::staging_calls::StagingCalls;
 use super::unmount_checks::ZFS_FILE_SYSTEM_TYPE;
 use crate::fs_mount_options::MountFacts;
 use std::path::{Path, PathBuf};
@@ -190,12 +190,6 @@ fn prove_the_slot(request: &ReattachRequest<'_>) -> ReattachResult {
 
 /// The step a move back failure names.
 pub const REATTACH_STEP: &str = "reattach";
-
-/// One refused call's word,
-/// for a receipt that names a step.
-pub fn call_word(refusal: &StagingCallRefusal) -> &'static str {
-    return refusal.call.word();
-}
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

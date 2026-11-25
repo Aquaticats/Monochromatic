@@ -788,7 +788,9 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
     let work: PathBuf = work_directory(common_dir);
     for (id, _queued) in crate::work_item::entries_oldest_first(work.as_path(), FAILED) {
         let failed: PathBuf = state_directory(work.as_path(), FAILED).join(id.as_str());
-        let Ok(text) = std::fs::read_to_string(failed.as_path()) else { continue };
+        // A record that is not a plain file is one this command cannot read: a named pipe there answers at once instead of
+        // waiting for a writer that may never come (`crate::plain_file::read_plain_text`).
+        let Ok(text) = crate::plain_file::read_plain_text(failed.as_path()) else { continue };
         let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
         if item.kind != WorkKind::SubvolumeDelete || item.branch_ref != WORKTREE_REMOVAL_REFERENCE || item.tries != 0 {
             continue;
@@ -891,7 +893,8 @@ fn forget_begun(common_dir: &Path, id: &str) {
 /// const begun = begunIdentity(commonDir, id); // string | undefined
 /// ```
 fn begun_identity(common_dir: &Path, id: &str) -> Option<String> {
-    let text: String = std::fs::read_to_string(common_dir.join(BEGUN_FOLDER).join(id)).ok()?;
+    // The begun record is this program's own, so a name that holds a named pipe answers as no record at once.
+    let text: String = crate::plain_file::read_plain_text(&common_dir.join(BEGUN_FOLDER).join(id)).ok()?;
     let identity: &str = text.trim_end();
     return (!identity.is_empty()).then(|| return identity.to_owned());
 }
@@ -1165,7 +1168,9 @@ fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &
 /// const poolOf = (target) => { const admin = gitDirOf(target); return [commonDirectoryOf(admin), admin]; };
 /// ```
 fn the_pool_of(target: &Path) -> Option<(PathBuf, PathBuf)> {
-    let pointer: Vec<u8> = std::fs::read(target.join(".git")).ok()?;
+    // A `.git` pointer that is a named pipe is read at once or refused, and never waited on (`SPEC.md`: a `.git` that is not a
+    // plain file ends the run with a reason).
+    let pointer: Vec<u8> = crate::plain_file::read_plain_file(target.join(".git").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
     let text: String = String::from_utf8_lossy(pointer.as_slice()).into_owned();
     let named: PathBuf = PathBuf::from(text.trim_end().strip_prefix("gitdir: ")?.trim());
     let admin: PathBuf = if named.is_absolute() { named } else { target.join(named) };

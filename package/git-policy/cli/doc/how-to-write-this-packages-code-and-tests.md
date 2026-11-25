@@ -39,12 +39,15 @@ Issue 6454 removed the current-directory changes; keep them out.
 ## One fixture folder per test
 
 A test takes its folder from `testing/test_support.rs`.
-`fixture(name)` names the folder `native-unit-<process id>-<name>` and removes a folder of that name first,
-so two tests that pass the same name share one folder in one process,
-and each deletes the other's live folder:
+`fixture(name)` names the folder `native-unit-<process id>-<the number this call took>-<name>`,
+so every call gets a folder of its own:
+before the number was there, two tests that passed one name shared one folder in one process,
+and each deleted the other's live folder:
 `lock::index_writer_forward`'s two signal tests did,
 failing with `DirectoryNotEmpty` and with a `create_dir` panic at `test_support.rs:332`.
-Give every test a name no other test uses until the helper makes each call's folder its own.
+The binary test target's own helper names its folders the same way
+(`native-binary-<process id>-<the number this call took>-<name>`,
+`binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
 ## Own every child, end it on every path

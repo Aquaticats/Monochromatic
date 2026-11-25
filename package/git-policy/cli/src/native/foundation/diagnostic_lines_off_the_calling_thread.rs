@@ -349,6 +349,24 @@ fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar)
 /// const write = (line) => { const ticket = hand(line); if (ticket !== undefined && !stopped) waitFor(ticket, WARNING_WRITE_CEILING) }
 /// ```
 pub fn write(line: &str) {
+    write_bytes(line.as_bytes());
+}
+
+/// What:
+///  Hands one rendered line's bytes to the thread that writes it,
+///  and waits for it to reach the stream only while the reader is still taking lines.
+/// Why:
+///   A line is not always text a `&str` can hold:
+///  a Git a commit asked for its own refusal prints bytes a path or a message of the person's may put
+///  outside UTF-8,
+///  and decoding them would change what they read,
+///  so the queue keeps bytes and this face takes them as they came.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeBytes = (line: Uint8Array) => { const ticket = hand(line); if (ticket !== undefined && !stopped) waitFor(ticket, WARNING_WRITE_CEILING) }
+/// ```
+pub fn write_bytes(line: &[u8]) {
     let (queue, ready) = queue();
     let ticket: u64 = {
         let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -358,7 +376,7 @@ pub fn write(line: &str) {
             return;
         }
         held.next_ticket = held.next_ticket.saturating_add(1);
-        held.lines.push_back(Pending { ticket, line: line.as_bytes().to_vec() });
+        held.lines.push_back(Pending { ticket, line: line.to_vec() });
         drop(held);
         ready.notify_one();
         ticket

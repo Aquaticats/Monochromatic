@@ -177,25 +177,6 @@ async fn the_name_is_gone(place: &RecoveryPlace, root: &Path, name: &str) -> boo
 }
 
 /// What:
-///  Remove a record,
-/// naming it when that fails.
-/// Why:
-///  A saved merge whose branch advanced keeps its side ref and drops only its record,
-/// so no later command is
-///  stopped for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rm(record, { force: true });
-/// ```
-pub fn drop_record(record: &Path) -> Result<(), RecoveryError> {
-    return match remove_merge_intent(record) {
-        Ok(()) => Ok(()),
-        Err(error) => Err(RecoveryError(format!("removing {} failed: {error}", record.display()))),
-    };
-}
-
-/// What:
 ///  The refusal for files the merge changes that now hold something else,
 ///  naming them and the record.
 /// Why:
