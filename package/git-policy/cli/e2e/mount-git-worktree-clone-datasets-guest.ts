@@ -337,7 +337,10 @@ async function run(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
+    // The guest is a four-vCPU image, and this crate's release test build at Cargo's default parallelism exhausts
+    // its memory: the kernel then misses the guest agent's status requests and mvm loses the build's result. Two
+    // jobs keep the build inside the guest, and the build is the same one either way.
+    'CARGO_BUILD_JOBS=2 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
   guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
