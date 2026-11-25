@@ -159,11 +159,20 @@ fn the_budget(fixture: &LivePoolFixture) -> RequestBudget {
     return RequestBudget::of_input_bytes(bytes);
 }
 
-/// One whole removal over the guest's own pool,
-/// with a settle the arm names.
-fn complete(fixture: &LivePoolFixture, reads: &LiveRemovalReads, reader: &ZfsDatasetReader, device: &RecordingDevice<'_>, settle: &dyn RegistrationSettle) -> Result<TheRemovalDone, RemovalStop> {
-    let recorded = fixture.recorded();
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
+/// What:
+///  One whole removal over the guest's own pool,
+///  with the clone's recorded GUID and a settle the arm names.
+/// Why:
+///  A resumed run has no live clone to read the GUID from,
+///  and the plan and the binding carry it,
+///  so the arm passes the GUID it recorded before the clone went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const done = complete(fixture, cloneGuid, reads, reader, device, settle);
+/// ```
+fn complete(fixture: &LivePoolFixture, clone_guid: DatasetGuid, reads: &LiveRemovalReads, reader: &ZfsDatasetReader, device: &RecordingDevice<'_>, settle: &dyn RegistrationSettle) -> Result<TheRemovalDone, RemovalStop> {
+    let unmount: ADoneUnmount = ADoneUnmount { clone_guid };
     let common: std::path::PathBuf = fixture.common();
     let at: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
     let input: RemovalCompletion<'_> = RemovalCompletion {
@@ -205,7 +214,7 @@ fn the_removal_completion_guest_arms() {
     fixture.run("mount", &["-t", "zfs", fixture.clone().as_str(), MOUNT_POINT]);
     let mounted_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     println!("COMPLETION step=arm-1-enter");
-    let mounted: Result<TheRemovalDone, RemovalStop> = complete(&fixture, &reads, &reader, &mounted_device, &settle);
+    let mounted: Result<TheRemovalDone, RemovalStop> = complete(&fixture, recorded.clone_guid, &reads, &reader, &mounted_device, &settle);
     let stop: RemovalStop = match mounted {
         Ok(_) => panic!("a mounted clone must not be destroyed"),
         Err(refusal) => refusal,
@@ -225,7 +234,7 @@ fn the_removal_completion_guest_arms() {
     fixture.write_the_adds_records(&healthy_recorded);
     let device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     println!("COMPLETION step=arm-2-enter");
-    let done: TheRemovalDone = complete(&fixture, &reads, &reader, &device, &settle).expect("a healthy removal finishes");
+    let done: TheRemovalDone = complete(&fixture, healthy_recorded.clone_guid, &reads, &reader, &device, &settle).expect("a healthy removal finishes");
     assert_eq!(device.sent.borrow().len(), 2, "one request for the clone's snapshots and one for the origin snapshot");
     for snapshot in [MANUAL_SNAPSHOT, SANOID_SNAPSHOT] {
         assert!(!fixture.exists(format!("{}@{snapshot}", fixture.clone()).as_str()), "the batch destroyed `{snapshot}`");
@@ -250,7 +259,7 @@ fn the_removal_completion_guest_arms() {
     fixture.run("zfs", &["clone", fixture.origin().as_str(), other.as_str()]);
     let pinned_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     println!("COMPLETION step=arm-3-enter");
-    let pinned: TheRemovalDone = complete(&fixture, &reads, &reader, &pinned_device, &settle).expect("the removal finishes whatever the origin does");
+    let pinned: TheRemovalDone = complete(&fixture, pinned_recorded.clone_guid, &reads, &reader, &pinned_device, &settle).expect("the removal finishes whatever the origin does");
     assert!(!fixture.exists(fixture.clone().as_str()), "the clone is gone");
     assert!(fixture.exists(fixture.origin().as_str()), "the origin snapshot stands, pinned by the other clone");
     assert!(!fixture.registration().exists(), "the registration is settled even while the origin cleanup is blocked");
@@ -268,7 +277,7 @@ fn the_removal_completion_guest_arms() {
     let first_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     let refusing: RefusingOnce<'_> = RefusingOnce { refusals: Cell::new(1), live: &settle };
     println!("COMPLETION step=arm-4-first-enter");
-    let first: Result<TheRemovalDone, RemovalStop> = complete(&fixture, &reads, &reader, &first_device, &refusing);
+    let first: Result<TheRemovalDone, RemovalStop> = complete(&fixture, resume_recorded.clone_guid, &reads, &reader, &first_device, &refusing);
     let first_stop: RemovalStop = match first {
         Ok(_) => panic!("the arm's settle refuses the first run"),
         Err(refusal) => refusal,
@@ -279,7 +288,7 @@ fn the_removal_completion_guest_arms() {
     assert!(fixture.registration().exists(), "the registration stands for the next run");
     let scnd: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     println!("COMPLETION step=arm-4-second-enter");
-    let resumed: TheRemovalDone = complete(&fixture, &reads, &reader, &scnd, &settle).expect("the second run finishes the settle");
+    let resumed: TheRemovalDone = complete(&fixture, resume_recorded.clone_guid, &reads, &reader, &scnd, &settle).expect("the second run finishes the settle");
     assert!(scnd.sent.borrow().is_empty(), "the head-gone path sends no snapshot request");
     assert!(!fixture.registration().exists(), "the second run settled the registration");
     assert!(resumed.records.plan_removed, "the second run removed the plan");
