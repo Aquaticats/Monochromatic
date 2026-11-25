@@ -304,12 +304,10 @@ fn the_skip_variable_is_read_as_a_boolean() {
 
 /// OpenSSH's own words for a host key this machine does not know,
 /// under the account's default `StrictHostKeyChecking=ask`,
-/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables as they were
-/// on that round (`SSH_ASKPASS=false`,
-/// `SSH_ASKPASS_REQUIRE=force`;
-/// the first holds the wrapper's sentence since 2026-11-24,
-/// and these words without its line are what a hook or another program's push still leaves):
-/// the yes/no question goes to a value that answers nothing,
+/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables
+/// (`SSH_ASKPASS=false`,
+/// `SSH_ASKPASS_REQUIRE=force`):
+/// the yes/no question goes to a program that answers nothing,
 /// and an empty answer is not "yes".
 const AN_UNKNOWN_HOST_KEY: &str = "Host key verification failed.\n";
 
@@ -596,56 +594,6 @@ fn a_push_refused_for_an_unknown_host_key_reads_while_the_remote_url_names_a_cer
     ] {
         assert!(reads_as_unknown_host_key(text), "the word belongs to the remote's name: {text}");
     }
-}
-
-/// The line OpenSSH prints when the value the no-prompt rule gives `SSH_ASKPASS` is not a program it can start,
-/// with the refusal it precedes:
-///  `ssh_askpass: exec(<the sentence>): File name too long`
-///  (`readpass.c:77` and `:78` at `V_10_6_P2`),
-/// then OpenSSH's own last line and Git's two advice lines.
-fn an_unknown_host_key_while_the_askpass_value_is_the_wrappers_sentence() -> String {
-    return format!(
-        "ssh_askpass: exec({}): File name too long\nHost key verification failed.\nfatal: Could not read from remote repository.\n\n\
-         Please make sure you have the correct access rights\nand the repository exists.\n",
-        crate::child_environment::NO_ANSWER_SENTENCE
-    );
-}
-
-/// What:
-///  A refusal read from a transcript that holds the wrapper's own askpass line is still an unknown host key.
-/// Why:
-///   The no-prompt rule writes a sentence into `SSH_ASKPASS`,
-///  and OpenSSH prints that sentence inside its own failed start before its refusal,
-///  so every push and upload the wrapper runs carries this line in the words this reading judges;
-///  a reading that took the line for another refusal's words would stop the upload's sentence and the service's record
-///  from printing at the one refusal they exist for.
-#[test]
-fn an_unknown_host_key_reads_while_the_askpass_value_is_the_wrappers_sentence() {
-    let text: String = an_unknown_host_key_while_the_askpass_value_is_the_wrappers_sentence();
-    assert!(reads_as_unknown_host_key(text.as_str()), "the wrapper's own line is not another refusal's words: {text}");
-}
-
-/// What:
-///  The sentence the no-prompt rule gives `SSH_ASKPASS` turns none of the three readings on.
-/// Why:
-///   The line prints on commands that succeed, and it reaches the readers that judge a failed push or upload,
-///  so a sentence naming a host key or a certificate outside single quotes would stop the sentence those readers print
-///  for a real refusal,
-///  and one holding a login failure's words would make a successful command explain a login it never needed.
-///  This is the wording's constraint written as a control:
-///  a sentence edited to name a host key fails here, which is where the choice between that wording and a change to the
-///  reading has to be made.
-#[test]
-fn the_wrappers_sentence_for_openssh_turns_no_reading_on() {
-    let sentence: &str = crate::child_environment::NO_ANSWER_SENTENCE;
-    assert!(
-        !names_a_host_key_outside_quotes(sentence.to_ascii_lowercase().as_str()),
-        "the sentence names no host key or certificate outside single quotes: {sentence}"
-    );
-    assert!(!reads_as_unknown_host_key(sentence), "no refusal's last line is in it: {sentence}");
-    assert!(!reads_as_a_login_failure(sentence), "no login failure's words are in it: {sentence}");
-    assert!(!reads_as_a_key_failure(sentence), "no server's refusal is in it: {sentence}");
-    assert!(!sentence.contains('\n'), "it is one environment string: {sentence}");
 }
 
 //endregion

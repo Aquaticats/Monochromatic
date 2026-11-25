@@ -424,7 +424,7 @@ mod version_cache;
 /// which the budget,
 /// fault,
 /// child-bound and stop-lock controls run a wrapped command under,
-/// and what a control does in a run that has none;
+/// and the rule each of them follows when this run has none;
 /// the one copy the library's unit tests share.
 #[path = "../testing/strace_the_controls_run_under.rs"]
 mod strace;
