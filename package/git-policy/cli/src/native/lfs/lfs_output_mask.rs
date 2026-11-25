@@ -33,7 +33,7 @@
 //! backtick,
 //! white space or control character.
 //!  A path segment is kept while it is short and a plain label:
-//!  at most [`MASKED_SEGMENT_LENGTH`] characters,
+//!  fewer than [`MASKED_SEGMENT_LENGTH`] characters,
 //! and every one of them a letter,
 //! a digit or one of the separators `-`,
 //! `.`,
@@ -44,13 +44,13 @@
 //! `batch`,
 //! `info`,
 //! `Org` and `repo.git` are,
-//! because a longer segment is what a token looks like.
+//! because a segment that long is what a token looks like.
 //! A query key and a fragment key are kept while they are a plain label.
 //! A percent encoding or another punctuation mark is a token's other shape,
 //! and a value is a secret wherever it sits,
 //! so it is always hidden.
 //!  What this cannot do:
-//! a token of no more than [`MASKED_SEGMENT_LENGTH`] characters still reads as a label
+//! a token shorter than [`MASKED_SEGMENT_LENGTH`] characters still reads as a label
 //! when it carries no percent encoding and no other punctuation mark,
 //! which the owner accepted when choosing this rule on 2026-11-24;
 //! and a query key of that shape is not hidden either,
@@ -65,8 +65,9 @@
 pub const CREDENTIALS_MASK: &str = "<credentials>";
 
 /// What:
-///  The most characters a path segment may hold and still be printed as it stands:
-///  a longer segment is what a token looks like and is replaced by [`CREDENTIALS_MASK`].
+///  The length at which a path segment is what a token looks like and is replaced by [`CREDENTIALS_MASK`]:
+///  a segment of this many characters or more is hidden,
+///  and one character shorter still prints as it stands.
 /// Why:
 ///  A token in a path reads as a plain label under the rule above,
 ///  and hiding every path segment after the host refused the names a person needs (`objects`,
@@ -75,14 +76,17 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 ///  The owner's answer of 2026-11-24
 ///  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
 ///  "Short path segments stay shown in a relayed git-lfs line")
-///  made the length of a segment the rule:
-///  a segment of this many characters or fewer prints whatever its case or digits,
-///  and a longer one is hidden.
+///  made the length of a segment the rule,
+///  in the words "Show any segment under 20 chars":
+///  a segment shorter than this one prints whatever its case or digits,
+///  and one this long or longer is hidden.
+///  The record's second paragraph restates the boundary as "at most `LONGEST_PLAIN_WORD`",
+///  which is not what the answer says;
+///  the answer is followed here, and a 20-character name is hidden.
 ///  It amended the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only"),
-///  which measured the longest unbroken run of lowercase letters inside a segment;
-///  the name still says word,
-///  and what is measured now is the whole segment,
-///  so a folder name of short words is hidden once the segment passes this length.
+///  which measured the longest unbroken run of lowercase letters inside a segment,
+///  so what is measured now is the whole segment,
+///  and a folder name of short words is hidden with the segment around it.
 ///  The cost the owner accepted is that a short token in a path prints.
 pub const MASKED_SEGMENT_LENGTH: usize = 20;
 
@@ -307,13 +311,13 @@ fn is_plain_label(label: &[u8]) -> bool {
 
 /// What:
 ///  Whether a path segment is short and plain enough to print:
-///  no more than [`MASKED_SEGMENT_LENGTH`] characters of letters,
+///  fewer than [`MASKED_SEGMENT_LENGTH`] characters of letters,
 ///  digits and the separators `-`,
 ///  `.`,
 ///  `_` and `~`.
 /// Why:
 ///   The rule a person can check against a URL they wrote is one length and one byte set:
-///  a segment of that many characters or fewer of letters,
+///  a segment shorter than [`MASKED_SEGMENT_LENGTH`] characters of letters,
 ///  digits and the separators of a filename is a name (`objects`,
 /// `info`,
 /// `Org`,
@@ -326,10 +330,10 @@ fn is_plain_label(label: &[u8]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// segment.length <= MASKED_SEGMENT_LENGTH && /^[A-Za-z0-9._~-]*$/.test(segment)
+/// segment.length < MASKED_SEGMENT_LENGTH && /^[A-Za-z0-9._~-]*$/.test(segment)
 /// ```
 fn is_short_plain_segment(label: &[u8]) -> bool {
-    return label.len() <= MASKED_SEGMENT_LENGTH && label.iter().all(is_path_segment_byte);
+    return label.len() < MASKED_SEGMENT_LENGTH && label.iter().all(is_path_segment_byte);
 }
 
 /// Whether a byte is one a path segment label is made of:

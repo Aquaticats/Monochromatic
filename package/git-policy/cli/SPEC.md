@@ -15568,7 +15568,7 @@ The step:
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
   which ends at the last `@` of its authority;
-  every path segment of more than `LONGEST_PLAIN_WORD` characters,
+  every path segment of `MASKED_SEGMENT_LENGTH` characters or more,
   and every path segment that carries a percent encoding or another punctuation mark,
   a segment being a plain label while it is the letters `a` to `z` and `A` to `Z`,
   the digits and the separators `-`,
@@ -15580,7 +15580,7 @@ The step:
   `info`,
   `Org` and `Repo.git` are,
   so a capital and a digit are shown and a longer segment is hidden
-  (`LONGEST_PLAIN_WORD` in `src/native/lfs/lfs_output_mask.rs`);
+  (`MASKED_SEGMENT_LENGTH` in `src/native/lfs/lfs_output_mask.rs`);
   and every value of its query and of its fragment,
   with a key kept only while it is a plain label,
   as the incident's `lfs.<url>.locksverify` key name was not.
@@ -15591,7 +15591,7 @@ The step:
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  A path segment of `LONGEST_PLAIN_WORD` characters or fewer with no percent encoding
+  A path segment shorter than `MASKED_SEGMENT_LENGTH` characters with no percent encoding
   and no other punctuation mark prints as written and is not hidden,
   which the owner accepted when choosing this rule on 2026-11-24
   (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
@@ -15602,7 +15602,7 @@ The step:
   and a short token in a path now prints,
   which the option the owner chose named.
   The length is the segment's and not a word's inside it,
-  so a folder name of short words is hidden once the whole segment passes the limit,
+  so a folder name of short words is hidden with the segment around it,
   where the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only")
   hid a segment only when it held an unbroken run of 20 lowercase letters.
   A query or fragment key of that shape is not hidden either:
