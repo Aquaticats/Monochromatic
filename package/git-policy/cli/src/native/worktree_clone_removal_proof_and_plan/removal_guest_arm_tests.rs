@@ -159,8 +159,13 @@ impl Fixture {
     /// Whether the named dataset,
     /// snapshot or bookmark exists.
     fn exists(&self, name: &str) -> bool {
+        let mut arguments: Vec<&str> = vec!["list", "-H", "-o", "name"];
+        if name.contains('#') {
+            arguments.extend_from_slice(&["-t", "bookmark"]);
+        }
+        arguments.push(name);
         let output: Output = Command::new("zfs")
-            .args(["list", "-H", "-o", "name", name])
+            .args(arguments)
             .env("PATH", self.search_path())
             .output()
             .expect("the guest has `zfs`");
