@@ -71,6 +71,13 @@
 //! - `adopt_worktree_parent_mode.rs`:
 //!   the administrator's adoption,
 //!   decided by step 4's table and recorded here.
+//! - `record_checkout_mode_record.rs`:
+//!   what the checkout record holds,
+//!   the field a later run finds different,
+//!   and the refusal each cause answers.
+//! - `record_checkout_mode_record_file.rs`:
+//!   the record as the file it is,
+//!   its folder's proofs and the three lines an answer prints.
 //! - `record_checkout_mode.rs`:
 //!   the checkout's path, dataset, GUID, container and pool,
 //!   recorded under root control,

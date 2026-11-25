@@ -61,7 +61,7 @@ const LINT_LEVELS: [(&str, &str); 36] = [
     ("process/process_identity.rs", "#[cfg_attr(all(target_os=\"linux\",not(test)),allow(dead_code))]"),
     ("push/auto_push_reconcile.rs", "#[cfg_attr(dylint_lib=\"monochromatic_lint_closure\",expect(avoidable_closure))]"),
     ("push/bounded_query_input.rs", "#[cfg_attr(not(test),expect(dead_code))]"),
-    ("worktree_clone_mount_handler/record_checkout_mode.rs", "#[allow(clippy::disallowed_methods)]"),
+    ("worktree_clone_mount_handler/record_checkout_mode_record_file.rs", "#[allow(clippy::disallowed_methods)]"),
     ("worktree_clone_unmount/staged_folder_record.rs", "#[allow(clippy::disallowed_methods)]"),
     ("worktree_clone_unmount/staged_unmount.rs", "#[allow(clippy::large_enum_variant)]"),
     ("worktree_clone_unmount/staging_claim.rs", "#[allow(clippy::disallowed_methods)]"),
