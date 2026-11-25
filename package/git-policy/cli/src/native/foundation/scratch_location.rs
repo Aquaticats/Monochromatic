@@ -107,7 +107,9 @@ pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AF
 /// ```
 pub fn renew(path: &Path) {
     // The modification time is set only when the file opened; an open failure is the result as it was.
-    let renewed: std::io::Result<()> = match std::fs::File::open(path) {
+    // The open is the non-blocking one (`crate::plain_file::open_without_blocking`): a scratch entry may be a directory, and a
+    //  name that holds a named pipe answers at once instead of waiting for a writer that may never come.
+    let renewed: std::io::Result<()> = match crate::plain_file::open_without_blocking(path) {
         Ok(opened) => opened.set_modified(SystemTime::now()),
         Err(error) => Err(error),
     };

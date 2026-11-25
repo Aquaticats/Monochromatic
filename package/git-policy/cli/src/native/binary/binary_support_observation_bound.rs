@@ -29,6 +29,10 @@
 //!  still pins the group's number.
 //!  The faces a control calls live next door in `binary_support_observation.rs`,
 //!  which reaches these items as `crate::support_observation_bound`.
+//!  The wait marks its command in the supervisor's registry for as long as it runs
+//!  (`supervisor::waiting_for`),
+//!  so a kill nobody claims is aborted on only when no thread of the test is occupied with that command,
+//!  never because this host took long to schedule the thread that claims it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +45,7 @@ use std::io::Write;
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::Path;
 use std::process::{Child, Command};
-use crate::supervisor::take_kill;
+use crate::supervisor::{Occupied, take_kill, waiting_for};
 use crate::supervisor_pin::{Delivered, Pin};
 use crate::supervisor_proc::{stat_of, tick};
 
@@ -253,6 +257,10 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
 ///  because the status alone cannot say which of the two sent the signal (`ending_of_an_exit_read_first`).
 pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, line: LineBound, input: &[u8]) -> Answer {
     let id: u32 = child.id();
+    // What: the mark saying a wait of this process is inside for this command, held until this function returns or unwinds.
+    // Why:  the monitor aborts the process for a kill no wait will claim, and this wait is the one that claims the kill of
+    //       the command it was given, so the monitor must know it is running however long this host takes to schedule it.
+    let _waiting: Occupied = waiting_for(id);
     let pid: libc::pid_t = libc::pid_t::try_from(id).expect("a process ID fits the pid type");
     let started: u64 = stat_of(pid).expect("a command this wait holds is readable until it is reaped").started;
     let remaining: std::time::Duration = remaining_of(started, line.kept);

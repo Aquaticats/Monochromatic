@@ -77,7 +77,8 @@ fn git_directory_of_worktree(root: &Path) -> Option<PathBuf> {
     if std::fs::metadata(pointer.as_path()).is_ok_and(|found| { return found.is_dir(); }) {
         return Some(pointer);
     }
-    let text: String = std::fs::read_to_string(pointer.as_path()).ok()?;
+    // A `.git` pointer that is a named pipe is no pointer, and it answers at once rather than waiting for a writer.
+    let text: String = crate::plain_file::read_plain_text(pointer.as_path()).ok()?;
     let named: &str = text.strip_prefix("gitdir:")?.trim();
     if named.is_empty() {
         return None;

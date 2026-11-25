@@ -68,6 +68,12 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// Every record folder this program fills is read through `plain_file`:
+/// a named pipe at a record's name answers at once instead of holding every wrapped command.
+#[cfg(test)]
+#[path = "records_read_without_blocking_tests.rs"]
+mod records_read_without_blocking_tests;
+
 /// The owner's move to tokio needs its workers to await:
 /// no thread,
 /// no sleeping clock,

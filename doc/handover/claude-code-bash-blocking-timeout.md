@@ -1,0 +1,49 @@
+# Claude Code Bash blocking timeout handover
+
+State recorded 2026-11-25T17:44:36-05:00.
+This work is incomplete and unapproved.
+
+## Current state
+
+The design tree is recorded in
+`doc/planning/claude-code-bash-blocking-timeout.md`.
+Its user-question frontier is empty.
+No implementation is authorized until the user confirms the assembled design after review and probes.
+
+The current checkout has unrelated concurrent edits.
+Do not restore,
+stash,
+or revert them.
+
+## Completed validation
+
+DeepSeek and Claude Sonnet reviewed earlier design snapshots.
+Their earned findings are folded into the planning record.
+Real Claude Code 2.1.332 probes now cover bare and chained sleeps,
+quick and slow foreground commands,
+caller-supplied timeouts,
+explicit background and foreground flags,
+cwd persistence,
+native subagent versus `--agent` main-session boundaries,
+and startup,
+resume,
+policy-disabled,
+and background-disabled warning behavior.
+An interactive PTY probe confirmed that the startup warning is visible,
+while noninteractive text mode exposes it only through structured hook output.
+The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q20 A`.
+
+## Open work
+
+- Measure controlled command durations and result arrival in wrapped and unwrapped,
+  headless and interactive sessions.
+- Ask the user whether result arrival beyond the nominal one-second timeout is acceptable.
+- Obtain any fresh review needed by the timing evidence.
+- Present the final assembled contract for explicit shared-understanding confirmation.
+- Implement only after that confirmation.
+
+## Next step
+
+Run the controlled timing matrix,
+record it in the planning document,
+and commit before asking the timing question.
