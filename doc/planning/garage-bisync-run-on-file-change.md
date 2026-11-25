@@ -179,6 +179,25 @@ see the vet report section "Repository precedent missed by discovery".
   and enter a repository package that owns the responsibility as a candidate to extend);
   the owner sees the diff before it is committed.
 
+## What is on record against the watch-restart fallback (2026-11-25T18:18:47-05:00)
+
+The owner gave no list with "its own critical problems";
+these are the problems the repository records,
+which the fallback would have to clear first:
+
+- open issue #4790:
+  Ctrl+C inside a restart's stop-timeout grace abandons the SIGKILL escalation and can orphan the detached child;
+- open issue #4793:
+  the publish-ready package ships a TypeScript-source bin with no `engines` constraint;
+- open issues #4787, #4788, #4789, #4791, #6038 and #4795:
+  README and doc claims that disagree with the code (missing exports, event names, signals, the oversized-file sentinel);
+- open issue #4796:
+  the `start()` and `restart()` re-entry guards for state `stopping` have no tests;
+- `package/watch-restart/cli/HANDOVER.implementation-state.md`:
+  interactive verification cases 2, 3, 4 and 6 are still pending
+  (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
+  and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
