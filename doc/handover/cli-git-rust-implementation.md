@@ -385,13 +385,21 @@ in a file issue 6448's first round did not reach (the issue is still open);
 mvm's guest agent lost the status of the round's long in-guest build four times
 ("the guest agent did not answer a status request"), so it drove a sixth guest by hand;
 the new modes' device-open failure reuses the dataset-read refusal, whose sentence speaks of a dataset (wording the round left);
-the gate on `main` at `b97c09746f` runs since 2026-11-25T05:14:00-05:00 (unit `gate-on-main-at-b97c09746f`);
+the gate on `main` at `b97c09746f` (run `native-VZ4uUM`, 2026-11-25T05:14:00-05:00 to 05:33:19-05:00)
+gave `11157 tests run: 11153 passed (5 slow), 4 failed, 44 skipped`: the cause-H pair,
+and the one-program build's two `source_guard::typed_ban_configuration_tests` controls,
+which read `clippy.toml` beside `Cargo.toml` while the gate snapshot (`bin/native-wrapper-snapshot.ts`, `crateEntryNames`) did not copy it
+("the Clippy configuration: ... No such file or directory");
+fixed as `1e562c82c1` (the snapshot's unit test and `lint:types` pass; the next batch's gate shows it in the image);
+its only AppArmor denials were `umount`'s two `dac_override`;
 the lost guest results are issue 6458 (filed 2026-11-25; mvm's templates give `qemu-guest-agent` no out-of-memory protection, a reading, not a cause),
 and its diagnosis round `pi-mvm-long-guest-command-loses-its-result` (brief `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/prompt.md`)
 runs since the memory stall fell again (avg10 0.14 under avg60 3.49, after a rise to 6.21 over 1.97);
-the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees
-(`5832100ff723f37e05b7e204050d9077`, `860ac88661a0f23f1a31eb7b490f26b8`, `b10ce79fa8d9f51c7935474923718ad1`),
-which the fixed build's `service stop-units-of-removed-worktrees` clears after this batch;
+the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees;
+the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-25T05:36:56-05:00 from the gate worktree's `target/debug`,
+removed 21 such journals (those three among them), stopped 18 units of removed worktrees, left the seven unmatched instances untouched,
+and took the state folder from 93 entries to 72
+(archive and log in `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/`, `*-third-*-2026-11-25*`);
 the reads' `work/` folders hold the logs their reports cite, and the fourth round's `scratch/` is cited by the proposal, so those stay;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
@@ -1150,7 +1158,8 @@ The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed 
 
 The one-program build merged as `b97c09746f`, so the next alpha ships one program
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it").
-It waits for the gate on `main` at `b97c09746f` and for `pi-sweep-guest-arms-find-a-clone-by-its-whole-name`:
+It waits for a gate on `main` that holds `1e562c82c1` (the gate at `b97c09746f` failed the two typed-ban controls on the missing `clippy.toml`)
+and for `pi-sweep-guest-arms-find-a-clone-by-its-whole-name`:
 the sweep is what the ZED hook starts, its guest arm failed in the one-program round,
 and the arm's replaced-mount and rename-swap cases have not yet run through the one wrapper.
 
