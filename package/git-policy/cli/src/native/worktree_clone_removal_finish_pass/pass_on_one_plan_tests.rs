@@ -24,7 +24,7 @@ use crate::process::process_identity::current_birth_identity;
 use crate::single_owner_claim::plant_claim_for_tests;
 use crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal;
 use crate::worktree_clone_binding_record::registration_home::{binding_name, claim_prefix, clone_inventory_name, origin_inventory_name};
-use crate::worktree_clone_removal_finish_pass::pass_fixtures::{AGate, AProbe, ASettle, SLOT, a_finished_removal, a_plan_for, stands, the_home, the_pass, the_plan_folder, write_the_plan};
+use crate::worktree_clone_removal_finish_pass::pass_fixtures::{AGate, ANOTHER_CLONE_GUID, AProbe, ASettle, SLOT, a_finished_removal, a_plan_for, stands, the_home, the_pass, the_plan_folder, write_the_plan};
 use crate::worktree_clone_removal_finish_pass::the_plans_folder::TheLivePlansFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
@@ -142,9 +142,9 @@ fn a_child_carrying_the_recorded_guid_is_the_same_clone_under_another_name() {
 fn a_reused_name_beside_a_registration_of_this_plans_refuses_the_reuse() {
     let (fixture, plan) = a_finished_removal("finish-pass-reused");
     let settle: ASettle = ASettle::succeeding();
-    let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::reused(1), &settle);
+    let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::reused(ANOTHER_CLONE_GUID), &settle);
     assert_eq!(lines.len(), 1, "one line names the reuse");
-    assert!(lines[0].contains("the name now answers GUID 1"), "the line names both GUIDs: {}", lines[0]);
+    assert!(lines[0].contains(format!("the name now answers GUID {ANOTHER_CLONE_GUID}").as_str()), "the line names both GUIDs: {}", lines[0]);
     assert_eq!(settle.calls.get(), 0, "a registration of this plan's still names work to settle");
     everything_stands(&fixture, &plan, "a reused name beside a registration of this plan's");
 }
@@ -153,9 +153,9 @@ fn a_reused_name_beside_a_registration_of_this_plans_refuses_the_reuse() {
 fn a_reused_name_beside_no_registration_and_another_clones_binding_removes_the_plan() {
     let (fixture, plan) = a_finished_removal("finish-pass-reused-gone");
     std::fs::remove_dir_all(fixture.registration.as_path()).expect("the registration is gone");
-    rewrite_the_binding(&fixture, "cloneGuid", "1");
+    rewrite_the_binding(&fixture, "cloneGuid", ANOTHER_CLONE_GUID.to_string().as_str());
     let settle: ASettle = ASettle::succeeding();
-    let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::reused(1), &settle);
+    let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::reused(ANOTHER_CLONE_GUID), &settle);
     assert_eq!(lines.len(), 1, "one line says what the pass removed and why");
     assert!(lines[0].contains("Removed the last removal plan"), "the line says the plan went: {}", lines[0]);
     assert!(!stands(the_plan_path(&fixture, &plan).as_path()), "the plan went");
@@ -209,7 +209,7 @@ fn a_binding_that_cannot_be_read_leaves_both_records() {
 fn a_binding_of_another_clone_is_left_and_the_plan_goes() {
     let (fixture, plan) = a_finished_removal("finish-pass-binding-other-clone");
     std::fs::remove_dir_all(fixture.registration.as_path()).expect("the registration is gone");
-    rewrite_the_binding(&fixture, "cloneGuid", "1");
+    rewrite_the_binding(&fixture, "cloneGuid", ANOTHER_CLONE_GUID.to_string().as_str());
     let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::absent(), &ASettle::succeeding());
     assert_eq!(lines.len(), 1, "one line says what went and what stayed");
     assert!(lines[0].contains("the binding at the slot names another clone"), "the line names the new binding: {}", lines[0]);

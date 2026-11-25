@@ -13,28 +13,12 @@
 //! expect(theRegistrationStandingFor(commonDir, plan)).toBe('this-plans');
 //! ```
 
-use crate::worktree_clone_removal_finish_pass::pass_fixtures::{SLOT, a_finished_removal, a_plan_for, the_home, the_registrations_identity};
+use crate::worktree_clone_removal_finish_pass::pass_fixtures::{ASettle, SLOT, a_finished_removal, a_plan_for, the_home, the_registrations_identity};
 use crate::worktree_clone_removal_finish_pass::the_plans_registration::{RegistrationStanding, settle_the_plans_registration, the_registration_standing_for};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::RemovalFixture;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{SettleAnswer, SettleRequest, RegistrationSettle};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use std::cell::Cell;
-
-/// A settle that refuses nothing and keeps every request.
-struct ARecordingSettle {
-    calls: Cell<usize>,
-}
-
-impl RegistrationSettle for ARecordingSettle {
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
-        self.calls.set(self.calls.get() + 1);
-        assert_eq!(request.slot, SLOT, "the settle names the plan's slot");
-        assert_eq!(request.proof.slot(), SLOT, "the proof names the plan's slot");
-        return Ok(SettleAnswer { wrote_the_lost_lock: false, released_the_lock: true, removed_the_registration: true, removed_the_underlay: false, lines: Vec::new() });
-    }
-}
 
 #[test]
 fn the_directory_the_plans_own_name_holds_is_the_plans_registration() {
@@ -68,9 +52,10 @@ fn a_plan_that_names_no_registration_name_is_unreadable_rather_than_absent() {
 #[test]
 fn the_settle_is_asked_once_the_absence_is_proved_and_carries_the_plans_own_identity() {
     let (fixture, plan) = a_finished_removal("finish-pass-registration-settle");
-    let settle: ARecordingSettle = ARecordingSettle { calls: Cell::new(0) };
+    let settle: ASettle = ASettle::succeeding();
     settle_the_plans_registration(fixture.common(), SLOT, &plan, &settle).expect("the settle answers");
     assert_eq!(settle.calls.get(), 1, "the settle was asked once");
+    assert_eq!(settle.slots.borrow().as_slice(), &[String::from(SLOT)], "the settle is asked about the plan's own slot");
     assert_eq!(the_registrations_identity(&fixture), plan.facts.admin, "the plan records the registration's own identity");
 }
 
@@ -79,7 +64,7 @@ fn a_slot_whose_binding_is_gone_is_no_settle_at_all() {
     let fixture: RemovalFixture = RemovalFixture::healthy("finish-pass-registration-no-binding");
     let plan: DestructionPlan = a_plan_for(&fixture, HeadWord::Gone);
     std::fs::remove_file(the_home(&fixture).join(format!("{SLOT}.binding")).as_path()).expect("the binding went");
-    let settle: ARecordingSettle = ARecordingSettle { calls: Cell::new(0) };
+    let settle: ASettle = ASettle::succeeding();
     let stop: RemovalStop = settle_the_plans_registration(fixture.common(), SLOT, &plan, &settle).expect_err("a settle without its facts refuses");
     assert!(matches!(stop, RemovalStop::TheSettleRefused { .. }), "the stop names the settle, and this one was {stop:?}");
     assert_eq!(settle.calls.get(), 0, "no settle is asked without the facts it settles");

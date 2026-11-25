@@ -46,7 +46,7 @@ fn rewrite_the_binding(fixture: &RemovalFixture, key: &str, value: &str) {
 
 #[test]
 fn the_two_inventories_go_first_and_the_binding_last_with_every_file_proved_gone() {
-    let (fixture, plan) = a_slot("finish-pass-binding-healthy");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-healthy");
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
     assert_eq!(
         end,
@@ -60,7 +60,7 @@ fn the_two_inventories_go_first_and_the_binding_last_with_every_file_proved_gone
 
 #[test]
 fn a_binding_of_another_clone_is_left_with_its_inventories() {
-    let (fixture, plan) = a_slot("finish-pass-binding-anothers");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-anothers");
     rewrite_the_binding(&fixture, "cloneGuid", "1");
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
     assert_eq!(end, TheBindingEnd::AnotherClones, "a binding that names another clone is a new slot's");
@@ -72,7 +72,7 @@ fn a_binding_of_another_clone_is_left_with_its_inventories() {
 
 #[test]
 fn an_inventory_that_outlived_its_binding_is_removed_as_the_same_steps_leftover() {
-    let (fixture, plan) = a_slot("finish-pass-binding-leftover");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-leftover");
     let home: PathBuf = home_folder(fixture.common());
     std::fs::remove_file(home.join(binding_name(SLOT)).as_path()).expect("the binding went in a kill inside the step");
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
@@ -83,7 +83,7 @@ fn an_inventory_that_outlived_its_binding_is_removed_as_the_same_steps_leftover(
 
 #[test]
 fn a_binding_whose_origin_fields_differ_leaves_both_records() {
-    let (fixture, plan) = a_slot("finish-pass-binding-differs");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-differs");
     rewrite_the_binding(&fixture, "originSnapshotCreatetxg", "1");
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
     let TheBindingEnd::Differs { field, binding, plan: planned, .. } = end else { panic!("a disagreement is reported as one, and this answer was {end:?}") };
@@ -95,7 +95,7 @@ fn a_binding_whose_origin_fields_differ_leaves_both_records() {
 
 #[test]
 fn a_binding_that_names_another_slot_leaves_both_records() {
-    let (fixture, plan) = a_slot("finish-pass-binding-slot");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-slot");
     rewrite_the_binding(&fixture, "slot", path_as_hexadecimal(Path::new("/elsewhere").join(SLOT).as_path()).as_str());
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
     assert!(matches!(end, TheBindingEnd::Differs { field: "slot", .. }), "a binding that names another path is a disagreement about the slot, and this answer was {end:?}");
@@ -103,7 +103,7 @@ fn a_binding_that_names_another_slot_leaves_both_records() {
 
 #[test]
 fn a_binding_that_cannot_be_read_leaves_both_records() {
-    let (fixture, plan) = a_slot("finish-pass-binding-unreadable");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-unreadable");
     let binding: PathBuf = home_folder(fixture.common()).join(binding_name(SLOT));
     std::fs::write(binding.as_path(), b"not a binding\n").expect("the binding's name holds other bytes");
     let end: TheBindingEnd = finish_the_plans_binding(fixture.common(), SLOT, &plan);
@@ -113,7 +113,7 @@ fn a_binding_that_cannot_be_read_leaves_both_records() {
 
 #[test]
 fn a_slot_with_no_binding_and_no_inventory_is_the_step_already_done() {
-    let (fixture, plan) = a_slot("finish-pass-binding-none");
+    let (fixture, plan) = a_slot("finish-pass-binding-end-none");
     let home: PathBuf = home_folder(fixture.common());
     for name in [origin_inventory_name(SLOT), clone_inventory_name(SLOT), binding_name(SLOT)] {
         std::fs::remove_file(home.join(name.as_str())).expect("the record is there before the arm removes it");

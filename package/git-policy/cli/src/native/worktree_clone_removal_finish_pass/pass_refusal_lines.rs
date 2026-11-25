@@ -112,24 +112,6 @@ pub fn the_binding_could_not_be_read(plan: &std::path::Path, binding: &std::path
 }
 
 /// What:
-///  The line for a binding whose recorded slot is another path than the plan's.
-/// Why:
-///  A binding filed under this slot's name that names another path is a record a person must read,
-///  and removing the plan beside it would leave that record with no witness.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// theBindingNamesAnotherSlot(plan, binding, planSlot, bindingSlot);
-/// ```
-pub fn the_binding_names_another_slot(plan: &std::path::Path, binding: &std::path::Path, plan_slot: &str, binding_slot: &str) -> String {
-    return format!(
-        "The removal plan {} and its binding {} stay: the plan's slot path is `{plan_slot}` and the binding's `slot=` is `{binding_slot}`, so the two records do not name one slot. Nothing was removed.",
-        plan.display(),
-        binding.display()
-    );
-}
-
-/// What:
 ///  The line for a binding of this plan's own clone whose origin fields disagree.
 /// Why:
 ///  The pass's condition is one clone and one origin,

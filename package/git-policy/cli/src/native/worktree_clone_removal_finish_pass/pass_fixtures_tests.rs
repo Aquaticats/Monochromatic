@@ -20,7 +20,6 @@
 //! const lines = passLines(fixture, liveFolder, gate, probe, settle);
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal;
 use crate::worktree_clone_binding_record::registration_home::{clone_inventory_name, home_folder, plans_folder};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -43,6 +42,10 @@ use std::path::{Path, PathBuf};
 
 /// The slot every control's repository holds.
 pub const SLOT: &str = "fix-flaky-test";
+
+/// The GUID a dataset that took the clone's name answers,
+/// which is no GUID this plan recorded.
+pub const ANOTHER_CLONE_GUID: u64 = 1;
 
 /// The plan's run nonce,
 /// which no control reads.
@@ -332,9 +335,7 @@ impl RegistrationSettle for ASettle {
     fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
         self.calls.set(self.calls.get() + 1);
         self.slots.borrow_mut().push(String::from(request.slot));
-        if !path_as_hexadecimal(request.slot_path).is_empty() && request.proof.slot() != request.slot {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the proof"), said: String::from("the proof names another slot") });
-        }
+        assert_eq!(request.proof.slot(), request.slot, "the destruction proof names the slot the settle is asked about");
         if let Some(said) = &self.refuses {
             return Err(RemovalStop::TheSettleRefused { step: String::from("the registration"), said: said.clone() });
         }

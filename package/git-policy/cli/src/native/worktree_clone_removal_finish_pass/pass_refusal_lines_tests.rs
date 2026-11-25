@@ -12,7 +12,7 @@
 //! ```
 
 use crate::worktree_clone_removal_finish_pass::pass_refusal_lines::{
-    the_binding_could_not_be_read, the_binding_disagrees, the_binding_names_another_slot, the_claim_could_not_be_taken, the_clone_stands, the_entry_is_no_plan_name, the_folder_could_not_be_listed,
+    the_binding_could_not_be_read, the_binding_disagrees, the_claim_could_not_be_taken, the_clone_stands, the_entry_is_no_plan_name, the_folder_could_not_be_listed,
     the_gate_refused, the_name_was_reused_with_a_registration, the_plan_could_not_be_removed, the_plan_was_not_read, the_pool_could_not_prove, the_registration_could_not_be_read,
     the_registration_could_not_be_settled, the_slot_is_not_a_name,
 };
@@ -30,7 +30,6 @@ fn every_line_names_the_plan_it_is_about() {
         the_clone_stands(plan, "tank/wt/fix-flaky-test", "7828944690444299989"),
         the_name_was_reused_with_a_registration(plan, "tank/wt/fix-flaky-test", "7828944690444299989", "1"),
         the_binding_could_not_be_read(plan, Path::new("/repo/.git/home/fix-flaky-test.binding"), "mode 0666"),
-        the_binding_names_another_slot(plan, Path::new("/repo/.git/home/fix-flaky-test.binding"), "aa", "bb"),
         the_binding_disagrees(plan, Path::new("/repo/.git/home/fix-flaky-test.binding"), "originSnapshotGuid", "1", "2"),
         the_registration_could_not_be_settled(plan, "the registration", "the lock is held"),
         the_registration_could_not_be_read(plan, Path::new("/repo/.git/worktrees/fix-flaky-test"), "permission denied"),
