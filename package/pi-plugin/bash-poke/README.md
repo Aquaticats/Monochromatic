@@ -39,7 +39,7 @@ Its content is:
 
 `````text
 [bash finished] $ make test (exit 2)
-[complete output: /tmp/pi-bash-poke/6f1c....log]
+[complete output: /path/to/project/node_modules/.monochromatic/bash-poke/pi-bash-poke/6f1c....log]
 ```
 FAILED tests/foo.test.ts
 ```
@@ -54,7 +54,9 @@ so a poke never looks like something you typed.
 
 Output is middle-out truncated:
 the head and the tail are kept and the middle is elided with a marker naming the loss.
-The complete output is spooled to an owner-only file below the OS temp directory,
+The complete output is spooled to an owner-only file in `node_modules/.monochromatic/bash-poke/pi-bash-poke/`
+under the nearest `node_modules` above Pi's working directory
+(`$XDG_CACHE_HOME/monochromatic-dev/bash-poke/pi-bash-poke/` outside a project),
 and the poke names that path whenever elision happened,
 so a truncated result is never a dead end.
 
@@ -166,6 +168,15 @@ because Pi auto-discovers that directory and both copies would intercept `!`.
 
 ## Known limitations in v0.x
 
+- While the agent is working,
+  a finished command's poke waits in Pi's follow-up queue until the agent's whole run ends,
+  which lasts as long as the agent keeps calling tools or being steered.
+  The `(running in background; output will be sent when it finishes)` placeholder never changes,
+  and the progress row disappears when the command exits,
+  so nothing on screen shows that the command finished.
+  Pressing Escape during that run discards the queued pokes (read from Pi's source, not exercised).
+  The complete output is already in the spool file.
+  See `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - Jobs are not tracked across session transitions.
   Pi invalidates an extension runtime on reload and on session replacement,
   and Pi exits through `process.exit` without killing children it does not own,
