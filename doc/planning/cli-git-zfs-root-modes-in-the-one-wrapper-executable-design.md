@@ -1833,11 +1833,11 @@ FAIL  names: mv2_suffix_test_with_the_constant.rs : the body starting "fn names_
 FAIL  names: mv3_inline_second_literal.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
 FAIL  names: mv4_contains_test_with_the_constant.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
 
-== the third revision's four forbidden-spelling witnesses, each must FAIL
-FAIL  names: w1_ends_with_beside_the_comparison.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
-FAIL  names: w2_rsplit_beside_the_comparison.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
-FAIL  names: w3_starts_with_beside_the_comparison.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
-FAIL  names: w4_contains_beside_the_comparison.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+== the third revision's four forbidden-spelling witnesses, each must FAIL on its own ban
+FAIL  names: w1_ends_with_beside_the_comparison.rs : root_mode_names.rs contains ends_with(
+FAIL  names: w2_rsplit_beside_the_comparison.rs : root_mode_names.rs contains rsplit
+FAIL  names: w3_starts_with_beside_the_comparison.rs : root_mode_names.rs contains starts_with(
+FAIL  names: w4_contains_beside_the_comparison.rs : root_mode_names.rs contains contains(
 
 == this revision's own names witnesses, each for one rule
 FAIL  names: nw1_block_comment_in_the_module.rs : root_mode_names.rs holds /* in its own text
@@ -1872,6 +1872,8 @@ because the extra-word helper keeps the two help literals in the module's litera
 So each of the third read's nine variants and this round's four fails,
 every rule that closes one has a witness that fails on it alone,
 and the log's full text holds each verdict's whole message.
+The third revision's guard lines are shown here without the `bad/` path prefix that driver prints,
+and the long verdict strings are shortened.
 The six-figure verdict strings are shortened here and whole in the log.
 
 The second revision's own replay still passes its text and still fails today's file,
