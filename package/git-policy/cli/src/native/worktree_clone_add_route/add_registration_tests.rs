@@ -8,9 +8,13 @@
 
 use super::{ScanInput, ScanOutcome, scan_and_settle};
 use crate::test_support::{fixture, remove};
+use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, Request};
+use crate::worktree_clone_binding_record::binding_record::BindingRecord;
+use crate::worktree_clone_binding_record::binding_words::{Phase, RequestForm};
 use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
+use crate::worktree_clone_binding_record::record_publication::write_binding;
 use crate::worktree_clone_binding_record::registration_home::{home_folder, open_or_create_home};
-use crate::worktree_clone_mount_protocol::RequestNonce;
+use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
@@ -64,6 +68,41 @@ impl World {
         std::fs::write(self.slot_path.join(".git"), format!("gitdir: {}\n", registration.display()).as_bytes()).expect("the slot's pointer");
     }
 
+    /// The record the add wrote at its claim,
+    /// with the facts the lock's classification reads,
+    /// through the writer the add itself uses.
+    fn write_the_add_s_record(&self) {
+        let home: std::fs::File = open_or_create_home(self.common.as_path()).expect("the home opens");
+        let guid = |value: &str| return DatasetGuid::parse(value).expect("the fixture guid reads");
+        let record: BindingRecord = BindingRecord {
+            claim: 1,
+            nonce: self.nonce.clone(),
+            request: Request::with_argument(RequestForm::Branch, b"topic"),
+            phase: Phase::Slot,
+            settle_reason: None,
+            checkout_dataset: String::from("tank/monochromatic-git-checkout"),
+            checkout_dataset_guid: guid("4815162342109876543"),
+            repository: self.common.as_os_str().as_encoded_bytes().to_vec(),
+            repository_identity: FolderIdentity::of_folder(self.common.as_path()).expect("the common directory's identity reads"),
+            slot: self.slot_path.as_os_str().as_encoded_bytes().to_vec(),
+            slot_identity: Some(FolderIdentity::of_folder(self.slot_path.as_path()).expect("the slot's identity reads")),
+            registration: None,
+            registration_identity: None,
+            pool: String::from("tank"),
+            pool_guid: guid("17293822569102704641"),
+            origin_snapshot: String::from("tank/monochromatic-git-checkout@git-worktree-clone-origin-9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f"),
+            origin_snapshot_guid: None,
+            origin_snapshot_createtxg: None,
+            origin_dataset: None,
+            origin_dataset_guid: None,
+            clone_dataset: String::from("tank/clones/topic"),
+            clone_guid: None,
+            clone_createtxg: None,
+            pointer: None,
+        };
+        write_binding(&home, "topic", &record).expect("the record is written");
+    }
+
     /// Remove the whole fixture.
     fn close(self) {
         remove(self.root.as_path());
@@ -74,8 +113,9 @@ impl World {
 fn a_complete_locked_registration_is_adopted_with_its_pointer() {
     let world: World = World::new("scan-adopt");
     world.a_complete_registration();
+    world.write_the_add_s_record();
     let outcome: ScanOutcome = world.scan().expect("the scan reads the registration");
-    let ScanOutcome::Adopt(registration) = outcome else { panic!("the complete registration is adopted") };
+    let ScanOutcome::Adopt { registration, .. } = outcome else { panic!("the complete registration is adopted") };
     assert_eq!(registration.path, world.registration());
     assert_eq!(registration.pointer, std::fs::read(world.slot_path.join(".git")).expect("the pointer"));
     assert!(registration.identity.inode() > 0);
@@ -120,10 +160,68 @@ fn nothing_at_all_asks_for_git_s_own_add() {
 fn a_person_s_lock_refuses_and_changes_nothing() {
     let world: World = World::new("scan-foreign-lock");
     world.a_complete_registration();
+    world.write_the_add_s_record();
     std::fs::write(world.registration().join("locked"), b"locked by a person, not the wrapper\n").expect("the person's lock");
     let refusal: String = world.scan().expect_err("a person's lock is refused");
-    assert!(refusal.contains("a person's lock stands on it"), "{refusal}");
+    assert!(refusal.contains("is locked by words its add did not write"), "{refusal}");
+    assert!(refusal.contains("Nothing was removed or rewritten"), "{refusal}");
     assert_eq!(std::fs::read(world.registration().join("locked")).expect("the lock"), b"locked by a person, not the wrapper\n");
+    world.close();
+}
+
+/// What:
+///  The put-back the decision of 2026-11-22 asks of the add's own resume:
+///  a complete registration whose lock is gone is adopted,
+///  the lock is written again,
+///  and the command prints one line saying it did.
+/// Why:
+///  This is the command that already holds the slot's claim and has proved the
+///  registration,
+///  so the broken arm is the same fixture with the write removed.
+#[test]
+fn a_lost_lock_is_written_again_and_the_line_printed() {
+    let world: World = World::new("scan-put-back");
+    world.a_complete_registration();
+    world.write_the_add_s_record();
+    std::fs::remove_file(world.registration().join("locked")).expect("the lock is lost");
+    let outcome: ScanOutcome = world.scan().expect("a lost lock is written again");
+    let ScanOutcome::Adopt { wrote_the_lock, .. } = outcome else { panic!("the registration is adopted") };
+    let line: String = wrote_the_lock.expect("the command says it wrote the lock again");
+    assert!(line.contains("had lost its managed Git lock"), "{line}");
+    assert!(line.contains("wrote it again for add nonce"), "{line}");
+    assert_eq!(std::fs::read(world.registration().join("locked")).expect("the lock reads"), lock_file_bytes(&world.nonce), "the lock holds the sentence and Git's newline");
+    world.close();
+}
+
+/// A lock a killed write cut short is completed in place,
+/// because the bytes are the wrapper's own past the whole nonce.
+#[test]
+fn a_cut_short_lock_is_completed_in_place() {
+    let world: World = World::new("scan-cut-short");
+    world.a_complete_registration();
+    world.write_the_add_s_record();
+    let whole: Vec<u8> = lock_file_bytes(&world.nonce);
+    let cut: usize = crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_PREFIX.len() + 40;
+    std::fs::write(world.registration().join("locked"), &whole[..cut]).expect("the cut-short lock");
+    let outcome: ScanOutcome = world.scan().expect("a cut-short lock is completed");
+    let ScanOutcome::Adopt { wrote_the_lock, registration } = outcome else { panic!("the registration is adopted") };
+    assert!(wrote_the_lock.is_none(), "completing a lock is not writing a lost one, so no line is owed");
+    assert!(registration.path.ends_with("topic"));
+    assert_eq!(std::fs::read(world.registration().join("locked")).expect("the lock reads"), whole);
+    world.close();
+}
+
+/// An empty lock is neither this add's sentence nor a person's words the reader can quote,
+/// and the add refuses it with the classification's own sentence and writes nothing over it.
+#[test]
+fn an_empty_lock_refuses_and_is_not_overwritten() {
+    let world: World = World::new("scan-empty-lock");
+    world.a_complete_registration();
+    world.write_the_add_s_record();
+    std::fs::write(world.registration().join("locked"), b"").expect("the empty lock");
+    let refusal: String = world.scan().expect_err("an empty lock is not the add's");
+    assert!(refusal.contains("is locked by words its add did not write"), "{refusal}");
+    assert_eq!(std::fs::read(world.registration().join("locked")).expect("the lock"), b"");
     world.close();
 }
 

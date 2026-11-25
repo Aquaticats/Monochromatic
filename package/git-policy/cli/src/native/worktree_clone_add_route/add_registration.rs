@@ -11,9 +11,17 @@
 //!  that feeds them and applies their answers through the recipe, so the pure
 //!  rules stay controlled on any machine and the reads happen once, under the
 //!  claim.
-//!  Every read is a bounded,
-//!  no-follow regular file, except a person's longer lock,
-//!  whose first bytes are enough to prove it is not this add's.
+//!  The entry read is the managed lock's own
+//!  (`worktree_clone_managed_lock::read_one_entry`),
+//!  so the add's resume and the classification of a lock read one entry the same way.
+//!  A complete registration is then adopted through the one classification
+//!  `doctor` and the removal share:
+//!  the whole lock is taken as it stands,
+//!  a cut-short one is completed in place,
+//!  a lost one is written again and the one line printed,
+//!  and words this add did not write refuse with the words a person acts on
+//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+//!  "A lost lock is written again, and which commands do it").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,23 +32,24 @@
 use crate::private_storage::read_regular_file;
 use crate::worktree_add_binding::resolve_lexically;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
-use crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_MAXIMUM_BYTES;
 use crate::worktree_clone_binding_record::record_publication::RecordRefusalAtTheFile;
 use crate::worktree_clone_binding_record::registration_finder::EntryFacts;
 use crate::worktree_clone_binding_record::registration_home::record_name_of;
 use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, RecipeRefusal, ToClear, clear_registration, complete_a_cut_short_lock};
 use crate::worktree_clone_binding_record::registration_resume::{EntryDecision, Finding as RegistrationFinding, ListingDecision, find_registrations};
+use crate::worktree_clone_managed_lock::lock_classification::classify_the_managed_lock;
+use crate::worktree_clone_managed_lock::lock_installation::{InstallAnswer, write_the_lost_lock};
+use crate::worktree_clone_managed_lock::lock_state::{Classification, ManagedLockState};
+use crate::worktree_clone_managed_lock::lock_state_words::the_lines;
+use crate::worktree_clone_managed_lock::registration_entry_reading::read_one_entry;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// The most bytes of a `gitdir` or pointer record this scan reads,
 /// the path bound plus the pointer's prefix and its newline.
 const RECORD_LIMIT: u64 = 8 + 4096 + 2;
-
-/// The most bytes of a person's lock this scan keeps,
-/// enough to read its first line and prove it is not this add's sentence.
-const FOREIGN_LOCK_LIMIT: u64 = 4096;
 
 /// What:
 ///  The registration this add owns, proved from the five facts.
@@ -77,8 +86,15 @@ pub struct Registration {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScanOutcome {
-    /// A complete registration this add owns.
-    Adopt(Registration),
+    /// A complete registration this add owns,
+    /// with the one line a lock put back owes a person when it wrote one.
+    Adopt {
+        /// The registration the scan proved.
+        registration: Registration,
+        /// The line the command prints once,
+        /// present only when this command wrote a lost lock again.
+        wrote_the_lock: Option<String>,
+    },
     /// Nothing stands for this slot, or the incomplete entry was cleared.
     RunGit {
         /// What the recipe removed,
@@ -127,13 +143,11 @@ pub fn scan_and_settle(input: &ScanInput<'_>) -> Result<ScanOutcome, String> {
     let slot_pointer: Option<Vec<u8>> = read_optional(input.slot_path.join(".git").as_path(), RECORD_LIMIT)?;
     let finding: RegistrationFinding = find_registrations(entries.as_slice(), input.slot, input.slot_path, input.nonce, other_slots.as_slice(), slot_pointer.is_some());
     match finding.decision {
-        ListingDecision::Entry(EntryDecision::Adopt { complete_the_lock }) => {
+        ListingDecision::Entry(EntryDecision::Adopt) => {
             let entry: &EntryFacts = entries.iter().find(|entry| return entry.gitdir.as_deref() == Some(input.slot_path.join(".git").as_path())).ok_or_else(|| return String::from("the finder adopted a registration the scan does not name"))?;
             let registration: PathBuf = input.common_dir.join("worktrees").join(entry.name.as_str());
-            if complete_the_lock {
-                complete_a_cut_short_lock(registration.as_path(), input.nonce).map_err(|error| return format!("the cut-short lock in {} cannot be completed ({error})", registration.display()))?;
-            }
-            return Ok(ScanOutcome::Adopt(prove_the_registration(&registration, input.slot_path, slot_pointer.as_deref())?));
+            let wrote_the_lock: Option<String> = settle_the_lock(input, registration.as_path())?;
+            return Ok(ScanOutcome::Adopt { registration: prove_the_registration(&registration, input.slot_path, slot_pointer.as_deref())?, wrote_the_lock });
         }
         ListingDecision::Entry(EntryDecision::Clear { row: _ }) => {
             let entry: &EntryFacts = entries
@@ -154,7 +168,58 @@ fn with_a_way_forward(sentence: String) -> String {
     return format!("{sentence} The add left the claim, the slot and the registration as they are, and running it again resumes them.");
 }
 
-/// Read every entry of `<common>/worktrees`, in the listing's order.
+/// What:
+///  Settle the lock of the registration the scan has just adopted:
+///  take the whole one,
+///  complete the cut-short one in place,
+///  write a lost one again and answer the one line,
+///  and refuse words this add did not write.
+/// Why:
+///  The project decided on 2026-11-22 that any wrapped command which holds the
+///  slot's claim and has proved the registration writes a lost lock again and says
+///  so,
+///  and the lock's own state is the classification's answer rather than a second
+///  reading here
+///  (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`;
+///  `doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+///  "The states, the checks and the words").
+///  A lock the classification calls a person's is never overwritten,
+///  and the sentence a person reads is the classification's own.
+fn settle_the_lock(input: &ScanInput<'_>, registration: &Path) -> Result<Option<String>, String> {
+    let mounts: LiveMountedDatasets = LiveMountedDatasets;
+    let classification: Classification = classify_the_managed_lock(input.common_dir, input.slot, input.slot_path, &mounts);
+    match &classification.state {
+        ManagedLockState::Managed { .. } => return Ok(None),
+        ManagedLockState::CutShort { .. } => {
+            complete_a_cut_short_lock(registration, input.nonce).map_err(|error| return format!("the cut-short lock in {} cannot be completed ({error})", registration.display()))?;
+            return Ok(None);
+        }
+        ManagedLockState::NoLock { .. } => {
+            return match write_the_lost_lock(registration, input.slot, input.nonce) {
+                // A lock the classification read as absent and this write found standing:
+                // the state is named by the classification rather than replaced by a write.
+                InstallAnswer::ALockStands => Err(format!(
+                    "the lock of `{}` stands and this command cannot attribute it, so nothing was rewritten. Ways forward: run `git worktree unlock {}` if no person holds that lock, then run the add again",
+                    registration.display(),
+                    input.slot
+                )),
+                InstallAnswer::Refused { reason } => Err(format!(
+                    "the lost managed Git lock of `{}` cannot be written again ({reason}), so nothing beyond the claim was changed. Ways forward: inspect the registration's folder and run the add again",
+                    registration.display()
+                )),
+                InstallAnswer::Wrote { line } => Ok(Some(line.clone())),
+            };
+        }
+        _refusing => {}
+    }
+    return Err(format!(
+        "{} Nothing was removed or rewritten. Ways forward: read the line above, settle the lock it names, then run the add again",
+        the_lines(&classification, input.slot).join(" ")
+    ));
+}
+
+/// Read every entry of `<common>/worktrees`, in the listing's order,
+/// each through the one entry reader the classification uses.
 fn read_the_entries(input: &ScanInput<'_>) -> Result<Vec<EntryFacts>, String> {
     let parent: PathBuf = input.common_dir.join("worktrees");
     let listing: std::fs::ReadDir = match std::fs::read_dir(parent.as_path()) {
@@ -168,9 +233,6 @@ fn read_the_entries(input: &ScanInput<'_>) -> Result<Vec<EntryFacts>, String> {
         names.push(entry.file_name());
     }
     names.sort();
-    let slot_git: PathBuf = input.slot_path.join(".git");
-    let slot_pointer: Option<Vec<u8>> = read_optional(slot_git.as_path(), RECORD_LIMIT)?;
-    let slot_other_entries: usize = count_other_entries(input.slot_path)?;
     let mut facts: Vec<EntryFacts> = Vec::with_capacity(names.len());
     for name in names {
         let Some(text) = name.to_str() else { continue };
@@ -182,31 +244,13 @@ fn read_the_entries(input: &ScanInput<'_>) -> Result<Vec<EntryFacts>, String> {
         if !metadata.is_dir() {
             continue;
         }
-        let locked: Option<Vec<u8>> = read_the_lock(registration.join("locked").as_path())?;
-        let gitdir: Option<PathBuf> = read_the_gitdir(registration.as_path())?;
-        let commondir: bool = registration.join("commondir").is_file();
-        let head: bool = registration.join("HEAD").is_file();
-        facts.push(EntryFacts { name: String::from(text), locked, gitdir, slot_git_pointer: slot_pointer.clone(), commondir, head, slot_other_entries });
+        facts.push(read_one_entry(parent.as_path(), text, input.slot_path));
     }
     return Ok(facts);
 }
 
-/// A person's lock, as far as this add reads it:
-/// the whole managed bound, or a person's longer file's first bytes.
-fn read_the_lock(path: &Path) -> Result<Option<Vec<u8>>, String> {
-    return match read_regular_file(path, LOCK_WORDS_MAXIMUM_BYTES) {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(crate::private_storage::ReadRefusal::Missing) => Ok(None),
-        Err(crate::private_storage::ReadRefusal::TooLarge) => match read_regular_file(path, FOREIGN_LOCK_LIMIT) {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(refusal) => Err(format!("the lock {} is a person's file this add cannot read ({refusal:?}); Ways forward: read it and remove it if it is not yours to keep, then run the add again", path.display())),
-        },
-        Err(refusal) => Err(format!("the lock {} cannot be read ({refusal:?}); Ways forward: read it and remove it if it is not yours to keep, then run the add again", path.display())),
-    };
-}
-
-/// The path a registration's `gitdir` names, relative paths resolved against
-/// the registration.
+/// The path a registration's `gitdir` names,
+/// relative paths resolved against the registration.
 fn read_the_gitdir(registration: &Path) -> Result<Option<PathBuf>, String> {
     let Some(bytes) = read_optional(&registration.join("gitdir"), RECORD_LIMIT)? else { return Ok(None) };
     let line: &[u8] = bytes.strip_suffix(b"\n").unwrap_or(bytes.as_slice());
@@ -216,30 +260,14 @@ fn read_the_gitdir(registration: &Path) -> Result<Option<PathBuf>, String> {
     };
 }
 
-/// One record that may be absent.
+/// One record that may be absent,
+/// for the reads this scan makes outside the entries.
 fn read_optional(path: &Path, limit: u64) -> Result<Option<Vec<u8>>, String> {
     return match read_regular_file(path, limit) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(crate::private_storage::ReadRefusal::Missing) => Ok(None),
         Err(refusal) => Err(format!("the record {} cannot be read ({refusal:?})", path.display())),
     };
-}
-
-/// How many entries the slot holds besides `.git`.
-fn count_other_entries(slot_path: &Path) -> Result<usize, String> {
-    let listing: std::fs::ReadDir = match std::fs::read_dir(slot_path) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
-        Err(error) => return Err(format!("the slot {} cannot be listed ({error})", slot_path.display())),
-    };
-    let mut count: usize = 0;
-    for listed in listing {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return format!("the slot {} cannot be listed ({error})", slot_path.display()))?;
-        if entry.file_name() != OsStr::new(".git") {
-            count += 1;
-        }
-    }
-    return Ok(count);
 }
 
 /// Every slot whose binding stands in the home, except this one.

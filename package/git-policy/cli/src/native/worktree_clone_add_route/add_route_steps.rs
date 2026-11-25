@@ -193,13 +193,21 @@ fn steps_note_after_making(slot: &Path) -> Result<(), StepRefusal> {
 ///  or run Git when nothing stands.
 /// Why:
 ///  Git's own add is the only writer of the lock and the registration,
-///  so the scan's answer decides whether it runs again at all.
+///  so the scan's answer decides whether it runs again at all,
+///  and the line a lock put back owes a person is printed here,
+///  once,
+///  where the command's other lines go.
 pub fn step_git(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), StepRefusal> {
     for _round in 0..3 {
         let outcome: ScanOutcome = scan_and_settle(&ScanInput { common_dir: steps.route.common_dir.as_path(), home: steps.home_path, slot: steps.route.slot.as_str(), slot_path: steps.route.destination.as_path(), nonce: &record.nonce })
             .map_err(StepRefusal::refused)?;
         match outcome {
-            ScanOutcome::Adopt(registration) => return adopt(steps, record, &registration),
+            ScanOutcome::Adopt { registration, wrote_the_lock } => {
+                if let Some(line) = wrote_the_lock {
+                    steps.out.borrow_mut().push(format!("monochromatic-git-policy-cli: {line}\n"));
+                }
+                return adopt(steps, record, &registration);
+            }
             ScanOutcome::RunGit { cleared } => {
                 if !cleared.is_empty() {
                     steps.out.borrow_mut().push(format!("monochromatic-git-policy-cli: cleared an incomplete registration at {} ({}).\n", steps.route.slot, cleared.join(", ")));
