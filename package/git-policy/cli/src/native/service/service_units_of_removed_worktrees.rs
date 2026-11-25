@@ -28,11 +28,17 @@
 //! because a stopped instance is never served again and its records name a worktree that is gone;
 //! a journal that holds a batch no branch shows,
 //! a record that was written and not published,
+//! a claim watch note naming a repository that still holds the work directory a look reads,
 //! or a file this release does not know is kept and named instead of discarded,
 //! and so is a journal whose landed batches a client may still read,
 //! or whose service the manager does not yet report gone:
 //! those keep the note and the socket file too,
 //! so a later sweep finishes.
+//! Two entries that a removal used to keep the journal for carry no work,
+//! because their only reader is the removed worktree's own service:
+//! the repository the service remembered for its rules warm,
+//! and a claim watch note naming the removed worktree or a repository whose work directory is gone
+//! (`service_files_of_a_stopped_instance.rs`).
 //! A service that stops its own socket never removes its own journal,
 //! because it is still one of that journal's writers:
 //! its after-commit task and that task's jobs write the note of a repository to look at and the plan of a push to try again,
@@ -49,7 +55,8 @@
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
-use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
+use crate::service_claim_watch::{WATCH_DIRECTORY, named_repositories};
+use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
 use crate::service_route::non_empty_path_variable;
 use crate::service_is_gone_after_a_stop::service_is_gone;
@@ -123,6 +130,9 @@ pub struct SweepOutcome {
     /// The journals that stayed after their instance's units were stopped,
     /// each with the instance and the entry that kept it.
     pub journals_kept: Vec<(String, KeptJournal)>,
+    /// The journals that went with the units of a gone worktree,
+    /// each with the instance and the folder that was removed.
+    pub journals_removed: Vec<(String, PathBuf)>,
     /// The survey the stop was made from.
     pub survey: Survey,
 }
@@ -241,10 +251,14 @@ fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
 /// The worktree of an instance:
 /// its note,
 /// else the Git directory in a record of its service journal,
+/// else a Git directory the notes of its claim watch name,
 /// each only when its text hashes to the instance.
 /// Why:
 ///   A text that does not hash to the instance names some other directory,
 /// and stopping the units of a worktree on a wrong guess would cut a live one.
+/// The claim watch's notes are the third record because a sweep that stopped an instance it could not finish took
+/// the note beside the socket with it and kept the journal:
+/// a journal kept for the claim watch of a removed worktree then names that worktree in the only file left.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -256,10 +270,16 @@ pub fn worktree_of(folders: &UnitFolders<'_>, instance: &str) -> UnitWorktree {
     {
         return UnitWorktree::Known(found);
     }
-    if let Some(state) = folders.state_dir
-        && let Some(found) = from_journal(state, instance)
-    {
-        return UnitWorktree::Known(found);
+    if let Some(state) = folders.state_dir {
+        if let Some(found) = from_journal(state, instance) {
+            return UnitWorktree::Known(found);
+        }
+        let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
+        for git_dir in named_repositories(journal.join(WATCH_DIRECTORY).as_path()) {
+            if instance_of(git_dir.as_path()) == instance {
+                return UnitWorktree::Known(git_dir);
+            }
+        }
     }
     return UnitWorktree::Unmapped;
 }
@@ -304,12 +324,55 @@ pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
 }
 
 /// What:
-/// Sorts the instances that have a unit into those whose worktree is gone,
+///  Whether any unit of an instance could exist:
+///  its socket file or its note is there.
+/// Why:
+///   A worktree that never provisioned a unit has neither,
+/// so the removal need not connect to the manager at all,
+/// and the sweep asks the manager about no instance that has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hasUnits(folders, instance) // socket file or note
+/// ```
+pub fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
+    return socket_path(folders.runtime_dir, instance).exists() || note_path(folders.runtime_dir, instance).exists();
+}
+
+/// What:
+///  Every instance the sweep and `doctor` look at:
+///  the ones with a socket file or a note,
+///  and the ones whose journal folder is in the state directory.
+/// Why:
+///   A sweep that stopped an instance it could not finish kept its journal and removed the two files that named it,
+/// so a later sweep found no unit and never looked at the journal again:
+/// the folders of removed worktrees stayed for ever and asked a person at every removal (issue 6322).
+/// A journal folder is named after its instance,
+/// so the state directory names the same instances the note did,
+/// and `worktree_of` reads the worktree back from the journal itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// instancesWithUnitsOrJournals(folders) // socket files, notes and journal folders, sorted and each once
+/// ```
+pub fn instances_with_units_or_journals(folders: &UnitFolders<'_>) -> Vec<String> {
+    let mut found: Vec<String> = instances_with_units(folders.runtime_dir);
+    if let Some(state) = folders.state_dir {
+        add_instances_of(state.join(SERVICE_UNIT.current).join(JOURNAL_FOLDER).as_path(), "", &mut found);
+    }
+    found.sort();
+    found.dedup();
+    return found;
+}
+
+/// What:
+/// Sorts the instances that have a unit or a journal into those whose worktree is gone,
 /// those that map to nothing,
 /// and the count of those whose worktree is still there.
 /// Why:
 ///   The sort reads files only,
-/// so `doctor` can report it without a manager.
+/// so `doctor` can report it without a manager,
+/// and an instance whose journal outlived the note and the socket file that named it is looked at again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -317,7 +380,7 @@ pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
 /// ```
 pub fn survey(folders: &UnitFolders<'_>) -> Survey {
     let mut found: Survey = Survey::default();
-    for instance in instances_with_units(folders.runtime_dir) {
+    for instance in instances_with_units_or_journals(folders) {
         match worktree_of(folders, instance.as_str()) {
             UnitWorktree::Unmapped => found.unmapped.push(instance),
             UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => found.gone.push(instance),
@@ -623,10 +686,16 @@ fn forget_the_instance(folders: &UnitFolders<'_>, instance: &str) {
 ///   An instance that maps to nothing,
 /// or whose worktree is still there,
 /// is never asked about.
+/// An instance whose socket file and note are both gone has no unit the manager could start again,
+/// so the manager is not asked about it and only its journal is decided:
+/// that is how the journal of a removal which kept one, and left no file that named the instance but the journal
+/// itself, is cleared here.
 /// A refused stop keeps its note,
 /// so the next sweep tries the instance again,
 /// and so does a journal kept for a client that may still read it,
 /// or for a service that outlasted `SERVICE_GONE_AFTER_A_STOP`.
+/// A journal that was removed is named with its folder in the outcome,
+/// so the command a person ran says where it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -637,27 +706,37 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
     let mut outcome: SweepOutcome = SweepOutcome { survey: surveyed.clone(), ..SweepOutcome::default() };
     manager.within(EXCHANGE_WAIT);
     for instance in &surveyed.gone {
-        match stop_units(manager, instance.as_str()) {
-            Ok(()) => {
-                // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
-                //  and only then may the journal it writes be removed.
-                let quiet: bool = service_is_gone(manager, instance.as_str());
-                match remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str(), quiet) {
-                    Some(JournalAfterStop::HoldsWork(kept)) => {
-                        forget_the_instance(folders, instance.as_str());
-                        outcome.journals_kept.push((instance.clone(), kept));
-                    }
-                    // The journal is kept for the clients that may still read it, or for a service that is still going:
-                    //  the note and the socket file stay, so the next sweep finds the instance and finishes.
-                    Some(JournalAfterStop::StillRead(_)) => {}
-                    Some(JournalAfterStop::Removed) | None => forget_the_instance(folders, instance.as_str()),
+        let had_units: bool = has_units(folders, instance.as_str());
+        if had_units {
+            match stop_units(manager, instance.as_str()) {
+                Ok(()) => outcome.stopped.push(instance.clone()),
+                Err(error) => {
+                    warn(TAG, format!("the units of {instance} were not stopped: {}", reason_of(&error)).as_str());
+                    outcome.failed.push((instance.clone(), reason_of(&error)));
+                    continue;
                 }
-                outcome.stopped.push(instance.clone());
             }
-            Err(error) => {
-                warn(TAG, format!("the units of {instance} were not stopped: {}", reason_of(&error)).as_str());
-                outcome.failed.push((instance.clone(), reason_of(&error)));
+        }
+        // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
+        //  and only then may the journal it writes be removed. A journal with neither a socket file nor a note beside it
+        //  belongs to no unit of this manager: the two files are what make one possible.
+        let quiet: bool = if had_units { service_is_gone(manager, instance.as_str()) } else { true };
+        match remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str(), quiet) {
+            Some(JournalAfterStop::HoldsWork(kept)) => {
+                forget_the_instance(folders, instance.as_str());
+                outcome.journals_kept.push((instance.clone(), kept));
             }
+            // The journal is kept for the clients that may still read it, or for a service that is still going:
+            //  the note and the socket file stay, so the next sweep finds the instance and finishes.
+            Some(JournalAfterStop::StillRead(_)) => {}
+            Some(JournalAfterStop::Removed) => {
+                // Named before the folder goes, so the line a person reads says where it was.
+                if let Some(journal) = journal_of_the_instance(folders.state_dir, instance.as_str()) {
+                    outcome.journals_removed.push((instance.clone(), journal));
+                }
+                forget_the_instance(folders, instance.as_str());
+            }
+            None => forget_the_instance(folders, instance.as_str()),
         }
     }
     return outcome;

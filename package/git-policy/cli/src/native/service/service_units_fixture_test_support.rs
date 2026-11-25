@@ -15,6 +15,7 @@
 //! const machine = machine('units-survey'); // { root, runtime, state, folders() }
 //! ```
 
+use crate::service_claim_watch::WATCH_DIRECTORY;
 use crate::service_instance::{SOCKET_DIRECTORY, socket_path};
 use crate::service_journal::DONE_EXTENSION;
 use crate::service_journal_folder_of_an_instance::journal_of;
@@ -54,6 +55,22 @@ pub fn age_a_journal(journal: &std::path::Path) {
 fn age_by(path: &std::path::Path, older: std::time::Duration) {
     let when: std::time::SystemTime = std::time::SystemTime::now().checked_sub(older).expect("a fixture time after the epoch");
     std::fs::File::open(path).expect("a fixture path to age").set_modified(when).expect("a fixture time to age");
+}
+
+/// What:
+///  Writes one claim watch note into `journal` that names `git_dir`,
+///  in the format `service_claim_watch.rs` writes.
+/// Why:
+///   The notes are what a look at the after-commit work lists,
+/// and a control of a journal's cleanup needs a note that names a repository that is there
+/// and one that names a repository that is gone,
+/// without waiting for a service to write one.
+pub fn write_a_claim_watch_note(journal: &std::path::Path, git_dir: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let folder: PathBuf = journal.join(WATCH_DIRECTORY);
+    std::fs::create_dir_all(&folder).expect("claim watch folder");
+    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
+    std::fs::write(folder.join("0123456789abcdef-0.watch"), format!("claim-watch-1 {hex}\n")).expect("a note of the claim watch");
 }
 
 /// One repository and one runtime directory on disk:

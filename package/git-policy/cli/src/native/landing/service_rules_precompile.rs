@@ -44,6 +44,33 @@ use std::time::{Duration, Instant};
 /// The file in the service's state directory that names the repository it serves.
 pub const REMEMBERED_FILE: &str = "rules-repository";
 
+/// The ending of the staging name the remembered repository is written under,
+/// before one rename publishes it.
+pub const REMEMBERED_STAGING_ENDING: &str = ".new";
+
+/// What:
+///  Whether a name in a journal is the remembered repository,
+///  either the file itself or the staging copy a kill left before the rename.
+/// Why:
+///   The file names the repository whose rules the service warmed in a previous process;
+/// it holds a path and no record of a commit,
+/// so a journal cleanup that keeps it for an unexplained file asks a person to look at a folder
+/// that holds nothing of theirs (issue 6322;
+/// the keep rule lives in `service_files_of_a_stopped_instance.rs`).
+/// The staging copy is the same path written whole under one name,
+/// which nothing renames once the service that wrote it is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isTheRememberedRepository('rules-repository.new') // true
+/// ```
+pub fn is_the_remembered_repository(name: &str) -> bool {
+    return match name.strip_suffix(REMEMBERED_STAGING_ENDING) {
+        Some(stem) => stem == REMEMBERED_FILE,
+        None => name == REMEMBERED_FILE,
+    };
+}
+
 /// The address space a warm needs beyond what the service already maps,
 /// in bytes.
 /// Measured on 2026-11-07 with this repository's real rules:
@@ -271,7 +298,7 @@ fn first_look_at(journal: &Path, repository: &Path) -> bool {
 /// a failure only costs the warm after a restart.
 fn remember(journal: &Path, repository: &Path) {
     let target: PathBuf = journal.join(REMEMBERED_FILE);
-    let staging: PathBuf = journal.join(format!("{REMEMBERED_FILE}.new"));
+    let staging: PathBuf = journal.join(format!("{REMEMBERED_FILE}{REMEMBERED_STAGING_ENDING}"));
     if let Err(error) = std::fs::write(&staging, format!("{}\n", repository.display())) {
         crate::service_log!("the repository was not remembered for the rules warm in {}: {error}", journal.display());
         return;
