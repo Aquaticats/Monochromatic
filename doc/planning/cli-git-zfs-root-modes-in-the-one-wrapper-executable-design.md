@@ -16,10 +16,10 @@ about the boot mount provider and the ordering of plan step 19 in
 and about which checkouts the route serves in
 [the step 10 record](../decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md).
 Every claim about a program this repository does not own is read from that program's source,
-and every claim about this repository's code is read at this branch's tip,
-`8f2df052d0`,
-which merges `main`'s `3f459371af`; the round merged `main` before its first edit and again at the
-end, so the line numbers are true where the branch stands.
+and every claim about this repository's code is read at `8f2df052d0`,
+this round's merge of `main`'s `3f459371af`;
+the round merged `main` before its first edit and again before its last,
+and no commit after that merge touches a file this document cites.
 A citation given at another commit says which,
 and gives this tip's line beside it where the line moved;
 every citation that names a path is resolved at this tip in
@@ -4371,8 +4371,8 @@ is the finding.
 ## What changes, and in which step
 
 Every path in this section is re-read with `rg`,
-and each line number is given at this branch's tip,
-`8f2df052d0`,
+and each line number is given at `8f2df052d0`,
+this round's merge of `main`,
 unless it says `f3d81e0910`,
 which is the commit the third revision read and the line has not moved since.
 `rg --hidden -c "mount-git-worktree-clone-datasets"` finds 154 lines in 56 files at this base,
@@ -5229,7 +5229,7 @@ This round's folder,
   and no probe process in `ps`;
 - `citations-at-this-rounds-base.txt`:
   every citation that names a path,
-  printed with the line it names at this branch's tip (`8f2df052d0`),
+  printed with the line it names at `8f2df052d0`, this round's merge of `main`,
   and `citation-drift-fifth.log`,
   which compares that dump with the fourth round's and shows the one citation that moved;
 - `occurrences-fifth.txt`:
