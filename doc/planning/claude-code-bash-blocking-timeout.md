@@ -3,9 +3,11 @@
 Purpose:
 the design tree for replacing forced immediate backgrounding in the Claude Code Bash hook
 with a one-second foreground timeout.
-Grilling is in progress.
-This record is unapproved,
-and no implementation is authorized until the user confirms a shared understanding.
+Grilling is complete.
+The user confirmed shared understanding on 2026-11-25T18:02:17-05:00
+and authorized implementation.
+The accepted contract is recorded in
+`doc/decision/claude-code-bash-blocking-timeout.md`.
 
 State recorded 2026-11-25T18:00:40-05:00.
 
