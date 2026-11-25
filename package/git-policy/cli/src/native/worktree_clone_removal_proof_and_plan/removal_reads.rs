@@ -130,8 +130,8 @@ impl RemovalPoolReads for LiveRemovalReads {
         let mut objects: Vec<LiveObject> = Vec::new();
         for pair in reply.iter() {
             let NvData::List { value } = &pair.data else { continue };
-            let guid: u64 = value.get_u64("guid").ok_or_else(|| return format!("the bookmark {} carries no GUID", pair.name))?;
-            let createtxg: u64 = value.get_u64("createtxg").ok_or_else(|| return format!("the bookmark {} carries no creation transaction group", pair.name))?;
+            let guid: u64 = nested_u64(value, "guid").ok_or_else(|| return format!("the bookmark {} carries no GUID", pair.name))?;
+            let createtxg: u64 = nested_u64(value, "createtxg").ok_or_else(|| return format!("the bookmark {} carries no creation transaction group", pair.name))?;
             objects.push(LiveObject {
                 kind: EntryKind::Bookmark,
                 name: name_below(pair.name.as_str(), dataset, '#')?,
@@ -177,6 +177,21 @@ fn name_below(full: &str, dataset: &str, separator: char) -> Result<String, Stri
         return Err(format!("the pool listed `{full}` under {dataset}, and its owner is {owner}"));
     }
     return Ok(String::from(name));
+}
+
+/// What:
+///  One property of a bookmark's reply as its number.
+/// Why:
+///  The kernel answers each bookmark with a property list whose entries are themselves lists,
+///  so the number sits under `value` and a reader that looked for it one level up would find nothing and
+///  read a live bookmark as a damaged reply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const number = (entry, key) => entry.getList(key)?.getU64('value');
+/// ```
+fn nested_u64(entry: &NvList, key: &str) -> Option<u64> {
+    return entry.get_list(key).and_then(|value| return value.get_u64("value"));
 }
 
 /// A GUID the kernel reported,
