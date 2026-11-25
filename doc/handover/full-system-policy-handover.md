@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-24T03:00:00-05:00
+## Status at 2026-11-25T13:23:05-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -94,6 +94,11 @@ Unprofiled development processes remain a residual risk.
   The custom profile uses the real `net.imput.helium` configuration and cache scopes.
   No
   `/home/user/temp` browser grant was added.
+- On 2026-11-25, `/etc/apparmor.d/local/helium` gained read-only access to
+  `owner @{tmp}/Spectacle.@{rand6}/{,**}` for dragged screenshots.
+  The exact confined PNG read changed from `Permission denied` to the independent SHA-256 match.
+  The owner's real drag retry remains open; see
+  `doc/troubleshooting/spectacle-screenshot-drag-helium-tempfile.md`.
 - `/etc/apparmor.d/abstractions/app/chromium_crashpad_handler.d` audits the pre-existing
   crash-report path and permissions without adding a path or permission.
 - `/etc/apparmor.d/local/keepassxc` grants recursive directory-only `owner @{HOME}/**/ r` for the
