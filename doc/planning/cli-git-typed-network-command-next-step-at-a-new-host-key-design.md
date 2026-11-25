@@ -7,8 +7,9 @@ put to the owner.
 Nothing in it is approved or final:
 this revision is unapproved and non-final,
 and only the owner declares anything complete.
-What this round did is one capped container, started twice
-(the second start corrected the first's missing `TERM`),
+What this round did is one capped container, started three times
+(the second corrected the first's missing `TERM`, the third added the shipped-shape capture and the revised
+host-key sentence),
 after the sixth round's seven container runs (eighteen container starts);
 what it checked is named with every figure,
 and what it could not check is under "What the probes did not show".
@@ -104,13 +105,14 @@ with the host key known,
 ends 128 with `root@localhost: Permission denied (publickey).` between `Cloning into` and Git's `fatal:` line
 (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
 arm `f-locked-direct-a-wrappers-value`;
-the passphrase sentence this round uses is that round's file byte for byte).
+the passphrase sentence this design uses is that round's file byte for byte).
 
 A changed host key, at the default log level, ends 128 with OpenSSH's banner,
 `Offending ED25519 key in /work/kh-stale:1`,
 `Host key for [localhost]:2222 has changed and you have requested strict checking.`
 and the same two Git lines
-(run, the same log, arm `f-changed-direct-a-wrappers-value`).
+(run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
+arm `f-changed-direct-a-wrappers-value`).
 At `LogLevel=FATAL` the same refusal prints `Host key verification failed.` alone
 (run, arm `f-changed-fatal-direct-a-wrappers-value`).
 
@@ -196,6 +198,10 @@ known-hosts check calls for.
 `D` runs `ssh -G` and `ssh-keygen -F` before Git starts and prints the host-key sentence before the command when no
 file holds a key and the setting is `ask`.
 
+They are two decisions, and the ranking takes the family first and the terminal shape second: the family is a relay
+(C, K or K2), a status check (C2), a pre-check (D) or nothing (A), and inside the relay the terminal shape is a pipe
+(C), a pseudo-terminal (K) or the adaptive choice (K2).
+
 ### What each option shows a person at a new host key
 
 Each block is a measured transcript from this round's log,
@@ -240,9 +246,9 @@ and the repository exists.
 monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, ... run this command again.
 ```
 
-K's captured bytes differ from C's even at this refusal: seven carriage returns against one (`o-newkey-k-pty`
-against `o-newkey-c-relay`).
-K2 at the same refusal is C's pipe and carries one (`o-newkey-k2-adaptive`).
+The stand-in's default K writes seven carriage returns here against C's one (`o-newkey-k-pty` against
+`o-newkey-c-relay`); a shipped K clears the terminal's output processing, and at a refusal its capture is then C's
+byte for byte (sixth round, `refusal-k-pty-raw` against `refusal-c-relay`, identical).
 The three print the same lines, and what K and K2 buy appears only on a command that draws a progress display.
 
 ### What K and K2 buy, and what each capture gets
@@ -267,12 +273,14 @@ C at the same terminal (run, arm `o-terminal-ok-c-relay`):
 Cloning into 'probe'...
 ```
 
-K2 at the same terminal (run, arm `o-terminal-ok-k2-adaptive`): plain Git's lines, with 8619 bytes against plain
+K2 at the same terminal (run, arm `o-terminal-ok-k2-adaptive`): plain Git's lines, with 8618 bytes against plain
 Git's 8617 and 216 carriage returns against 210, the six extra being the doubled line ends.
 
 With standard error captured alone, the same clone gives plain Git 37 bytes and K2 37 bytes, identical byte for
-byte (`o-capture-plain` and `o-capture-k2-adaptive`); K gives 8592 bytes, 210 carriage returns and 107 escape bytes
-(`o-capture-k-pty`).
+byte (`o-capture-plain` and `o-capture-k2-adaptive`).
+K without the output processing cleared gives 8592 bytes and 210 carriage returns (`o-capture-k-pty`); the shipped
+shape, which clears it, gives 8586 bytes and 204 carriage returns (`o-capture-k-shipped`), and 107 escape bytes
+either way.
 Shown through `cat -A`, which prints a carriage return as `^M` and an escape as `^[`:
 
 ```text
@@ -281,9 +289,9 @@ Cloning into '/work/clones/probe'...$
 ```
 
 ```text
-# K, the first 320 bytes, the last line cut where the log cut it
-Cloning into '/work/clones/probe'...^M$
-^[[Kremote: Enumerating objects: 2002, done.^M$
+# K, the shipped shape, the first 320 bytes, the last line cut where the log cut it
+Cloning into '/work/clones/probe'...$
+^[[Kremote: Enumerating objects: 2002, done.$
 ^[[Kremote: Counting objects:   0% (1/2002)^M^[[Kremote: ...
 ```
 
@@ -315,7 +323,8 @@ Measured on stand-ins, not on the wrapper.
 The wrapper has no single entry point for a typed network command, and a `pull` that merges runs its network step
 itself as `git fetch --update-head-ok` through `run_wrapper_own_git` (`merge/pull_isolation.rs`), so a `pull`'s
 fetch never passes the top-level forwarding arm.
-The coverage below is what the stand-ins show; the paths it would reach in the wrapper were not traced end to end.
+The coverage in this list is what the stand-ins show; the paths it would reach in the wrapper were not traced end
+to end.
 
 - C, K and K2 cover `clone`, `fetch`, `pull` and a non-LFS `push`, because they read a refusal's transcript and
   every one of those ends non-zero: 128 for `clone`, `fetch` and a `push`, and 1 for a `pull` at a new host key
@@ -403,6 +412,8 @@ which the second question under "The owner's question" either pays on every comm
 
 On a typed command these sums are small against a network round trip,
 and the reasoning about them is under "What the figures support, and what they do not".
+These are runtime figures only; what each option would take to build is under "What building each option would
+take", which is a cost too and not a ranking reason.
 
 ### The ranking, with a reason for every adjacent pair
 
@@ -415,12 +426,13 @@ and the owner is free to pick any of the six.
   Both give the same words and keep the progress display at a terminal.
   When the person's standard error is not a terminal, plain Git draws nothing, and K2's pipe presents exactly
   that: measured, its captured transcript is plain Git's, byte for byte, 37 bytes with no carriage returns and no
-  escapes, where K's is 8592 bytes with 210 carriage returns and 107 escapes
-  (run, this round's log, arms `o-capture-plain`, `o-capture-k2-adaptive` and `o-capture-k-pty`).
-  Shown through `cat -A`, K2's whole capture is `Cloning into '/work/clones/probe'...$`, and K's first line already
-  ends `...^M$` before a `^[[Kremote: ...` line, which is the change no flag removes.
-  Even a refusal, where Git draws nothing, carries seven carriage returns under K against one under C and K2
-  (`o-newkey-k-pty`, `o-newkey-c-relay`, `o-newkey-k2-adaptive`).
+  escapes, where the shipped K's is 8586 bytes with 204 carriage returns and 107 escapes
+  (run, this round's log, arms `o-capture-plain`, `o-capture-k2-adaptive` and `o-capture-k-shipped`).
+  Shown through `cat -A`, K2's whole capture is `Cloning into '/work/clones/probe'...$`, and K's is 8586 bytes of
+  `^[[Kremote: ...` progress, each update ending `^M` except the last update of a line, which ends `$`, with an
+  `^[[K` before every relayed line: that is the change no flag removes.
+  A refusal, where Git draws nothing, is C's bytes under a shipped K (sixth round, `refusal-k-pty-raw` and
+  `refusal-c-relay`, identical), so the change needs a command that draws something.
   K2 costs `+0.74 ms` where K costs `+0.85 ms`, a difference this harness does not resolve, so cost decides
   nothing here; what decides it is that K's captured-stream change falls on every agent session, hook, CI step
   and script that captures a typed command's output, and K2's falls on no one.
@@ -589,135 +601,102 @@ it would need the check narrowed to the refusals it can tell apart, which is the
 
 ## What this revision changed
 
-The gate review's findings, and what each one became.
-The review is not repeated here;
-its own text is at the path under "Status".
+The gate review's findings at
+`~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`,
+and what each one became.
+Its verdict was "not ready to put to the owner as written": one High, eight Mediums and a list of Lows.
+The arms are in this round's log,
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`;
+a bare `keep/...` path is the sixth round's folder, as "Status" says.
 
-### The review's Medium findings
+### The High finding
 
-- Medium 1, that C2's ranked shape was described as safer and wider than it is.
-  Changed in three places and measured in two:
-  C2's section and the question now say the shape speaks for `clone`, `fetch` and `push` and not for `pull`,
-  with the arms named;
-  the unreachable-host false positive is measured, not inferred (arm `w-never-seen-c2-check-unknown`);
-  the check's dependence on a source for the person's ssh options is measured for both C2 and D
-  (`keep/run-9-check-without-a-source-and-no-progress.log`: `s-known-no-source-d-precheck` prints before a clone
-  that ends 0, `s-changed-fatal-no-source-c2-check-unknown` speaks on a changed key);
-  `accept-new` is gone from the C2-over-D pair, and `GIT_SSH_COMMAND`, `core.sshCommand` and `GIT_SSH` are named
-  in the cons of D and of C2's check.
-- Medium 2, that the `remote: ` drop rule was exercised only where it cannot fail.
-  The rule now says it strips Git's `\033[K` erase-line prefix before it looks for `remote: `,
-  and both modes are measured with `TERM=xterm-256color`:
-  silent with the strip and wrong without it, in K's pipe and terminal shapes and in K2's terminal shape
-  (run, `keep/run-5-remote-line-under-a-terminal.log`, arms `r-fail-k-pty-redirect` and
-  `r-fail-k-pty-terminal` silent, `r-fail-k-pty-redirect-nostrip` and `r-fail-k-pty-terminal-nostrip` speaking;
-  run, `keep/run-11-the-words-as-revised.log`, arms `w-remote-fail-terminal-k-pty-with-strip` and
-  `-no-strip`).
-  Git's prefix is measured as the line's first bytes, `033 [ K r e m o t e :`, in both logs.
-- Medium 3, that J's arms were cited to this round's log and that no option ran at H1's case behind `-J`.
-  J's arms are now in this round's own log, per transport:
-  direct it ends 0 because the askpass child dies and ssh goes on to the next key;
-  behind a `ProxyCommand` and behind `-J` it ends 128 and the clone fails;
-  the relay that ignores SIGHUP ends 0 behind a `ProxyCommand`, which names the signal as the cause,
-  and still 128 behind `-J`, where there is no client-side relay to ignore it
-  (run, `keep/run-6-j-arms-and-transports.log`, arms `j-noask-*`).
-  Every option ran at H1's case behind `-J`, and every one ends 0 and prints no sentence
-  (run, the same log, arms `f-noask-proxyjump-*`; K prints the nine carriage returns and the progress display
-  that its terminal brings).
-  The claim that every other failure family ran behind a `ProxyCommand` was false and is replaced by the list
-  under "The case every option is tried against".
-  The `f-noask` family now has a positive control: J's value on the same three transports.
-- Medium 4, figures and citations the named logs do not hold.
-  The captured-stream figures are the logs' own: 8593 and 8587 bytes, 210 and 204 carriage returns, 107 escapes
-  (`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
-  arms `redirect-k-pty` and `redirect-k-pty-raw`),
-  where `9127` was a run with no `TERM` and `9122` is in no log.
-  The end rule's figures are 5170, 5172, 206 and 204 ms (the same log, the `sleeper-*` arms).
-  Two round folders are corrected:
-  `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/` and
-  `~/temp/agent/typed-network-command-next-step-after-askpass-false-2026-11-25/` do not exist;
-  the evidence is in `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/keep/` and in
-  `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/`
-  (`run-2.log:82` for `@cert-authority`, `run-3.log:55` for the 369-byte J value),
-  and the `-q` arms are in
-  `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`
-  (`b-quiet`, `c-quiet`, `c2-quiet`).
-  The `-0.50 ms` figure is replaced by the value its own log holds,
-  `askpass_only median=-0.463`
-  (`~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:624`),
-  and B is unranked, so it decides nothing.
-  Two transcripts are labelled normalised, and the label's definition is under "Status".
-- Medium 5, that the advice in the sentences was never run.
-  It has been run, and it is measured in both directions
-  (run, `keep/run-8-whether-the-advice-works.log`):
-  a new host key, one plain `ssh`, the person's answer typed after the question, exit 0, the key added, and the
-  clone then ends 0 (`advised-ssh-newkey`, `advice-2-clone-after`);
-  a changed key, plain `ssh` names the line (`Offending ED25519 key in /work/kh-advice-changed:1`) and adds
-  nothing, and removing that line alone leaves the clone refused (`advice-2b-clone-after-removal-alone`
-  ends 128), so a second plain `ssh` is needed to accept the new key;
-  `StrictHostKeyChecking=yes` with the sentence's own `-o StrictHostKeyChecking=ask` works
-  (`advised-ssh-strict-ask`, then the clone ends 0);
-  a key without a passphrase works (`advice-6-clone-with-a-key-without-a-passphrase` ends 0);
-  at `LogLevel=FATAL` plain `ssh` prints `Host key verification failed.` alone, so it does not name the key that
-  changed; and with `BatchMode` in the configuration plain `ssh` reads, it cannot ask at all
-  (`advised-ssh-batchmode`, exit 255, nothing added).
-  The host-key sentence therefore gained the second connection the changed-key case needs,
-  and the BatchMode bullet now says the advice depends on where `BatchMode` is set, as the strict-yes bullet
-  already said for its own setting.
-- Medium 6, that the K-over-C reason overclaimed what the person can undo.
-  The pair no longer says C's loss cannot be undone or that K's change can:
-  C's display comes back with `--progress`, and K's captured bytes come back with `--no-progress` once the
-  wrapper clears the terminal's output processing, while K's escape in front of a relayed line and its terminal
-  answer for every descendant survive both (measured, `n-fail-k-pty-raw-no-progress`; source for the terminal
-  answer's gate). The reason is now what each cost is and which of the four effects no flag removes.
-  The count of removable effects is stated once: one is removed by the wrapper (the doubled carriage return),
-  and the display by a flag the person types.
-- Medium 7, that the rule K keeps was misquoted.
-  The sentence now carries the decision record's words and the planning record's words exactly, under
-  "The rule that forbids the question".
-- Medium 8, that the pointer to a handover entry was false.
-  The pointer is replaced by what happened: the entry was removed when L4 was answered (commit `b53882be22`),
-  the handover that names the question today is `doc/handover/cli-git-rust-implementation.md:1224`,
-  and the coordinator adds the question to `doc/handover/questions-for-the-owner.md` when it is put.
-- Medium 9, that the question was not self-contained and its cost line left out the remote read.
-  "The owner's question" now carries the result in plain words, an example transcript per option,
-  the commands each covers, the costs including the read, the pair reasons, what each answer leaves,
-  and the transport decision as its own question; the read is in every total that assumes it.
+- High 1, that the owner's question never said what K and K2 are and printed a transcript no command can print.
+  A, C, K, K2, C2 and D now have one sentence each before the transcripts.
+  The composed K and K2 block is gone: K's refusal is measured (`o-newkey-k-pty`), the section shows a successful
+  clone at a terminal under plain Git, C and K2 (`o-terminal-ok-*`), and a `cat -A` of K's capture against plain
+  Git's and K2's (`o-capture-plain`, `o-capture-k2-adaptive`, `o-capture-k-shipped`).
+  D's block ends with an ellipsis.
+  The K2-over-K reason cites the `cat -A` example as well as the counts.
 
-### The review's Low findings
+### The Medium findings
 
-- Signals were stated three ways.
-  One design is stated once and used in all three places: a signal sent to the wrapper alone does not reach
-  Git, a terminal's control character signals the whole foreground group and reaches Git, and no `setsid` and no
-  `TIOCSCTTY` are used.
-- K2's "no captured byte for anyone" is now "no captured byte for anyone who captures standard error alone",
-  with the merged-capture case stated as an inference from the one `isatty` call: any capture makes the wrapper's
-  standard error a non-terminal, so K2 takes the pipe.
-  K2's pro no longer says "plain Git's terminal on every command"; the pseudo-terminal is a second device whose
-  size is set once and whose resize is not forwarded.
-- The stale sentence that the steps resolve "all of them but the pseudo-terminal" is corrected to the figures:
-  every step is resolved except K against C and K2 against C, and `adaptive-start` has no twin in that run
-  (`keep/derived-medians.txt`). The typed-path run was made again with a twin for every arm and a warm-up that
-  reaches every arm, and the defect in the other run's warm-up loop (`for arm in $ARM_LIST`, which is one element
-  in `/bin/sh`) is named under "The measurements".
-- "About two milliseconds of work" is corrected to the typed path's medians, which are not resolved against
-  their floor in either run.
-- The option count is six, not five; A is no longer "the only arm that ends 0 and prints nothing" but "the only
-  option that adds nothing"; the false-positive paragraph now says one class is measured, one is a correct
-  silence, one is unrun, and names this round's two new ones; the confined arms are four.
-- K's 420-byte-line claim now names the nine carriage returns that come with it.
-- C's passphrase sentence is gated on `reads_as_a_key_failure` (which matches OpenSSH's `Permission denied (`
-  alone), not on `reads_as_a_login_failure` (whose five phrases include four HTTP and `git-lfs` words), so an
-  `https` credential failure never gets a key sentence.
-- `run_real_git` is C2's shape, since its child inherits the caller's streams; C's captured-output pattern is
-  `bounded_push` and `lfs_upload`.
-- The read of a clone's URL now says it applies `insteadOf` rewriting and names the read that does.
-- K's and K2's terminal work is a stated cost rather than a ranking reason: `openpty` and the termios calls come
-  from `libc`, which the package already depends on (`package/git-policy/cli/Cargo.toml:162`), and `rustix` is
-  pinned to `process`, `fs` and `thread` (`Cargo.toml:166`), so a path through `rustix` would add a feature.
-- The composition question is answered under "The owner's question" with the measurement that refuses it.
-- Fifteen labels and pointers that named work by an ordinal, or by relative position, are replaced by the
-  commit and the timestamp, or by the folder path, that each one means.
+- Medium 1, that the second question's reason held for K and not for K2.
+  "The second question" now states what read-first and relay-everything do for each first answer (C, K, K2, C2, D
+  and A), says the choice is moot for C2, D and A, cites the owner's "Spawn reduction" decision, names the
+  in-process `insteadOf` read the LFS plan already makes and that a named remote still pays one `remote get-url`,
+  and names `git remote get-url --push` for a typed `push`.
+- Medium 2, that the signal design contradicted its own precedent and the owner's section was silent.
+  The owner's section has "What a signal sent to the typed process number does", per option, citing
+  `process/signal_relay_relayed_child.rs`; the false claim that the relay is Git's parent is gone; the C2-over-C
+  reason no longer says C2 "keeps the terminal's signals"; C2's pros no longer claim signals, and its cons say
+  `run_real_git` has no relay.
+- Medium 3, that `-q` was undefined and C2's advantage measured on `ssh -q`.
+  Every "`-q`" now says `ssh -q` or `LogLevel=QUIET`; `git clone -q` is measured separately and still leaves C's
+  line (`o-quiet-clone-c`); C2's `ssh -q` survival is measured (`o-quiet-ssh-c2`).
+  C2's advantage is no longer stated as if `git -q` were the same word.
+- Medium 4, that K2's "nothing changes in a capture" was measured with standard error alone.
+  A `git pull` with both streams merged into one file is measured: 245 bytes, identical to plain Git's
+  (`o-merged-plain`, `o-merged-k2`).
+  The K2 section says what that one arm does and does not show.
+- Medium 5, that the advice was measured with `-F` and the limit stated only for D and C2.
+  The advice is measured with the person's known-hosts file coming from `GIT_SSH_COMMAND`: plain `ssh` accepts the
+  key into the default `known_hosts` and the typed clone is still refused, and the same `ssh` with the option
+  works (`o-advice-gsc-*`).
+  The limit is in "The words" and in "What each answer leaves".
+- Medium 6, that C and K were mis-described at a terminal.
+  C's cons now say C loses Git's colour, five escapes against none (`r-fail-plain-terminal`,
+  `r-fail-c-relay-terminal`); K's effects say the five escape bytes are one `\033[K` and four colour sequences, so
+  a K capture gains colour too; and the `sideband.c` citation is the assignment at `:316` to `:318`.
+- Medium 7, that two pair reasons omitted what favours the lower option and one gap was presented as intrinsic.
+  C2 over D now says D covers `pull` and C2's ranked gate does not; D over A now says D can print before a clone
+  that succeeds; C2's `pull` gap is a gate choice with the non-zero-status variant named, unrun and inference.
+- Medium 8, that the section promised "what the wrapper has to own" and that coverage read as traced.
+  The section has "What each option makes the wrapper own"; "Which commands each option covers" says the coverage
+  is measured on stand-ins, names `run_wrapper_own_git`'s untraced `pull` path, and names the SPEC passage at
+  `package/git-policy/cli/SPEC.md:14821` that C, K, K2 and C2 amend.
+
+### The Low findings
+
+One pass, each Low and its change:
+
+- the D `pull` arm's first line is the sentence, not `Cloning into`: fixed where the four commands are listed.
+- "the same log" in the owner's C2 and D blocks: each block names its arm, and the block intro names the log.
+- the change log's nonexistent folder: this change log replaces that text.
+- `KnownHostsCommand` cited to the after-its-review round: now
+  `typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`.
+- `c-relay` at a host never seen cited to run-11: now `keep/run-7-unreachable-host-and-pull.log`,
+  `u-never-seen-c-relay`.
+- `c2-status` and `c2-check-known` at strict checking and `BatchMode` cited to run-11: now the arms in
+  `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
+  `f-strict-yes-direct-*` and `f-batchmode-direct-*`, named where each family is.
+- `STANDIN_STRIP_ANSI=0` said to make C speak: C's pipe carries no escape and stays silent; only
+  `STANDIN_DROP_REMOTE=0` makes it speak.
+  K2's strip control is now measured (`o-remote-fail-terminal-k2-adaptive-*`).
+- K2's strip rule called inference: now K2's own with-strip and no-strip arms.
+- C and K at H1's case "directly and behind both proxies" cited to run-6: run-6 holds the `-J` arms, and the direct
+  and `ProxyCommand` arms are `after-its-gate-review-2026-11-25/keep/run-1-behaviour.log:531-639`.
+- `run-3.log:55` for the `File name too long` line: now `:61`.
+- "both of its failures" listing three, and D's "two of the three classes": reworded to say what each count is.
+- three sentences "printed ... in the arms this round ran": the host-key sentence is run-12's, and strict and
+  passphrase are run-11's unchanged files.
+- K's 8593 bytes and 210 carriage returns called the shape: now "the stand-in with the output processing left on",
+  with 8587 and 204 as the shipped shape, and the owner's section quotes `o-capture-k-shipped`.
+- "quoted whole" omitting the owner's two further sentences: both are quoted under "The rule that forbids the
+  question".
+- the terminal calls said to come from `libc` "already a direct dependency": now the owner's `rustix` choice, its
+  pinned features, and rustix 1.1.6's `pty` and `termios` features named as a pick for the owner.
+- `SPEC.md:9460`, `README.md:5787` and `:7597`: the sentences are cited, not the lines.
+- `sideband.c:311-316`: the assignment is `:316` to `:318`.
+- "seven capped containers": seven container runs, eighteen container starts, and this round's launch line kept.
+- "this round", "the first round" and "the round before it": each now names the folder, commit or timestamp it
+  means.
+- the six options mixing two axes: the owner's section says they are two decisions, the family first and the
+  terminal shape second.
+- the host-key sentence's "outdated" and its removal advice: the sentence now says to compare the fingerprint
+  before accepting a changed key, and "The words" says why.
+
+No finding was answered by saying it did not hold.
 
 ## The case every option is tried against
 
@@ -780,7 +759,7 @@ The families differ only in what a person's settings and the server make true.
 - `f-remote-fail`: the same line on a push the same hook then refuses.
   Run in a pipe and on a terminal, with `TERM=xterm-256color`.
 
-Two more cases were added this round, because the review found them unrun:
+Two more cases were added in the sixth round, because the review of the fifth revision found them unrun:
 a host never seen at a port nothing listens on (`w-never-seen-*`), and `git pull` at a new host key
 (`w-pull-newkey-*`, and the `fetch`, `pull` and `push` arms of `keep/run-7-unreachable-host-and-pull.log`).
 
@@ -826,12 +805,14 @@ Each family ran the same arms:
   Its options come from `STANDIN_SSH_OPTS`, which is a stand-in for the source a shipped wrapper would have to
   find; the arms without that source are under "What each option gave, family by family".
 - No arm has `Match exec`, `CanonicalizeHostname`, `KnownHostsCommand`, `HostKeyAlias` or `VerifyHostKeyDNS` set.
-  The round whose folder is `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/`
-  measured `KnownHostsCommand` (which makes D speak while the clone succeeds),
-  and the round whose folder is `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/`
-  measured `@cert-authority` (which does not);
-  those results stand and are quoted in D's section.
+  The round whose folder is `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/`
+  measured `KnownHostsCommand` (which makes D speak while the clone succeeds) and `@cert-authority` (which does
+  not); those results stand and are quoted in D's section.
+  The round whose folder is `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/` measured
+  `Match exec`, which is cited under D's costs.
 - No arm ran with a signal sent to the wrapper alone, and none ran on Windows.
+- The sentence's new fingerprint clause is prose and no arm exercises a person reading a fingerprint; what the arms
+  show is the acceptance path it sits in (`o-advice-gsc-*`, and the sixth round's `keep/run-8-...`).
 
 ## What each option gave, family by family
 
@@ -878,7 +859,9 @@ At a repository that is not there with the host key known:
 - `c2-check-known`, `c2-check-both`: exit 128, Git's lines, then the **passphrase** sentence, which is wrong:
   no key was involved.
 
-At `StrictHostKeyChecking=yes` (run, `keep/run-11-the-words-as-revised.log`):
+At `StrictHostKeyChecking=yes` (run, `keep/run-11-the-words-as-revised.log`; `c2-status` and `c2-check-known` are
+`f-strict-yes-direct-c2-status` and `-c2-check-known` in
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`):
 
 - `a-wrappers-value`: OpenSSH's strict sentence and the last line;
 - `c-relay`, `k-pty`, `k2-adaptive`: the strict sentence, whose advice overrides their own setting for one
@@ -888,7 +871,9 @@ At `StrictHostKeyChecking=yes` (run, `keep/run-11-the-words-as-revised.log`):
 - `c2-check-known`: silent;
 - `d-precheck`: silent, and right, because no question will be asked at all.
 
-At `BatchMode=yes` (run, the same log):
+At `BatchMode=yes` (run, `keep/run-11-the-words-as-revised.log`; `c2-status` and `c2-check-known` are
+`f-batchmode-direct-c2-status` and `-c2-check-known` in
+`~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`):
 
 - `a-wrappers-value`: the last line alone;
 - `c-relay`, `k-pty`, `k2-adaptive`, `c2-status`, `c2-check-unknown`, `c2-check-both`: the host-key sentence,
@@ -926,12 +911,14 @@ At a host never seen, whose refusal is a connection refused
 (run, `keep/run-11-the-words-as-revised.log`, arms `w-never-seen-*`):
 
 - `a-wrappers-value`: exit 128 with `ssh: connect to host 127.0.0.1 port 2299: Connection refused`;
-- `c-relay`: exit 128 and silent, which is right;
+- `c-relay`: exit 128 and silent, which is right
+  (run, `keep/run-7-unreachable-host-and-pull.log`, arm `u-never-seen-c-relay`; the sixth round's `w-never-seen-*`
+  arms have no `c-relay` at this case, and K and K2 were not run at it);
 - `c2-status`, `c2-check-unknown`: the host-key sentence, which is wrong: no key was involved;
 - `c2-check-known`: silent;
 - `d-precheck`: the host-key sentence before the command, which is wrong for the same reason.
 
-At `git pull` at a new host key (run, the same log, arms `w-pull-newkey-*`):
+At `git pull` at a new host key (run, `keep/run-11-the-words-as-revised.log`, arms `w-pull-newkey-*`):
 
 - every arm ends 1, not 128;
 - `c-relay`, `k-pty`, `k2-adaptive`, `d-precheck`: the host-key sentence;
@@ -945,8 +932,12 @@ At the remote-written line (run, `keep/run-5-remote-line-under-a-terminal.log` a
   sentence, with or without the drop rule, because the status gates it;
 - `f-remote-fail`: exit 1 with the line relayed as `remote: Host key verification failed.` plus eight spaces in a
   pipe, and as `\033[Kremote: Host key verification failed.` on a terminal;
-  `c-relay` and `k-pty` print nothing with the rule, and the same arms with `STANDIN_DROP_REMOTE=0` or
-  `STANDIN_STRIP_ANSI=0` print the host-key sentence, which is the arm without the rule and names what stops it.
+  `c-relay` and `k-pty` print nothing with the rule; the `c-relay` arm with `STANDIN_DROP_REMOTE=0` prints the
+  host-key sentence, and `STANDIN_STRIP_ANSI=0` changes nothing for `c-relay`, whose pipe carries no escape
+  (`w-remote-fail-terminal-c-relay-no-strip` stays silent).
+  The strip control belongs to K and K2, where the escape is present: `w-remote-fail-terminal-k-pty-no-strip`
+  speaks, and this round's `o-remote-fail-terminal-k2-adaptive-no-strip` speaks where its `-with-strip` sibling is
+  silent.
 
 K2, when the wrapper's own standard error is not a terminal, is C byte for byte:
 run with the same clone directory, `c-relay` and `k2-adaptive` transcripts compare identical
@@ -968,7 +959,19 @@ and
 ban that design aggressively."
 ```
 
-and the same record's third bullet of the rule as built, quoted whole:
+The same section holds the two other owner sentences that bear on this design, quoted whole:
+
+```text
+and "There are clean ways to have extensive explanatory error messages even with the
+ban."
+The owner then added:
+"we don't have to use any shell!"
+```
+
+The first supports adding an explanation rather than a prompt, which is what every option here does; the second is
+why no option builds a shell command to print one.
+
+The same record's third bullet of the rule as built, quoted whole:
 
 ```text
 - An explanation of a failure is printed by the parent process that owns the child,
@@ -999,7 +1002,8 @@ and it lives in
 in the paragraph beginning "No command the wrapper runs or forwards asks a person for a credential",
 and in `package/git-policy/cli/README.md` in the paragraph that ends
 "because no command the wrapper runs or forwards asks a person for a credential"
-(`SPEC.md:9460`, `README.md:5787` and `:7597` say this release names no next step at a new host key).
+(the paragraph in `package/git-policy/cli/README.md` on prompts and `SSH_ASKPASS`, and the paragraph in
+`package/git-policy/cli/SPEC.md` that says this release names no next step at a new host key).
 It reads, as `SPEC.md` has it:
 
 ```text
@@ -1041,7 +1045,7 @@ and each says which answer and what became of it.
 The costs are given twice.
 On a typed command,
 against a control run in the same rounds,
-this round's harness resolves only D: its floor is `+4.94 ms` with a range of `-34.13` to `+35.51`
+the sixth round's harness resolves only D: its floor is `+4.94 ms` with a range of `-34.13` to `+35.51`
 (run, `keep/run-10-typed-path-with-every-twin.log`).
 As the steps each option adds, against a same-command twin in the same rounds,
 the steps harness of the round in
@@ -1059,7 +1063,9 @@ Can it answer yes: no.
 
 At H1's case A is what `main` does: it is the only option that adds nothing at all, and it ends 0 in every
 transport because nothing is added to the connection
-(run, `keep/run-6-j-arms-and-transports.log`, arms `j-noask-*` and `f-noask-proxyjump-*`).
+(run, `keep/run-6-j-arms-and-transports.log`, arms `j-noask-*` and `f-noask-proxyjump-*`; the direct and
+`ProxyCommand` arms are `after-its-gate-review-2026-11-25/keep/run-1-behaviour.log:531-639`, `f-noask-direct-*` and
+`f-noask-proxycommand-*`).
 That is also why the owner's answer of 2026-11-25 is safe: it restores exactly this.
 
 A person sees the transcripts under "What the person sees today": OpenSSH's line, Git's fatal line, exit 128,
@@ -1134,7 +1140,7 @@ Pros: the only option whose words name the host, the address, the port and the k
 and the only one that can tell a new key from a key that differs for the address;
 it needs nothing on the path of a command that meets no question;
 it changes nothing about Git's process, streams, signals or exit status;
-it survives `-q` and `LogLevel=QUIET`;
+it survives `ssh -q` and `LogLevel=QUIET`;
 it keeps the security-key touch notice at a terminal;
 and it meets the service's own pushes with the same words.
 
@@ -1173,13 +1179,18 @@ at a locked key it is the passphrase sentence instead.
 The sentences are the ones under "The words".
 
 At H1's case C ends 0 and prints nothing, directly and behind both proxies, because no refusal reached it
-(run, `keep/run-6-j-arms-and-transports.log`, arms `f-noask-proxyjump-c-relay` and `j-noask-*`).
+(run, `keep/run-6-j-arms-and-transports.log`, arms `f-noask-proxyjump-c-relay` and `j-noask-*`; the direct and
+`ProxyCommand` arms are `after-its-gate-review-2026-11-25/keep/run-1-behaviour.log:531-639`,
+`f-noask-direct-c-relay` and `f-noask-proxycommand-c-relay`).
 At a changed key it is silent, which leaves OpenSSH's banner and names nothing itself
 (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
 family `f-changed`).
 At a repository that is not there it is silent (run, family `f-known-missing`).
-Under `-q` it is blind, because OpenSSH prints nothing to read
-(run, `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`, arm `c-quiet`).
+Under `ssh -q` or `LogLevel=QUIET` it is blind, because OpenSSH prints nothing to read
+(run, `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`, arm `c-quiet`;
+this round's `o-quiet-ssh-c` is the same shape and silent).
+`git clone -q` is not that word: measured this round, it leaves C's line and the sentence is printed
+(`o-quiet-clone-c`, decision `hostkey`).
 
 What it starts: Git as a child, one pipe, one relay.
 What it reads: Git's standard error as it arrives.
@@ -1213,15 +1224,22 @@ Cons:
 - the security-key touch notice is lost, because OpenSSH writes it to standard error only when that stream is a
   terminal, and otherwise sends it to the askpass program, which is `false` here (`readpass.c:252`, `:279`).
   Source only; no key was available.
-- a signal sent to the wrapper alone does not reach Git:
-  the relay is a child of the wrapper and Git is the relay's child, and the relay takes no new session and no
-  controlling terminal, so a terminal's control character signals the whole foreground group and reaches Git,
-  while a signal aimed at the wrapper's own process number does not.
-  That behaviour was measured in the round whose folder is
-  `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/`
-  (the child is still running after `kill -TERM` of the wrapper); the exec path gives the group's signal for free
-  today.
-- it is blind under `-q`, measured in that same round.
+- Git's colour is lost too: on a failed push at a terminal plain Git writes five escape bytes (one `\033[K` and
+  four colour sequences on the rejected-ref and `error:` lines) and C writes none, because its pipe is not a
+  terminal (run, `keep/run-5-remote-line-under-a-terminal.log`, arms `r-fail-plain-terminal` with five escapes and
+  `r-fail-c-relay-terminal` with none).
+- a signal sent to the wrapper alone does not reach Git unless the wrapper relays it:
+  the wrapper starts Git as its direct child, and neither takes a new session nor a controlling terminal, so a
+  terminal's control character signals the whole foreground group and reaches Git, while a signal aimed at the
+  wrapper's own process number reaches the wrapper alone.
+  The wrapper already has the relay that removes that loss: a signal a process sends to the wrapper "reaches that
+  child" (`package/git-policy/cli/src/native/process/signal_relay_relayed_child.rs`), which the interactive LFS
+  upload uses, so the loss is a choice this shape need not make.
+  Measured only for the stand-in of the round whose folder is
+  `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/`, which has no relay (the child is
+  still running after `kill -TERM` of the wrapper); with the relay it is source and design.
+- it is blind under `ssh -q` or `LogLevel=QUIET`, measured in that same round, while `git clone -q` leaves its line
+  (measured this round, `o-quiet-clone-c`).
 - the wrapper must now own the exit status, the signal ending, the wait and the ordering of its own notices against
   Git's output.
 
@@ -1245,7 +1263,9 @@ passphrase sentence
 (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
 arms `f-newkey-ask-direct-k-pty` and `f-locked-direct-k-pty`).
 At H1's case it prints nothing and the clone ends 0, directly and behind both proxies
-(run, `keep/run-6-j-arms-and-transports.log`).
+(run, `keep/run-6-j-arms-and-transports.log`, arm `f-noask-proxyjump-k-pty`; and
+`after-its-gate-review-2026-11-25/keep/run-1-behaviour.log:531-639`, arms `f-noask-direct-k-pty` and
+`f-noask-proxycommand-k-pty`).
 
 What it costs the bytes a person does not see is measured under "The measurements":
 the progress display lands in any captured stream,
@@ -1274,7 +1294,7 @@ Cons: the four effects listed under "The measurements" on every captured stream,
 wrapper (the doubled carriage return) and the display by a flag the person types, while the escape in front of a
 relayed line and the terminal answer for every descendant are the price of the terminal;
 the wrapper owns the pty's life and the child's wait, as C owns the pipe's;
-and a `-q` transcript still yields nothing.
+and a `ssh -q` transcript still yields nothing.
 
 ### K2. K when the wrapper's own standard error is a terminal, C's pipe otherwise
 
@@ -1285,9 +1305,10 @@ When it is a terminal, the pseudo-terminal presents what Git sees today.
 
 What a person sees: at a terminal, K's transcript (progress and the touch notice's terminal, run,
 `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
-`TERMINAL k2-adaptive receiving=1 counting=1`);
+`TERMINAL k2-adaptive receiving=1 counting=1`; and this round's log, `o-terminal-ok-k2-adaptive`, 8618 bytes
+against plain Git's 8617, the same 107 escapes and six more carriage returns);
 in a captured stream, C's transcript, which is plain Git's, byte for byte
-(run, the same log, `BYTES redirect-k2-adaptive redirect-plain identical=yes`, 37 bytes, no carriage returns, no
+(run, this round's log, `CAPTURE-COMPARE k2-against-plain identical=yes`, 37 bytes, no carriage returns, no
 escapes).
 
 What it starts and reads: what K starts and reads, plus one `isatty` call.
@@ -1313,12 +1334,14 @@ program that would have used a pipe's answer gets a terminal's whenever the pers
 K's trade applied only where a terminal is there;
 the pseudo-terminal is a second device whose size is set once and whose resize is not forwarded, so a window
 change after the start reaches neither the child nor the programs that ask;
-and it keeps C's other cons, the wait, the signal and the `-q` blindness.
+and it keeps C's other cons, the wait, the signal, Git's colour at a terminal and the `ssh -q` blindness.
 
 A command whose two streams are captured together (`2>&1` into one file or pipe) is C's shape under K2, by the
 same one `isatty` call: any capture makes the wrapper's own standard error a non-terminal.
-That is an inference from the call and not a separate arm;
-the measured case is standard error captured alone.
+Measured this round with a `git pull` of a fast-forward, both streams merged into one file: plain Git and K2 each
+write 245 bytes, identical byte for byte, in the same order (`o-merged-plain`, `o-merged-k2`).
+That is one command and one order; a line Git wrote to standard error before a line on standard output can still be
+copied after it by a relay that reads before it writes, and no arm forced that order.
 
 ### C2. Git kept as a child with the same streams, and a sentence after exit 128
 
@@ -1336,13 +1359,17 @@ Four shapes, and they are four different options, because a check changes which 
 - and the shape both of those make together, choosing on what the check found.
 
 The shape the ranking means is the second, the one that speaks only when no file holds a key.
-It is not as safe as the revision at `79962f9ccc` said, and this round measured both of its failures:
+It is not as safe as the revision at `79962f9ccc` said, and three things about it are measured in the sixth round's
+logs:
 
 - a connection refused ends 128 with no key known, so the shape speaks the host-key sentence for a host it has
   never seen (run, `keep/run-11-the-words-as-revised.log`, arm `w-never-seen-c2-check-unknown`);
   a name that does not resolve ends 128 the same way, and that arm is unrun;
-- `git pull` at a new host key ends 1, so every C2 shape is silent for `pull`
-  (run, the same log, arm `w-pull-newkey-c2-check-unknown`);
+- `git pull` at a new host key ends 1, so with its ranked gate, exit 128, every C2 shape is silent for `pull`
+  (run, `keep/run-11-the-words-as-revised.log`, arm `w-pull-newkey-c2-check-unknown`).
+  That is a gate choice: a gate on any non-zero status would cover `pull`, but it would also speak after every
+  other non-zero end (a rejected push, a merge conflict) whenever its check finds no key.
+  That variant is unrun, and its effect is inference;
 - the check runs `ssh -G <host>` with no source for the person's options, so a person whose settings live in
   `GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH` gets a check that reads other known-hosts files and another
   host and port: measured, `ssh -G target` without the fixture's `-F` file resolves hostname `target`, port 22 and
@@ -1373,7 +1400,8 @@ What the ranked shape gives, measured:
 - at a changed key, nothing: right, and OpenSSH's banner says what changed;
 - at `StrictHostKeyChecking=yes`, the general host-key sentence, whose advice that person's own setting refuses
   (run, `keep/run-11-the-words-as-revised.log`, arm `w-strict-yes-direct-c2-check-unknown`);
-- under `-q`, the same as without it, because it reads a status and not a line.
+- under `ssh -q` or `LogLevel=QUIET`, the same as without it, because it reads a status and not a line (run, this
+  round's log, arm `o-quiet-ssh-c2`, decision `check-unknown`).
 
 What it starts: Git as a child; on a failure, `ssh -G` and `ssh-keygen -F` as well.
 What it reads: the exit status, and with the check the resolved OpenSSH configuration and the known-hosts files.
@@ -1384,17 +1412,20 @@ Cost: `+0.68 ms` for the fork and the wait
 and on the failure path the check's two starts, measured at `+7.50 ms` for D and the same work here,
 plus `+0.85 ms` for the read of the remote when a remote is named.
 On the typed path, `+4.44 ms`, 15 of 24, inside the floor.
-Covers: `clone`, `fetch` and a non-LFS `push`, and not `pull`.
+Covers: `clone`, `fetch` and a non-LFS `push`; not `pull` under its ranked gate, and a gate on any non-zero status
+would cover `pull` with the false positives named in this section.
 
-Pros: keeps the terminal, the progress display, the signals from the terminal and every setting the person owns;
+Pros: keeps the terminal, the progress display and every setting the person owns;
 adds no word to the caller's arguments; touches no stream, so a captured command's bytes are plain Git's;
-and it survives `-q`.
-Cons: it cannot tell the refusals apart, so its ranked shape is silent at a key nobody can unlock and for `pull`;
+and it survives `ssh -q` or `LogLevel=QUIET`.
+Cons: it cannot tell the refusals apart, so its ranked shape is silent at a key nobody can unlock and, under its
+ranked gate, for `pull`;
 it speaks wrongly at a connection refused for a host never seen, and at any failure whose check cannot read the
 person's own ssh options, which the fix has to reach for the check to read the right files;
 a sentence printed before the failure, as D prints it, is not this shape's problem, but its own sentence's premise
 ("no connection got past the key") is a statement about a refusal that has happened;
-the wrapper still owns the wait, the exit status and the signal ending;
+the wrapper still owns the wait, the exit status and the signal ending, and a signal sent to the wrapper's own
+process number does not reach Git because `run_real_git` has no relay (`invocation/forwarding.rs`);
 and the shapes that do speak at a locked key print a wrong sentence at a repository that is not there.
 
 ### D. A check before Git starts
@@ -1419,7 +1450,7 @@ the sentence, then `Cloning into`, then OpenSSH's refusal and Git's lines.
 For the passphrase case it prints nothing, because the key is known (run, family `f-locked`).
 That is D's gap, measured, and it is the case whose words the person most needs.
 
-The sentence can also be wrong about why a command failed, and this round measured three ways:
+The sentence can also be wrong about why a command failed, and the rounds named here measured three ways:
 
 - with nothing listening on the port, D prints the host-key sentence and the real words are
   `ssh: connect to host 127.0.0.1 port 2299: Connection refused`
@@ -1430,12 +1461,14 @@ The sentence can also be wrong about why a command failed, and this round measur
   `s-known-no-source-d-precheck`), and the plain `ssh -G target` resolves hostname `target`, port 22 and
   `/root/.ssh/known_hosts`;
 - `KnownHostsCommand` supplies the key, so the real clone exits 0 and D speaks
-  (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log`).
+  (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log:280-290`, the
+  control arm first and then the arm with `KnownHostsCommand`).
 
-Two of the three classes the revision at `79962f9ccc` listed hold and one does not:
+Of the three classes the revision at `79962f9ccc` listed, one holds, one does not and one is unrun:
+`KnownHostsCommand` holds, as `run-1.log:280-290` shows;
 `@cert-authority` supplies the key by certificate and `ssh-keygen -F` finds the line, so D stays silent, which is
-right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`),
-and `VerifyHostKeyDNS=yes` would be a fourth, and is unrun: no DNSSEC setup was available.
+right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`);
+and `VerifyHostKeyDNS=yes` would be a third, and is unrun, because no DNSSEC setup was available.
 
 Two limits stand:
 
@@ -1457,9 +1490,12 @@ each against one process start.
 On the typed path it is `+20.08 ms`, range `-12.06` to `+76.25`, positive 22 of 24, against a twin that differs by
 `-6.64 ms`: the only option that harness resolves
 (run, `keep/run-10-typed-path-with-every-twin.log`).
-Covers: `clone`, `fetch`, `pull` and a non-LFS `push`, because it speaks before whatever command it is given.
+Covers: `clone`, `fetch`, `pull` and a non-LFS `push`, because it speaks before whatever command it is given
+(measured on the stand-ins; see "Which commands each option covers" for the wrapper paths that were not traced).
 
-Two costs the first round did not name, both read from the source:
+Two costs the round whose folder is
+`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24/` did not name, both read from the
+source:
 
 - `ssh -G` runs the person's `Match exec` commands, measured in the round whose folder is
   `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/`: one plain `git ls-remote` ran it once,
@@ -1500,7 +1536,7 @@ of which about `4.9 ms` is the probe any unrecognised named ssh pays and about `
 Cons: it takes over `GIT_SSH_COMMAND`, `core.sshCommand` and `GIT_SSH`, which belong to the person and the repository;
 wrapping them means building a shell command out of a shell command, which the `shell-text` rule forbids;
 it must find the real `ssh` the way `real_git.rs` finds Git;
-it is blind under `-q`;
+it is blind under `ssh -q` or `LogLevel=QUIET`;
 a signal sent to the wrapper alone does not reach ssh;
 the security-key notice is lost;
 its words come from the same detectors C uses, so they miss a changed key;
@@ -1518,10 +1554,10 @@ The sentence the round whose folder is
 `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/` built measured 571 bytes
 (its `keep/run-1-behaviour.log:4`);
 the two figures are different texts, and the 369-byte value's failure line is in
-`~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-3.log:55`
-(`File name too long`), which is the value this round ran.
+`~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-3.log:61`
+(`File name too long`), which is the value the sixth round ran.
 
-Measured this round, per transport
+Measured in the sixth round, per transport
 (run, `keep/run-6-j-arms-and-transports.log`, arms `j-noask-*`):
 
 - direct: exit 0 and the clone completes, because the askpass child dies and ssh goes on to the next key,
@@ -1536,7 +1572,7 @@ Measured limits, each one a finding against it:
 - one text for every question, so it cannot name the host or the key;
 - OpenSSH's framing: the person reads the advice inside `ssh_askpass: exec(...): File name too long`;
 - it prints on a command that then succeeds, when a passphrase key is skipped for one that works;
-- it disappears under quiet, because the whole line is OpenSSH's and `-q` suppresses it;
+- it disappears under quiet, because the whole line is OpenSSH's and `ssh -q` suppresses it;
 - it also answers questions that are not refusals, such as the multiplexing question;
 - it is not a program, so OpenSSH's failure path runs, and behind a proxy that path ends the connection.
 
@@ -1575,15 +1611,18 @@ The words of the revision at `bda96883d5` (2026-11-25T13:54:27-05:00) are kept u
 "The record of the rounds before this one" as what was argued over;
 the sentences a shipped C, K or K2 prints are the three here,
 printed byte for byte from `keep/sentences/host-key.txt`, `keep/sentences/strict.txt` and
-`keep/sentences/passphrase.txt` in the arms this round ran.
+`keep/sentences/passphrase.txt`: the host-key sentence in the arms of this round's
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`,
+and the strict and passphrase sentences in the sixth round's `keep/run-11-the-words-as-revised.log`, whose files are
+unchanged.
 
 ### A new host key, which may also be a key that changed
 
 ```text
-monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, or holds an outdated one for it, and no command the wrapper runs asks whether to trust a new one, so no connection got past the key. Connect with plain `ssh target`, which the wrapper does not touch, and answer the question it asks; if it names a key that changed instead, remove the line it names and connect once more, which then asks about the new key, and run this command again.
+monochromatic-git-policy-cli: this machine does not know the SSH host key of `target`, or holds an outdated one for it, and no command the wrapper runs asks whether to trust a new one, so no connection got past the key. Connect with plain `ssh target`, which the wrapper does not touch, and answer the question it asks; if it names a key that changed instead, compare the fingerprint it shows with the one you know to be right before you accept it, then remove the line it names and connect once more, which then asks about the new key, and run this command again.
 ```
 
-Three claims, each one true of what the transcript can show, and each one run:
+The claims, each one true of what the transcript can show, and each one run:
 
 - `does not know ... or holds an outdated one` covers the three cases a transcript can be: an unknown key, a changed
   key, and the rare differing key for an address.
@@ -1597,11 +1636,19 @@ Three claims, each one true of what the transcript can show, and each one run:
   key, after which the clone ends 0 (`advised-ssh-changed-again`, `advice-4-clone-after-removal`).
 - The sentence no longer says to add the key to `known_hosts`,
   because that remedy is wrong for a changed key and because plain `ssh` is the path the wrapper does not touch.
+- A changed key can be an attack as well as a machine that moved, so the sentence now says to compare the
+  fingerprint plain `ssh` shows with the one the person knows before accepting it; the clause is what makes
+  removing the line safe, and it is the answer to the review's Low about "outdated" and the removal advice.
 
 What the sentence cannot promise, and the section "The measurements" records:
 at `LogLevel=FATAL` a plain `ssh` prints `Host key verification failed.` alone, so "it names a key that changed"
 does not hold there;
-and with `BatchMode` in the configuration plain `ssh` reads, that `ssh` cannot ask either.
+with `BatchMode` in the configuration plain `ssh` reads, that `ssh` cannot ask either;
+and when the person's options come from `GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH`, the advised `ssh target`
+reads other settings: measured this round, it accepted the key into the default `known_hosts` while the typed
+command, whose known-hosts file the variable named, was refused again (`o-advice-gsc-ssh` and
+`o-advice-gsc-clone-after`); the advice works when the person passes the same option to it
+(`o-advice-gsc-ssh-with-option` then `o-advice-gsc-clone-after-option` ends 0).
 
 ### The same refusal when the person's own setting refuses to ask
 
@@ -1723,7 +1770,7 @@ Each item says what would go wrong without it, and the measurement or the source
   and Git's progress is drawn only when `is_foreground_fd(fileno(stderr))` holds or the descriptor has no foreground
   group at all (`progress.c:106` to `:110`, `:146`).
   A new session that owns the pty would put Git's group outside the foreground one.
-  The stand-in this round ran has neither call; no arm sent a signal to the wrapper alone, so that part is design.
+  The stand-in has neither call; no arm sent a signal to the wrapper alone, so that part is design.
   What the design is: a signal sent to the wrapper alone does not reach Git,
   and a terminal's control character signals the whole foreground group and does reach Git.
 - A size is set on the terminal, and it is not what decides Git's progress width.
@@ -1757,7 +1804,8 @@ Each item says what would go wrong without it, and the measurement or the source
 - The child's standard input and standard output are its own, and the exit status and the signal ending are
   Git's: `end_as_git_ended` is the existing shape for that.
 - The sentence is printed after the child's own output, on the wrapper's standard error.
-- Under `-q` there is nothing to read, and the option is silent; that is not fixable by reading harder.
+- Under `ssh -q` there is nothing to read, and the option is silent; that is not fixable by reading harder.
+  `git clone -q` is a different word: it still leaves the line (measured this round, arm `o-quiet-clone-c`).
 - A typed LFS push would say it twice, because the upload's explanation reads the same transcript;
   the sentence must be the shorter of the two for that path, or the upload must learn to stay silent when it already
   spoke.
@@ -1824,9 +1872,14 @@ Each item says what would go wrong without it, and the measurement or the source
   the detector rather than to the relay, so the upload's explanation gets them too.
 - The words, in one module beside `lfs_pre_push.rs`, filled from the remote as typed.
 - The exit status, the signal ending and the wait, which the LFS upload's `SignalGuard` machinery already shows.
-- The terminal: `openpty` and the termios calls, which come from `libc` (already a direct dependency,
-  `package/git-policy/cli/Cargo.toml:162`); `rustix` is pinned to `process`, `fs` and `thread`
-  (`Cargo.toml:166`), so a path through it would add a feature. That is a cost of K and K2 and not a ranking reason.
+- The terminal: `openpty` and the termios calls.
+  `libc` is a direct dependency (`package/git-policy/cli/Cargo.toml`), but the owner chose `rustix` over hand-written
+  `libc` calls (2026-11-07, "Linux calls: rustix", the comment at `Cargo.toml:163-165`), and `rustix` is pinned to
+  `process`, `fs` and `thread` (`Cargo.toml:166`).
+  rustix 1.1.6's own `Cargo.toml` has `pty = ["fs"]` and `termios = []` (source, `~/.cargo/registry`), so K and K2
+  through rustix would add those two features, which is a pick for the owner; going through `libc` instead would go
+  against the recorded choice.
+  That is a cost of K and K2 and not a ranking reason.
   The README says the wrapper ships for Linux only, so no Windows work is implied.
 - C's difference: a pipe instead of the terminal, and nothing else.
 - K2's difference: a pseudo-terminal when the wrapper's own standard error is a terminal, and C's pipe when it is
@@ -1896,11 +1949,13 @@ D over A because D says something and A says nothing.
 
 ### The runs
 
-Seven container runs of the gate image
-(`localhost/git-policy-native-test-base:e3fcdbe008bd-bbd969e09a87`),
+The sixth round ran seven container runs of the gate image
+(`localhost/git-policy-native-test-base:e3fcdbe008bd-bbd969e09a87`), eighteen container starts in all,
 each `--rm --init --network=none --cpus=2 --memory=2g --pids-limit=400 --blkio-weight=10`,
-each started in a `systemd-run --user` scope with `--slice=agent-work.slice`, `MemoryMax=5G`,
-`TasksMax=512` and `IOWeight=10`, and each ended by `RuntimeMaxSec`:
+each started in a `systemd-run --user` scope with `--slice=agent-work.slice`, `RuntimeMaxSec`, `CPUQuota=300%`,
+`MemoryMax=5G`, `TasksMax=512` and `IOWeight=10`.
+Its report holds the eighteen starts, and its launch lines were not kept; this round keeps its own at
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-launch.txt`:
 
 - `keep/run-5-remote-line-under-a-terminal.log`, 18 arms: the `remote: ` drop rule with `TERM=xterm-256color`,
   in a pipe and on a terminal, and the red control without the escape strip;
@@ -1917,6 +1972,13 @@ each started in a `systemd-run --user` scope with `--slice=agent-work.slice`, `M
 - `keep/run-11-the-words-as-revised.log`, 64 arms: the transcripts this document quotes, printed from the three
   sentence files as revised, at three transports, plus `pull`, a host never seen and the strip control.
 
+This round ran one container, started three times (the second corrected the first's missing `TERM`, the third
+added the shipped-shape capture and the revised host-key sentence), and kept the last start:
+`~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/run-12-owner-question-arms.log`,
+28 arm lines: the six new-key refusals, the three terminal clones, the three captured clones plus the shipped
+shape, `git clone -q` and `ssh -q` under C and C2, the merged-stream pull, the five advice arms with the
+`GIT_SSH_COMMAND` option, and K's and K2's strip arms.
+
 The four runs and three exploration runs of the round in
 `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/` are cited in the option
 sections by the arm and the log, and are not repeated here.
@@ -1927,11 +1989,11 @@ Method, so a difference can be told from this harness's noise:
 
 - every arm ran in every round, and each round started one arm further along the list, so an arm sits at every
   position;
-- warm-up rounds ran before the measured ones, and this round's typed-path run warms every arm
+- warm-up rounds ran before the measured ones, and the sixth round's typed-path run warms every arm
   (the script of the round in `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/` read
   `for arm in $ARM_LIST`, which in `/bin/sh` is the list's first element only,
   so only `null-a` was warmed there);
-- every arm of this round's typed-path run has a twin, a second arm running the identical command, and the twin's
+- every arm of the sixth round's typed-path run has a twin, a second arm running the identical command, and the twin's
   per-round difference is the floor that arm is quoted against;
 - an arm's figure is the median of its per-round difference from its control in the same round, with the range of
   those differences and the count of positive rounds beside it;
@@ -1989,16 +2051,19 @@ C 645 bytes and 1,
 K 651 bytes and 7,
 K with `OPOST` cleared 645 bytes and 1,
 K2 645 bytes and 1.
-`refusal-k-pty-raw` and `refusal-k2-adaptive` compare identical to `refusal-c-relay`, and `refusal-k-pty` does not.
+The row with `OPOST` cleared is the shipped shape, and it is the one `refusal-k-pty-raw` measures;
+`refusal-k-pty-raw` and `refusal-k2-adaptive` compare identical to `refusal-c-relay`, and `refusal-k-pty`, the
+stand-in with the output processing left on, does not.
 
 A clone of two thousand objects with both streams redirected to a file, so no terminal on either side:
 
 - plain Git: 37 bytes, no progress line, no carriage return, no escape byte;
 - C: the same 37 bytes, identical to plain Git;
 - K2: the same 37 bytes, identical to plain Git;
-- K: 8593 bytes, a `Receiving objects` line, a `remote: Counting objects` line, a `remote: Enumerating objects` line,
-  210 carriage returns and 107 escape bytes;
-- K with `OPOST` cleared: 8587 bytes, the same three progress lines, 204 carriage returns and 107 escape bytes;
+- K, the stand-in with the output processing left on: 8593 bytes, a `Receiving objects` line, a `remote: Counting
+  objects` line, a `remote: Enumerating objects` line, 210 carriage returns and 107 escape bytes;
+- K with `OPOST` cleared, which is the shipped shape: 8587 bytes, the same three progress lines, 204 carriage
+  returns and 107 escape bytes;
 - K with `OPOST` cleared and `--no-progress`: 37 bytes, identical to plain Git with `--no-progress`.
 
 That is the four effects, one by one, with the source that gates each:
@@ -2009,10 +2074,15 @@ That is the four effects, one by one, with the source that gates each:
   processing turns each line feed into a carriage return and a line feed and OpenSSH writes its own `\r\n`;
   removed by clearing `OPOST`, which leaves only the carriage returns Git writes for its own progress;
 - Git's other terminal-only output: the escape `\033[K` that prefixes every `remote: ` line when standard error is
-  a terminal and `TERM` is not dumb (`sideband.c:311` to `:316`), measured as 107 escape bytes in the captured file
+  a terminal and `TERM` is not dumb (the assignment `prefix = ANSI_PREFIX DISPLAY_PREFIX` is the two lines after the
+  `isatty(2)` test, `sideband.c:316` to `:318` at `v2.56.1`), measured as 107 escape bytes in the captured file
   against none under plain Git or C, and still present with `--no-progress` and `OPOST` cleared
-  (run, `keep/run-9-check-without-a-source-and-no-progress.log`, arm `n-fail-k-pty-raw-no-progress`, five escape
-  bytes and the relayed line printed as `\033[Kremote: ...`).
+  (run, `keep/run-9-check-without-a-source-and-no-progress.log`, arm `n-fail-k-pty-raw-no-progress`: five escape
+  bytes, one `\033[K` and four colour sequences from the rejected-ref and `error:` lines, with the relayed line
+  printed as `\033[Kremote: ...`).
+  So a capture under K gains Git's colour as well as the erase prefix, and the same five escapes appear on K's
+  terminal arm where C's has none (`keep/run-5-remote-line-under-a-terminal.log`, arms `r-fail-k-pty-terminal` and
+  `r-fail-c-relay-terminal`).
   The editor's waiting hint is gated the same way (`editor.c:70`) and no clone draws it, so that one is source only.
 - every descendant's own answer to `isatty(2)`: a `post-checkout` hook prints `hook-stderr-tty: YES` under K and
   `no` under plain Git, C and K2, and a `ProxyCommand` program records `proxy-stderr-tty: YES` under K and `no` under
@@ -2026,7 +2096,7 @@ At a terminal (`ptyrun 80 24`):
 
 ### The end rule
 
-Run, the same log.
+Run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`.
 A `post-checkout` hook starts `(sleep 5) &` with standard error inherited, so a process holds the child's stream after
 the hook exits and after Git ends.
 A relay that reads until the stream closes takes 5170 ms (C) and 5172 ms (K) for a clone whose child ends in about
@@ -2096,11 +2166,11 @@ and both runs agree on the conclusion.
   option cost a person would feel on a fast connection.
 - Every figure is a loopback round trip inside a two-CPU container on this machine.
   A person's network dominates all of them, so the numbers say what the wrapper adds, not what a command takes.
-- The two typed-path runs disagree by a factor this round did not chase: this round's floor is `+4.94 ms` with a
-  range of `-34.13` to `+35.51` against the other's `+0.11 ms` with `-6.18` to `+7.93`, and this round's absolute
-  medians are about 195 ms against that run's about 127 ms.
-  The host was under memory pressure during this round's run, which is normal here and is not an excuse for a
-  claim: what this round's run supports is that only D is resolved, and that is what both runs say.
+- The two typed-path runs disagree by a factor the sixth round did not chase: the sixth round's floor is `+4.94 ms`
+  with a range of `-34.13` to `+35.51` against the other's `+0.11 ms` with `-6.18` to `+7.93`, and the sixth round's
+  absolute medians are about 195 ms against that run's about 127 ms.
+  The host was under memory pressure during the sixth round's run, which is normal here and is not an excuse for a
+  claim: what the sixth round's run supports is that only D is resolved, and that is what both runs say.
 - The figures do not transfer to another machine, another container, or another release of Git or OpenSSH.
   That is why every figure here is quoted against a twin measured in its own rounds.
 
@@ -2131,7 +2201,10 @@ and both runs agree on the conclusion.
   but no arm sends a signal to the wrapper only, so what the wrapper must do with one is design.
 - No arm with `Match exec`, `CanonicalizeHostname`, `HostKeyAlias` or `VerifyHostKeyDNS`.
   The `KnownHostsCommand` and `@cert-authority` results are other rounds' and are quoted in D's section.
-- No arm merged the two streams of a command under K2; the case is an inference from one `isatty` call.
+- One arm merged the two streams of a command under K2: a fast-forward `git pull` into one file, identical to plain
+  Git's byte for byte (`o-merged-plain`, `o-merged-k2`).
+  That is one command and one order; a stderr line Git writes before a stdout line can still be copied after it by a
+  relay that reads before it writes, and no arm forced that order.
 - No arm measured `ssh-add` with an agent, and no arm could measure a locked key's passphrase.
 - No Windows, no OpenSSH release other than 10.6p2, and no Git release other than 2.56.1.
 - `ssh -G` from the person's own configuration was measured in the round whose folder is
@@ -2165,13 +2238,13 @@ Its findings, with the evidence against the ones that did not hold:
    runs all four shapes of it.
 6.  The coverage sentence in the B over C pair was wrong in both directions.  B covers the differing key; C also
    speaks for `BatchMode=yes` and `StrictHostKeyChecking=yes`.
-7.  D has a false positive the round before it did not find.  Reproduced with `KnownHostsCommand`, and the
+7.  D has a false positive the round at `1f6f120f64` did not find.  Reproduced with `KnownHostsCommand`, and the
    `@cert-authority` guess did not hold.
 8.  J's example named a host J cannot know.  Its value was rebuilt with a placeholder.
 9.  The selector's supporting claims were partly wrong.  The file-name fallback and the bare-word claim were
    dropped.
 10. "Nothing else is needed" for AppArmor was inference, and now says so.
-11. The "byte for byte" claim was not measured.  It was measured then, and again this round for C, K2 and K with
+11. The "byte for byte" claim was not measured.  It was measured then, and again in the sixth round for C, K2 and K with
     its fixes.
 12. Stale line numbers.  Cites are now a heading, a symbol, or a path with the sentence quoted.
 13. A misquoted comma in the old handover's sentence.
@@ -2179,8 +2252,8 @@ Its findings, with the evidence against the ones that did not hold:
 15. The panic hook ran after the mode would sit, and "flush" was the wrong mechanism.
 16. A typed LFS push would say the same thing twice.
 17. A container outlived the report of the round that started it.
-    It is not this round's, and this round left both it and
-    `typed-network-next-step-probe-2026-11-24` alone, because both predate this round.
+    It is not the sixth round's, and the sixth round left both it and
+    `typed-network-next-step-probe-2026-11-24` alone, because both predate it.
 
 ### The revision at `bda96883d5` (2026-11-25T13:54:27-05:00), merged as `ec0b9e7ea3`
 
@@ -2219,8 +2292,9 @@ All three are answered in the sections named with them.
 
 The gate review kept at
 `~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`
-answered it with nine Medium findings and a list of Low findings,
-all of which are answered under "What this revision changed".
+answered it with nine Medium findings and a list of Low findings.
+The revision that followed it (`cfbfa7aaf6`, 2026-11-25T17:20:11-05:00) answered all of them, and the git history
+holds that change log.
 Nothing it found reverses K2 first.
 
 ## References
@@ -2244,7 +2318,7 @@ Nothing it found reverses K2 first.
 - `package/git-policy/cli/SPEC.md`, "No command the wrapper runs or forwards asks a person for a credential",
   "The wrapper never starts itself as Git", and the paragraph saying this release names no next step at a new host key
   (`:9460`).
-- `package/git-policy/cli/README.md`, the paragraph on prompts and `SSH_ASKPASS` (`:5787`, `:7597`).
+- `package/git-policy/cli/README.md`, the paragraph on prompts and `SSH_ASKPASS`.
 - `doc/planning/cli-git-no-self-invocation.md`, "The rule".
 - `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md` (the answers "Never" for B and E, and
   "J" for the option that was then retired).
@@ -2259,7 +2333,7 @@ Nothing it found reverses K2 first.
 - Git v2.56.1: `pager.c` (`term_columns`), `progress.c` (`is_foreground_fd`, the progress gate),
   `sideband.c` (the `remote: ` prefix), `transport.c` (`ret->progress`), `editor.c` (the waiting hint),
   `connect.c`, `prompt.c`, `strbuf.c`.
-- This round's folder, `~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`:
+- The sixth round's folder, `~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`:
   `run-5-remote-line-under-a-terminal.log` and its script,
   `run-6-j-arms-and-transports.log` and its script,
   `run-7-unreachable-host-and-pull.log` and its script,
@@ -2271,11 +2345,15 @@ Nothing it found reverses K2 first.
   `stand-ins/standin.c`, `stand-ins/proxy.c`, `stand-ins/ptyrun.c`,
   `sentences/host-key.txt`, `sentences/strict.txt`, `sentences/passphrase.txt`, `sentences/j-value.txt`,
   `sentences/remote-line.txt`, `derived-medians.txt`, `derive-medians.py` and `state-so-far.md`.
+- This round's folder, `~/temp/agent/host-key-next-step-design-seventh-revision-2026-11-25/keep/`:
+  `run-12-owner-question-arms.log` and its script, `run-12-launch.txt`,
+  the same `lib.sh`, `stand-ins/standin.c`, `stand-ins/proxy.c` and `stand-ins/ptyrun.c`,
+  and `sentences/host-key.txt`, `sentences/strict.txt`, `sentences/passphrase.txt` and `sentences/remote-line.txt`.
 - The round whose logs carry the behaviour, the four effects, the steps and the typed path:
   `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/`.
 - The gate review this revision answers:
-  `~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`.
-- The round that measured `pull` at a new host key, the `-q` arms, E's cost and `KnownHostsCommand`:
+  `~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`.
+- The round that measured `pull` at a new host key, the `ssh -q` arms, E's cost and `Match exec`:
   `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/`.
 - The round that measured `KnownHostsCommand`, `@cert-authority` and the 369-byte J value:
   `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/`.
