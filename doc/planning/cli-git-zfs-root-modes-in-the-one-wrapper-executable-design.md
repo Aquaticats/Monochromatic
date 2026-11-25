@@ -2252,7 +2252,7 @@ If the owner prefers a different word,
 what changes is:
 
 - `ROOT_GROUP_WORD` in `root_mode_names.rs`,
-  one string literal in the one-name guard's `LITERALS`,
+  which is one line of that module and the same line in its pin,
   and the fixture's cases;
 - the unit text in plan step 19,
   the nested dataset's unit,
@@ -2967,14 +2967,17 @@ A > C > B.
 A over C:
 both are unique lines a check can read,
 and both let a check tell the modes' answer from the wrapper's banner;
-A keeps one short name in every refusal and every existing check,
-where C buys a runnable spelling at the price of a longer name in every message and a new line in
-the four existing checks,
+A keeps the expected line,
+which is one string read in four places,
 `handlerVersionLine`,
 `native-install`'s comparison,
 the release smoke's `grep`
 and the stand-in handler's line,
-plus `doctor`'s planned one.
+plus `doctor`'s planned one,
+so those comparisons change in what they run and not in what they compare;
+C changes what they compare as well,
+because its line carries the group word,
+and it buys a runnable spelling at the price of a longer name in every refusal.
 The design already requires the refusal to print the words and the installed path,
 so a person who needs a command to type has it without the version line's help.
 What C fails to deliver is a shorter message in the errors a person meets most (design).
