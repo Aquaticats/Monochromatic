@@ -2063,6 +2063,15 @@ this step's failure path then destroys the clone and the origin snapshot,
 so the add itself uses both `destroy` grants,
 the six permissions step 10 refuses on become eight,
 and the group table step 10 keeps is rewritten here.
+State of 2026-11-25:
+the build kept the failure path's destroy out,
+so the add's own steps still use the six and the table still refuses six and
+warns on the three a removal uses
+(`package/git-policy/cli/src/native/worktree_clone_add_route/add_grants.rs`);
+the settle a failed add hands over to is step 14's,
+which is the step that lands the move,
+and `source_guard/add_route_issues_no_destroy_tests.rs` fails the day the add's
+folder names a destroying entry without moving them.
 
 #### Design sections
 
