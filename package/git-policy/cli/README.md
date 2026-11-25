@@ -2469,6 +2469,12 @@ What this release builds and does not yet run is the rest of that removal,
 on one writing path no command reaches
 (`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
 
+- the slot's per-slot claim,
+  taken before the first read and released after the plan is proved gone,
+  so a second removal of the slot,
+  and an add of it,
+  are refused while one command holds the slot
+  (`src/native/worktree_clone_removal_proof_and_plan/removal_slot_claim.rs`);
 - the snapshot batch and the head destroy,
   with a fresh all-namespace holder scan and the marked-origin check before each request and before
   the head,
