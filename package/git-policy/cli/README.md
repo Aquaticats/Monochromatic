@@ -2461,10 +2461,45 @@ so a later refusal never hides a loss an earlier one caused.
 A refusal prints no destructive command.
 The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
-which plan steps 15 to 18 call rather than reading the folder again,
-and the batch the checks guard
-(`src/native/worktree_clone_removal_proof_and_plan/removal_destruction.rs`)
-sends no head destroy and is reachable from no command until plan step 16.
+which plan steps 15 to 18 call rather than reading the folder again.
+
+What this release builds and does not yet run is the rest of that removal,
+on one writing path no command reaches
+(`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
+
+- the snapshot batch and the head destroy,
+  with a fresh all-namespace holder scan and the marked-origin check before each request and before
+  the head,
+  so a clone a namespace still holds refuses and no snapshot of it is destroyed;
+- the names settled by their recorded GUIDs,
+  a newly created own snapshot added to the plan,
+  and a resumed removal that adopts the plan a killed,
+  refused or cancelled run left,
+  proves every name again and never sends a request for one the plan records as destroyed;
+- the origin cleanup record,
+  published before the first destroy,
+  and the attempt that destroys the checkout's origin snapshot under the account's own
+  `mount,destroy` grant,
+  which is left blocked with its reason when a clone or a hold pins it;
+- the Git settle,
+  which releases the managed lock,
+  removes the matching registration and the slot's pointer and the empty underlay folder,
+  and is proved by the clone's absence;
+- the removal's own records,
+  removed last,
+  and the report that names what was destroyed,
+  what went with the head and what a person still has to do.
+
+All of that waits for one thing a person needs:
+`cancel-worktree-removal <slot>`,
+which the record's own sentences and the checks' refusals name and which plan step 17 builds.
+A release that printed a command it does not have would make a refused removal worse than today's,
+so the refusal stays,
+and it changes nothing:
+the plan folder is not created,
+no clone is unmounted,
+and every snapshot,
+bookmark and registration still stands.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go.
 

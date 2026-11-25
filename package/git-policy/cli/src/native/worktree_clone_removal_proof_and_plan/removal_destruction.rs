@@ -202,7 +202,7 @@ pub fn destroy_the_removal(input: &RemovalDestruction<'_>) -> Result<Destruction
 /// ```ts
 /// const planned = plannedOriginOf(slot, entered);
 /// ```
-fn planned_origin_of(slot: &str, entered: &EnteredRemoval) -> PlannedOrigin {
+pub(super) fn planned_origin_of(slot: &str, entered: &EnteredRemoval) -> PlannedOrigin {
     let facts = &entered.plan.facts;
     return PlannedOrigin {
         slot: String::from(slot),
@@ -230,7 +230,7 @@ fn planned_origin_of(slot: &str, entered: &EnteredRemoval) -> PlannedOrigin {
 /// ```ts
 /// const names = plan.namedSnapshots().map(s => s.name);
 /// ```
-fn the_snapshots_to_send(plan: &DestructionPlan) -> Vec<String> {
+pub(super) fn the_snapshots_to_send(plan: &DestructionPlan) -> Vec<String> {
     return plan.named_snapshots().iter().map(|snapshot| return snapshot.name.clone()).collect();
 }
 
@@ -255,7 +255,7 @@ fn the_snapshots_to_send(plan: &DestructionPlan) -> Vec<String> {
 /// const verdict = checkPlannedOrigin(check, planned);
 /// if (verdict.kind === 'refused') throw stop(verdict.cause, historyOf(plan));
 /// ```
-fn refuse_a_marked_or_replaced_origin(check: &dyn DatasetReader, planned: &PlannedOrigin, plan: &DestructionPlan) -> Result<(), RemovalStop> {
+pub(super) fn refuse_a_marked_or_replaced_origin(check: &dyn DatasetReader, planned: &PlannedOrigin, plan: &DestructionPlan) -> Result<(), RemovalStop> {
     let history: RemovalHistory = history_of(Some(plan));
     return match check_planned_origin(check, planned) {
         Verdict::Proceed => Ok(()),
@@ -283,7 +283,7 @@ fn refuse_a_marked_or_replaced_origin(check: &dyn DatasetReader, planned: &Plann
 /// ```ts
 /// for (const submitted of outcome.names()) plan.recordLine(line(submitted));
 /// ```
-fn record_the_answer(plan: &mut DestructionPlan, path: &Path, outcome: &BatchOutcome) -> Result<(), RemovalStop> {
+pub(super) fn record_the_answer(plan: &mut DestructionPlan, path: &Path, outcome: &BatchOutcome) -> Result<(), RemovalStop> {
     let named: Vec<PlanSnapshot> = plan.named_snapshots();
     for submitted in outcome.names() {
         let Some(snapshot) = named.iter().find(|held| return held.name == submitted.name) else {
@@ -300,7 +300,7 @@ fn record_the_answer(plan: &mut DestructionPlan, path: &Path, outcome: &BatchOut
 
 /// The attempt number a name's next line takes:
 /// one above the highest this plan already holds for it.
-fn next_attempt(plan: &DestructionPlan, name: &str) -> u64 {
+pub(super) fn next_attempt(plan: &DestructionPlan, name: &str) -> u64 {
     return plan.current_state(name).map_or(1, |held| return held.attempt + 1);
 }
 
@@ -320,7 +320,7 @@ fn next_attempt(plan: &DestructionPlan, name: &str) -> u64 {
 /// ```ts
 /// const line = { snapshot, attempt, outcome: word, errno };
 /// ```
-fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &NameOutcome, path: &Path) -> Result<PlanAttempt, RemovalStop> {
+pub(super) fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &NameOutcome, path: &Path) -> Result<PlanAttempt, RemovalStop> {
     let (word, errno): (SnapshotOutcome, Option<u32>) = match outcome {
         NameOutcome::Destroyed => (SnapshotOutcome::Destroyed, None),
         NameOutcome::Intact => (SnapshotOutcome::Intact, None),
@@ -357,7 +357,7 @@ fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &NameOutcome, pa
 /// ```ts
 /// const snapshots = reads.snapshotsOf(plan.facts.cloneDataset, plan.facts.cloneGuid);
 /// ```
-fn the_remaining_snapshots(reads: &dyn RemovalPoolReads, plan: &DestructionPlan) -> Result<Vec<String>, RemovalStop> {
+pub(super) fn the_remaining_snapshots(reads: &dyn RemovalPoolReads, plan: &DestructionPlan) -> Result<Vec<String>, RemovalStop> {
     let objects = reads.snapshots_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid).map_err(|reason| {
         return RemovalStop::InventoryUnreadable { clone: plan.facts.clone_dataset.clone(), reason };
     })?;

@@ -5501,6 +5501,53 @@ and every step of it that decides anything runs before anything is written:
    split by the largest fitting prefix when it is over the budget,
    skipped when it is empty,
    with the kernel's per-name answer recorded line by line in the plan.
+   A fresh all-namespace holder scan and the deferred-origin check run before each chunk.
+9. The clone's remaining names settled by the live inventory:
+   a name no live snapshot carries by GUID is `destroyed`,
+   a name a live snapshot carries with its own group is `intact`,
+   and a live object carrying the GUID with another group or name refuses.
+   A live snapshot the plan does not name and the clone made after its own creation group is new
+   own history,
+   and it is added to the plan as one `planned` line with every earlier line kept and the plan's
+   run nonce renewed.
+   A live snapshot at or below the clone's own group is inherited history and refuses.
+10. The head destroy,
+   after that settlement and a fresh enumeration,
+   with the deferred-origin check and a fresh holder scan immediately before it:
+   the plan is rewritten `head=requested`,
+   the clone is destroyed with no defer mark,
+   and the word after it is `gone` when the clone's name is absent and no child of the pinned
+   parent carries its recorded GUID,
+   `refused` when the clone still answers,
+   and `unknown` when the pool cannot prove either.
+   A `gone` head settles every remaining name by the kernel's own rule that a dataset cannot be
+   destroyed while it holds snapshots of its own.
+11. The origin cleanup record,
+   published before step 8's first request and read again by step 12,
+   so a removal whose record cannot be written destroys nothing.
+12. The origin attempt:
+   the record read,
+   the origin dataset and snapshot proved by GUID and group,
+   the counts and the mark read,
+   one single-name request with no `defer` key,
+   and the absence proved before the record is removed.
+   A blocked attempt rewrites the record's state lines and prints one line when its reason changed.
+13. The Git settle,
+   with the destruction proof in hand:
+   the managed lock written again when it is gone and released,
+   the matching registration and the slot's pointer removed,
+   and the leftover underlay folder removed only when it has the recorded identity and holds
+   nothing.
+14. The removal's own records and its report:
+   the two inventories,
+   then the binding,
+   then the plan,
+   each proved gone,
+   with the origin cleanup record left standing when it is blocked,
+   and the lines that name what was destroyed,
+   what the head took with it,
+   what remains,
+   and what a person still has to do.
 
 Steps 1 to 4 write nothing and unmount nothing,
 and they are what this release's removal command runs.
@@ -5521,26 +5568,31 @@ the plan folder is not created,
 the clone's intent property keeps its value,
 and no record is rewritten.
 
-The head destroy,
-the origin cleanup and the Git settle are plan steps 16 and 17's.
-Until step 16 is wired,
-the removal's command path calls the read-only reading
+The whole removal is built on one writing path,
+`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
+and no command reaches it.
+The removal's command path still calls the read-only reading
 (`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
-and names neither the writing entry nor the destruction step:
+and names none of the three writing functions:
 the entry that files the intent,
 unmounts the clone and publishes the plan
-(`worktree_clone_removal_proof_and_plan::removal_entry::enter_the_removal`),
-and the step that checks and then sends the batch
-(`worktree_clone_removal_proof_and_plan::removal_destruction::destroy_the_removal`)
-both wait for the steps that can finish or cancel what they start,
+(`removal_entry::enter_the_removal`),
+the step that checks and then sends the batch
+(`removal_destruction::destroy_the_removal`),
+and the step that finishes a removal
+(`removal_completion::complete_the_removal`).
+A `source_guard` scan holds that cut over all three names
+(`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
+and the round that switches the command path on names them in it and removes the scan with it.
+That switch waits on two things besides this build:
+`cancel-worktree-removal`,
+which the deferred-origin refusals,
+the resume and the record's own sentences name and which plan step 17 builds,
+and a release whose printed sentences name only commands,
+records and states that it has.
+Until then the refusal prints what a removal would prove and lose and changes nothing,
 because an unmounted clone and a plan no command of this release could finish or cancel
 would be worse for a person than today's refusal.
-A `source_guard` scan holds that cut over both names
-(`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
-and step 16's wiring names them and removes the scan with it.
-The destruction step stops after the head check:
-it sends no head destroy,
-so no build of this release can destroy the last clone of a marked origin snapshot.
 
 The plan is the route's one reader for version 1:
 `worktree_clone_removal_proof_and_plan::plan_reading::{read_the_plan, read_the_plan_at, read_an_existing_plan}`,
@@ -5583,30 +5635,45 @@ is the project's decision of 2026-11-22
   the check has no record,
   so a killed check leaves no staging file.
 
-The destruction step keeps one gap plan step 16 closes.
-The plan's line for a requested destroy is written by step 16 before the request,
-so a kill between the kernel call and this release's own answer line would leave the plan calling a
-snapshot `planned` that is gone.
-That is why the writing path is wired to no command,
-and why the guest arm that shows the checks does not kill a run between the two.
+A kill between a snapshot request and the answer line it would have written leaves a name whose
+highest line says `planned` while the kernel may have destroyed it.
+No in-flight line is written for a snapshot attempt,
+because the accepted record has no such word
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+"The states"),
+and a line that could not be settled without a proof would authorize nothing.
+What closes that gap is the resume:
+the next run reads the clone's live inventory and settles every name whose state is not
+`destroyed` by its recorded GUID,
+writing `destroyed` when no live object carries it and `intact` when one does with the recorded
+group.
+A live object carrying the recorded GUID with another group or name refuses and is named,
+and no outcome is ever replaced with a guess.
+The head's own request is the one in-flight state the record stores,
+and it is written before the request.
 
 What this release does not do:
 
 - It removes no clone.
   The refusal above is the whole of its removal behaviour,
-  and plan steps 16 and 17 build the head destroy,
-  the origin cleanup,
-  the Git settle and the cancel command.
+  and the writing path that would finish one is built and reachable from no command.
 - It writes no removal intent,
-  unmounts no clone and writes no destruction plan on any command's behalf.
-  The writing entry and the destruction step are built and tested,
-  and no release file outside their own folder names them.
-- It sends no snapshot request and no head destroy from any command.
-- It adopts no plan a person or a killed run left;
-  a plan that already stands names itself and stops the reading,
-  and resuming one is plan step 16's.
-- It names no `requested` line in the plan before a request,
-  which step 16 writes.
+  unmounts no clone,
+  writes no destruction plan,
+  destroys no snapshot,
+  destroys no head,
+  destroys no origin snapshot and settles no registration on any command's behalf.
+  Every part of that order is built and tested,
+  and no release file outside the removal's own two folders names its writing functions.
+- It runs no origin cleanup look.
+  The look the five worktree commands make
+  (`worktree_clone_origin_cleanup::origin_cleanup_look`),
+  its attempts,
+  its lines and its folder are built and controlled,
+  and no command calls it until the command path is switched on.
+- It adopts no plan from a command;
+  a removal that finds one adopts it and continues,
+  and no release command runs one.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -18542,12 +18609,41 @@ written once and read whole
   GUID,
   group and name.
   A removal never rebuilds it and never updates it to match an external change.
+- The origin cleanup record is one file in
+  `<common Git directory>/monochromatic-git-policy-cli/origin-cleanups/`,
+  named by the origin snapshot's own name,
+  which is the add's prefix `git-worktree-clone-origin-` and its 32 lowercase hexadecimal digits.
+  It holds a version line,
+  the state's own lines (`state=owed` or `state=blocked`,
+  the instant the record was first written,
+  the instant of the last attempt,
+  and,
+  when blocked,
+  one of the four reasons `dependency`,
+  `deferred`,
+  `unproved` or `refused` with the errno and the two counts),
+  and the identity's lines,
+  written once and never changed:
+  the checkout dataset's name and GUID,
+  the origin snapshot's own name,
+  GUID and group,
+  the clone's name and GUID,
+  and the slot's path as hexadecimal bytes.
+  Its bound is 9,217 bytes,
+  the widest record these fields spell,
+  and a folder or a file another account could write is refused before a byte is read.
+  Completion is not a state:
+  it is the record's absence,
+  written only after the recorded snapshot's GUID is proved absent under a dataset whose own GUID
+  and origin group prove it is the recorded one.
+  The folder and the record are built and reachable from no command in this release
+  (`src/native/worktree_clone_origin_cleanup/`).
 
 A record that does not read or does not match is refused with its file named,
 and nothing is moved,
 rewritten or deleted;
-this release writes neither the intent nor the plan,
-and plan steps 16 and 17 are what write them.
+this release writes neither the intent nor the plan nor the origin cleanup record from any command,
+and the round that switches the command path on is what writes them.
 
 ### Where the service listens
 

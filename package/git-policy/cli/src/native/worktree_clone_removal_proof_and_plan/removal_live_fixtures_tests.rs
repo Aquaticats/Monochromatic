@@ -94,6 +94,9 @@ pub(crate) struct LivePoolFixture {
     pub(crate) prefix: PathBuf,
     /// The folder the pool's image and the repository live under.
     pub(crate) root: PathBuf,
+    /// The origin snapshot's own name,
+    /// which the add names with its prefix and its nonce and the earlier arms call `origin`.
+    pub(crate) origin_name: String,
 }
 
 impl LivePoolFixture {
@@ -115,7 +118,25 @@ impl LivePoolFixture {
             pool: std::env::var(variables.pool).unwrap_or_else(|_| return String::from(variables.default_pool)),
             prefix: PathBuf::from(std::env::var(variables.prefix).unwrap_or_else(|_| return String::from("/opt/openzfs-2.4.4"))),
             root: PathBuf::from(std::env::var(variables.root).unwrap_or_else(|_| return String::from(variables.default_root))),
+            origin_name: String::from("origin"),
         });
+    }
+
+    /// What:
+    ///  The same fixture whose checkout snapshots the add's own name,
+    ///  which the origin cleanup record's grammar requires.
+    /// Why:
+    ///  The record is keyed by the snapshot's own name,
+    ///  and an arm that measured the cleanup against a snapshot named `origin` would measure a
+    ///  record the release refuses to write.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const fixture = fixture.withOriginName('git-worktree-clone-origin-2f2f…');
+    /// ```
+    pub(crate) fn with_origin_name(mut self, name: &str) -> LivePoolFixture {
+        self.origin_name = String::from(name);
+        return self;
     }
 
     /// This machine's own host name.
@@ -221,7 +242,7 @@ impl LivePoolFixture {
         self.run("zfs", &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", clones.as_str()]);
         self.run("zfs", &["snapshot", format!("{checkout}@earliest").as_str()]);
         self.run("zfs", &["bookmark", format!("{checkout}@earliest").as_str(), format!("{checkout}#from-earliest").as_str()]);
-        self.run("zfs", &["snapshot", format!("{checkout}@origin").as_str()]);
+        self.run("zfs", &["snapshot", format!("{checkout}@{}", self.origin_name).as_str()]);
         let clone: String = self.clone();
         self.run("zfs", &["clone", self.origin().as_str(), clone.as_str()]);
         for snapshot in snapshots {
@@ -258,10 +279,9 @@ impl LivePoolFixture {
         return self.named("checkout");
     }
 
-    /// The origin snapshot's full name,
-    /// which is the checkout's `@origin`.
+    /// The origin snapshot's full name.
     pub(crate) fn origin(&self) -> String {
-        return format!("{}@origin", self.checkout());
+        return format!("{}@{}", self.checkout(), self.origin_name);
     }
 
     /// What:
@@ -340,6 +360,9 @@ impl LivePoolFixture {
         std::fs::create_dir_all(self.slot_path().as_path()).expect("the slot folder");
         std::fs::create_dir_all(self.registration().as_path()).expect("the registration");
         let registration_identity: FolderIdentity = FolderIdentity::of_folder(self.registration().as_path()).expect("the registration's identity");
+        // The settle compares the underlay's identity with the one the binding records, so the record carries the
+        // slot folder's own identity and not the registration's.
+        let slot_identity: FolderIdentity = FolderIdentity::of_folder(self.slot_path().as_path()).expect("the slot's identity");
         let home: PathBuf = home_folder(self.common().as_path());
         std::fs::create_dir_all(home.as_path()).expect("the binding home");
         let lines: Vec<String> = vec![
@@ -353,7 +376,7 @@ impl LivePoolFixture {
             format!("repository={}", path_as_hexadecimal(self.common().as_path())),
             format!("repositoryIdentity={}", FolderIdentity::of_folder(self.common().as_path()).expect("the common directory's identity").encode()),
             format!("slot={}", path_as_hexadecimal(self.slot_path().as_path())),
-            format!("slotIdentity={}", registration_identity.encode()),
+            format!("slotIdentity={}", slot_identity.encode()),
             format!("registration={}", path_as_hexadecimal(self.registration().as_path())),
             format!("registrationIdentity={}", registration_identity.encode()),
             format!("pool={}", recorded.pool),

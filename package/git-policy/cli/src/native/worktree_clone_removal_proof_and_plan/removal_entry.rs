@@ -228,6 +228,28 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
 /// const prepared = prepareTheRemoval(entry, reads);
 /// ```
 pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<PreparedRemoval, RemovalStop> {
+    let (prepared, _standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads, true)?;
+    return Ok(prepared);
+}
+
+/// What:
+///  Every step of one removal's order that changes nothing,
+///  with the plan that already stands for this clone,
+///  which a resumed removal adopts and a fresh entry refuses.
+/// Why:
+///  The fresh entry refuses a standing plan and a resumed removal adopts one,
+///  and both take the same reads in the same order,
+///  so the refusal cannot name one check here and another there.
+///
+/// # Throws
+/// The check that refused,
+/// with the object it named and the sentence a person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [prepared, standing] = prepareTheRemovalOverAPlan(entry, reads);
+/// ```
+pub(super) fn prepare_the_removal_over_a_plan(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads, refuse_a_standing_plan: bool) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
@@ -235,14 +257,16 @@ pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalP
         return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name()), refusal };
     })?;
     let history: RemovalHistory = history_of(standing.as_ref());
-    if let Some(plan) = standing {
+    if let Some(plan) = &standing {
         // The plan's own identities must be this clone's before its tuples explain a bookmark.
-        refuse_a_plan_of_another_clone(&plan, &recorded)?;
-        let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name());
-        return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path });
+        refuse_a_plan_of_another_clone(plan, &recorded)?;
+        if refuse_a_standing_plan {
+            let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name());
+            return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path });
+        }
     }
     let proven: ProvenRemoval = prove_the_lineage(reads, &recorded, &origin_inventory, &history)?;
-    let explanations = explanations_of(&proven.inventory, None);
+    let explanations = explanations_of(&proven.inventory, standing.as_ref());
     let refused = refuse_the_unexplained_bookmarks(&explanations, proven.inventory.bookmarks().as_slice(), &origin_inventory);
     if !refused.is_empty() {
         return Err(RemovalStop::BookmarksRefused { clone: recorded.clone_dataset.clone(), refused });
@@ -253,7 +277,7 @@ pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalP
         snapshots: proven.own_snapshots.iter().map(|snapshot| return snapshot.name.clone()).collect(),
         bookmarks: proven.inventory.bookmarks().iter().map(|bookmark| return bookmark.full_name()).collect(),
     };
-    return Ok(PreparedRemoval { recorded, registration, proven, lost });
+    return Ok((PreparedRemoval { recorded, registration, proven, lost }, standing));
 }
 
 /// What:
@@ -307,7 +331,7 @@ pub(super) fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
 ///
 /// # Throws
 /// The field in which the plan and the add's record disagree.
-fn refuse_a_plan_of_another_clone(plan: &DestructionPlan, recorded: &RecordedBinding) -> Result<(), RemovalStop> {
+pub(super) fn refuse_a_plan_of_another_clone(plan: &DestructionPlan, recorded: &RecordedBinding) -> Result<(), RemovalStop> {
     let pairs: [(&'static str, String, String); 6] = [
         ("cloneDataset", plan.facts.clone_dataset.clone(), recorded.clone_dataset.clone()),
         ("cloneGuid", plan.facts.clone_guid.file_name(), recorded.clone_guid.file_name()),
@@ -340,7 +364,7 @@ fn refuse_a_plan_of_another_clone(plan: &DestructionPlan, recorded: &RecordedBin
 /// ```ts
 /// const facts = factsOf(recorded, proven, proof, registration, clock);
 /// ```
-fn facts_of(recorded: &RecordedBinding, proven: &ProvenRemoval, proof: &UnmountProof, registration: ObjectId, clock: &dyn RemovalClock) -> Result<PlanFacts, RemovalStop> {
+pub(super) fn facts_of(recorded: &RecordedBinding, proven: &ProvenRemoval, proof: &UnmountProof, registration: ObjectId, clock: &dyn RemovalClock) -> Result<PlanFacts, RemovalStop> {
     return Ok(PlanFacts {
         run: clock.run()?,
         owner: clock.owner()?,

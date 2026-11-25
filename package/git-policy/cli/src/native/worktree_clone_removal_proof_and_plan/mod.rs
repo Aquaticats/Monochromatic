@@ -101,6 +101,26 @@
 //!   the removal's read-only reading:
 //!   what a removal would prove and lose,
 //!   and the lines a command prints instead of writing.
+//! - `fresh_holder_scan.rs`:
+//!   the fresh all-namespace scan each destroy is preceded by.
+//! - `removal_head_destroy.rs`:
+//!   the names settled by their GUIDs,
+//!   the amended plan a new own snapshot takes,
+//!   and the head destroy with its absence proof.
+//! - `removal_resume.rs`:
+//!   where a removal starts:
+//!   a fresh entry,
+//!   an adopted kept plan,
+//!   or the head-gone path.
+//! - `removal_settle.rs`:
+//!   the Git settle of one removal.
+//! - `removal_records_end.rs`:
+//!   the removal's own records,
+//!   removed as the last witness.
+//! - `removal_completion.rs`:
+//!   the whole order from the plan to the report.
+//! - `removal_report.rs`:
+//!   the lines a finished removal prints.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -132,6 +152,15 @@ pub mod unmount_request;
 pub mod removal_entry;
 pub mod removal_destruction;
 pub mod removal_reading;
+pub mod fresh_holder_scan;
+pub mod removal_head_destroy;
+pub mod removal_resume;
+pub mod removal_settle;
+pub mod removal_records_end;
+pub mod removal_completion;
+pub mod removal_origin_step;
+pub mod removal_settle_step;
+pub mod removal_report;
 
 pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
 pub use plan_bounds::{
@@ -157,6 +186,13 @@ pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, Re
 pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
 pub use removal_destruction::{DestructionUnderway, RemovalDestruction, destroy_the_removal};
 pub use removal_reading::{RemovalReading, read_the_removal};
+pub use fresh_holder_scan::{FreshHolderScan, TheLiveHolderScan, the_holder_lines};
+pub use removal_head_destroy::{CloneAbsence, DatasetDestroyDevice, HeadDestroyed, the_clone_absence};
+pub use removal_resume::{TheStart, start_the_removal};
+pub use removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest, TheLiveSettle};
+pub use removal_records_end::{RecordsGone, remove_the_removal_records};
+pub use removal_completion::{RemovalCompletion, complete_the_removal};
+pub use removal_report::{OriginCleanupDone, TheRemovalDone};
 
 /// The plan every control of this folder starts from.
 /// Never part of the release executable.
@@ -190,3 +226,16 @@ pub(crate) mod removal_live_fixtures;
 #[cfg(test)]
 #[path = "removal_destruction_guest_arm_tests.rs"]
 mod removal_destruction_guest_arm_tests;
+
+/// The guest arm of the whole removal,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "removal_completion_guest_arm_tests.rs"]
+mod removal_completion_guest_arm_tests;
+
+/// The seams a whole-removal control answers,
+/// and the one call that runs the completion over the fixture.
+/// Never part of the release executable.
+#[cfg(test)]
+#[path = "removal_completion_fixtures_tests.rs"]
+pub(crate) mod removal_completion_fixtures;
