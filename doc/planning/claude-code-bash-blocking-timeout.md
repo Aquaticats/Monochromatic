@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:30:26-05:00.
+State recorded 2026-11-25T17:31:28-05:00.
 
 ## Requirement as stated
 
@@ -237,8 +237,8 @@ The hook adds no second completion notice.
 The design frontier is empty.
 No behavior remains silently assumed from the answered branches.
 
-A cross-vendor review and native runtime probes remain required before the user is asked
-to confirm shared understanding.
+A fresh cross-vendor review of the final record and probe evidence remains required
+before the user is asked to confirm shared understanding.
 Implementation stays unauthorized until that confirmation.
 
 ## Review record
@@ -340,35 +340,29 @@ is the correct execution-policy boundary.
 With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and the policy enabled,
 the synchronous `SessionStart:startup` hook returned the expected `systemMessage`
 through the real Claude Code hook stream.
-Resume and policy-disabled probes remain.
+A resumed session emitted no SessionStart hook event,
+consistent with matcher `startup`.
+With the policy also disabled,
+the startup hook ran and returned `{}`.
+
+A slow unwrapped command with native background tasks disabled and our policy enabled
+still received `timeout: 1000` after the startup warning.
+It returned exit code 143 with `Command timed out after 1s`,
+confirming the accepted no-fallback termination behavior.
+Clear and compact exclusion follows from the `startup` matcher;
+only startup and resume received live event probes.
 
 ## Verification still owed
 
-Before shared understanding,
-the Claude Sonnet gate review must return and any earned findings must fold into this record.
-A real hooked Claude Code 2.1.332 session must then prove these critical mechanisms:
+A fresh cross-vendor reviewer must read this final record and the probe evidence
+before the user is asked to confirm shared understanding.
 
-- A hook-injected `timeout: 1000` returns a quick command normally
-  and moves a still-running command to a native background task.
-- Wrapped and unwrapped sleep forms exhibit their actual behavior;
-  no behavior is inferred from the original command text alone.
-- A filter-skipped command keeps its command text and receives the eligible execution rewrite.
-- Caller timeouts `500`,
-  `600000`,
-  and `0` survive unchanged.
-- Explicit `run_in_background: true` keeps its original mode and absent or supplied timeout.
-- `agent_id` suppresses execution-field changes,
-  while `agent_type` without `agent_id` does not.
-- The startup-only `systemMessage` renders once with the policy enabled,
-  does not render with it disabled,
-  and does not reappear on resume or clear.
-- A quick foreground `cd` and a moved `cd` demonstrate their different persistence rules.
-
-Implementation verification must also cover both existing `run_in_background` rewrite sites,
+After acceptance,
+implementation verification must cover the filter-skipped composition branch,
+both existing `run_in_background` rewrite sites,
 legacy-variable ignoring,
 exact lowercase false-like values,
 case-sensitive non-matches,
-filter-wrapped sleep,
 and the actual output-filter bundle.
 The wrapper's share of the one-second budget needs an interleaved unwrapped control;
 absolute wrapper timing alone is not a finding.
@@ -383,8 +377,8 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Finish the independent review and critical native probes,
-record their evidence,
+Obtain the fresh final review,
+fold in any earned findings,
 then present the assembled contract for explicit shared-understanding confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
