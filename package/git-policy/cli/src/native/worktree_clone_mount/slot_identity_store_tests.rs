@@ -238,7 +238,7 @@ fn the_adoption_removes_the_staging_entries_a_killed_writer_left() {
         std::fs::write(folder.join(name), b"staged bytes").expect("a staging entry");
     }
     let store_read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
-    let (names, _removed): (Vec<String>, Vec<String>) = store_read.list_and_remove_staging_entries().expect("the listing removes the known forms");
+    let names: Vec<String> = store_read.list_and_remove_staging_entries().expect("the listing removes the known forms");
     assert_eq!(names, vec![String::from("one")], "the listing answers the slot record and no staging name");
     assert_eq!(entries(folder.as_path()), vec![unknown.clone(), String::from(PARENT_RECORD_NAME), String::from("one")], "both known forms are gone, and the records and the unknown dot entry stay");
     assert_eq!(bytes(folder.as_path(), "one"), record_before, "the record is untouched");

@@ -1988,11 +1988,15 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     the same file also covers the kill between the link and the unlink,
     which leaves the record whole beside a dot entry naming the same file.
 5.  `the_adoption_removes_the_staging_entries_a_killed_writer_left`:
-    both known forms planted in a folder the account owns,
-    an unknown dot entry planted beside them,
+    the listing the adoption decides on (`SlotIdentityStore::list_and_remove_staging_entries`) run on a folder the account owns,
+    both known forms planted in it and an unknown dot entry beside them,
     asserting the two known forms gone,
     the record untouched,
-    and the unknown one left for `doctor`.
+    the unknown one left for `doctor`,
+    and the names the same listing answers holding no staging entry.
+    `doctor`'s own removal keeps its four controls in
+    `store_staging_removal_tests.rs`,
+    so neither remover's path relies on the other's control.
 6.  `the_publication_falls_back_where_the_folder_refuses_a_link`:
     the link is refused by an injected error,
     and the record is published by `RENAME_NOREPLACE` with the staging name gone.
