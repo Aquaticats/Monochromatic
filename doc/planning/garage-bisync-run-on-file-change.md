@@ -151,6 +151,18 @@ The reproduction fix (start from a seed file) is in
 `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`;
 nothing is posted upstream.
 
+## Repository precedent the owner pointed out (2026-11-25T18:16:16-05:00)
+
+The owner:
+"I believe we have already audited watchexec much earlier and found it unsatisfactory?"
+and "We wrote a custom watchexec replacement too. A whole package!"
+Both are on record:
+`package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507` rates `watchexec` "Fit: rejected"
+and `:718-723` says "We cannot adopt a tool whose async runtime we cannot inspect";
+`package/watch-restart/cli` is the replacement.
+The vet had carried watchexec as a candidate and exited watch-restart as restart-only;
+see the vet report section "Repository precedent missed by discovery".
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
