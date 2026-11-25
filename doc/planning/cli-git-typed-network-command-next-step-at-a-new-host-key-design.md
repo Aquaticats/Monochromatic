@@ -65,7 +65,7 @@ by what each gives that person:
 - K, the same pseudo-terminal always;
 - C, always a pipe;
 - C2, Git kept as a child with the person's own streams, a sentence chosen after exit 128
-  (in three shapes, of which one is ranked);
+  (in four shapes, of which one is ranked);
 - D, a known-hosts check before Git starts;
 - A, nothing, which is `main`.
 
@@ -146,7 +146,7 @@ Its third High:
 - The variant that removes K's redirected-stream cost was never ranked.
   It is ranked, as K2,
   with its own arms at a terminal and at a redirect,
-  and C2 is split into its three shapes,
+  and C2 is split into its four shapes,
   of which the question names one.
 
 Its Medium findings:
@@ -1124,7 +1124,7 @@ It starts Git as a child with the same standard input, standard output, standard
 and after exit 128 prints a sentence.
 Nothing is piped, no argument is added, no text is read.
 
-Three shapes, and they are three different options, because a check changes which refusal gets words:
+Four shapes, and they are four different options, because a check changes which refusal gets words:
 
 - the exit status alone;
 - the check speaks the host-key sentence only when no file `ssh -G` names holds a key;
@@ -1132,7 +1132,9 @@ Three shapes, and they are three different options, because a check changes whic
 - and the shape both of those make together, choosing on what the check found.
 
 The shape the ranking means is the second, the one that speaks only when no file holds a key:
-it is the only one of the four that never prints a sentence the case contradicts.
+it is the only one of the four that never prints a sentence about a refusal that did not happen,
+although at `StrictHostKeyChecking=yes` its sentence carries advice that person's own setting refuses
+(run, `keep/run-1-behaviour.log`, `f-strict-yes-direct-c2-check-unknown`).
 The others are worse, and measured:
 
 - with the exit status alone, a repository that is not there and a refused connection get a paragraph about keys
