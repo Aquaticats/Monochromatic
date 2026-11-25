@@ -30,9 +30,14 @@
 //!  so the wording and the decision are tested on built facts and a control
 //!  never opens this machine's `/dev/zfs`, store or receipts.
 //!  The gathering half reads the live system once and is what the wiring run
-//!  calls;
-//!  nothing in this folder is reached from the wrapper's command entry,
-//!  the handler or a boot unit until step 18 is wired,
+//!  calls.
+//!  Two callers reach this folder today:
+//!  `doctor`'s own section is not wired at all,
+//!  and the add route takes the delegation check's facts and commands
+//!  (`worktree_clone_add_route::add_grants`),
+//!  which is that step's wiring of one check rather than step 18's.
+//!  Every other check here is reached by its tests and its guest arms alone
+//!  until step 18 is wired,
 //!  which is the project's answer of 2026-11-23
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
