@@ -453,9 +453,6 @@ fn write_or_agree(places: &RecordCheckoutPlaces<'_>, proved: &RecordedCheckout, 
     if typed != proved.guid {
         return Err(RecordCheckoutFailure::ReplaceTokenDiffers { kernel: proved.guid.clone(), typed: String::from(typed) });
     }
-    if !matches!(field, DifferingField::Guid { .. }) {
-        return Err(RecordCheckoutFailure::RecordDiffers { recorded: recorded_value(&field), kernel: proved_value(proved, &field), field });
-    }
     // The token admits the GUID, so the record with that GUID is what the write would leave: any field that still
     // differs is a change no token names, and it refuses rather than being written under a line that says it was kept.
     let was: String = recorded.guid.clone();
