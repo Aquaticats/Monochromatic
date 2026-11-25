@@ -668,7 +668,7 @@ fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
 fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_policy_cli::doctor_zfs_route::CloneFacts {
     use git_policy_cli::doctor_zfs_route::{
         AccountingFacts, BlockedRemovalFacts, CloneFacts, CloneOriginFacts, CloneRetentionFacts, CloneSnapshotFacts, CloneStateFacts, HolderFacts, NamespaceHold, PathState, PlanFileReading, RemovalPlanFacts,
-        USED_BY_DATASET_PROPERTY, USED_BY_SNAPSHOTS_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, staging_binds,
+        LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, staging_binds,
     };
     use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::value_of;
     use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
@@ -695,9 +695,9 @@ fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_pol
         return AccountingFacts {
             object: String::from(object),
             used: value_of(&reply.properties, USED_PROPERTY),
+            referenced: value_of(&reply.properties, REFERENCED_PROPERTY),
+            logical_referenced: value_of(&reply.properties, LOGICAL_REFERENCED_PROPERTY),
             written: value_of(&reply.properties, WRITTEN_PROPERTY),
-            used_by_dataset: value_of(&reply.properties, USED_BY_DATASET_PROPERTY),
-            used_by_snapshots: value_of(&reply.properties, USED_BY_SNAPSHOTS_PROPERTY),
         };
     };
     let mut own: Vec<AccountingFacts> = Vec::new();
@@ -745,6 +745,7 @@ fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_pol
             slot: String::from("one"),
             clone: clone.clone(),
             intent: None,
+            plan_stands: false,
             recorded: Vec::new(),
             holders: holder_facts.clone(),
             in_the_callers_session: Vec::new(),

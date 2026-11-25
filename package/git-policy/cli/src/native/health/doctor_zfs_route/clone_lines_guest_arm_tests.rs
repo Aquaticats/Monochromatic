@@ -35,7 +35,7 @@
 use super::blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
 use super::check_outcome::CheckOutcome;
 use super::clone_origin_checks::{CloneOriginFacts, RecordedOrigin, check_clone_origin};
-use super::clone_retention_checks::{AccountingFacts, CloneRetentionFacts, USED_BY_DATASET_PROPERTY, USED_BY_SNAPSHOTS_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
+use super::clone_retention_checks::{AccountingFacts, CloneRetentionFacts, LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
 use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
 use super::clone_state_checks::{CloneStateFacts, check_clone_state};
 use super::handler_checks::PathState;
@@ -138,9 +138,9 @@ fn accounting(device: &ZfsDevice, object: &str) -> AccountingFacts {
     return AccountingFacts {
         object: String::from(object),
         used: value_of(&held.properties, USED_PROPERTY),
+        referenced: value_of(&held.properties, REFERENCED_PROPERTY),
+        logical_referenced: value_of(&held.properties, LOGICAL_REFERENCED_PROPERTY),
         written: value_of(&held.properties, WRITTEN_PROPERTY),
-        used_by_dataset: value_of(&held.properties, USED_BY_DATASET_PROPERTY),
-        used_by_snapshots: value_of(&held.properties, USED_BY_SNAPSHOTS_PROPERTY),
     };
 }
 
@@ -307,7 +307,8 @@ fn blocked_of(readings: &SlotReadings, plan: &RemovalPlanFacts, holders: HolderF
     };
     let own_pid: u32 = std::process::id();
     let mine: Vec<u32> = holders.holders.iter().filter(|holder| return holder.representative_pid == own_pid).map(|holder| return holder.representative_pid).collect();
-    return BlockedRemovalFacts { slot: String::from(SLOT), clone: record_of(readings).clone_dataset.clone(), intent, recorded: recorded_states, holders, in_the_callers_session: mine, the_forced_arm_is_measured: false };
+    let plan_stands: bool = matches!(plan.reading, PlanFileReading::Standing { .. });
+    return BlockedRemovalFacts { slot: String::from(SLOT), clone: record_of(readings).clone_dataset.clone(), intent, plan_stands, recorded: recorded_states, holders, in_the_callers_session: mine, the_forced_arm_is_measured: false };
 }
 
 /// One clone's whole group of facts,
@@ -574,7 +575,7 @@ fn assert_retained(facts: &super::route_checks::CloneFacts) {
     let CheckOutcome::Pass { detail } = answer else {
         panic!("retention is a report: {answer:?}");
     };
-    for field in [USED_PROPERTY, USED_BY_DATASET_PROPERTY, USED_BY_SNAPSHOTS_PROPERTY, WRITTEN_PROPERTY] {
+    for field in [USED_PROPERTY, REFERENCED_PROPERTY, LOGICAL_REFERENCED_PROPERTY] {
         assert!(detail.contains(&format!("`{field}`")), "{field} is missing from {detail}");
     }
     assert!(detail.contains("sums none of them"), "{detail}");

@@ -400,14 +400,10 @@ pub(crate) fn clone_slot_path() -> PathBuf {
 
 /// The one accounting value a healthy object carries,
 /// with the four named fields a control changes.
+/// `referenced` is zero because a freshly cloned dataset references nothing of
+/// its own.
 pub(crate) fn accounting(object: &str, used: u64) -> AccountingFacts {
-    return AccountingFacts {
-        object: String::from(object),
-        used: PropertyValue::Number(used),
-        written: PropertyValue::Number(used),
-        used_by_dataset: PropertyValue::Number(used),
-        used_by_snapshots: PropertyValue::Number(0),
-    };
+    return AccountingFacts { object: String::from(object), used: PropertyValue::Number(used), referenced: PropertyValue::Number(0), logical_referenced: PropertyValue::Number(used), written: PropertyValue::Number(used) };
 }
 
 /// One managed clone at the design's healthy state:
@@ -469,6 +465,7 @@ pub(crate) fn healthy_clone() -> CloneFacts {
             slot: String::from(CLONE_SLOT),
             clone: String::from(CLONE_DATASET),
             intent: None,
+            plan_stands: false,
             recorded: Vec::new(),
             holders: holders.clone(),
             in_the_callers_session: Vec::new(),

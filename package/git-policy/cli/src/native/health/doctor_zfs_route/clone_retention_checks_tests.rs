@@ -29,13 +29,13 @@ const ORIGIN: &str = "tank/mono-checkout@git-worktree-clone-origin-9f2c41d7b0a34
 
 /// One object's fields,
 /// with every number the pool reported.
-fn accounting(object: &str, used: u64, used_by_snapshots: u64) -> AccountingFacts {
+fn accounting(object: &str, used: u64, written: u64) -> AccountingFacts {
     return AccountingFacts {
         object: String::from(object),
         used: PropertyValue::Number(used),
-        written: PropertyValue::Number(used),
-        used_by_dataset: PropertyValue::Number(used),
-        used_by_snapshots: PropertyValue::Number(used_by_snapshots),
+        referenced: PropertyValue::Number(0),
+        logical_referenced: PropertyValue::Number(used),
+        written: PropertyValue::Number(written),
     };
 }
 
@@ -53,15 +53,18 @@ fn a_clone_without_snapshots_passes_and_sums_nothing() {
         panic!("a clone without snapshots passes: {answer:?}");
     };
     assert!(detail.contains("`used` 4096"), "{detail}");
-    assert!(detail.contains("`usedbydataset` 4096"), "{detail}");
-    assert!(detail.contains("`usedbysnapshots` 0"), "{detail}");
-    assert!(detail.contains("`written` 4096"), "{detail}");
+    assert!(detail.contains("`referenced` 0"), "{detail}");
+    assert!(detail.contains("`logicalreferenced` 4096"), "{detail}");
+    assert!(detail.contains("`written` 0"), "{detail}");
     assert!(detail.contains("sums none of them"), "{detail}");
     assert!(detail.contains("retained under the checkout's own name"), "{detail}");
 }
 
 /// An own snapshot's fields are printed as its own,
 /// and the snapshot named.
+///
+/// The snapshot's `written` is the one the fixture gave it,
+/// which is not the dataset's.
 #[test]
 fn an_own_snapshot_is_printed_as_own() {
     let answer: CheckOutcome = check_clone_retention(&facts(Reading::Read(accounting(CLONE, 8_192, 4_096)), vec![accounting("tank/wt/fix-flaky-test@own", 4_096, 0)]));
@@ -91,12 +94,12 @@ fn an_inherited_history_is_kept_apart() {
 #[test]
 fn a_missing_field_is_unknown_naming_it() {
     let mut held: AccountingFacts = accounting(CLONE, 4_096, 0);
-    held.used_by_snapshots = PropertyValue::Absent;
+    held.referenced = PropertyValue::Absent;
     let answer: CheckOutcome = check_clone_retention(&facts(Reading::Read(held), Vec::new()));
     let CheckOutcome::Unknown { reason } = answer else {
         panic!("a missing field is unknown: {answer:?}");
     };
-    assert!(reason.contains("`usedbysnapshots`"), "{reason}");
+    assert!(reason.contains("`referenced`"), "{reason}");
     assert!(reason.contains(CLONE), "{reason}");
 }
 

@@ -1,11 +1,11 @@
 //! What:
 //!  What one clone and its own snapshots retain,
 //!  in named ZFS accounting fields:
-//!  the clone dataset's `used`,
-//!  `usedbydataset`,
-//!  `usedbysnapshots` and `written`,
-//!  each own snapshot's `used` and `written`,
-//!  and the history the clone inherited from its origin.
+//!  each object's `used`,
+//!  `referenced`,
+//!  `logicalreferenced`,
+//!  and its `written` where the reply carries one,
+//!  with the history the clone inherited kept apart.
 //! Why:
 //!  The design asks the report to "report snapshot retention using named ZFS
 //!  accounting fields where measurable;
@@ -15,17 +15,26 @@
 //!  "What doctor checks and prints";
 //!  plan step 18,
 //!  "What it builds").
-//!  ZFS counts one block in every dataset that shares it,
-//!  so a total across clones would claim space that exists once,
-//!  and this line therefore prints one object's own fields per clause and
-//!  computes no sum.
-//!  A clone that was cloned from a checkout snapshot inherits that snapshot,
-//!  which is retained under the checkout's own name and is not this clone's
-//!  history,
-//!  so the line says which names are the origin's.
-//!  A reply that does not carry one of the fields is unknown and never zero:
-//!  zero bytes and "nobody read it" are the two answers a person must never see
-//!  swapped.
+//!  The four fields are the ones the object-stats reply carries for one object:
+//!  `dsl_dataset_stats` adds `used`,
+//!  `referenced`,
+//!  `logicalreferenced` and,
+//!  only once the object has a previous snapshot,
+//!  `written`
+//!  (`module/zfs/dsl_dataset.c` of `zfs-2.4.4`,
+//!  `dsl_dataset_stats`).
+//!  `usedbydataset`,
+//!  `usedbysnapshots` and `logicalused` are not in that reply:
+//!  `zfs get` computes them in userland,
+//!  so a line that printed them as read facts would be printing arithmetic this
+//!  route never made.
+//!  ZFS counts one shared block in every dataset that holds it,
+//!  so the line prints one object's own fields per clause and computes no sum.
+//!  A field that is absent or not a number makes the line unknown and never
+//!  zero,
+//!  because zero bytes and "nobody read it" must never be swapped;
+//!  `written` is the one exception the kernel states itself,
+//!  and the line says so where the reply leaves it out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,29 +45,32 @@ use super::check_outcome::{CheckOutcome, pass, unknown};
 use super::zfs_checks::Reading;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::PropertyValue;
 
-/// The property naming the blocks a dataset or snapshot itself holds.
+/// The property naming the space one object and its descendants hold.
 pub const USED_PROPERTY: &str = "used";
 
-/// The property naming the blocks the dataset's own data holds.
-pub const USED_BY_DATASET_PROPERTY: &str = "usedbydataset";
+/// The property naming the space one object's own data holds.
+pub const REFERENCED_PROPERTY: &str = "referenced";
 
-/// The property naming the blocks the dataset's snapshots hold.
-pub const USED_BY_SNAPSHOTS_PROPERTY: &str = "usedbysnapshots";
+/// The property naming the space one object's own data holds before
+/// compression.
+pub const LOGICAL_REFERENCED_PROPERTY: &str = "logicalreferenced";
 
-/// The property naming the blocks written since the object's creation,
-/// or since its last `zfs snapshot`-creating act.
+/// The property naming the space written since the object's previous
+/// snapshot,
+/// which the kernel reports only for an object that has one.
 pub const WRITTEN_PROPERTY: &str = "written";
 
 /// What:
-///  The accounting fields of one dataset or snapshot.
+///  The accounting fields of one dataset or snapshot,
+///  as its own object-stats reply carries them.
 /// Why:
-///  Each field is a separate property of one object's own reply,
+///  Each field is a separate property of one object's reply,
 ///  so the four names travel together and a control writes the numbers it
 ///  judges.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AccountingFacts = { object; used; written; usedByDataset; usedBySnapshots };
+/// type AccountingFacts = { object; used; referenced; logicalReferenced; written };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AccountingFacts {
@@ -66,16 +78,13 @@ pub struct AccountingFacts {
     pub object: String,
     /// The object's `used` value.
     pub used: PropertyValue,
-    /// The object's `written` value.
+    /// The object's `referenced` value.
+    pub referenced: PropertyValue,
+    /// The object's `logicalreferenced` value.
+    pub logical_referenced: PropertyValue,
+    /// The object's `written` value,
+    /// which the kernel adds only when the object has a previous snapshot.
     pub written: PropertyValue,
-    /// The dataset's `usedbydataset` value,
-    /// and the reply's own answer for a snapshot,
-    /// which has none.
-    pub used_by_dataset: PropertyValue,
-    /// The dataset's `usedbysnapshots` value,
-    /// and the reply's own answer for a snapshot,
-    /// which has none.
-    pub used_by_snapshots: PropertyValue,
 }
 
 /// What:
@@ -121,32 +130,40 @@ pub struct CloneRetentionFacts {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const value = number(facts.used, 'used', object); // number | throws the sentence
+/// const value = number(facts.used, 'used', object); // number | the sentence
 /// ```
 fn number(value: &PropertyValue, property: &str, object: &str) -> Result<u64, String> {
     return match value.number() {
         Some(held) => Ok(held),
-        None => Err(format!("{object} carries no `{property}` number today ({})", value.describe(property))),
+        None => Err(format!("{object} carries no `{property}` number in its reply ({})", value.describe(property))),
     };
 }
 
 /// What:
-///  The clause one object's fields print.
+///  The clause one object's fields print,
+///  with `written` named as the kernel's own omission when it is absent.
 /// Why:
-///  A snapshot's clause names whether it is the clone's own or inherited,
-///  because only the own ones a removal of this clone destroys.
+///  An absent `written` is a state the kernel defines rather than a read that
+///  failed,
+///  so saying which it is keeps the rest of the numbers usable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const clause = `\`clone@s1\` (own) used 4096, written 4096`;
+/// const clause = '`clone@s1` (own) `used` 4096, `referenced` 0, `logicalreferenced` 0, `written` 4096';
 /// ```
 fn clause(facts: &AccountingFacts, own: bool) -> Result<String, String> {
     let used: u64 = number(&facts.used, USED_PROPERTY, facts.object.as_str())?;
-    let written: u64 = number(&facts.written, WRITTEN_PROPERTY, facts.object.as_str())?;
-    if own {
-        return Ok(format!("`{}` (own) `{USED_PROPERTY}` {used}, `{WRITTEN_PROPERTY}` {written}", facts.object));
-    }
-    return Ok(format!("`{}` `{USED_PROPERTY}` {used}, `{WRITTEN_PROPERTY}` {written}", facts.object));
+    let referenced: u64 = number(&facts.referenced, REFERENCED_PROPERTY, facts.object.as_str())?;
+    let logical: u64 = number(&facts.logical_referenced, LOGICAL_REFERENCED_PROPERTY, facts.object.as_str())?;
+    let written: String = match &facts.written {
+        PropertyValue::Absent => format!("`{WRITTEN_PROPERTY}` is not in the reply, which OpenZFS leaves out until the object has a previous snapshot"),
+        other => format!("`{WRITTEN_PROPERTY}` {}", number(other, WRITTEN_PROPERTY, facts.object.as_str())?),
+    };
+    let kind: &str = if own { " (own)" } else { "" };
+    return Ok(format!(
+        "`{}`{kind} `{USED_PROPERTY}` {used}, `{REFERENCED_PROPERTY}` {referenced}, `{LOGICAL_REFERENCED_PROPERTY}` {logical}, {written}",
+        facts.object
+    ));
 }
 
 /// What:
@@ -159,8 +176,8 @@ fn clause(facts: &AccountingFacts, own: bool) -> Result<String, String> {
 ///  and a field nobody could read is the only reason this line says nothing
 ///  rather than a number.
 ///  The line names the underlay a clone leaves in the checkout's snapshots,
-///  so a person who counts the checkout's `usedbysnapshots` knows which of it a
-///  clone caused.
+///  so a person who counts the checkout's own space knows which of it a clone
+///  caused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,25 +191,10 @@ pub fn check_clone_retention(facts: &CloneRetentionFacts) -> CheckOutcome {
         Reading::Read(held) => held,
     };
     let mut clauses: Vec<String> = Vec::new();
-    let used: u64 = match number(&dataset.used, USED_PROPERTY, dataset.object.as_str()) {
-        Ok(value) => value,
+    match clause(dataset, false) {
+        Ok(text) => clauses.push(format!("the clone dataset {text}")),
         Err(said) => return unknown(said),
-    };
-    let written: u64 = match number(&dataset.written, WRITTEN_PROPERTY, dataset.object.as_str()) {
-        Ok(value) => value,
-        Err(said) => return unknown(said),
-    };
-    let used_by_dataset: u64 = match number(&dataset.used_by_dataset, USED_BY_DATASET_PROPERTY, dataset.object.as_str()) {
-        Ok(value) => value,
-        Err(said) => return unknown(said),
-    };
-    let used_by_snapshots: u64 = match number(&dataset.used_by_snapshots, USED_BY_SNAPSHOTS_PROPERTY, dataset.object.as_str()) {
-        Ok(value) => value,
-        Err(said) => return unknown(said),
-    };
-    clauses.push(format!(
-        "the clone dataset `{clone}`: `{USED_PROPERTY}` {used}, `{USED_BY_DATASET_PROPERTY}` {used_by_dataset}, `{USED_BY_SNAPSHOTS_PROPERTY}` {used_by_snapshots}, `{WRITTEN_PROPERTY}` {written}"
-    ));
+    }
     for snapshot in &facts.snapshots {
         match clause(snapshot, true) {
             Ok(text) => clauses.push(text),

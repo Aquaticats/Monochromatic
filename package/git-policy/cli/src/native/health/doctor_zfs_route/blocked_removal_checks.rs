@@ -47,7 +47,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type BlockedRemovalFacts = { slot; clone; intent?: string; recorded: RecordedSnapshot[]; holders: HolderFacts; inTheCallersSession: number[]; forcedArmMeasured: boolean };
+/// type BlockedRemovalFacts = { slot; clone; intent?: string; planStands: boolean; recorded: RecordedSnapshot[]; holders: HolderFacts; inTheCallersSession: number[]; forcedArmMeasured: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BlockedRemovalFacts {
@@ -58,6 +58,14 @@ pub struct BlockedRemovalFacts {
     /// The nonce of the `unmount` intent standing on the clone,
     /// and nothing when no intent of the clone's own stands.
     pub intent: Option<String>,
+    /// Whether a destruction plan stands for the clone.
+    /// Why:
+    ///  A plan whose first write records no snapshot line is a real state:
+    ///  a removal of a clone that holds no snapshot of its own writes one.
+    ///  The plan's presence and its lines are therefore two facts, and reading
+    ///  "no lines" as "no plan" would call a removal in flight an intent with
+    ///  nothing behind it.
+    pub plan_stands: bool,
     /// Every name the destruction plan holds,
     /// with the outcome its history ends on,
     /// and nothing when no plan stands.
@@ -92,7 +100,7 @@ pub struct BlockedRemovalFacts {
 /// ```
 pub fn check_blocked_removal(facts: &BlockedRemovalFacts) -> CheckOutcome {
     let clone: &str = facts.clone.as_str();
-    if facts.recorded.is_empty() {
+    if !facts.plan_stands {
         return match &facts.intent {
             None => pass(format!("no destruction plan stands for `{clone}` and no unmount intent does, so no removal is pending for it and nothing is blocked")),
             Some(nonce) => finding(

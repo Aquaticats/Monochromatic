@@ -113,7 +113,7 @@ pub fn check_clone_origin(facts: &CloneOriginFacts) -> CheckOutcome {
         ),
         Reading::Unreadable { why } => unknown(format!("{named}, and that snapshot could not be read ({why}), so whether it is marked is unproved")),
         Reading::Read(OriginMark::Unmarked) => pass(format!(
-            "{named}, the pool holds it, and `{DEFER_DESTROY_PROPERTY}` reads {MARK_OFF}, so no program asked ZFS to reap it; while this clone names it as its origin the pool refuses to destroy it, and the clone's own removal destroys it after the clone is gone"
+            "{named}, the pool holds it, and `{DEFER_DESTROY_PROPERTY}` reads {MARK_OFF}, so no program asked ZFS to reap it; while this clone names it as its origin the pool refuses to destroy it, and this report changes neither"
         )),
         Reading::Read(OriginMark::Unreadable { said }) => unknown(format!("{named}, and {said}, so whether another program asked ZFS to reap it is unproved")),
         Reading::Read(OriginMark::Marked { clones, holds }) => finding(

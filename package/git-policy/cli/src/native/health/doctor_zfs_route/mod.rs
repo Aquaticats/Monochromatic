@@ -243,7 +243,7 @@ pub use clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
 /// The origin each clone names and its deferred-destroy mark.
 pub use clone_origin_checks::{CloneOriginFacts, RecordedOrigin, check_clone_origin};
 /// What one clone and its snapshots retain.
-pub use clone_retention_checks::{AccountingFacts, CloneRetentionFacts, USED_BY_DATASET_PROPERTY, USED_BY_SNAPSHOTS_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
+pub use clone_retention_checks::{AccountingFacts, CloneRetentionFacts, LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
 /// The blocked-removal state of one clone.
 pub use blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
 /// The checks later steps still owe.

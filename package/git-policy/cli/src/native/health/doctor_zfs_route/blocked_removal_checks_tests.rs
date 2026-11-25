@@ -56,6 +56,7 @@ fn facts(recorded_names: Vec<RecordedSnapshot>, holders: HolderFacts) -> Blocked
         slot: String::from(SLOT),
         clone: String::from(CLONE),
         intent: Some(String::from(NONCE)),
+        plan_stands: !recorded_names.is_empty(),
         recorded: recorded_names,
         holders,
         in_the_callers_session: Vec::new(),
@@ -69,6 +70,7 @@ fn facts(recorded_names: Vec<RecordedSnapshot>, holders: HolderFacts) -> Blocked
 fn nothing_pending_passes() {
     let mut held: BlockedRemovalFacts = facts(Vec::new(), HolderFacts { clone: String::from(CLONE), holders: Vec::new(), incomplete: Vec::new() });
     held.intent = None;
+    held.plan_stands = false;
     let answer: CheckOutcome = check_blocked_removal(&held);
     let CheckOutcome::Pass { detail } = answer else {
         panic!("nothing pending passes: {answer:?}");
@@ -76,10 +78,26 @@ fn nothing_pending_passes() {
     assert!(detail.contains("no removal is pending"), "{detail}");
 }
 
+/// A plan whose first write recorded no snapshot line still stands,
+/// so a holder blocks it and the line never calls it an intent with nothing
+/// behind it.
+#[test]
+fn a_plan_with_no_snapshot_line_still_stands() {
+    let mut held: BlockedRemovalFacts = facts(Vec::new(), one_holder());
+    held.plan_stands = true;
+    let answer: CheckOutcome = check_blocked_removal(&held);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a holder blocks a plan with no lines: {answer:?}");
+    };
+    assert_eq!(field, "removal");
+    assert!(detail.contains("nothing is lost yet"), "{detail}");
+}
+
 /// An intent with no plan is a finding naming the nonce.
 #[test]
 fn an_intent_without_a_plan_is_a_finding() {
-    let held: BlockedRemovalFacts = facts(Vec::new(), HolderFacts { clone: String::from(CLONE), holders: Vec::new(), incomplete: Vec::new() });
+    let mut held: BlockedRemovalFacts = facts(Vec::new(), HolderFacts { clone: String::from(CLONE), holders: Vec::new(), incomplete: Vec::new() });
+    held.plan_stands = false;
     let answer: CheckOutcome = check_blocked_removal(&held);
     let CheckOutcome::Finding { field, detail } = answer else {
         panic!("an intent without a plan is a finding: {answer:?}");
