@@ -294,6 +294,83 @@ because nothing tells the host when a page stops mattering,
 and the guest's own free memory (6.3 GiB of 7.75 GiB here) is invisible to it.
 The next arms test what makes the host able to take it back.
 
+### Free page reporting on, the same guest with one domain attribute
+
+Guest `mem-b` was the same shape as `mem-a` with one attribute added:
+`<memballoon model="virtio" freePageReporting="on"/>` in `devices`,
+put there by the probe patch above.
+The attribute reached the device:
+the guest's QEMU command line carried
+`{"driver":"virtio-balloon-pci","id":"balloon0","free-page-reporting":true,...}`,
+read from `/proc/<pid>/cmdline` on the host.
+Everything else about the guest,
+the load and the preparation was the same,
+and the guest's own view of its memory matched the default guest's at every step
+(`Cached` 1,539,560 kB after preparation in both,
+`MemFree` 6.2 to 6.3 GiB of 7.75 GiB at rest in both).
+
+- After boot:
+  0.78 GiB charged (the default guest:
+  0.88 GiB).
+  `mvm create` took 17 seconds in this run.
+- After the same preparation:
+  2.30 GiB charged against the default guest's 2.99 GiB,
+  with identical guest-side readings.
+  Reporting had already returned 0.69 GiB of the pages the preparation freed.
+- During the build:
+  8.20 GiB charged at the peak (the default guest:
+  8.16 GiB),
+  of which 6.85 GiB resident at its peak.
+  A build's pages are live,
+  so reporting has nothing to return while it runs.
+  The build took 33 minutes 32 seconds.
+- At rest after the build:
+  5.52 GiB charged,
+  0.20 GiB resident and 5.32 GiB in swap,
+  against the default guest's 7.98 GiB.
+- After the same `sync; echo 3 > /proc/sys/vm/drop_caches` in the guest:
+  3.24 GiB charged,
+  0.17 GiB resident and 3.07 GiB in swap.
+  The drop returned **2.28 GiB** here,
+  where in the default guest it returned nothing.
+- A probe that allocated,
+  touched and freed 3 GiB of the guest's memory raised the host's charge by
+  0.1 GiB,
+  and the 1.26 GiB of the guest's pages the host had already swapped out came back during it and were
+  reported:
+  the guest's swap charge fell by that much while the probe ran.
+  That is the shape of the limit below.
+- `mvm destroy`:
+  8 seconds,
+  and the charge went to zero.
+
+What reporting returns:
+the pages the guest frees **while they are still resident on the host**.
+It returned 0.69 GiB of what the preparation freed,
+2.28 GiB of what the guest's page cache held after the build,
+and about 3 GiB of the 3 GiB a touching probe freed.
+What it cannot return:
+pages the host has already swapped out.
+Those stayed charged as 3.07 GiB of swap after everything else was returned,
+because a page that is not resident cannot be discarded;
+they come back only when the guest touches them again,
+and then the guest's next free reports them,
+as the probe showed.
+Under this host's pressure that residual is what is left of the option's saving,
+and without pressure it would not exist.
+
+What it costs:
+nothing in the guest,
+no change to what the guest sees,
+and no new `mvm` command.
+The one cost the sources imply and this round did not measure is a fault:
+a reported page is gone from the host,
+so the guest's next touch of that address allocates and zeroes a fresh page instead of reusing a
+resident one.
+The two builds took 34 minutes 13 seconds and 33 minutes 32 seconds,
+under different host pressure,
+so this round draws no speed conclusion from them.
+
 ## Ranking
 
 (None yet:
