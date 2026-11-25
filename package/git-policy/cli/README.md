@@ -7701,11 +7701,35 @@ because a release waits on that gate and its suite is what the CPUs shorten
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+- The image build has a bound of its own,
+  8 GiB from `bin/native-gate-container-limits.ts` (`gateBuildMemory`),
+  because it compiles the crate's three layers at four jobs rather than running the suite.
+  The build's compile of the wrapper's own sources peaked at 5,363.4 MiB under a 10 GiB cap no step of it met,
+  and the shared 2 GiB held that step at its cap in reclaim:
+  `memory.peak` 2,048 MiB,
+  `memory.events` `max` 149,888,
+  its own `memory.pressure` some avg10 22.33,
+  29.8 s of stall over 196 s,
+  and 197.1 s against 87.2 s without the cap.
+  That reclaim is the stall the issue measured at 2026-11-24T19:20-05:00
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`),
+  and `doc/planning/git-policy-cli-cachyos-test-containers.md`
+  ("The image build's own memory bound, measured 2026-11-24") holds the arms,
+  the ratios and the bound's arithmetic.
+  Eight GiB is 1.53 times the measured peak and inside the 20 GiB the gate's own systemd unit allows.
+  The base image's own build keeps the 2 GiB default,
+  because it compiles nothing and no measurement of it exists.
+  A host with less than 8 GiB to spare runs the build from `--memory`,
+  which bounds the build and the suite together,
+  and a gate given more than four CPUs compiles more jobs at once and wants its `--memory` raised the same way.
 
 A bound a person passes after the `--` still wins,
 with one exception:
 the process bound is a floor that follows the test count,
 so a `--pids-limit` below it is raised and the gate prints the line that says so.
+A `--memory` bounds the image build as it bounds the suite's containers,
+so a host with less memory than the build's own 8 GiB is served by lowering that one value;
+the gate prints which bound each container got before it builds.
 Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:
 
