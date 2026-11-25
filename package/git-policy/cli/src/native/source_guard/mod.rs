@@ -121,6 +121,17 @@ mod packaged_uses_links_tests;
 #[path = "removal_command_path_writes_nothing_tests.rs"]
 mod removal_command_path_writes_nothing_tests;
 
+/// The add route names no entry that destroys a clone,
+/// an origin snapshot or a snapshot set,
+/// which is why its grant table refuses six and warns on the three a removal
+/// uses:
+/// the step that gives the add a destroying failure path moves those two
+/// `destroy` grants into the add's own table,
+/// and it removes this check with them.
+#[cfg(test)]
+#[path = "add_route_issues_no_destroy_tests.rs"]
+mod add_route_issues_no_destroy_tests;
+
 /// The text with every whitespace character removed,
 /// so `args_os ()` reads as `args_os()` and `clippy ::` as `clippy::`.
 ///
