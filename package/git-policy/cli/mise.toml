@@ -126,6 +126,10 @@ run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -
 
 [tasks."native:test:host"]
 description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`)"
+# The controls that trace a command under `strace` fail, naming the variable and the program, when this host has no
+# tracer and the run says nothing; none of the tasks in this file sets CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED, because every
+# one of them runs where `strace` is installed (this host, and the gate image built from native-test-base.Containerfile).
+# A run that truly has no tracer states it, and then each such control prints one line naming itself and passes.
 run = "cargo nextest run --locked --offline --lib"
 
 [tasks."native:test:archive"]
@@ -143,6 +147,8 @@ description = "Run every native test with its btrfs controls real instead of ski
 # other half of that bargain: on a btrfs host nothing is acknowledged, so each of those controls really runs, and no list
 # of their names can go stale as tests are added. Its root is btrfs by definition, so the one ZFS control acknowledges
 # the absence of a ZFS fixture root here; native:test:host leaves that unset, and on this ZFS host it runs for real.
+# CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED stays unset too: this task runs on a host, which has `strace`, so the traced
+# controls really run and a host that lost the tracer fails them instead of passing without a count.
 run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1 CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
 
 [tasks."test:git-image"]

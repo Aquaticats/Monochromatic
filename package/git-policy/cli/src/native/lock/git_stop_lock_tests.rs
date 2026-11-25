@@ -23,7 +23,7 @@ use crate::process_tree::TreeMember;
 use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
-use crate::testing::strace_the_controls_run_under::{strace_available, strace_program};
+use crate::testing::strace_the_controls_run_under::{strace_available_or_acknowledged, strace_program};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::cell::Cell;
 use std::os::unix::process::CommandExt;
@@ -447,35 +447,16 @@ fn the_tracer() -> PathBuf {
 /// (this host, 2026-11-25:
 /// `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
 /// "A machine without the tracer").
-/// A run that states it must have the tracer fails here instead,
+/// The answer is the one every traced control reads
+/// (`strace_the_controls_run_under::strace_available_or_acknowledged`):
+/// a run that never said it has no tracer fails here,
 /// naming the variable and the program,
-/// so a gate image that lost it is red:
-/// the image installs `strace` (`bin/build-git-test-image.ts`).
+/// and a run that stated the absence gets the line that says this control did not run.
+/// A gate image that lost the program is red, not green with these controls unchecked;
+/// the image installs `strace` (`native-test-base.Containerfile`).
 fn can_arrange_the_cut(kind: Holder, control: &str) -> bool {
     let traced: bool = matches!(kind, Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace);
-    if !traced || strace_available() {
-        return true;
-    }
-    assert!(
-        !the_run_requires_the_tracer(),
-        "the control {control} needs strace, which is on no directory of PATH or cannot be started, and this run states \
-         that it must be there ({STRACE_REQUIRED}); install strace"
-    );
-    eprintln!("STRACE CONTROL NOT RUN: {control} (no strace on PATH)");
-    return false;
-}
-
-/// The environment variable that states this run must have `strace`;
-/// the container gate image sets it (`bin/native-test-containerfile.ts`),
-/// and nothing else does,
-/// so a developer's run that has none keeps the line and the pass.
-const STRACE_REQUIRED: &str = "CLI_GIT_REQUIRE_STRACE";
-
-/// Whether this run states that the tracer must be there,
-/// where an empty value states nothing,
-/// as the btrfs acknowledgement reads its own.
-fn the_run_requires_the_tracer() -> bool {
-    return std::env::var_os(STRACE_REQUIRED).is_some_and(|value| { return !value.is_empty(); });
+    return !traced || strace_available_or_acknowledged(control);
 }
 
 /// The command that holds the lock of `HELD_REF`:
