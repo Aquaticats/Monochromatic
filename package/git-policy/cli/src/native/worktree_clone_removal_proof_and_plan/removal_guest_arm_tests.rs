@@ -400,7 +400,10 @@ impl Fixture {
                     if line.trim().is_empty() || line.contains("no datasets available") {
                         continue;
                     }
-                    found.push(String::from(line.trim()));
+                    // A bookmark carries its source snapshot's tuple, so the kind is what tells the two apart:
+                    // without it a bookmark and the snapshot it marks are one entry and a lost bookmark reads as a
+                    // shape the control expects.
+                    found.push(format!("{kind}:{}", line.trim()));
                 }
             }
         }
@@ -463,7 +466,9 @@ fn the_removal_lineage_guest_arms() {
 
     // Arm 2: promotion moves the checkout's older history under the clone, and the proof refuses.
     let before: Vec<String> = fixture.protected_guids();
-    assert!(before.len() >= 4, "the checkout and the clone hold protected tuples, and the arm read {}", before.len());
+    // The fixture makes three snapshots and one bookmark, and a bookmark shares its source snapshot's tuple:
+    // the kind is what keeps the four objects four entries here.
+    assert_eq!(before.len(), 4, "the arm read the fixture's three snapshots and one bookmark: {before:?}");
     fixture.run("zfs", &["promote", fixture.clone().as_str()]);
     let origin_inventory: InventoryRecord = fixture.the_origin_inventory(&recorded);
     let refused: RemovalStop = prove_the_lineage(&reads, &recorded, &origin_inventory, &RemovalHistory::NothingDestroyed).expect_err("a promoted clone's lineage is not the recorded one");
