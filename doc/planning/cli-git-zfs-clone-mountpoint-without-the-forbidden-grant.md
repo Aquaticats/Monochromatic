@@ -11,6 +11,8 @@ It was written in the worktree
 `.claude/worktrees/zfs-add-clone-mountpoint-without-the-forbidden-grant`,
 on branch `docs/planning-zfs-add-clone-mountpoint-without-the-forbidden-grant`,
 made from `main` at `1e82cffdfa`.
+It was merged with `origin/main` at `89855d7093`,
+and every citation was re-read against that merge.
 
 No code changed.
 Nothing under `doc/decision/` or `doc/handover/` was touched.
