@@ -37,11 +37,6 @@ const DIR_VAR: &str = "CLI_GIT_SIGNAL_GUARD_TEST_DIR";
 /// How long a test waits for a helper step before it fails.
 const STEP_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The file a moved body writes the sentences it failed with to,
-/// one per line,
-/// so the parent reads a whole verdict rather than a status.
-const VERDICT: &str = "verdict";
-
 /// Helper entry for every guard scenario.
 /// Outside the helper environment this test does nothing.
 #[test]
@@ -55,9 +50,8 @@ fn helper_entry() {
     let mode: String = mode.to_string_lossy().into_owned();
     // A body of a control the tests above run here answers its sentences; the guard scenarios answer `None`.
     if let Some(failures) = moved_body(mode.as_str()) {
-        std::fs::write(directory.join(VERDICT), failures.join("\n")).expect("verdict record");
         // The exit status says the same as the file, so a parent that read only one of them still learns the answer.
-        std::process::exit(if failures.is_empty() { 0 } else { 1 });
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), failures));
     }
     if mode == "service" {
         leave_signals_to_the_service();
@@ -254,13 +248,11 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
 }
 
 /// What:
-///  Start this test binary on one moved body,
-///  wait for its verdict,
-///  and answer the sentences it failed with.
+///  Start this test binary on one moved body and answer the sentences it failed with.
 /// Why:
 ///  A handler and a stop record are process-wide,
 ///  so the control runs where no other control of the run can see them,
-///  and every wait here is bounded,
+///  and the shared helper bounds every wait,
 ///  so a body that hangs fails its control within the step timeout instead of holding the whole run.
 ///
 /// In TS you'd write (pseudocode):
@@ -270,40 +262,10 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
 #[cfg(unix)]
 fn failures_of_the_moved_body(mode: &str) -> Vec<String> {
     let root: PathBuf = fixture(format!("signal-{mode}").as_str());
-    let mut helper: Child = spawn_helper(mode, root.as_path());
-    let verdict: PathBuf = root.join(VERDICT);
-    wait_for_helper_file(verdict.as_path(), &mut helper);
-    let text: String = std::fs::read_to_string(verdict.as_path()).expect("the verdict");
-    let status: ExitStatus = finish(helper);
+    let helper: Child = spawn_helper(mode, root.as_path());
+    let failures: Vec<String> = crate::helper_process_test_support::settle_after_a_helper(helper, root.as_path());
     remove(root.as_path());
-    let mut failures: Vec<String> = text.lines().map(String::from).collect();
-    if !status.success() {
-        failures.push(format!("the helper ended with {status:?}"));
-    }
     return failures;
-}
-
-/// What:
-///  Wait until `path` appears while the helper runs,
-///  or fail after the step timeout or when the helper ended,
-///  because a helper that ended cannot write its verdict any more.
-/// Why:
-///  A wait that only knows the step timeout spends the whole bound on a helper that panicked,
-///  and the failure names the wrong thing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// while (!exists(path)) { if (elapsed > stepTimeout) throw; if (helper.exited) throw; sleep(10) }
-/// ```
-fn wait_for_helper_file(path: &Path, helper: &mut Child) {
-    let started: Instant = Instant::now();
-    while !path.exists() {
-        assert!(started.elapsed() < STEP_TIMEOUT, "{} never appeared", path.display());
-        if let Some(status) = helper.try_wait().expect("the helper's status") {
-            panic!("the helper ended before {} appeared: {status:?}", path.display());
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
 }
 
 /// The child each helper scenario runs under the guard.
