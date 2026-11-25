@@ -366,7 +366,7 @@ What did not agree, and what this revision does about each:
   `zoned=on` in the global zone (`:270`),
   and a non-empty mountpoint when `overlay` is off (`:521` to `:538`,
   the "directory is not empty" refusal at `:538`),
-  plus `redacted=on`, which `zfs_is_mountable` also refuses (`:306`);
+  plus `redacted=on`, which `zfs_is_mountable` also refuses (`:305`);
 - the key refusal was worded for every dataset.
   Upstream tests `encryption` first and then `keystatus` (`:455` to `:498`),
   and an unencrypted dataset's `keystatus` is `-`,
@@ -3909,7 +3909,7 @@ each naming what was not done and the way forward:
   or `zoned` is `on` in the global zone
   or `redacted` is `on`,
   which are the three `zfs mount` answers by returning success and mounting nothing
-  (upstream lib/libzfs/libzfs_mount.c `:299`, `:270` and `:306`):
+  (upstream lib/libzfs/libzfs_mount.c `:299`, `:270` and `:305`):
   a unit whose line reports success and leaves the dataset unmounted is the failure this refusal
   replaces;
 - `encryption-key-not-loaded`,
