@@ -48,6 +48,7 @@ pub fn lfs_refusal(
     global_prefix: &[OsString],
     region: &[OsString],
     environment: &[(OsString, OsString)],
+    directory: &std::path::Path,
 ) -> Option<String> {
     if hook_switched_off(global_prefix, environment) || skip_requested(environment) {
         return None;
@@ -57,7 +58,7 @@ pub fn lfs_refusal(
         return None;
     }
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
-    if program_on_path(path.as_os_str()) {
+    if program_on_path(path.as_os_str(), directory) {
         return None;
     }
     return Some(missing_program_message(&ProgramSearch::of(environment)));

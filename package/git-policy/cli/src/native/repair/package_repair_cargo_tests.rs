@@ -407,6 +407,7 @@ fn the_manifest_listing_answers_from_the_top_under_the_callers_prefix_and_modes(
         quiet_window: std::time::Duration::from_secs(60),
         ceiling: std::time::Duration::from_secs(600),
         workers: 1,
+        start_directory: crate::start_directory::StartDirectory::at(root.as_path()),
     };
     let request: crate::package_repair_request::RepairRequest<'_> = crate::package_repair_request::RepairRequest {
         git: &context,

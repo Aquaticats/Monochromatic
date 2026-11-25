@@ -181,7 +181,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// What:
 ///  The first executable file named `name` in a search path,
-///  named by its absolute path.
+///  named by its absolute path,
+///  with a relative entry read from the directory this command was started in.
 /// Why:
 ///   The program is the one the person's environment resolves;
 /// a missing one is a verdict,
@@ -196,7 +197,11 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// ```ts
 /// function findProgram(name: string, searchPath?: string): string | undefined;
 /// ```
-pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> {
+pub fn find_program(
+    name: &str,
+    search_path: Option<&OsStr>,
+    start: &crate::start_directory::StartDirectory,
+) -> Option<PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     let search: &OsStr = search_path?;
     for directory in std::env::split_paths(search) {
@@ -210,8 +215,14 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
             Err(_) => false,
         };
         if runnable {
-            // A name that is already absolute is kept as the person wrote it; only a relative one needs this directory.
-            return std::path::absolute(candidate).ok();
+            // A name that is already absolute is kept as the person wrote it; only a relative one needs the directory
+            //  this command was started in.
+            let joined: PathBuf = match start.path() {
+                Some(directory) => directory.join(&candidate),
+                None if candidate.is_absolute() => candidate.clone(),
+                None => return None,
+            };
+            return std::path::absolute(joined).ok();
         }
     }
     return None;

@@ -130,7 +130,7 @@ fn the_record_names_the_worktree_the_common_directory_and_the_tools() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = entry(destination.as_path());
-    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written).expect("the record");
+    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     assert_eq!(item.kind, WorkKind::Relink);
     assert_eq!(item.repository, destination);
     assert_eq!(item.git_dir, common);
@@ -186,14 +186,14 @@ fn a_second_worktree_at_a_settled_path_gets_its_own_record() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let work: PathBuf = work_directory(common.as_path());
-    let first: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path())).expect("the first record");
+    let first: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the first record");
     assert_eq!(enqueue(work.as_path(), &first), Ok(Enqueued::Added));
     let claimed: Claimed = claim_next_of(work.as_path(), &ClaimTime::read(), &[WorkKind::Relink])
         .expect("the claim")
         .expect("a relink record to claim");
     settle(work.as_path(), &claimed, DONE).expect("the first relink settles");
     after_the_clock_moves(first.created.as_str());
-    let second: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path())).expect("the second record");
+    let second: WorkItem = item_of(common.as_path(), destination.as_path(), &entry(destination.as_path()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the second record");
     assert_ne!(first.created, second.created, "the two adds are two moments");
     assert_ne!(first.id(), second.id(), "the second add is other work than the settled one");
     assert_eq!(enqueue(work.as_path(), &second), Ok(Enqueued::Added), "a settled record answered the second add as known");
@@ -218,7 +218,7 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
     let route: Route = Route { address: Bind::Abstract(address), provision: None };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     let written: RelinkEntry = entry(destination.as_path());
-    hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &nothing_to_set_up)).expect("a service took the record");
+    hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &nothing_to_set_up), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("a service took the record");
     let heard: Vec<String> = service.finish();
     let work: String = crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work { git_dir: common.clone(), review_key: None, push_programs: Vec::new()});
     assert!(heard.contains(&work), "the service was woken for the repository's common directory: {heard:?}");
@@ -256,7 +256,7 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     };
     let written: RelinkEntry = entry(destination.as_path());
     let not_taken: NotTaken =
-        hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending)).expect_err("no service answered this add");
+        hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &claiming_pending), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect_err("no service answered this add");
     assert!(!not_taken.reason.is_empty(), "the add is told why no service took the record");
     assert_eq!(pending_names(pending.as_path()), Vec::<String>::new(), "nothing is left queued");
     not_taken.queued.expect("the record the add wrote").take_back();
@@ -279,7 +279,7 @@ fn a_record_that_cannot_be_taken_back_stays_queued() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     let written: RelinkEntry = entry(destination.as_path());
-    let not_taken: NotTaken = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach()).expect_err("a session with no service is reported");
+    let not_taken: NotTaken = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach(), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect_err("a session with no service is reported");
     // A directory that refuses the unlink, as one whose permissions somebody changed does.
     std::fs::set_permissions(pending.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory that refuses writes");
     not_taken.queued.expect("the record the add wrote").take_back();
@@ -385,7 +385,7 @@ fn a_hand_over_with_no_service_leaves_its_record_queued() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = entry(destination.as_path());
-    let told: Result<(), NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach());
+    let told: Result<(), NotTaken> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &no_reach(), &crate::start_directory::StartDirectory::at(std::path::Path::new("/")));
     let not_taken: NotTaken = told.expect_err("a session with no service is reported");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     assert_eq!(pending_names(pending.as_path()).len(), 1, "the record the add relinks for is gone before the add's own run");
@@ -414,10 +414,8 @@ fn a_search_path_that_cannot_be_written_names_no_record() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
-    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
-    std::env::set_current_dir(root.as_path()).expect("the fixture is the directory the add resolves its search path in");
-    let recorded: Result<WorkItem, String> = item_of(common.as_path(), destination.as_path(), &written);
-    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(root.as_path());
+    let recorded: Result<WorkItem, String> = item_of(common.as_path(), destination.as_path(), &written, &start);
     let Err(reason) = recorded else { panic!("a record carries a search path no entry of which could be written: {recorded:?}") };
     assert!(reason.contains("search path") && reason.contains("cannot be recorded"), "{reason}");
     remove(root.as_path());
@@ -443,12 +441,16 @@ fn a_relative_search_path_is_recorded_against_the_adds_directory() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
-    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written).expect("the record");
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(root.as_path());
+    let item: WorkItem = item_of(common.as_path(), destination.as_path(), &written, &start).expect("the record");
     let recorded: SearchPathOfTheAdd = decode(item.parent.as_str()).expect("the entry").search_path;
     let SearchPathOfTheAdd::Set(recorded_path) = recorded else { panic!("the record carries a search path: {recorded:?}") };
     let named: PathBuf = PathBuf::from(recorded_path);
     assert!(named.is_absolute(), "the record names a search path that means nothing outside the add's directory: {}", named.display());
-    let add: PathBuf = std::env::current_dir().expect("the directory this control runs in");
-    assert_eq!(named, add.join("bin"), "the record names a directory other than the one the add resolved the entry in");
+    assert_eq!(
+        named,
+        root.join("bin"),
+        "the record names a directory other than the one the add resolved the entry in"
+    );
     remove(root.as_path());
 }

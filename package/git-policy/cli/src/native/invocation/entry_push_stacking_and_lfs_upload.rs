@@ -71,6 +71,7 @@ fn needs_lfs_upload(
     command: &ResolvedCommand,
     real_git: &Path,
     overlay: &[(OsString, OsString)],
+    start: &crate::start_directory::StartDirectory,
 ) -> (bool, String, Option<Vec<(String, String)>>) {
     if command.word() != b"push" {
         return (false, String::new(), None);
@@ -86,9 +87,9 @@ fn needs_lfs_upload(
         global_prefix: command.arguments[..command.subcommand_index].to_vec(),
         common_dir: None,
     };
-    let snapshot: Option<ConfigSnapshot> = match std::env::current_dir() {
-        Ok(directory) => read_config_snapshot(&context, directory.as_path()),
-        Err(_) => None,
+    let snapshot: Option<ConfigSnapshot> = match start.path() {
+        Some(directory) => read_config_snapshot(&context, directory),
+        None => None,
     };
     let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
     if dry_run {
@@ -122,9 +123,14 @@ fn needs_lfs_upload(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stackIfPush(action: Action, environment, pushDestination?: DestinationHeads): Action;
+/// function stackIfPush(action: Action, environment, pushDestination?: DestinationHeads, start): Action;
 /// ```
-pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)], push_destination: Option<DestinationHeads>) -> Action {
+pub(crate) fn stack_if_push(
+    action: Action,
+    environment: &[(OsString, OsString)],
+    push_destination: Option<DestinationHeads>,
+    start: &crate::start_directory::StartDirectory,
+) -> Action {
     let (real_git, arguments, overlay, copy, stderr) = match action {
         Action::Forward {
             real_git,
@@ -148,9 +154,9 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice());
+    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice(), start.path());
     let (lfs, hook_warning, lfs_settings): (bool, String, Option<Vec<(String, String)>>) =
-        needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+        needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice(), start);
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
     let stack: bool =
@@ -170,6 +176,8 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
                 lfs_settings,
                 lfs_destination: push_destination,
                 stack,
+                // A command the caller could not name a directory for keeps the ending it always had.
+                start_directory: start.path().map(Path::to_path_buf),
             }),
             stderr: stderr_with_warning,
         };

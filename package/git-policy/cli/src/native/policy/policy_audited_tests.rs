@@ -77,6 +77,7 @@ fn an_audited_form_is_never_refused() {
         os_arguments(&["worktree", "remove", "../topic"]),
         crate::policy_content::LifecycleContent::None,
         Vec::<crate::effective_target::ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(
         checks.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
@@ -107,6 +108,7 @@ fn only_a_branch_that_exists_leaves_a_line() {
         os_arguments(&["branch", "-D", "no-such-branch"]).as_slice(),
         AuditedCommand::BranchDelete,
         &location,
+        Some(std::path::Path::new("/")),
     );
     assert_eq!(audit_records(repo.join(".git").as_path()).len(), 0);
     record_audited(
@@ -114,6 +116,7 @@ fn only_a_branch_that_exists_leaves_a_line() {
         os_arguments(&["branch", "-D", "gone"]).as_slice(),
         AuditedCommand::BranchDelete,
         &location,
+        Some(std::path::Path::new("/")),
     );
     let records: Vec<serde_json::Value> = audit_records(repo.join(".git").as_path());
     assert_eq!(records.len(), 1, "{records:?}");

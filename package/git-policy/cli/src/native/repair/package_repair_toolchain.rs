@@ -884,7 +884,7 @@ fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEn
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
     // The link in the worktree is looked at only when the search path gave no program, as `.or_else(...)` ran it.
-    let found_program: Option<PathBuf> = match find_program(PROGRAM, environment.path()) {
+    let found_program: Option<PathBuf> = match find_program(PROGRAM, environment.path(), &environment.start_directory) {
         Some(program) => Some(program),
         None => {
             if own_link.is_file() { Some(own_link.clone()) } else { None }

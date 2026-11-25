@@ -92,10 +92,9 @@ fn prune_is_a_dry_run(command: &ResolvedCommand) -> bool {
 /// ```ts
 /// const ending = moveRefusalOf(command, commonDir); // undefined leaves the move to Git
 /// ```
-pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>) -> Option<Action> {
+pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<Action> {
     let common: &Path = common_dir?;
-    let current: PathBuf = std::env::current_dir().ok()?;
-    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
     let source = crate::worktree_move_source::parse_move_source(command.arguments.as_slice(), command.subcommand_index, start.as_path(), Some(common))?;
     let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common, source.source.as_path())?;
     return Some(Action::Exit {
@@ -165,7 +164,7 @@ pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stde
 /// ```ts
 /// beforeARepair(command, commonDir, start, stderr);
 /// ```
-pub fn before_a_repair(command: &ResolvedCommand, common_dir: Option<&Path>, stderr: &mut String) {
+pub fn before_a_repair(command: &ResolvedCommand, common_dir: Option<&Path>, stderr: &mut String, current: Option<&Path>) {
     let Some(common) = common_dir else {
         return;
     };
@@ -174,10 +173,10 @@ pub fn before_a_repair(command: &ResolvedCommand, common_dir: Option<&Path>, std
     if !repair {
         return;
     }
-    let Ok(current) = std::env::current_dir() else {
+    let Some(current) = current else {
         return;
     };
-    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], current.as_path()) else {
+    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], current) else {
         return;
     };
     let paths: Vec<PathBuf> = repair_paths(command.arguments.as_slice(), command.subcommand_index, start.as_path(), Some(common));

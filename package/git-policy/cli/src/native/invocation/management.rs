@@ -225,7 +225,7 @@ fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, Os
 /// ```ts
 /// function planMigrate(parsed: MigrateArguments | string): Action;
 /// ```
-fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
+fn plan_migrate(parsed: Result<MigrateArguments, String>, start: &crate::start_directory::StartDirectory) -> Action {
     let arguments: MigrateArguments = match parsed {
         Ok(found) => found,
         Err(reason) => {
@@ -236,11 +236,12 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
             };
         }
     };
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(found) => found,
-        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    let Some(cwd) = start.path() else {
+        return failure(
+            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+        );
     };
-    return run_migrate(&arguments, cwd.as_path());
+    return run_migrate(&arguments, cwd);
 }
 
 /// What:
@@ -264,7 +265,13 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 /// ```ts
 /// function planConvert(parsed: ConvertArguments | string, globalArguments, environment, inputs): Action;
 /// ```
-fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+fn plan_convert(
+    parsed: Result<ConvertArguments, String>,
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+    start: &crate::start_directory::StartDirectory,
+) -> Action {
     let arguments: ConvertArguments = match parsed {
         Ok(found) => ConvertArguments { command_line_attributes: crate::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
         Err(reason) => {
@@ -275,12 +282,13 @@ fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[Os
             };
         }
     };
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(found) => found,
-        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    let Some(cwd) = start.path() else {
+        return failure(
+            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+        );
     };
     let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
-    let action: Action = run_convert(&arguments, cwd.as_path(), environment, real_git.as_deref());
+    let action: Action = run_convert(&arguments, cwd, environment, real_git.as_deref());
     return with_leading_notice(action, notice.as_deref());
 }
 
@@ -341,15 +349,17 @@ fn plan_doctor(
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
     filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
+    start: &crate::start_directory::StartDirectory,
 ) -> Action {
     let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
         Err(error) => return failure(error.to_string().as_str()),
     };
     let real_git: PathBuf = resolved.path;
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(found) => found,
-        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    let Some(cwd) = start.path() else {
+        return failure(
+            format!("cannot determine the current directory: {}", start.reason().unwrap_or("it cannot be read")).as_str(),
+        );
     };
     let overlay: Vec<(OsString, OsString)> = child_environment_overlay(environment, real_git.as_path());
     let context: GitContext = GitContext {
@@ -362,7 +372,7 @@ fn plan_doctor(
     let home: Option<PathBuf> = environment_home(environment);
     // The doctor's report is built on the runtime, so every Git question of it is awaited there instead of
     // entering the runtime per step; this command is still synchronous, so the enter happens once, here.
-    let action: Action = match run_on_runtime(doctor_action_with_section(&context, cwd.as_path(), home.as_deref(), filesystem_section)) {
+    let action: Action = match run_on_runtime(doctor_action_with_section(&context, cwd, home.as_deref(), filesystem_section)) {
         Ok(report) => report,
         Err(refusal) => doctor_failure(format!("the doctor could not ask Git: {refusal}").as_str()),
     };
@@ -398,8 +408,9 @@ pub fn plan_management(
     controls: &Controls,
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
+    start: &crate::start_directory::StartDirectory,
 ) -> Action {
-    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &no_filesystem_section);
+    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &no_filesystem_section, start);
 }
 
 /// What:
@@ -438,6 +449,7 @@ pub fn plan_management_with_section(
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
     filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
+    start: &crate::start_directory::StartDirectory,
 ) -> Action {
     // What: `match` on the parse `Result`: keep the action or return the refusal.
     // Why:  Nothing else may run for an invocation the grammar rejects.
@@ -474,15 +486,15 @@ pub fn plan_management_with_section(
                 stderr: retired_explanation(command),
             };
         }
-        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
+        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section, start),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
         ManagementAction::StopUnitsOfRemovedWorktrees => return plan_stop_units_of_removed_worktrees(environment),
         ManagementAction::KeptReferences { prune } => {
             return plan_kept_references(prune, git_global_arguments, environment, inputs);
         }
-        ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
-        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
+        ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse, start),
+        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs, start),
         ManagementAction::Direct {
             fix,
             all,
@@ -507,6 +519,7 @@ pub fn plan_management_with_section(
         environment,
         git_global_arguments,
         resolved.path,
+        start,
     );
     // `.as_deref()` lends the optional owned notice as an optional borrowed one.
     return with_leading_notice(action, resolved.notice.as_deref());

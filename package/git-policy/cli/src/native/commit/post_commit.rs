@@ -85,6 +85,10 @@ pub struct PostCommitRequest<'request> {
     pub config: PolicyConfig,
     /// Escapes and flags the invocation carries.
     pub controls: Controls,
+    /// The directory the command was started in,
+    ///  read once by the executable's entry;
+    ///  the policies of this gate read a relative path there.
+    pub start_directory: crate::start_directory::StartDirectory,
 }
 
 /// What:
@@ -170,6 +174,7 @@ fn run_staged_gate(
         request.arguments.to_vec(),
         LifecycleContent::Requested(CandidateRequest::Landed(commit)),
         Vec::new(),
+        &request.start_directory,
     );
     // The scanner and Markdown options are the configuration's, as the pre-commit stage's checks hold them.
     checks.scanner_settings.options = request.config.forbidden_strings.clone();

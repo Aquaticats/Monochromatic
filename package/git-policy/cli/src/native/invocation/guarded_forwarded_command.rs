@@ -45,8 +45,8 @@ use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_guarded_word};
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::PathBuf;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  The guard's decision,
@@ -89,6 +89,8 @@ pub struct GuardedForwarded {
 /// What:
 ///  What the guard decides about one invocation,
 /// after alias expansion.
+///  `Option<&Path>` is the directory this command was started in,
+///       and nothing when the caller can name none.
 /// Why:
 ///   A built-in word is never an alias,
 ///  so it needs no configuration read;
@@ -96,15 +98,18 @@ pub struct GuardedForwarded {
 ///       defines have no subcommand this guard can read,
 ///  so they are left to Git and to whatever the shell
 ///       finally runs.
+///  The alias value and the shell's own directory both follow from where this command
+///  was started, so that directory is an input rather than a read of the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function decideGuardedForwarded({ context, args }): GuardedForwarded;
+/// function decideGuardedForwarded({ context, args, start }): GuardedForwarded;
 /// ```
 pub fn decide_guarded_forwarded(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
+    start: Option<&Path>,
 ) -> GuardedForwarded {
     // `let Some((word, region)) = ... else { ... };` unwraps the subcommand, or passes when Git runs none.
     let Some((word, region)) = command_tokens(arguments) else {
@@ -123,7 +128,7 @@ pub fn decide_guarded_forwarded(
         };
     }
     // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
-    let resolved: ResolvedCommand = resolve_forwarded_command(context, environment, arguments);
+    let resolved: ResolvedCommand = resolve_forwarded_command(context, environment, arguments, start);
     // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
     //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The one plain `git` command
     //  the resolver read from the value is what the shell runs, and the guard decides on it while the caller's own
@@ -147,7 +152,7 @@ pub fn decide_guarded_forwarded(
             decision: decide_guarded_word(shell_word.as_encoded_bytes(), shell_region),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
-            shell_directory: shell_run_directory(context, arguments),
+            shell_directory: shell_run_directory(context, arguments, start),
         };
     }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
@@ -168,6 +173,7 @@ pub fn decide_guarded_forwarded(
 ///  The directory Git runs the shell of a `!` alias in,
 ///  asked of Git with the caller's own global options.
 ///  `&[OsString]` borrows the caller's whole argument vector;
+///  `Option<&Path>` is the directory this command was started in;
 ///  `Option<PathBuf>` is that directory,
 ///  and nothing when it cannot be named.
 /// Why:
@@ -186,11 +192,10 @@ pub fn decide_guarded_forwarded(
 /// ```ts
 /// const shellRunDirectory = (globals, start) => aliasRunDirectory({ globals, start });
 /// ```
-fn shell_run_directory(context: &GitContext, arguments: &[OsString]) -> Option<PathBuf> {
+fn shell_run_directory(context: &GitContext, arguments: &[OsString], start: Option<&Path>) -> Option<PathBuf> {
     let layout: GlobalLayout = global_layout(arguments);
     let globals: &[OsString] = &arguments[..layout.prefix_len];
-    let start: PathBuf = std::env::current_dir().ok()?;
-    return alias_run_directory(context, globals, Some(start.as_path()));
+    return alias_run_directory(context, globals, start);
 }
 
 /// Alias resolution,

@@ -93,6 +93,7 @@ fn request<'request>(
         environment: overlay,
         config,
         controls,
+        start_directory: crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     };
 }
 

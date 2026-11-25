@@ -11,6 +11,7 @@
 use super::{GuardedForwarded, decide_guarded_forwarded};
 use crate::rule_linked_worktree::{GuardedCommand, LinkedWorktreeDecision};
 use crate::test_support::{executable, fixture, git, isolated_overlay, remove};
+use std::path::Path;
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -58,9 +59,26 @@ fn no_environment() -> Vec<(OsString, OsString)> {
     return Vec::new();
 }
 
+/// What:
+///  The directory a control's guard starts Git in,
+///  when every setting the control sets comes from the configuration overlay.
+/// Why:
+///   An overlay holds the whole configuration these controls read,
+///  so any directory Git can start in answers the same;
+///  an absolute one no control moves or deletes keeps each answer the test's own,
+///  where a read of the process could answer with another test's fixture or a deleted one.
+fn outside_every_repository() -> &'static Path {
+    return Path::new("/");
+}
+
 /// Decide one invocation and return its decision together with the arguments Git will run.
 fn decided(pairs: &[(&str, &str)], words: &[&str]) -> GuardedForwarded {
-    return decide_guarded_forwarded(&context_with_aliases(pairs), no_environment().as_slice(), args(words).as_slice());
+    return decide_guarded_forwarded(
+        &context_with_aliases(pairs),
+        no_environment().as_slice(),
+        args(words).as_slice(),
+        Some(outside_every_repository()),
+    );
 }
 
 /// A built-in word is decided as it always was,
@@ -164,8 +182,12 @@ fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
         assert_eq!(walked.decision, LinkedWorktreeDecision::Pass, "{words:?}");
         assert_eq!(walked.arguments, args(words.as_slice()), "{words:?}");
     }
-    let none: GuardedForwarded =
-        decide_guarded_forwarded(&context_with_aliases(&[]), no_environment().as_slice(), &[]);
+    let none: GuardedForwarded = decide_guarded_forwarded(
+        &context_with_aliases(&[]),
+        no_environment().as_slice(),
+        &[],
+        Some(outside_every_repository()),
+    );
     assert_eq!(none.decision, LinkedWorktreeDecision::Pass);
     assert!(none.arguments.is_empty());
 }
@@ -230,8 +252,6 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
     let directory: PathBuf = root.join("sub/bin");
     std::fs::create_dir_all(directory.as_path()).expect("program directory");
     executable(directory.join("git-fixturewipe").as_path(), b"#!/bin/sh\necho external\n");
-    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
-    std::env::set_current_dir(root.as_path()).expect("the fixture is where the wrapper starts");
     let environment: Vec<(OsString, OsString)> = vec![(
         OsString::from("PATH"),
         OsString::from("bin:/usr/bin:/bin"),
@@ -243,6 +263,7 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
         ]),
         environment.as_slice(),
         &args(&["-C", "sub", "fixtureouter"]),
+        Some(root.as_path()),
     );
     assert_eq!(
         walked.decision,
@@ -254,7 +275,6 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
         args(&["-C", "sub", "fixtureouter"]),
         "Git receives the caller's own words"
     );
-    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
 }
 
@@ -281,8 +301,6 @@ fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
     git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
     let below: PathBuf = root.join("below");
     std::fs::create_dir_all(below.as_path()).expect("directory below the worktree root");
-    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
-    std::env::set_current_dir(below.as_path()).expect("the worktree is where the wrapper starts");
     let walked: GuardedForwarded = decide_guarded_forwarded(
         &context_with_aliases(&[("shellcfg", "!git config")]),
         no_environment().as_slice(),
@@ -295,6 +313,7 @@ fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
             "remote.origin.url",
             "https://example.invalid/through-a-shell-alias.git",
         ]),
+        Some(below.as_path()),
     );
     assert!(
         matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
@@ -305,7 +324,6 @@ fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
         Some(root.as_path()),
         "the decision does not carry the directory the shell runs in"
     );
-    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
 }
 

@@ -356,6 +356,7 @@ fn run_commit_if_real<F: RepositoryFacts>(
             region: &region,
             config,
             controls: &stripped.controls,
+            start_directory: checks.start_directory.clone(),
         },
         checks,
     );

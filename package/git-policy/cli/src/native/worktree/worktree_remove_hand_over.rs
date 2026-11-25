@@ -1220,7 +1220,9 @@ fn no_git_for_a_removal(failure: crate::real_git::RealGitNotFound) -> String {
 
 fn the_service_git(item: &WorkItem) -> Result<GitContext, String> {
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let inputs: ResolutionInputs = process_resolution_inputs(environment.as_slice()).map_err(no_process_facts)?;
+    // The service is a process of its own: the directory it was started in is read here, once, as this work's entry.
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+    let inputs: ResolutionInputs = process_resolution_inputs(environment.as_slice(), &start).map_err(no_process_facts)?;
     let resolved: ResolvedGit = resolve_real_git(&inputs).map_err(no_git_for_a_removal)?;
     return Ok(GitContext { real_git: resolved.path, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(item.git_dir.clone()) });
 }

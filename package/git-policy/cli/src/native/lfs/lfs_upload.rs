@@ -370,7 +370,7 @@ pub fn run_upload_interactive(
     overlay: &[(OsString, OsString)],
     diagnostics: &mut dyn std::io::Write,
 ) -> Option<i32> {
-    let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str()) else {
+    let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str(), directory) else {
         // Terminal output error: the exit status already carries the refusal.
         let _written = diagnostics.write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
         return Some(1);
@@ -600,7 +600,7 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
 /// const program = findProgram(env.PATH); if (!program) return undefined; return plan.remotes.flatMap((remote) => plan.runs(remote).map((args) => [remote, command(program, args)]));
 /// ```
 fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<(OsString, Command)>> {
-    let program = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())?;
+    let program = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str(), git.cwd.as_path())?;
     let mut commands: Vec<(OsString, Command)> = Vec::new();
     for remote in &plan.remotes {
         for arguments in plan.runs(remote.as_os_str()) {
