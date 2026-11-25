@@ -25,10 +25,10 @@
 //! ```
 
 use crate::foundation::plain_file::open_plain_file;
+use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_LINE_MAXIMUM_BYTES, PLAN_HEADER_MAXIMUM_BYTES};
-use crate::worktree_clone_removal_proof_and_plan::plan_name::is_canonical_plan_name;
 use crate::worktree_clone_removal_proof_and_plan::plan_parse::{PlanHeader, parse_plan, parse_plan_header};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
@@ -280,7 +280,7 @@ pub fn split_the_header(bytes: &[u8]) -> Result<(&[u8], &[u8]), PlanRefusal> {
 /// Whether one folder entry's name is a plan this reader reads,
 /// which is the clone's canonical GUID and nothing else.
 pub fn is_a_plan_entry(name: &str) -> bool {
-    return is_canonical_plan_name(name);
+    return is_canonical_guid_name(name);
 }
 
 /// Controls stay out of the release executable.

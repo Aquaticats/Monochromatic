@@ -1,16 +1,26 @@
 //! Controls for the refusal of a removal of a slot a whole managed clone is
 //! bound to:
 //! the two states that refuse,
-//! and the states that stay Git's.
+//! the states that stay Git's,
+//! the read-only proof a whole clone's refusal prints,
+//! every way that proof stops,
+//! and the one promise they share,
+//! that the command writes no byte and creates no plan.
 
 use super::*;
 use crate::testing::fixture_zfs_binding_record::{publish_under, record_naming};
 use crate::test_support::{fixture, git, remove};
+use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_binding_record::binding_words::Phase;
+use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
+    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, OWN_SNAPSHOT, POOL, POOL_GUID, RemovalFixture, SANOID_SNAPSHOT, SLOT, ScriptedPool,
+    an_object, the_stats,
+};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_remove_plan::RemovePlan;
+use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// One fixture slot with a real registration,
 /// its record,
@@ -55,6 +65,69 @@ fn facts_of(bound: &Bound) -> CopyFacts {
     };
 }
 
+/// The facts a `git worktree remove --force` of the removal fixture's slot carries.
+fn facts_of_the_fixture(fixture: &RemovalFixture) -> CopyFacts {
+    return CopyFacts {
+        identity: WorktreeIdentity::MainWorktree { common_dir: fixture.common_dir.clone(), git_dir: fixture.common_dir.clone(), worktree_root: fixture.common_dir.clone() },
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: Some(RemovePlan { target: fixture.slot_path.clone(), operand: OsString::from(SLOT), force: true }),
+        quiet: false,
+    };
+}
+
+/// What:
+///  Every name under one folder and the bytes each file holds,
+///  sorted by name.
+/// Why:
+///  The refusal promises that it wrote nothing,
+///  and a tree of the same names and bytes is what proves it:
+///  no plan,
+///  no intent,
+///  and no record rewritten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = (root) => walk(root).map(({ name, bytes }) => [name, bytes]);
+/// ```
+fn the_tree(root: &Path) -> Vec<(String, Option<Vec<u8>>)> {
+    let mut found: Vec<(String, Option<Vec<u8>>)> = Vec::new();
+    walk(root, root, &mut found);
+    found.sort();
+    return found;
+}
+
+/// One folder's entries, each with its own contents.
+fn walk(root: &Path, folder: &Path, found: &mut Vec<(String, Option<Vec<u8>>)>) {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return;
+    };
+    for listed in entries {
+        let listed_entry = listed.expect("the folder lists");
+        let path: PathBuf = listed_entry.path();
+        let name: String = path.strip_prefix(root).expect("the entry is under the root").display().to_string();
+        if path.is_dir() {
+            found.push((name, None));
+            walk(root, path.as_path(), found);
+        } else {
+            found.push((name, Some(std::fs::read(path.as_path()).expect("the entry reads"))));
+        }
+    }
+}
+
+/// The refusal's printed lines,
+/// or the panic that says the command was left to Git.
+fn refusal_of(facts: &CopyFacts, reads: RemovalReads<'_>) -> String {
+    return match refuse_the_removal_with(facts, reads) {
+        Some(ForwardedRun::Failed { stderr, code }) => {
+            assert_eq!(code, REFUSED_EXIT_CODE, "a refusal ends with the wrapper's own status");
+            stderr
+        }
+        other => panic!("a bound slot's removal refuses: {other:?}"),
+    };
+}
+
 /// What:
 ///  A removal of a slot whose record proves a whole worktree is refused,
 ///  and the report names the slot and the clone a Git removal would orphan.
@@ -67,15 +140,11 @@ fn facts_of(bound: &Bound) -> CopyFacts {
 fn a_whole_worktree_refuses_its_removal() {
     let bound: Bound = bound_slot("removal-of-a-bound-clone");
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.registration.as_path(), Some(bound.pointer.clone())), "one");
-    match refuse_the_removal_of_a_bound_clone(&facts_of(&bound)) {
-        Some(ForwardedRun::Failed { stderr, code }) => {
-            assert_eq!(code, REFUSED_EXIT_CODE);
-            assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
-            assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
-            assert!(stderr.contains("next safe action:"), "{stderr}");
-        }
-        other => panic!("a whole worktree's removal refuses: {other:?}"),
-    }
+    let stderr: String = refusal_of(&facts_of(&bound), RemovalReads::Unreadable("this control reads no pool"));
+    assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
+    assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
+    assert!(stderr.contains("next safe action:"), "{stderr}");
+    assert!(stderr.contains("the removal's lineage proof could not run"), "a record that never reached the clone is reported rather than guessed at: {stderr}");
     assert!(bound.slot.is_dir(), "nothing was removed");
     assert!(bound.registration.is_dir(), "the registration stands");
     remove(bound.root.as_path());
@@ -92,10 +161,10 @@ fn a_whole_worktree_refuses_its_removal() {
 #[test]
 fn every_other_slot_stays_gits() {
     let unrecorded: Bound = bound_slot("removal-of-an-unrecorded-slot");
-    assert!(refuse_the_removal_of_a_bound_clone(&facts_of(&unrecorded)).is_none());
+    assert!(refuse_the_removal_with(&facts_of(&unrecorded), RemovalReads::Unreadable("this control reads no pool")).is_none());
     let adding: Bound = bound_slot("removal-of-a-pending-add");
     publish_under(adding.common.as_path(), &record_naming(Phase::Snapshotted, adding.slot.as_path(), adding.registration.as_path(), Some(adding.pointer.clone())), "one");
-    assert!(refuse_the_removal_of_a_bound_clone(&facts_of(&adding)).is_none());
+    assert!(refuse_the_removal_with(&facts_of(&adding), RemovalReads::Unreadable("this control reads no pool")).is_none());
     remove(unrecorded.root.as_path());
     remove(adding.root.as_path());
 }
@@ -113,6 +182,132 @@ fn a_command_without_a_removal_plan_answers_nothing() {
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.registration.as_path(), Some(bound.pointer.clone())), "one");
     let mut facts: CopyFacts = facts_of(&bound);
     facts.remove_plan = None;
-    assert!(refuse_the_removal_of_a_bound_clone(&facts).is_none());
+    assert!(refuse_the_removal_with(&facts, RemovalReads::Unreadable("this control reads no pool")).is_none());
     remove(bound.root.as_path());
+}
+
+/// What:
+///  A bound clone's removal prints what its proof matched and every name a
+///  removal would lose,
+///  and writes no record,
+///  no intent and no plan.
+/// Why:
+///  This release removes no clone,
+///  so the printed proof and loss are what a person gets,
+///  and the unchanged tree is the promise that nothing was unmounted or
+///  recorded for a step this release cannot finish.
+#[test]
+fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-healthy");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool));
+    assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
+    assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
+    assert!(stderr.contains(&format!("the clone `{CLONE}` (GUID `{CLONE_GUID}`")), "{stderr}");
+    assert!(stderr.contains(&format!("descends from the origin snapshot `{ORIGIN_SNAPSHOT}`")), "{stderr}");
+    assert!(stderr.contains(&format!("snapshot {CLONE}@{OWN_SNAPSHOT}")), "{stderr}");
+    assert!(stderr.contains(&format!("snapshot {CLONE}@{SANOID_SNAPSHOT}")), "{stderr}");
+    assert!(stderr.contains("this release does not remove a clone yet"), "{stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the command wrote no record, no intent and no plan");
+    assert_eq!(fixture.the_plan_folder_holds(), 0, "no destruction plan was written");
+}
+
+/// What:
+///  A promoted clone's removal is refused with the proof's own sentence,
+///  before anything is written.
+/// Why:
+///  Item 11 measured that a promoted clone's transferred history is the
+///  checkout's own,
+///  so the proof refuses and names the origin the pool reports beside the
+///  recorded one.
+#[test]
+fn a_promoted_clone_is_refused_by_the_proof_and_nothing_is_written() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-promoted");
+    let promoted: ScriptedPool = fixture
+        .healthy_pool()
+        .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_DATASET), properties: NvList::new() });
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&promoted));
+    assert!(stderr.contains("the removal's own checks stopped it before anything was written"), "{stderr}");
+    assert!(stderr.contains(&format!("the clone `{CLONE}` answers with origin `{ORIGIN_DATASET}`")), "{stderr}");
+    assert!(stderr.contains(&format!("the add recorded `{ORIGIN_SNAPSHOT}`")), "{stderr}");
+    assert!(!stderr.contains("the lineage proof a removal makes passed"), "a promoted clone's proof does not pass: {stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the refusal wrote nothing");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// What:
+///  A snapshot the clone inherited refuses the removal by name,
+///  and every protected object the control's pool lists is still listed.
+/// Why:
+///  The plan's refusal arm asks for the promotion control and the survival of
+///  every protected snapshot and bookmark,
+///  and the command's own answer is where a person reads it.
+#[test]
+fn a_transferred_snapshot_is_refused_and_every_protected_object_survives() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-transferred");
+    let mut pool: ScriptedPool = fixture.healthy_pool();
+    pool.snapshots.push(an_object(EntryKind::Snapshot, "earliest", ORIGIN_SNAPSHOT_GUID, ORIGIN_CREATETXG));
+    let listed: Vec<String> = pool.snapshots.iter().map(|object| return object.full_name()).collect();
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool));
+    assert!(stderr.contains(&format!("the live snapshot `{CLONE}@earliest`")), "{stderr}");
+    assert!(stderr.contains("history this clone inherited"), "{stderr}");
+    assert_eq!(pool.snapshots.iter().map(|object| return object.full_name()).collect::<Vec<String>>(), listed, "every protected snapshot is still there");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// What:
+///  A bookmark neither a live snapshot nor a plan line explains is refused by
+///  name through the command,
+///  and no snapshot or bookmark is destroyed.
+/// Why:
+///  The rule refuses the whole removal and names each bookmark,
+///  which is the command's answer a person reads before their own
+///  `zfs destroy`.
+#[test]
+fn an_unexplained_bookmark_is_refused_by_name_through_the_command() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-bookmark");
+    let mut pool: ScriptedPool = fixture.healthy_pool();
+    pool.bookmarks.push(an_object(EntryKind::Bookmark, "from-a-gone-snapshot", 4242, 19));
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool));
+    assert!(stderr.contains(&format!("`{CLONE}#from-a-gone-snapshot`")), "{stderr}");
+    assert!(stderr.contains("the removal stops before its first delete with every snapshot and bookmark still there"), "{stderr}");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// What:
+///  A pool this build cannot read still ends in the same refusal,
+///  with the reader's reason printed and nothing changed.
+/// Why:
+///  The gate may refuse a module this build does not know,
+///  and a person then learns why the proof did not run instead of reading a
+///  refusal that claims a proof it never made.
+#[test]
+fn a_pool_that_cannot_be_read_still_refuses_and_names_the_reason() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-unreadable-pool");
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Unreadable("the ZFS compatibility gate refused before any pool request"));
+    assert!(stderr.contains("the removal's lineage proof could not run, because the ZFS compatibility gate refused before any pool request"), "{stderr}");
+    assert!(stderr.contains("every snapshot, bookmark, record and registration still stands"), "{stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "nothing was written");
+}
+
+/// What:
+///  The pool a live command reads is the release's own device:
+///  the proof names the pool the add recorded when the device answers,
+///  and the first check is the pool's own GUID.
+/// Why:
+///  The three checks each refuse on one recorded identity,
+///  and a control that could only reach the scripted arm would leave the
+///  release answer unexercised.
+#[test]
+fn the_scripted_pool_reaches_every_identity_the_proof_compares() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-identities");
+    let another_pool: ScriptedPool = fixture.healthy_pool().with(POOL, DatasetIdentity { stats: the_stats(POOL_GUID + 1, false, 1, 0, ""), properties: NvList::new() });
+    let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&another_pool));
+    assert!(stderr.contains(&format!("`{POOL}` answers with poolGuid")), "{stderr}");
+    assert!(stderr.contains("not the one the add made"), "{stderr}");
+    assert!(stderr.contains(&format!("the add recorded `{POOL_GUID}`")), "{stderr}");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
 }

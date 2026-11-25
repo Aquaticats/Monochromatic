@@ -1,9 +1,6 @@
 //! What:
-//!  The three names a destruction plan's grammar rests on:
-//!  the file's own name,
-//!  which is the clone's canonical numeric GUID,
-//!  a dataset's name,
-//!  and a snapshot's.
+//!  The two name shapes a destruction plan's values rest on:
+//!  a dataset's name and a snapshot's.
 //! Why:
 //!  A plan is keyed by the clone's GUID because a slot's name is used again when a worktree is
 //!  added again at one path,
@@ -18,31 +15,15 @@
 //!  This is not a second `entity_namecheck`:
 //! it refuses the shapes a plan cannot hold,
 //!  and the kernel still refuses a name it does not accept when a request carries one.
+//!  The file's own name is the clone's canonical GUID,
+//!  and that check is the binding record's own
+//!  (`worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name`),
+//!  so one grammar decides it for the add and for this reader.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const isPlanName = (name: string) => /^(0|[1-9][0-9]{0,19})$/.test(name);
 //! const isSnapshotName = (name: string) => name.split('@').length === 2 && bothPartsAreNames(name);
 //! ```
-
-use crate::worktree_clone_removal_proof_and_plan::canonical_decimal::is_canonical_decimal;
-use crate::worktree_clone_removal_proof_and_plan::plan_bounds::NUMBER_MAXIMUM_DIGITS;
-
-/// What:
-///  Whether one folder entry's name is a clone's canonical numeric GUID,
-///  which is a plan's file name.
-/// Why:
-///  Every other entry is foreign:
-///  a staging entry belongs to its writer,
-///  and a name that is not a canonical GUID is nobody's plan this reader reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isPlanName = (name) => /^(0|[1-9][0-9]{0,19})$/.test(name);
-/// ```
-pub fn is_canonical_plan_name(name: &str) -> bool {
-    return is_canonical_decimal(name, NUMBER_MAXIMUM_DIGITS);
-}
 
 /// Whether one byte may appear in a ZFS dataset or snapshot name.
 ///

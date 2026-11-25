@@ -27,13 +27,14 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_encoding::{hexadecimal_as_bytes, path_from_hexadecimal};
+use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::canonical_decimal::{is_canonical_decimal, parse_canonical_u64};
 use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_COUNT_MAXIMUM_DIGITS, NUMBER_MAXIMUM_DIGITS};
 use crate::worktree_clone_removal_proof_and_plan::plan_attempt_parse::parse_attempts;
 use crate::worktree_clone_removal_proof_and_plan::plan_lines::take_line;
-use crate::worktree_clone_removal_proof_and_plan::plan_name::{is_a_snapshot_of, is_canonical_plan_name, is_dataset_name, is_snapshot_name};
+use crate::worktree_clone_removal_proof_and_plan::plan_name::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanFacts};
 use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, NO_MOUNT_ID, PLAN_HEADER, PLAN_KEYS_IN_ORDER};
@@ -309,7 +310,7 @@ pub fn parse_plan(header: &[u8], attempt_lines: &[u8], filed_under: Option<&str>
     let parsed: PlanHeader = parse_plan_header(header)?;
     let facts: PlanFacts = parsed.facts;
     if let Some(name) = filed_under {
-        if !is_canonical_plan_name(name) {
+        if !is_canonical_guid_name(name) {
             return Err(PlanRefusal::at(PlanRefusalCause::ForeignName, "file name", name));
         }
         if name != facts.clone_guid.file_name() {

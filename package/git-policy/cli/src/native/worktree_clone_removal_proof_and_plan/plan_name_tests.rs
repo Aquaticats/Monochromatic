@@ -1,7 +1,7 @@
 //! What:
-//!  The controls of the three names a plan's grammar rests on:
-//!  the file's GUID name,
+//!  The controls of the two name shapes a plan's values rest on:
 //!  a dataset's name and a snapshot's.
+//!  The file's GUID name is the binding record's check, controlled beside it.
 //! Why:
 //!  A name that carried a newline or an `=` would forge a line,
 //!  and a file named by anything but the clone's canonical GUID could not be found by the removal
@@ -11,22 +11,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(isPlanName('007')).toBe(false);
+//! expect(isSnapshotName('tank/wt@a=b')).toBe(false);
 //! ```
 
-use super::{is_a_snapshot_of, is_canonical_plan_name, is_dataset_name, is_snapshot_name};
-
-#[test]
-fn a_plan_name_is_the_clones_canonical_guid_and_nothing_else() {
-    assert!(is_canonical_plan_name("7828944690444299989"));
-    assert!(is_canonical_plan_name("0"));
-    assert!(is_canonical_plan_name("78289446904442999890"), "a twenty-digit GUID is canonical");
-    for refused in ["", "007", "+1", "7a", ".7828944690444299989"] {
-        assert!(!is_canonical_plan_name(refused), "`{refused}` is not a plan name");
-    }
-    let twenty_one_digits: String = format!("1{}", "0".repeat(20));
-    assert!(!is_canonical_plan_name(twenty_one_digits.as_str()), "21 digits are past the bound");
-}
+use super::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
 
 #[test]
 fn a_dataset_name_holds_no_newline_no_equals_and_no_empty_component() {
