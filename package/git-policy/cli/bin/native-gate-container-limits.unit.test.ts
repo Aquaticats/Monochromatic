@@ -9,6 +9,8 @@ import {
   parseContainerLimitOptions,
 } from './container-limits.ts';
 import {
+  buildMemoryLine,
+  gateBuildMemory,
   gateContainerCpus,
   gateContainerLimitOptions,
   gateLimitsFrom,
@@ -70,6 +72,7 @@ await describe({
             ...defaultContainerLimits,
             cpus: gateContainerCpus,
           },
+          givenFlags: [],
         });
         expect(limits.pidsLimit).toBe(processesForTestThreads(gateContainerCpus));
         expect(limits.pidsLimit).toBeGreaterThan(tooFew);
@@ -95,6 +98,7 @@ await describe({
             cpus: gateContainerCpus,
             pidsLimit: generous,
           },
+          givenFlags: [],
         });
         expect(limits.pidsLimit).toBe(generous);
         expect(raised).toBeUndefined();
@@ -108,7 +112,10 @@ await describe({
          The limits and the line the gate runs and prints for a two-CPU container, as the mutation campaigns and the
          planted controls still start.
          */
-        const { limits, raised } = gateLimitsFrom({ given: defaultContainerLimits });
+        const { limits, raised } = gateLimitsFrom({
+          given: defaultContainerLimits,
+          givenFlags: [],
+        });
         expect(limits).toEqual(defaultContainerLimits);
         expect(raised).toBeUndefined();
       },
@@ -130,9 +137,122 @@ await describe({
             cpus: gateContainerCpus,
             pidsLimit: defaultContainerLimits.pidsLimit,
           },
+          givenFlags: ['--memory'],
         });
         expect(limits.memory).toBe(memory);
         expect(limits.cpus).toBe(gateContainerCpus);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'give the image build its own measured memory bound, and leave the suite\'s containers at the repository default',
+      fn: async () => {
+        /**
+         The limits the suite's containers and the image build run under when a person names no memory.
+         */
+        const { limits, buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        expect(limits.memory).toBe(defaultContainerLimits.memory);
+        expect(buildLimits.memory).toBe(gateBuildMemory);
+        expect(buildLimits.cpus).toBe(limits.cpus);
+        expect(buildLimits.pidsLimit).toBe(limits.pidsLimit);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'let a person\'s --memory bound the image build as it bounds every other container',
+      fn: async () => {
+        /**
+         Memory a person asked for, which is larger than the build's own bound.
+         */
+        const memory = '12g';
+        /**
+         The limits the suite's containers and the image build run under for that option.
+         */
+        const { limits, buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+            memory,
+          },
+          givenFlags: ['--memory'],
+        });
+        expect(limits.memory).toBe(memory);
+        expect(buildLimits.memory).toBe(memory);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'tell a --memory naming the repository default from a memory nobody named',
+      fn: async () => {
+        /**
+         The repository default, which a person may name again, given here as the option the parser read.
+         */
+        const { buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: ['--memory'],
+        });
+        expect(buildLimits.memory).toBe(defaultContainerLimits.memory);
+        expect(buildLimits.memory).not.toBe(gateBuildMemory);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'name both memory bounds in one line when they differ',
+      fn: async () => {
+        /**
+         The limits the suite's containers and the image build run under when a person names no memory.
+         */
+        const { limits, buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        /**
+         The line the gate prints before it builds.
+         */
+        const line = buildMemoryLine({
+          limits,
+          buildLimits,
+        });
+        expect(line).toContain(limits.memory);
+        expect(line).toContain(buildLimits.memory);
+        expect(line).toContain('--memory');
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'name the one memory bound both share when a person gave it',
+      fn: async () => {
+        /**
+         Memory a person asked for, which both bounds take.
+         */
+        const memory = '3g';
+        /**
+         The limits the suite's containers and the image build run under for that option.
+         */
+        const { limits, buildLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+            memory,
+          },
+          givenFlags: ['--memory'],
+        });
+        expect(buildMemoryLine({
+          limits,
+          buildLimits,
+        }),).toBe(`The image build and the suite's containers are bounded at ${memory}, the memory this gate was given.`,);
       },
       timeout: 10_000,
     }),
