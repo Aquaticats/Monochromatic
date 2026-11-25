@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:10:41-05:00.
+State recorded 2026-11-25T17:11:52-05:00.
 
 ## Requirement as stated
 
@@ -144,14 +144,24 @@ PowerShell behavior does not change.
 
 ### Legacy opt-out and primary name
 
-The existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off` setting must remain effective.
 The new primary variable is `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED`.
-The accepted values for the new boolean name and its precedence over the legacy alias remain open.
+Its exact lowercase values `0`,
+`false`,
+and `off` disable the policy.
+An unset variable and every other value leave it enabled.
+
+The first answer about migration said the existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off`
+setting must remain effective.
+A later answer selected primary-over-legacy precedence but added
+"remove support for legacy values."
+Whether that explicitly retracts legacy-variable support is unresolved and must be clarified.
+If legacy support remains,
+the new primary variable wins whenever present.
 
 ### Disabled native background tasks
 
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is a misconfiguration for this policy.
-The hook warns the user but otherwise applies the selected policy normally.
+The hook warns the user once per session but otherwise applies the selected policy normally.
 It does not suppress the default timeout,
 change the requested background mode,
 block the command,
@@ -167,16 +177,14 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-The second-round answers unblock these independent questions:
+The third-round answers leave these questions:
 
-- `enabled-values`:
-  which values of `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` disable the policy?
-- `opt-out-precedence`:
-  when the new primary variable and legacy opt-out disagree,
-  which one wins?
-- `warning-cadence`:
-  does the disabled-background-task warning accompany every eligible main-agent Bash call,
-  or appear only once per session?
+- `legacy-support-reconciliation`:
+  does the latest instruction remove `MONOCHROMATIC_BASH_FORCE_BACKGROUND` support entirely,
+  superseding the earlier decision to preserve its `off` alias?
+- `warning-mechanism`:
+  does once per session mean a synchronous `SessionStart` warning in this same plugin,
+  or a stateful first-eligible-Bash warning?
 
 The exact warning text and final verification matrix depend on these answers.
 
@@ -185,12 +193,9 @@ The exact warning text and final verification matrix depend on these answers.
 These are recommendations to grill,
 not accepted design:
 
-- Let the new primary variable win when explicitly present,
-  with the legacy `off` alias consulted only when it is absent.
-- Accept conventional false-like values for the new boolean variable.
-- Use the hook's `systemMessage` warning on every eligible main-agent Bash call
-  while the misconfiguration remains,
-  so the warning is stateless and appears beside the command that can terminate.
+- Treat removal of the legacy variable as the latest explicit instruction if the user confirms the retraction.
+- Emit the once-per-session warning through a synchronous `SessionStart` handler in the same plugin.
+  This needs no persistent marker and makes the warning unavoidable at session startup.
 
 ## Rejected recommendations
 
