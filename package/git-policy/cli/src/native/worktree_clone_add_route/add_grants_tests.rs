@@ -120,6 +120,19 @@ fn the_whole_removal_group_missing_prints_one_line_with_every_command() {
     assert_eq!(line.matches("zfs allow").count(), A_REMOVALS_GROUP.len(), "each command prints once: {line}");
 }
 
+/// A removal's permission missing beside a wider grant still refuses with the
+/// check's own two commands,
+/// because the breadth is a finding whatever group the missing permission is in.
+#[test]
+fn a_wide_grant_refuses_even_beside_a_missing_removal_permission() {
+    let mut facts: DelegationFacts = without("destroy", CONTAINER_DATASET, Inheritance::Descendants);
+    facts.grants.push(grant(ANCESTOR_DATASET, "mount", Who::User(ACCOUNT), Inheritance::Descendants));
+    facts.grants.retain(|allowed| return !(allowed.permission == "mount" && allowed.carried_by == CONTAINER_DATASET && allowed.inheritance == Inheritance::Descendants));
+    let refusal: String = refuse_unless_the_decided_ones(&facts).expect_err("a wider grant refuses whatever group the missing permission is in").message;
+    assert!(refusal.contains(&format!("zfs allow -d -u {ACCOUNT} mount {CONTAINER_DATASET}")), "the decided grant comes first: {refusal}");
+    assert!(refusal.contains(&format!("zfs unallow -d -u {ACCOUNT} mount {ANCESTOR_DATASET}")), "the wider grant goes after it: {refusal}");
+}
+
 /// The two tables name every decided permission once,
 /// so a permission neither table names is a table that drifted rather than a
 /// permission that moved.
