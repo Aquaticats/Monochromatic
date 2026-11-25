@@ -318,12 +318,36 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// Create one empty fixture directory owned by this test process and test name,
+/// How many fixture folders this process has made,
+/// which names each call's folder its own.
+/// Why:
+///   A run of `cargo test` is many tests as threads of one process,
+/// and two tests that pass one name took one folder,
+/// whose removal each made while the other was writing in it
+/// (`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md`).
+static FIXTURES_MADE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The number this call's folder is named with:
+/// one number for every call, in the order the process makes them.
+fn the_number_of_this_fixture() -> u64 {
+    return FIXTURES_MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// What:
+///  Make one empty fixture directory for this call of this test,
 ///  under a prefix that keeps the fixtures of different support modules apart.
+/// Why:
+///   Every call names a folder of its own,
+/// so two tests that pass the same name never share one,
+///  and neither removes the other's live folder:
+/// the folder carries the process's number and the number this call took,
+/// and the name the test writes.
+/// A folder of a run that was killed may carry this process's number and this call's number,
+///  so one that exists is removed first.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
     forbid_core_dumps();
-    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
+    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{}-{name}", std::process::id(), the_number_of_this_fixture()));
     if root.exists() {
         // A fixture an earlier run was killed in the middle of may hold a directory it closed, so the permission is given back first.
         restore_owner_access(&root);
@@ -336,7 +360,7 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     return canonical;
 }
 
-/// Create one empty fixture directory owned by this test process and test name.
+/// Create one empty fixture directory for this call of this test.
 pub(crate) fn fixture(name: &str) -> PathBuf {
     return fixture_with_prefix("native-unit", name);
 }
