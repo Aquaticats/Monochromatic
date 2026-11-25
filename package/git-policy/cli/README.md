@@ -1928,11 +1928,11 @@ One archive carries one executable,
 It is the file a caller runs as `git`;
 root reaches its modes through the words
 `monochromatic-git-policy-cli zfs-root <mode>`
- or through one root-owned file under the installed ZED history event's name,
+ or through one root-owned file under the ZED history event's name,
  and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
 The root modes run these kinds of work:
-no argument at all is the clone-mount sweep the installed ZED event starts,
+no argument at all is the clone-mount sweep ZED's own start runs,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
