@@ -637,6 +637,29 @@ The 2 GiB cap of the gate's image build is the repository's shared test-containe
 (`package/container-limit/core`),
 and no measurement of that build's memory is recorded.
 
+### A lib-test recompile under the gate's 2 GiB cap, at 2026-11-24T20:12:35-05:00
+
+The gate's test image `localhost/git-policy-native-test:gate-main-f3b710cbc9`
+was built from `main` at `f3b710cbc9`,
+and a run container of it mounted one worktree's crate sources read-only over the
+image's own,
+so the wrapper's subject layer recompiled there as it does in a gate's image
+build.
+With `--memory=2g`, the `rustc` that compiles the crate's lib test was killed by
+the kernel (`signal: 9, SIGKILL`) before any test ran,
+at `--cpus=4` and again at `--cpus=2`;
+the same command with `--memory=4g --cpus=4` compiled and ran,
+`Summary 8 tests run: 8 passed` under a filter for one module.
+Two arms ran each way, a control before its fix and after it,
+and only the compile failed at the 2 GiB bound, never a test.
+Each run was its own `systemd-run --user` scope with a fixture tmpfs and
+`CLI_GIT_TEST_ROOT`, the gate's own fixture layout.
+The logs are in
+`~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/keep/`.
+What this does not measure is the gate's build itself:
+that container's swap allowance and its own peak were not read here,
+so the numbers bound a recompile in a run container and not the build.
+
 ### The comparison that would verify the change
 
 No such comparison has been made.
