@@ -178,7 +178,7 @@ fn a_marked_origin_refuses_inside_the_proof_with_nothing_destroyed() {
     );
     let stop: RemovalStop = refusal_of(&fixture, &pool);
     match &stop {
-        RemovalStop::OriginMarked { refusal, history } => {
+        RemovalStop::OriginCheckRefused { refusal, history } => {
             assert_eq!(refusal.step(), "origin-mark");
             assert_eq!(history, &RemovalHistory::NothingDestroyed);
         }
@@ -194,7 +194,7 @@ fn an_origin_mark_that_cannot_be_read_refuses_as_marked() {
         .healthy_pool()
         .with(ORIGIN_SNAPSHOT, DatasetIdentity { stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""), properties: NvList::new() });
     match refusal_of(&fixture, &pool) {
-        RemovalStop::OriginMarked { refusal, .. } => assert_eq!(refusal.cause_name(), "mark-unreadable"),
+        RemovalStop::OriginCheckRefused { refusal, .. } => assert_eq!(refusal.cause_name(), "mark-unreadable"),
         other => panic!("a mark that cannot be read refuses, not {other:?}"),
     }
 }

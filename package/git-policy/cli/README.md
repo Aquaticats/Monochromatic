@@ -2438,9 +2438,26 @@ or a clone whose recorded identities the pool no longer answers,
 is refused with the check that stopped it and the object it named,
 before anything is deleted,
 and every snapshot and bookmark still stands.
+That refusal is also the answer to a marked origin:
+an origin snapshot somebody marked for deferred destroy is refused twice,
+once inside the lineage proof with the worktree still where it is and nothing written,
+and once before every snapshot request and again before the head destroy,
+because destroying the last clone would destroy that snapshot in the same transaction
+(`SPEC.md`,
+"Removal of a ZFS worktree clone";
+`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
+After the unmount the refusal says the clone stays unmounted,
+the removal stays pending with its own record,
+and `cancel-worktree-removal <slot>` is the way back,
+and its sentence names every snapshot the plan already records as destroyed,
+so a later refusal never hides a loss an earlier one caused.
+A refusal prints no destructive command.
 The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
-which plan steps 15 to 18 call rather than reading the folder again.
+which plan steps 15 to 18 call rather than reading the folder again,
+and the batch the checks guard
+(`src/native/worktree_clone_removal_proof_and_plan/removal_destruction.rs`)
+sends no head destroy and is reachable from no command until plan step 16.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go.
 

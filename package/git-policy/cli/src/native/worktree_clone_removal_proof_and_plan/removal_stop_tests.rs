@@ -47,7 +47,7 @@ fn stops() -> Vec<RemovalStop> {
         RemovalStop::UnmountFailed { step: String::from("answer-outcome"), said: String::from("the handler answered `refused` with errno 16") },
         RemovalStop::NoRunNonce { reason: String::from("the random source failed") },
         RemovalStop::NoOwnerIdentity { reason: String::from("no process table") },
-        RemovalStop::OriginMarked {
+        RemovalStop::OriginCheckRefused {
             refusal: Box::new({
                 let verdict = crate::worktree_removal_deferred_origin_check::origin_verdict::check_planned_origin(
                     &crate::worktree_removal_deferred_origin_check::fixtures::marked(),

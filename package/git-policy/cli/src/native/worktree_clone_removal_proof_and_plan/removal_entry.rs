@@ -139,18 +139,24 @@ impl RemovalClock for TheLiveClock {
 ///  What one entered removal holds:
 ///  the plan it wrote,
 ///  the file it published at,
-///  and the names it printed as lost.
+///  the names it printed as lost,
+///  and the pool its requests name.
 /// Why:
 ///  The step after this one reads the plan's tuples and submits them,
 ///  and the person reads the list,
 ///  so both leave this call with their own value.
+///  The pool comes with them because the plan records dataset names and no pool,
+///  and a snapshot request names one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Entered = { plan; planPath; lost };
+/// type Entered = { pool; plan; planPath; lost };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EnteredRemoval {
+    /// The pool the plan's datasets stand in,
+    /// as the add's record named it.
+    pub pool: String,
     /// The plan this removal wrote.
     pub plan: DestructionPlan,
     /// The file the plan was published at.
@@ -196,7 +202,7 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
         return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir), refusal };
     })?;
     let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| return RemovalStop::PlanUnreadable { path: folder.path().join(prepared.recorded.clone_guid.file_name()), refusal })?;
-    return Ok(EnteredRemoval { plan, plan_path, lost: prepared.lost });
+    return Ok(EnteredRemoval { pool: prepared.recorded.pool, plan, plan_path, lost: prepared.lost });
 }
 
 /// What:
@@ -284,7 +290,7 @@ pub(super) struct PreparedRemoval {
 /// ```ts
 /// const history = RemovalHistory.ofDestroyed(plan.destroyedNames());
 /// ```
-fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
+pub(super) fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
     let Some(found) = plan else {
         return RemovalHistory::NothingDestroyed;
     };
