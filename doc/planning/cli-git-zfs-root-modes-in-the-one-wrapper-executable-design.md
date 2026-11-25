@@ -27,7 +27,7 @@ which shows the line each one names.
 The decision records and the handover are untouched by this round.
 
 This is the fifth revision,
-the round of 2026-11-24T20:21:11-05:00.
+the round of 2026-11-24T20:21:49-05:00.
 It replaces the text of the fourth revision
 (`4993ad866e`),
 which is a same-vendor pass read again.
@@ -61,7 +61,7 @@ in one parenthesized label:
   replayed or re-analysed by this round with the same result;
 - (source PATH:LINE),
   one line of this repository's code,
-  read at `45ac28ae47` unless the citation says another commit;
+  read at `9939a0d7a6` unless the citation says another commit;
 - (upstream PATH:LINE),
   another program's source,
   read through `gh`;
@@ -123,9 +123,10 @@ by measurement:
   and this round's own red (run keep/guards-replay-fifth.log);
   every one of them is a changed code line,
   so every one of them is a changed pin;
-- the lists the fourth revision printed failed seven of those `main` variants and six of those
+- the lists the fourth revision printed failed seven of those `main` variants and five of those
   module variants,
-  and each of the last two reads closed the enumerated ones while finding new ones
+  and the sixth module variant is a control that must pass under either shape;
+  each of the last two reads closed the enumerated ones while finding new ones
   (replay the fourth read's `keep/guards-replay-this-read.log`).
 
 What each shape costs a person who edits the file honestly,
@@ -272,7 +273,10 @@ The module's whole code text is pinned now,
 item headers,
 constants,
 bodies and all,
-so every one of them is a changed line.
+so five of the six are changed lines,
+and the sixth,
+the trailing `// "//"`,
+fails the comment rule that makes the pin's stripper safe.
 The pin also makes the module's literal set,
 its function count and its `file_name()` count unnecessary:
 they were the ways a list tried to say "the whole text is this".
@@ -282,7 +286,8 @@ they were the ways a list tried to say "the whole text is this".
 The read's `hm6` and `hm7` removed `end_after_the_log` from the `Refused` and the `Arguments` arm,
 and passed the fourth revision's guard,
 which pinned the `match` line and no arm.
-Under the pin both are changed lines.
+Under the pin both fail on the line count,
+because each removes a line the reviewed text holds.
 
 The second half is a control that no source text can be:
 a binary control that starts the built program under the ZED event's name with one bare word,
@@ -342,7 +347,7 @@ whose repair is a record replacement before the reboot,
 and the migration's rollback,
 whose repair is the `ExecStart=` line going back to `zfs mount`.
 The design's own answer for the window is stated per option rather than assumed:
-option A shortens it to the one command the refusal names,
+options A and D shorten it to the one command the boot's refusal names,
 option C to a re-run of the ordinary command,
 and option B to an unlogged deletion and a re-record.
 
@@ -426,7 +431,7 @@ with the two shapes that contain it.
 - `--replace` was printed as a bare flag while the usage block omitted it and the section said a
   second run "refuses with `checkout-record-differs` and names the field",
   which cannot hold when every field is equal.
-  The flag is `--replace <the GUID the refusal printed>` now (choice 9),
+  The flag is `--replace <the record's guid, which the refusal prints>` now (choice 9),
   it appears in the usage,
   an equal re-run answers 0 with an `already recorded` line and writes nothing,
   and the record's file name is stated once, in "What it records".
@@ -455,18 +460,19 @@ with the two shapes that contain it.
 - The warm pair's sentence mixed denominators:
   the pair is positive in all 120 rounds against the control's 66 of 119.
 - `mount-path-descendant`'s mechanism was unsaid.
-  The mode passes the dataset's own properties to the mount,
-  as upstream `zfs_mount_at` does
+  The mode now mounts with the primitive the route already uses for its clones,
+  `fsopen`/`fsconfig`/`fsmount`/`move_mount`,
+  and derives the attributes from the seven properties upstream's mount derives them from
   (upstream lib/libzfs/libzfs_mount.c,
   zfs-2.4.4,
-  which derives the options from the dataset's properties,
-  appends `zfsutil`,
-  checks the encryption key,
-  and creates a missing mountpoint with `mkdirp(mountpoint, 0755)`);
-  it creates a missing mountpoint the same way,
-  `0700` and root's, and
-  "canonicalised" is defined for the missing-directory case,
-  which is named as a refusal rather than a guess.
+  `zfs_add_options` at `:355` to `:381`,
+  where `zfs_mount_at` also appends `zfsutil` for the `mount(8)` helper's path,
+  checks the encryption key at `:455` to `:498`,
+  and creates a missing mountpoint with `mkdirp(mountpoint, 0755)` at `:505` to `:515`);
+  it creates a missing mountpoint the same way, `0755` and root's,
+  refuses `encryption-key-not-loaded` rather than prompting,
+  and defines "canonicalised" for the missing-directory case,
+  which is created rather than guessed at.
 - Choice 5's pros and cons said option A changes none of the four existing readers of the version
   line, while the change list rewrites `native:install`'s check, drops the stand-in handler and
   adds two smoke arms whichever option wins.
@@ -1182,42 +1188,83 @@ the dispatch's placement and the pin's shape do not change under any of the thre
 ### The rule, in the entry
 
 The whole argument vector goes to one module and one function,
-so `main` reads no element and compares no name:
+so `main` reads no element and compares no name.
+The file, whole,
+which is the text "The hook guard on `main.rs`" pins line for line,
+comments aside:
 
 ```rust
-// package/git-policy/cli/src/native/main.rs, the import and the first statements of main
+// package/git-policy/cli/src/native/main.rs
+/// What:
+///  The thin native monochromatic-git-policy-cli executable.
+/// Why:
+///  Process facts are gathered once here;
+///  every decision lives in the library.
+use std::ffi::OsString;
+/// The wait at the end of this process for the log lines it handed to their own thread.
+use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};
+/// The wait at the end of this process for the diagnostic lines it handed to their own thread.
+use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;
+/// The one module that decides a root-mode start, in a Linux build only.
 #[cfg(target_os = "linux")]
 use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};
-use std::ffi::OsString;
 
 fn main() {
-// The one argument-vector read the owner's answer needs; `clippy.toml` bans the call in every
-// other file, and this allow is the one it names.
-#[allow(clippy::disallowed_methods)]
-let arguments: Vec<OsString> = std::env::args_os().collect();
-// The handler is the crate's Linux-only module, like the mount table it reads, so the root
-// modes exist only in a Linux build and every other target keeps the wrapper's one mode.
-#[cfg(target_os = "linux")]
-{
-    match root_mode_names::root_mode_start(arguments.as_slice()) {
-        RootModeStart::Wrapper => {}
-        RootModeStart::Arguments(mode_arguments) => {
-            git_policy_cli::panic_notice::install_payload_free_panic_hook();
-            let code: i32 = git_policy_cli::worktree_clone_mount_handler::run(mode_arguments);
-            end_after_the_log(code);
-        }
-        RootModeStart::Refused(misuse) => {
-            git_policy_cli::panic_notice::install_payload_free_panic_hook();
-            let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);
-            end_after_the_log(code);
+    // The one argument-vector read the owner's answer needs; `clippy.toml` bans the call in every
+    // other file, and this allow is the one it names.
+    #[allow(clippy::disallowed_methods)]
+    let arguments: Vec<OsString> = std::env::args_os().collect();
+    // The handler is the crate's Linux-only module, like the mount table it reads, so the root
+    // modes exist only in a Linux build and every other target keeps the wrapper's one mode.
+    #[cfg(target_os = "linux")]
+    {
+        match root_mode_names::root_mode_start(arguments.as_slice()) {
+            RootModeStart::Wrapper => {}
+            RootModeStart::Arguments(mode_arguments) => {
+                git_policy_cli::panic_notice::install_payload_free_panic_hook();
+                let code: i32 = git_policy_cli::worktree_clone_mount_handler::run(mode_arguments);
+                end_after_the_log(code);
+            }
+            RootModeStart::Refused(misuse) => {
+                git_policy_cli::panic_notice::install_payload_free_panic_hook();
+                let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);
+                end_after_the_log(code);
+            }
         }
     }
+    // The service check is the code that stands today, and the vector's third pinned line stands
+    // with it, because the wrapper's entry and the service both read the arguments after the
+    // program name.
+    let handed: &[OsString] = arguments.get(1..).unwrap_or_default();
+    // The service mode is chosen by the leading words (`monochromatic-git-policy-cli service run`),
+    // never by the name this program was started as, and before anything else of the wrapper runs.
+    if git_policy_cli::service_main::is_service_start(handed) {
+        let code: i32 = match git_policy_cli::service_main::service_options(handed) {
+            Ok(options) => git_policy_cli::service_main::run(options.as_slice()),
+            Err(word) => {
+                git_policy_cli::service_error!("an argument of the service is not text: {}", word.to_string_lossy());
+                git_policy_cli::service_main::EXIT_REFUSED
+            }
+        };
+        end_after_the_log(code);
+    }
+    // The linked scanner's catch boundaries run after the panic hook, so a hook that never
+    // prints a panic's message is installed before anything can scan.
+    git_policy_cli::panic_notice::install_payload_free_panic_hook();
+    // `vars_os` yields every environment entry as an undecoded name/value pair.
+    let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    let code: i32 = git_policy_cli::entry::run_process(handed, environment.as_slice());
+    end_after_the_log(code);
 }
-// The service check is the code that stands today, and the vector's third pinned line stands with it,
-// because the wrapper's entry and the service both read the arguments after the program name.
-let handed: &[OsString] = arguments.get(1..).unwrap_or_default();
-// From here the code is today's: the service check, the panic hook, the environment, and
-// entry::run_process.
+
+/// What:
+///  Waits, bounded, for the lines this process handed to its log thread, then ends it.
+/// Why:
+///   A line written by a thread of its own is not written yet when the exit arrives.
+fn end_after_the_log(code: i32) -> ! {
+    let _diagnosed: bool = write_every_diagnostic_line_that_waits(WAIT_BEFORE_AN_EXIT);
+    let _written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
+    std::process::exit(code);
 }
 ```
 
@@ -1245,10 +1292,17 @@ before `handler_install_paths.rs`,
 because it uses only `foundation` and the standard library.
 
 The module,
-whole:
+whole,
+which is the text "The one-name guard on the names module" pins line for line,
+comments aside:
 
 ```rust
 // package/git-policy/cli/src/native/worktree_clone_mount_handler/root_mode_names.rs
+use std::ffi::{OsStr, OsString};
+use std::path::Path;
+
+use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
+
 /// The installed ZED history event's own file name: the one start name that selects a root
 /// mode, compared as the whole last path component.
 pub const ZEDLET_START_NAME: &str = "history_event-mount_git_worktree_clone_datasets";
@@ -1310,19 +1364,7 @@ fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {
     };
     return (Some(start_name.as_os_str()), handed);
 }
-```
 
-with its `use` lines,
-`//region` markers and TSDoc as the folder's other files carry them,
-a `root_mode_names_tests.rs` beside it covering the table in "What each decides",
-and with `refuse_root_mode_misuse` in `handler_mode_dispatch.rs`,
-where every other refusal is written:
-it says the misuse and then the usage,
-and answers `EXIT_REFUSED`.
-
-The module's last function is the helper the second revision did not have, `word_that_cannot_be_honoured`:
-
-```rust
 /// The first word this start cannot honour: `--help x` and `--version x` name `x`, because the
 /// first word alone is accepted and the second is what the name does not allow.
 fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {
@@ -1334,7 +1376,14 @@ fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {
 }
 ```
 
-and a refusal that names the whole start,
+with its `//region` markers as the folder's other files carry them,
+a `root_mode_names_tests.rs` beside it covering the table in "What each decides",
+and with `refuse_root_mode_misuse` in `handler_mode_dispatch.rs`,
+where every other refusal is written:
+it says the misuse and then the usage,
+and answers `EXIT_REFUSED`.
+
+A refusal that names the whole start,
 because a person who typed `--version x` reads why:
 
 ```text
@@ -1493,7 +1542,7 @@ fn main_is_the_reviewed_handful_of_statements() {
 ```
 
 The constant is the whole file, comments aside:
-the three `use` lines,
+the three plain `use` lines and the Linux-only `use` of `root_mode_names`,
 the one `#[allow(clippy::disallowed_methods)]`,
 the collection,
 the `#[cfg(target_os = "linux")]` block with its two arms and the hook each arm installs,
@@ -1640,9 +1689,10 @@ Why these needles and not a broad `/proc/self/`:
   `/proc/self/comm` in none and
   `/proc/thread-self/` in none;
 - `args_os` stands in two lines (this `main.rs` and the second program's, deleted here),
-  `env::args` in the same two,
-  `.args()` in none and
-  `::args(` in none;
+  `::args(` in none and
+  `.args()` in none,
+  and the second of those is what catches `std::env::args()`, `env::args()` and a module alias's
+  `e::args()` alike;
 - so the needles name the argument vector and the name's own files without failing today's tree,
   and the four spellings that release code does read today stay legal:
   `/proc/self/stat`,
@@ -1857,11 +1907,19 @@ which rebuilds every variant from the two pinned texts the document prints,
 and `keep/sources/guard_replay.py`,
 which cuts the two pin arrays and the two rules' needles out of this document by fence,
 so the text replayed is the text a reader reads.
+Its first two verdicts are the document against itself:
+the whole file and the whole module, both printed in "The rule, in the entry",
+are read as code and compared with the two pins printed in this section,
+so the two printings cannot drift apart without this log saying so.
 
 ```text
 # cut out of cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md by fence: MAIN_CODE 45 lines, NAMES_CODE 53 lines
 # argv0-dispatch needles ['args_os().next()', 'args().next()', '.nth(0)', 'argv[0]', 'arg0(', '/proc/self/cmdline', '/proc/self/comm', '/proc/thread-self/']
 # argv-vector-read needles ['args_os', '::args(', '.args()']
+
+== the document's own two printings of the files, against the pins it prints
+ok   PASS main  the document's printed main.rs: every code line is the reviewed one
+ok   PASS names the document's printed root_mode_names.rs: every code line is the reviewed one
 
 == the positive control: today's main.rs must fail the pin
 ok   FAIL main  todays_main.rs: 25 code line(s), and the reviewed text has 45
@@ -3203,8 +3261,10 @@ and cases 27 and 28 of the dispatch probe show the same for both modes
 What it records:
 
 - the checkout's path;
-- its dataset's name and GUID,
-  read from the kernel's table and from the dataset's own properties;
+- its dataset's name,
+  read from the kernel's table;
+- that dataset's GUID,
+  read from the kernel's own statistics for it;
 - the container dataset the configuration names,
   or the one beside the checkout when the configuration leaves it out;
 - the pool,
@@ -3220,7 +3280,7 @@ So the record is one root-owned JSON object of six fields,
 and the third revision left its fields to "step 10's build".
 The reader still lands in step 10's build,
 which owns the version bump when it adds a field;
-this design owns the meaning of the six fields in "What it records",
+this design owns the meaning of those six fields,
 because its mode is the writer.
 
 The file is a root-owned `0644` file,
@@ -4395,6 +4455,8 @@ so they land with the release lists:
   (`:112` to `:115`) is rewritten,
   because the two new modes do both,
   `parse` (`:319`) gains their arms and options,
+  with `REPLACE_OPTION` beside the five constants at `:50` to `:62` and
+  choice 9's value-taking `--replace` parsed like every other pair,
   the four refusal messages that name the program (`:220`,
   `:223`,
   `:233`,
