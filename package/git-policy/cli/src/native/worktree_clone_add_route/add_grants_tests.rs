@@ -7,13 +7,34 @@
 //!  it,
 //!  and a delegation reached through a named set is refused as unproved.
 
-use super::{THE_ADDS_OWN_STEPS, refuse_unless_the_decided_ones};
+use super::{A_REMOVALS_STEPS, THE_ADDS_OWN_STEPS, refuse_unless_the_decided_ones};
 use crate::doctor_zfs_route::route_test_facts::{ACCOUNT, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation};
-use crate::doctor_zfs_route::{DelegationFacts, Inheritance, Who};
+use crate::doctor_zfs_route::{DelegationFacts, GrantPlace, Inheritance, REQUIRED_GRANTS, Who};
 
 /// The dataset above both the checkout and the clone container,
 /// which a fixture grants a permission on when the design scopes it lower.
 const ANCESTOR_DATASET: &str = "zpcachyos/ROOT/cos/home";
+
+/// The six permissions choice 3C says the add's own steps use,
+/// written from the design's "Scoped delegation" so a table that moves one of
+/// them is read against the record rather than against itself.
+const THE_ADDS_GROUP: [(GrantPlace, &str); 6] = [
+    (GrantPlace::Checkout, "snapshot"),
+    (GrantPlace::CheckoutDescendants, "clone"),
+    (GrantPlace::Container, "create"),
+    (GrantPlace::Container, "mount"),
+    (GrantPlace::ContainerDescendants, "mount"),
+    (GrantPlace::ContainerDescendants, "userprop"),
+];
+
+/// The three permissions choice 3C says only a removal uses,
+/// which the add warns about and never refuses for while no step of its own
+/// issues a `destroy`.
+const A_REMOVALS_GROUP: [(GrantPlace, &str); 3] = [
+    (GrantPlace::ContainerDescendants, "destroy"),
+    (GrantPlace::CheckoutDescendants, "mount"),
+    (GrantPlace::CheckoutDescendants, "destroy"),
+];
 
 /// Facts whose one required permission is gone,
 /// named so a control reads as the change it makes.
@@ -21,6 +42,17 @@ fn without(permission: &str, place: &str, inheritance: Inheritance) -> Delegatio
     let mut facts: DelegationFacts = healthy_delegation();
     facts.grants.retain(|allowed| return !(allowed.permission == permission && allowed.carried_by == place && allowed.inheritance == inheritance));
     return facts;
+}
+
+/// The dataset and inheritance a place names,
+/// which a control removes the one grant of.
+fn place_of(place: GrantPlace) -> (&'static str, Inheritance) {
+    return match place {
+        GrantPlace::Checkout => (CHECKOUT_DATASET, Inheritance::Local),
+        GrantPlace::CheckoutDescendants => (CHECKOUT_DATASET, Inheritance::Descendants),
+        GrantPlace::Container => (CONTAINER_DATASET, Inheritance::Local),
+        GrantPlace::ContainerDescendants => (CONTAINER_DATASET, Inheritance::Descendants),
+    };
 }
 
 /// The nine decided grants pass, print nothing and are not refused.
@@ -31,39 +63,59 @@ fn the_decided_delegation_passes() {
     assert!(warnings.is_empty(), "a whole delegation earns no line: {warnings:?}");
 }
 
-/// A permission the add itself uses, both `destroy` grants among them, refuses
+/// The release's two tables are the record's six and three.
+#[test]
+fn the_split_is_the_records_six_and_three() {
+    assert_eq!(THE_ADDS_OWN_STEPS.as_slice(), THE_ADDS_GROUP.as_slice(), "the add's own steps are the six the design's \"Scoped delegation\" gives the unprivileged lifecycle");
+    assert_eq!(A_REMOVALS_STEPS.as_slice(), A_REMOVALS_GROUP.as_slice(), "a removal's steps are the three the add never runs, and both `destroy` grants stay here while the add's own failure path issues none");
+}
+
+/// A permission the add itself uses refuses
 /// and never warns.
 #[test]
 fn every_permission_the_add_uses_refuses_when_it_is_missing() {
-    for (place, permission) in THE_ADDS_OWN_STEPS {
-        let dataset: &str = match place {
-            crate::doctor_zfs_route::GrantPlace::Checkout => CHECKOUT_DATASET,
-            crate::doctor_zfs_route::GrantPlace::CheckoutDescendants => CHECKOUT_DATASET,
-            crate::doctor_zfs_route::GrantPlace::Container => CONTAINER_DATASET,
-            crate::doctor_zfs_route::GrantPlace::ContainerDescendants => CONTAINER_DATASET,
-        };
-        let inheritance: Inheritance = match place {
-            crate::doctor_zfs_route::GrantPlace::Checkout | crate::doctor_zfs_route::GrantPlace::Container => Inheritance::Local,
-            _descendants => Inheritance::Descendants,
-        };
+    for (place, permission) in THE_ADDS_GROUP {
+        let (dataset, inheritance): (&str, Inheritance) = place_of(place);
         let refusal: String = refuse_unless_the_decided_ones(&without(permission, dataset, inheritance)).expect_err(permission).message;
         assert!(refusal.contains(&format!("`{permission}`")), "{permission}: {refusal}");
         assert!(refusal.contains(&format!("zfs allow -{scope} -u {ACCOUNT} {permission} {dataset}", scope = if inheritance == Inheritance::Local { "l" } else { "d" })), "{permission}: {refusal}");
     }
 }
 
-/// The checkout-origin `mount` is a removal's, so the add warns once with the
-/// `zfs allow` command and goes on.
+/// A permission only a removal uses warns with its `zfs allow` command and the
+/// add goes on,
+/// both `destroy` grants and the checkout-origin `mount` among them.
 #[test]
-fn a_missing_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
-    let facts: DelegationFacts = without("mount", CHECKOUT_DATASET, Inheritance::Descendants);
-    let warnings: Vec<String> = refuse_unless_the_decided_ones(&facts).expect("the add never mounts a checkout snapshot");
-    assert_eq!(warnings.len(), 1, "one line, printed once: {warnings:?}");
-    let line: &str = warnings[0].as_str();
-    assert!(line.contains(&format!("zfs allow -d -u {ACCOUNT} mount {CHECKOUT_DATASET}")), "{line}");
-    assert!(line.contains("this add will finish"), "{line}");
-    assert!(line.contains("a removal cannot do its part"), "{line}");
-    assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
+fn every_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
+    for (place, permission) in A_REMOVALS_GROUP {
+        let (dataset, inheritance): (&str, Inheritance) = place_of(place);
+        let facts: DelegationFacts = without(permission, dataset, inheritance);
+        let warnings: Vec<String> = refuse_unless_the_decided_ones(&facts).unwrap_or_else(|refusal| panic!("no add step uses `{permission}` on `{dataset}`, so the add must go on: {}", refusal.message));
+        assert_eq!(warnings.len(), 1, "{permission}: one line, printed once: {warnings:?}");
+        let line: &str = warnings[0].as_str();
+        assert!(line.contains(&format!("zfs allow -d -u {ACCOUNT} {permission} {dataset}")), "{permission}: {line}");
+        assert!(line.contains("this add will finish"), "{permission}: {line}");
+        assert!(line.contains("a removal cannot do its part"), "{permission}: {line}");
+        assert!(line.starts_with("monochromatic-git-policy-cli: "), "{permission}: {line}");
+    }
+}
+
+/// The two tables name every decided permission once,
+/// so a permission neither table names is a table that drifted rather than a
+/// permission that moved.
+#[test]
+fn the_two_tables_hold_each_decided_permission_once() {
+    for required in REQUIRED_GRANTS {
+        let in_the_adds: bool = THE_ADDS_OWN_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+        let in_a_removals: bool = A_REMOVALS_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+        assert!(
+            in_the_adds != in_a_removals,
+            "`{}` on {:?} is in {} of the two tables, so the split has drifted from the decided set",
+            required.permission,
+            required.place,
+            if in_the_adds || in_a_removals { "both" } else { "neither" }
+        );
+    }
 }
 
 /// A permission the add itself writes with is refused before the claim,

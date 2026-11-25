@@ -45,43 +45,63 @@ use crate::doctor_zfs_route::{Check, CheckOutcome, CheckReport, DelegationFacts,
 ///  clones it,
 ///  names the clone in the container,
 ///  writes the mount request,
-///  and from this step its failure path destroys the clone and the origin
-///  snapshot,
+///  and fills the mounted clone,
 ///  so a missing one of these is a step that cannot run at all
 ///  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
-///  choice 3C, whose split moves here when the failure path starts using both
-///  `destroy` grants).
+///  choice 3C).
+///  No `destroy` grant is here yet:
+///  a failed add keeps what it made,
+///  and the settle that destroys the clone and the origin snapshot is plan
+///  step 14's
+///  (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+///  "Whether a failed add may finish with Git's own checkout by itself",
+///  whose fallback the build deferred;
+///  `super::add_route_run`,
+///  "the fallback that finishes a failed add with Git's own checkout is step
+///  11's, so this release refuses nothing it cannot resume";
+///  `super::add_source_the_restore_cannot_prove`,
+///  "the settle that destroys them is plan step 14's").
+///  Choice 3C moves the two `destroy` grants into this table at the step that
+///  makes the add's own failure path destroy,
+///  and `source_guard/add_route_issues_no_destroy_tests.rs` is the check that
+///  fails when that step names a destroy without moving them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_ADDS_OWN_STEPS = [['checkout', 'snapshot'], ..., ['checkout-descendants', 'destroy']];
+/// const THE_ADDS_OWN_STEPS = [['checkout', 'snapshot'], ..., ['container-descendants', 'userprop']];
 /// ```
-pub const THE_ADDS_OWN_STEPS: [(GrantPlace, &str); 8] = [
+pub const THE_ADDS_OWN_STEPS: [(GrantPlace, &str); 6] = [
     (GrantPlace::Checkout, "snapshot"),
     (GrantPlace::CheckoutDescendants, "clone"),
     (GrantPlace::Container, "create"),
     (GrantPlace::Container, "mount"),
     (GrantPlace::ContainerDescendants, "mount"),
     (GrantPlace::ContainerDescendants, "userprop"),
-    (GrantPlace::ContainerDescendants, "destroy"),
-    (GrantPlace::CheckoutDescendants, "destroy"),
 ];
 
 /// The permissions only a removal's steps use,
 /// which the preflight warns about and never refuses for.
 /// Why:
-///  Clearing an origin snapshot after a removal mounts a snapshot of the
-///  checkout,
+///  Removing a clone destroys the clone,
+///  and clearing an origin snapshot after a removal mounts a snapshot of the
+///  checkout and destroys it,
 ///  which no step of an add does,
-///  so a missing `mount` there is the removal's command and not this add's
+///  so a missing one of these is the removal's command and not this add's
 ///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 ///  "Scoped delegation").
+///  The two `destroy` grants are the pair choice 3C keeps here until the add's
+///  own failure path destroys,
+///  which is plan step 14's settle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const A_REMOVALS_STEPS = [['checkout-descendants', 'mount']];
+/// const A_REMOVALS_STEPS = [['container-descendants', 'destroy'], ['checkout-descendants', 'mount'], ['checkout-descendants', 'destroy']];
 /// ```
-pub const A_REMOVALS_STEPS: [(GrantPlace, &str); 1] = [(GrantPlace::CheckoutDescendants, "mount")];
+pub const A_REMOVALS_STEPS: [(GrantPlace, &str); 3] = [
+    (GrantPlace::ContainerDescendants, "destroy"),
+    (GrantPlace::CheckoutDescendants, "mount"),
+    (GrantPlace::CheckoutDescendants, "destroy"),
+];
 
 /// What:
 ///  Why one required permission is in the add's own set or the removal's.
@@ -211,6 +231,15 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
         .filter(|required| return a_removals_own(required))
         .map(|required| return format!("{}\n", allow_command(required, facts)))
         .collect();
+    // What:
+    //  A missing permission of the removal's group is one line the add prints
+    //  and goes on past.
+    // Why:
+    //  No step of this add destroys a clone or an origin snapshot,
+    //  so refusing here would cost a person two root commands and a second add
+    //  for permissions nothing of the add uses
+    //  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+    //  choice 3C).
     if theirs.is_empty() {
         // A decided permission the two tables do not name is a table that has
         // drifted from the decided set, and the add refuses rather than warn.
