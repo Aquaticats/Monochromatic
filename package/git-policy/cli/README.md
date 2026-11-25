@@ -2457,6 +2457,38 @@ and deciding between a re-registration at a commit a person names and removing t
 wires its checks;
 this release prints them from the add's and the removal's refusals.
 
+### The Git lock a managed clone's registration holds
+
+A managed clone's Git registration is locked,
+so `git worktree prune` keeps it while the slot shows no `.git`
+(design:
+`doc/planning/cli-git-zfs-add-time-git-lock-design.md`;
+`SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot").
+The add takes the lock in the same Git call that registers the worktree,
+and the words in it are a pure function of the add's own random nonce,
+so no second copy of them is stored anywhere.
+`git worktree list` shows the worktree as locked,
+and `git worktree move` and `git worktree remove` refuse it,
+which is what the wrapper wants for a slot it binds anyway.
+
+The wrapper tells three things apart by comparing bytes and never by reading the words' meaning:
+the lock its add wrote,
+a lock a person wrote,
+and a lock or registration nothing of this slot's explains.
+If the lock is gone,
+an interrupted add that holds the slot and has just proved its registration writes it again and says so in one line;
+that undoes a deliberate `git worktree unlock`,
+which is the cost the project accepted
+(`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`).
+A lock holding a person's words is never overwritten:
+the add refuses,
+says what stands,
+and names `git worktree unlock <slot>` as the way out.
+The lock is released only by the removal's registration-cleanup step,
+after the clone's destruction is proven,
+and this release does not release it.
+
 ### Converting the checkout to a btrfs subvolume
 
 `git monochromatic-git-policy-cli migrate-to-subvolume` turns the repository's main checkout into a btrfs subvolume at the same path.

@@ -7,7 +7,8 @@
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`), makes the pool the arms clone on, builds this
  crate's `native_binary` test target inside the guest, runs the lock arm there, and destroys the guest.
 
- The arm is plan step 13's "VM measurements": item 6's lock arms, extended to installing the lock after pointer loss.
+ The arm is plan step 13's "VM measurements": item 6's lock arms, extended to installing the lock after pointer loss,
+ and measurement `M2`'s mounted arm of the two-fact proof.
 
  Usage: node e2e/managed-git-lock-guest.ts <create|prepare|pool|run|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
@@ -44,9 +45,12 @@ const ARM_TIMEOUT_MS = 1_800_000;
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 /** The lines a run must find in the guest's arm log, one per arm it performed. */
 const EXPECTED_MARKERS = [
+  'LOCK mounted slot-identity-answers=no',
+  'LOCK mounted classified managed=yes',
   'LOCK classified managed-nonce=1 pointer=absent',
   'LOCK prune-kept-the-locked-registration=true',
   'LOCK operator class=an-operators-lock',
+  'LOCK operator git-removal-refused=yes single-force-refused=yes',
   'LOCK put-back wrote=yes line=yes',
   'LOCK installed-lock-kept-the-registration=true',
   'LOCK release refused-with-another-clones-proof=yes',

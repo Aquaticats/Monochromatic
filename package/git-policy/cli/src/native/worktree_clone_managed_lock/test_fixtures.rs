@@ -1,5 +1,6 @@
 //! What:
-//!  The throwaway repository, slot and record the managed lock's controls are built in.
+//!  The throwaway repository,
+//!  slot and record the managed lock's controls are built in.
 //! Why:
 //!  Every state of the lock is a set of files,
 //!  and a control that built them by hand in each test would spell the record's grammar again,
@@ -25,8 +26,69 @@ use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
 use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
 use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
 use crate::worktree_clone_mount_protocol::RequestNonce;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  A mount table a control writes,
+///  instead of this machine's.
+/// Why:
+///  The mounted arm of the two-fact proof differs from the unmounted one,
+///  so a control must show both without mounting anything:
+///  `holding` is the answer for the path asked about,
+///  or a refusal when it is `Err`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mounts = ScriptedMounts.nothing(); // or .coveredBy('pool/clones/locked-slot', slotPath)
+/// ```
+pub struct ScriptedMounts {
+    /// What the path asked about holds,
+    /// or why the table could not be read.
+    pub holding: Result<Option<MountHoldingAPath>, String>,
+    /// The rows a caller asking for the whole table reads.
+    pub rows: Vec<MountedDatasetInstance>,
+}
+
+impl ScriptedMounts {
+    /// No mount covers any path.
+    pub fn nothing() -> ScriptedMounts {
+        return ScriptedMounts { holding: Ok(None), rows: Vec::new() };
+    }
+
+    /// One dataset mounted at one path.
+    pub fn a_mount_of(dataset: &str, at: &Path) -> ScriptedMounts {
+        return ScriptedMounts {
+            holding: Ok(Some(MountHoldingAPath { dataset: Some(String::from(dataset)), filesystem_type: String::from("zfs"), mount_point: at.to_path_buf() })),
+            rows: vec![MountedDatasetInstance { dataset: String::from(dataset), mount_point: at.to_path_buf(), root: PathBuf::from("/") }],
+        };
+    }
+
+    /// A table that cannot be read.
+    pub fn unreadable(reason: &str) -> ScriptedMounts {
+        return ScriptedMounts { holding: Err(String::from(reason)), rows: Vec::new() };
+    }
+}
+
+impl MountedDatasets for ScriptedMounts {
+    fn mounted_datasets(&self) -> Result<Vec<MountedDatasetInstance>, String> {
+        return match &self.holding {
+            Ok(_) => Ok(self.rows.clone()),
+            Err(reason) => Err(reason.clone()),
+        };
+    }
+
+    fn mount_holding(&self, path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+        // The trait answers the mount the path is *on*, so an unmounted slot under a
+        // mounted parent answers its parent; a scripted table says only what it was given.
+        return match &self.holding {
+            Ok(Some(found)) if found.mount_point == path => Ok(Some(found.clone())),
+            Ok(_covered_by_a_parent) => Ok(Some(MountHoldingAPath { dataset: Some(String::from("pool/monochromatic-git-checkout")), filesystem_type: String::from("zfs"), mount_point: path.parent().unwrap_or(path).to_path_buf() })),
+            Err(reason) => Err(reason.clone()),
+        };
+    }
+}
 
 /// The slot's name,
 /// which is the record's own key.

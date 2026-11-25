@@ -792,6 +792,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   Plan step 18 adds these lines to this command;
   this release prints them from the add's refusal at a filled slot and from the removal's refusal
   of a slot a whole clone is bound to.
+- A managed clone slot's Git lock is plan step 18's to print too,
+  and the sentence for each state is already written
+  (`src/native/worktree_clone_managed_lock/lock_state_words.rs`):
+  the wrapper's verified lock,
+  its cut-short twin,
+  words its add did not write,
+  no lock,
+  no pointer,
+  no registration,
+  a registration no record of the slot explains,
+  a half-made registration,
+  and another worktree's registration.
+  `doctor` writes no lock and removes no registration,
+  and every one of these lines would leave its exit status unchanged.
   A directory that does not exist holds no hooks.
 - It says on stderr whether Git's own fsmonitor is off (see "Git's own fsmonitor" in `README.md`).
   It reads one listing,
@@ -4906,12 +4920,71 @@ and every step reads the state a kill at the step before it leaves:
   adopts the complete registration,
   clears an incomplete one through the fixed recipe with the lock last,
   and re-runs Git when nothing stands.
-  A person's lock on this slot,
-  a complete registration with no lock this add wrote,
-  and a slot pointer with no registration refuse and name what stands.
+  The one reader of an entry's facts is
+  `src/native/worktree_clone_managed_lock/registration_entry_reading.rs`,
+  and the add's resume,
+  `doctor` and the removal read an entry through it,
+  so no caller reads one two ways.
+  A complete registration is adopted whatever its lock holds,
+  and the lock's own state is the classification below rather than a second reading.
+  A slot pointer with no registration refuses and names what stands.
   The adopted registration's path,
   its identity and the pointer's bytes are recorded,
   and the phase becomes `registered`.
+- The complete registration's lock is classified into the states S1 to S9,
+  by one function
+  (`classify_the_managed_lock` in
+  `src/native/worktree_clone_managed_lock/`),
+  so the add's resume,
+  `doctor` and the removal share one order
+  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+  "How doctor and removal tell the states apart").
+  The states are the wrapper's verified lock,
+  its cut-short twin,
+  words its add did not write
+  (a lock at another add's nonce reads this way too,
+  because the two registrations' sentences differ),
+  no lock,
+  no pointer,
+  no registration,
+  a registration no record of the slot explains,
+  a half-made registration,
+  and another worktree's registration.
+  The missing pointer is carried beside the lock's own state rather than instead of it.
+  What is proved is a byte comparison and never the words' meaning:
+  the sentence is recomposed from the record's `nonce=`,
+  the file's bytes on disk are compared with it,
+  and the slot's own folder is compared by identity while nothing covers it,
+  or by the clone's dataset name while a mount of that clone stands at the slot.
+- A complete registration whose lock is gone has it written again,
+  by this command,
+  which holds the slot's claim and has just proved the registration,
+  and the command prints one line saying it did
+  (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`).
+  The write is one exclusive create at Git's own mode,
+  so a lock that stands is never overwritten;
+  a write a kill cut short is completed in place when its bytes run past the fixed part and the
+  whole nonce,
+  and an empty or shorter file is refused as words this add did not write,
+  because a person's `git worktree lock` with no reason leaves the same empty file.
+  A lock holding words this add did not write refuses the resume with the classification's own
+  sentence,
+  which names the person's `git worktree unlock <slot>` as the way out,
+  and nothing is removed or rewritten.
+- The lock is released only by the registration-cleanup step,
+  which is plan step 16's,
+  and only after the recorded clone's destruction is proven
+  (`src/native/worktree_clone_managed_lock/clone_destruction_proof.rs` and
+  `lock_release.rs`).
+  This release calls neither:
+  the release refuses a proof made for another slot or another clone,
+  a clone that still answers,
+  a pool that could not be read,
+  a record that names no clone GUID,
+  and a lock that is not this add's own,
+  and no command of this release reaches it.
+  Nothing else releases the lock,
+  and reading a slot never changes one.
 - If no frozen capture stands,
   it is taken and published now,
   before the snapshot:
@@ -5294,12 +5367,19 @@ in five states:
 so Git's own nonzero exit for a rebuilt link is explained rather than surprising.
 Nothing in the report writes a file.
 
+The managed Git lock is what keeps a registration whose pointer is missing,
+and this release tells it from an operator's,
+writes a lost one again and completes a cut-short one,
+through the same classification the add's resume uses.
+`doctor` does not print the lock's lines yet:
+that is plan step 18's,
+and the sentences it prints are the ones the classification and the add's refusals already quote.
+
 What this release does not do:
 
-- It does not distinguish the managed lock it wrote from an operator's lock,
-  recover a lost lock or release one;
-  that is plan step 13's,
-  and the lock is what keeps a registration whose pointer is missing.
+- It does not release the managed lock;
+  the release belongs to the registration-cleanup step that plan step 16 builds,
+  after the recorded clone's destruction is proven.
 - It does not remove a clone;
   the refusal above is the whole of its removal behaviour,
   and plan steps 14 and 16 build the removal.
