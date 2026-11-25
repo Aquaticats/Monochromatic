@@ -43,12 +43,13 @@ fn wait_until_ready(pid: i32, ignores_term: bool) {
 
 /// Start one child that runs `body` under `sh -c` and answer its blocker and the child itself,
 /// after the child has installed the dispositions the body sets.
+///  The child leads a process group of its own, which the test thread's fixtures kill when the thread ends,
+///  so the `sleep` a body starts behind its shell goes with the test instead of outliving it (issue 6471).
 fn start_child(body: &str) -> (Blocker, std::process::Child) {
-    let child: std::process::Child = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(body)
-        .spawn()
-        .expect("a child starts");
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.arg("-c").arg(body);
+    // Quiet, because nothing reads this child's output: the sleep it starts gives the run's output pipe back by holding none.
+    let child: std::process::Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a child starts");
     let pid: i32 = i32::try_from(child.id()).expect("a child's number fits");
     let blocker: Blocker = Blocker::read(pid).expect("the new child has a record");
     if body.contains("trap") {

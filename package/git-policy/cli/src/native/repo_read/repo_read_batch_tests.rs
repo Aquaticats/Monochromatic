@@ -39,14 +39,10 @@ fn starts(count: &Path) -> usize {
 
 /// What real Git prints for `cat-file --batch` fed `input` in `repo`.
 fn real_batch(repo: &Path, input: &[u8]) -> Vec<u8> {
-    let mut child = std::process::Command::new(REAL_GIT)
-        .current_dir(repo)
-        .env_clear()
-        .args(["cat-file", "--batch"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("cat-file");
+    let mut command = std::process::Command::new(REAL_GIT);
+    command.current_dir(repo).env_clear().args(["cat-file", "--batch"]).stdin(Stdio::piped()).stdout(Stdio::piped());
+    // Owned, so a control that fails while it reads the batch does not leave Git waiting for input.
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("cat-file");
     child.stdin.take().expect("stdin").write_all(input).expect("write");
     return child.wait_with_output().expect("output").stdout;
 }
