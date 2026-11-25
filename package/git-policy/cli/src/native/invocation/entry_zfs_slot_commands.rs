@@ -48,8 +48,11 @@ pub const REFUSAL_STATUS: i32 = REFUSED_EXIT_CODE;
 ///  The subcommand word of one `git worktree` command,
 ///  which Git never abbreviates.
 /// Why:
-///  The prune pass and the repair notice run for their own subcommand only,
-///  and `git worktree` declares its subcommands rather than options.
+///  The move refusal,
+///  the prune pass and the repair notice run for their own subcommand only,
+///  and `git worktree` declares its subcommands rather than options;
+///  each of them runs for every forwarded command,
+///  so each reads this word before it reads anything else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,12 +90,18 @@ fn prune_is_a_dry_run(command: &ResolvedCommand) -> bool {
 ///  The mounted and the unmounted slot are the same code path,
 ///  and the kernel protects only the mounted one,
 ///  so the wrapper is the whole protection for the other.
+///  Every forwarded command asks,
+///  so the move word is read before the working directory is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const ending = moveRefusalOf(command, commonDir); // undefined leaves the move to Git
 /// ```
 pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>) -> Option<Action> {
+    // Every forwarded command asks, so the move word is read before the working directory is.
+    if worktree_subcommand(command) != Some(b"move") {
+        return None;
+    }
     let common: &Path = common_dir?;
     let current: PathBuf = std::env::current_dir().ok()?;
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
