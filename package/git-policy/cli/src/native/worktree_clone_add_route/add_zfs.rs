@@ -22,6 +22,7 @@
 
 use crate::doctor_zfs_route::{Grant, grants_of};
 use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
+use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -186,6 +187,17 @@ impl OpenedDevice {
     pub fn request_the_mount(&self, clone: &str, nonce: &RequestNonce) -> Result<(), String> {
         let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, clone).map_err(|refusal| return format!("the mount request cannot be written ({refusal:?})"))?;
         return writer.request(&MountIntent { operation: MountOperation::Mount, nonce: nonce.clone() }).map_err(|refusal| return format!("the mount request for {clone} was refused ({refusal:?}); the clone and its records stand, and the next sweep may still act on it"));
+    }
+}
+
+// The route's identity read,
+// which the managed lock's mounted arm compares a record's `cloneGuid=` with:
+// one reader for one question,
+// asked the way the add's own read-backs ask it,
+// through the device this command already opened behind the gate.
+impl DatasetGuidReads for OpenedDevice {
+    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String> {
+        return self.identity_of(dataset).map(|identity| return identity.guid);
     }
 }
 

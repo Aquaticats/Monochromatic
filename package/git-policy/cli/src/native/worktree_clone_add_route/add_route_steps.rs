@@ -199,7 +199,7 @@ fn steps_note_after_making(slot: &Path) -> Result<(), StepRefusal> {
 ///  where the command's other lines go.
 pub fn step_git(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), StepRefusal> {
     for _round in 0..3 {
-        let outcome: ScanOutcome = scan_and_settle(&ScanInput { common_dir: steps.route.common_dir.as_path(), home: steps.home_path, slot: steps.route.slot.as_str(), slot_path: steps.route.destination.as_path(), nonce: &record.nonce })
+        let outcome: ScanOutcome = scan_and_settle(&ScanInput { common_dir: steps.route.common_dir.as_path(), home: steps.home_path, slot: steps.route.slot.as_str(), slot_path: steps.route.destination.as_path(), nonce: &record.nonce, guids: steps.device })
             .map_err(StepRefusal::refused)?;
         match outcome {
             ScanOutcome::Adopt { registration, wrote_the_lock } => {

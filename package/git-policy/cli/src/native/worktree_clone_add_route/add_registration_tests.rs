@@ -8,6 +8,7 @@
 
 use super::{ScanInput, ScanOutcome, scan_and_settle};
 use crate::test_support::{fixture, remove};
+use crate::worktree_clone_managed_lock::test_fixtures::ScriptedGuids;
 use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, Request};
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::{Phase, RequestForm};
@@ -47,7 +48,10 @@ impl World {
 
     /// The scan over this world.
     fn scan(&self) -> Result<ScanOutcome, String> {
-        return scan_and_settle(&ScanInput { common_dir: self.common.as_path(), home: self.home.as_path(), slot: "topic", slot_path: self.slot_path.as_path(), nonce: &self.nonce });
+        // Every slot here is a plain folder with nothing mounted over it, so the lock's mounted arm
+        // must not reach a pool, and this reader proves it by refusing to answer one.
+        let guids: ScriptedGuids = ScriptedGuids::never_asked();
+        return scan_and_settle(&ScanInput { common_dir: self.common.as_path(), home: self.home.as_path(), slot: "topic", slot_path: self.slot_path.as_path(), nonce: &self.nonce, guids: &guids });
     }
 
     /// The registration directory Git would make.
