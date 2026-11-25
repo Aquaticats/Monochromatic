@@ -337,9 +337,12 @@ async function run(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    // The guest is a four-vCPU image, and this crate's release test build at Cargo's default parallelism exhausts
-    // its memory: the kernel then misses the guest agent's status requests and mvm loses the build's result. Two
-    // jobs keep the build inside the guest, and the build is the same one either way.
+    // The guest is a four-vCPU image, and this crate's release test build at Cargo's default parallelism fills it:
+    // measured on 2026-11-25 (issue 6458), two jobs peaked the guest agent's own unit at 7.45 GiB of the guest's
+    // 7.75 GiB, and one run ended with the kernel killing a rustc at 5.15 GiB inside that unit. Two jobs keep the
+    // build inside the guest and are the same build either way; a kill now shows as a failing build with its own
+    // error, because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
+    // (doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md).
     'CARGO_BUILD_JOBS=2 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
