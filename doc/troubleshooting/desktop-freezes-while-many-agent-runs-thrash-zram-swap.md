@@ -1410,6 +1410,32 @@ These effects are inferred, not measured;
 `pi-rust-build-memory-peak-arms` measures them one build at a time against an interleaved control,
 into `package/git-policy/cli/doc/development-profile-measurements.md`.
 
+### Swap capacity was never short; the writeback to disk was capped (2026-11-25T16:20-05:00 to 16:40-05:00)
+
+At 16:20 `MemAvailable` read 13 MiB and memory pressure "full" avg10 7.45,
+yet `swapon --show` gave zram1 (the only swap) 63151 MiB with 28381 MiB used, so capacity was not the limit.
+zram keeps swapped pages compressed in RAM: zram1 held 26944 MiB of pages in 7025 MiB of RAM.
+The writeback that moves idle pages to the old NVMe ran at most 1 GiB (262144 pages) every 15 minutes:
+`bd_stat` writes rose by exactly 262144 a run (988866, 1251010, 1513154),
+and each run ended with `echo: write error: Input/output error`,
+which is the kernel ending a writeback whose `writeback_limit` reached 0, not a device fault.
+One run at 4 GiB freed 1640 MiB of zram's RAM (7472 to 5832 MiB);
+then, on the owner's "Don't worry about wear to the old nvme. I can buy new drives when it breaks.",
+`/etc/systemd/system/zram-idle-writeback.service` dropped the limit (`writeback_limit_enable` 0)
+and writes every page idle for 5 minutes, every 5 minutes (`zram-idle-writeback.timer`).
+
+The caps were per unit, never total:
+each round's service had `MemoryMax=24G`, and the build scopes rounds start sat in `app.slice`, outside it.
+`~/.config/systemd/user/agent-work.slice` now holds every round, gate and agent scope
+(the round launcher and gate runner pass `--slice=agent-work.slice`, and the writer-round rules tell agents to),
+so agent work is counted in one place.
+It carried `MemoryHigh=30G` for about fifteen minutes;
+the owner removed it ("I paid for the whole machine, I'm going to use the whole machine"), and it has no ceiling now.
+
+A misreading to avoid: `systemctl --user show <scope> --property=MemoryMax` prints `infinity` for a scope that has already
+ended, because it reports defaults for a unit it no longer has;
+read `memory.max` in the scope's cgroup instead.
+
 ### What AppArmor would have stopped
 
 Two refusals in the `zram-generator` profile would each have left the next boot with no zram swap,
