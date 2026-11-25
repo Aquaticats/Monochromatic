@@ -228,18 +228,14 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
 /// const prepared = prepareTheRemoval(entry, reads);
 /// ```
 pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<PreparedRemoval, RemovalStop> {
-    let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads)?;
-    if let Some(plan) = standing {
-        let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(plan.facts.clone_guid.file_name());
-        return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path });
-    }
+    let (prepared, _standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads, true)?;
     return Ok(prepared);
 }
 
 /// What:
 ///  Every step of one removal's order that changes nothing,
 ///  with the plan that already stands for this clone,
-///  which a resumed removal adopts.
+///  which a resumed removal adopts and a fresh entry refuses.
 /// Why:
 ///  The fresh entry refuses a standing plan and a resumed removal adopts one,
 ///  and both take the same reads in the same order,
@@ -253,7 +249,7 @@ pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalP
 /// ```ts
 /// const [prepared, standing] = prepareTheRemovalOverAPlan(entry, reads);
 /// ```
-pub(super) fn prepare_the_removal_over_a_plan(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
+pub(super) fn prepare_the_removal_over_a_plan(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads, refuse_a_standing_plan: bool) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
@@ -264,6 +260,10 @@ pub(super) fn prepare_the_removal_over_a_plan(entry: &RemovalEntry<'_>, reads: &
     if let Some(plan) = &standing {
         // The plan's own identities must be this clone's before its tuples explain a bookmark.
         refuse_a_plan_of_another_clone(plan, &recorded)?;
+        if refuse_a_standing_plan {
+            let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name());
+            return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path });
+        }
     }
     let proven: ProvenRemoval = prove_the_lineage(reads, &recorded, &origin_inventory, &history)?;
     let explanations = explanations_of(&proven.inventory, standing.as_ref());

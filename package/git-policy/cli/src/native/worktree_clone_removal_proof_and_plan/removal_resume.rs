@@ -164,7 +164,7 @@ pub fn adopt_the_removal(
     clock: &dyn RemovalClock,
     probe: &dyn DatasetReader,
 ) -> Result<EnteredRemoval, RemovalStop> {
-    let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads)?;
+    let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads, false)?;
     let Some(mut plan) = standing else {
         return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path: PathBuf::new() });
     };
