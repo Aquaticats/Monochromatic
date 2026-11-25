@@ -174,7 +174,7 @@ fn backward_steps_in(text: &str, names: &[&str]) -> Vec<String> {
 fn every_forwarded_slot_command_reads_its_words_before_it_reads_anything_else() {
     let path: PathBuf = source_root().join(SLOT_GLUE);
     let text: String = std::fs::read_to_string(path.as_path())
-        .unwrap_or_else(|error| return panic!("{} is a release file of this crate: {error}", path.display()));
+        .unwrap_or_else(|error| panic!("{} is a release file of this crate: {error}", path.display()));
     let failures: Vec<String> = backward_steps_in(text.as_str(), &FORWARDED_FUNCTIONS);
     assert!(
         failures.is_empty(),
