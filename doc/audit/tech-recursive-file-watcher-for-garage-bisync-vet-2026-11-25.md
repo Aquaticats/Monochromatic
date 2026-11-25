@@ -1177,7 +1177,8 @@ Recorded for completeness, each passing the gates as a library and each needing 
 `watchpack` 2.6.4, `sane` 5.0.1, `nsfw` 3.1.0, `fb-watchman` 2.0.4, `wt` 1.2.0, `watcher` 2.3.1,
 `filewatcher` 3.0.1, `node-watch` 0.7.4, `glob-watcher` 6.0.0, `simple-watcher` 6.0.1, `cheap-watch` 1.0.4,
 `radovskyb/watcher` (Go), `rjeczalik/notify` (Go), `filesentry` 0.2.2 (Rust), `jetbrains-fswatcher` 1.2.0 (Rust),
-`watcher` 0.0.1 (crates), `fsevents` 2.3.3 (macOS only, which exits gate 3 on its own).
+`watcher` 0.0.1 (crates), and `fsevents` 2.3.3, which is macOS only and therefore exits gate 3 while
+the rest pass as libraries.
 
 ### Candidates that exit screening
 
@@ -1589,7 +1590,8 @@ All read on 2026-11-25; all statuses are fail for the named gate.
 
 ## Terminal result
 
-Saturated, with 20 ready-to-use screening survivors and 14 recorded library candidates.
+Saturated, with 20 ready-to-use screening survivors and 23 recorded library candidates
+(22 pass as libraries; `fsevents` exits on platform).
 
 Every required source class is saturated under the skill's page rule:
 
