@@ -111,12 +111,14 @@ export const rootModeWords = [
 /**
  The first release that answered the root modes' words.
 
- Every release before it ends an install refused after the wrapper is installed and the lock moved, because its build
- cannot answer `<the words> --version` at all; a release at or after it that answers nothing here has lost the dispatch,
- or the wrapper on `PATH` is another release. Naming it is what tells a person rolling back that the release, not the
- archive the lock names, is the cause
- (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`, and the release that carried the
- change).
+ A build of a release before it cannot answer `<the words> --version` at all, so an install of one checks what that
+ release can answer and skips the words check: the wrapper is installed, the lock is moved and committed under that
+ release's name, and the line that release prints is printed. From this release on the words check runs, and a build
+ that answers nothing has lost the dispatch, or the wrapper on `PATH` is another release
+ (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`, the release that carried the change,
+ and `doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, "Rolling back with `native:install`").
+ The release list beside it says which releases those are, and `bin/native-install.unit.test.ts` fails when the two
+ disagree.
 
  @example
  ```ts
@@ -124,6 +126,21 @@ export const rootModeWords = [
  ```
  */
 export const rootModesFirstRelease = '0.6.1-alpha.46';
+
+/**
+ The releases whose builds answer the root modes' words, oldest first: the release list the floor above is kept beside.
+
+ A release that answered the words is added here when it is released, and {@link rootModesFirstRelease} is the oldest
+ entry, which is what makes one fact of two statements checkable instead of remembered. The floor, not this list,
+ decides the skip: a release no list can name yet is still older than the floor or newer than it, and the install
+ answers it the same way.
+
+ @example
+ ```ts
+ rootModesReleases[0]; // '0.6.1-alpha.46', which is rootModesFirstRelease
+ ```
+ */
+export const rootModesReleases: readonly string[] = ['0.6.1-alpha.46'];
 
 /**
  The text the installed build's `--version` prints for one release.
@@ -142,6 +159,230 @@ export const rootModesFirstRelease = '0.6.1-alpha.46';
  */
 export function rootModesVersionLine({ version }: { readonly version: string; }): string {
   return `${rootModeWords.join(' ')} ${version}`;
+}
+
+/**
+ The number of numeric components a release's core has, before any prerelease.
+ */
+const releaseCoreLength = 3;
+
+/**
+ One release split into the parts semantic version precedence is decided on.
+ */
+type ParsedRelease = {
+  /**
+   Major, minor and patch, in that order.
+   */
+  readonly core: readonly [number, number, number];
+  /**
+   The dot-separated identifiers after the first hyphen, empty for a release.
+   */
+  readonly prerelease: readonly string[];
+};
+
+/**
+ Splits one release of this wrapper into its core and its prerelease identifiers.
+
+ @param version - the release text, such as `0.6.1-alpha.46`
+
+ @returns the parts the comparison reads
+
+ @throws NativeGateError when the text is not a release of this shape
+
+ @example
+ ```ts
+ parseRelease({ version: '0.6.1-alpha.46+build' }); // { core: [0, 6, 1], prerelease: ['alpha', '46'] }
+ ```
+ */
+function parseRelease({ version }: { readonly version: string; }): ParsedRelease {
+  /**
+   The text before any build metadata, which never takes part in precedence.
+   */
+  const withoutBuild = version.split('+',)[0] ?? '';
+  /**
+   Where the prerelease begins, or the end of the text when the release has none.
+   */
+  const hyphenAt = withoutBuild.indexOf('-',);
+  /**
+   The core's text, which is everything before the prerelease.
+   */
+  const coreText = hyphenAt === (-1) ? withoutBuild : withoutBuild.slice(
+    0,
+    hyphenAt,
+  );
+  /**
+   The core's parts, which each have to be a plain count.
+   */
+  const parts = coreText.split('.',);
+  if (
+    (parts.length !== releaseCoreLength)
+      || (!parts.every(function isCount(part) {
+        return /^\d+$/.test(part,);
+      },))
+  )
+    throw new NativeGateError(notARelease({ version, }));
+  const [major, minor, patch] = parts.map(Number,);
+  if ((major === undefined) || (minor === undefined) || (patch === undefined))
+    throw new NativeGateError(notARelease({ version, }));
+  /**
+   The prerelease identifiers, which each have to be a word or a count.
+   */
+  const prerelease = hyphenAt === (-1) ? [] : withoutBuild.slice(hyphenAt + 1,)
+    .split('.',);
+  if (prerelease.some(function isIdentifier(identifier) {
+    return identifier === '';
+  },))
+    throw new NativeGateError(notARelease({ version, }));
+  return {
+    core: [major, minor, patch],
+    prerelease,
+  };
+}
+
+/**
+ The refusal of a version this install cannot order.
+
+ @param version - the text the command line gave
+
+ @returns the sentence, which names what was typed and the shape a release has
+
+ @example
+ ```ts
+ notARelease({ version: 'latest' }); // '"latest" is not a release this install can order: give the release as major.minor.patch'
+ ```
+ */
+function notARelease({ version }: { readonly version: string; }): string {
+  return `${JSON.stringify(version,)} is not a release this install can order: give the release as major.minor.patch, such as 0.6.1 or 0.6.1-alpha.46, so an install can tell one release from another.`;
+}
+
+/**
+ Compares two prerelease identifiers by the order semantic versions give them.
+
+ @param left - an identifier of one release
+
+ @param right - the identifier of the other release at the same place
+
+ @returns negative, zero or positive like `Array#sort`'s comparator
+
+ @example
+ ```ts
+ compareIdentifiers({ left: '9', right: '10' }); // negative
+ ```
+ */
+function compareIdentifiers({
+  left,
+  right,
+}: {
+  readonly left: string;
+  readonly right: string;
+},): number {
+  /**
+   Whether each identifier is all digits, which is what makes it compare as a number.
+   */
+  const leftIsCount = /^\d+$/.test(left,);
+  const rightIsCount = /^\d+$/.test(right,);
+  if (leftIsCount && rightIsCount)
+    return Number(left,) - Number(right,);
+  if (leftIsCount)
+    return -1;
+  if (rightIsCount)
+    return 1;
+  if (left === right)
+    return 0;
+  return left < right ? -1 : 1;
+}
+
+/**
+ Compares two releases of this wrapper by the precedence semantic versions have, which is the order a rollback moves in.
+
+ A numeric component is compared as a number, and the prerelease identifiers only when the cores are equal: a release
+ without a prerelease is above one with it, a numeric identifier is below an alphanumeric one and above a smaller number,
+ and the release with more identifiers is above the one whose identifiers it starts with.
+
+ @param left - the release under test
+
+ @param right - the release it is compared with
+
+ @returns negative when `left` comes before `right`, zero when the two are the same release, positive otherwise
+
+ @throws NativeGateError when either text is not a release this install can order
+
+ @example
+ ```ts
+ compareReleases({ left: '0.6.1-alpha.9', right: '0.6.1-alpha.10' }); // negative
+ ```
+ */
+export function compareReleases({
+  left,
+  right,
+}: {
+  readonly left: string;
+  readonly right: string;
+},): number {
+  /**
+   The two releases, parsed once each.
+   */
+  const one = parseRelease({ version: left, });
+  const other = parseRelease({ version: right, });
+  for (let index = 0; index < releaseCoreLength; index += 1) {
+    /**
+     The difference of the two numeric components, which decides the answer when it is nonzero.
+     */
+    const difference = (one.core[index] ?? 0) - (other.core[index] ?? 0);
+    if (difference !== 0)
+      return difference;
+  }
+  // A release without a prerelease is above every prerelease of the same core.
+  if (one.prerelease.length === 0)
+    return other.prerelease.length === 0 ? 0 : 1;
+  if (other.prerelease.length === 0)
+    return -1;
+  /**
+   How many identifiers the two share, which is as far as they are compared pairwise.
+   */
+  const shared = Math.min(
+    one.prerelease.length,
+    other.prerelease.length,
+  );
+  for (let index = 0; index < shared; index += 1) {
+    /**
+     The difference of the two identifiers at this place, which decides the answer when it is nonzero.
+     */
+    const difference = compareIdentifiers({
+      left: one.prerelease[index] ?? '',
+      right: other.prerelease[index] ?? '',
+    },);
+    if (difference !== 0)
+      return difference;
+  }
+  // The identifiers compared equal as far as both go, so the one with more identifiers is above.
+  return one.prerelease.length - other.prerelease.length;
+}
+
+/**
+ Whether the build of one release can be asked the root modes' words at all.
+
+ The question is one comparison against {@link rootModesFirstRelease}: every release from it answers the words and no
+ release before it can, so an install of one of those keeps the checks that release can answer and skips this one.
+ A version this repository's releases never take is refused here, before the first step runs, rather than ordered by a
+ guess.
+
+ @param version - the release an install moves to
+
+ @returns whether the install asks that build the words
+
+ @throws NativeGateError when the version is not a release this install can order
+
+ @example
+ ```ts
+ releaseAnswersTheRootModes({ version: '0.6.1-alpha.45' }); // false
+ ```
+ */
+export function releaseAnswersTheRootModes({ version }: { readonly version: string; }): boolean {
+  return compareReleases({
+    left: version,
+    right: rootModesFirstRelease,
+  },) >= 0;
 }
 
 /**

@@ -7,15 +7,19 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runGateCommand } from './native-gate-run.ts';
+import { NativeGateError } from './native-gate-error.ts';
 import {
+  compareReleases,
   installSteps,
   journalIdentifiers,
   journalSince,
   lockFileName,
   newestTimingLine,
+  releaseAnswersTheRootModes,
+  rootModesFirstRelease,
+  rootModesReleases,
   stepNameOf,
   summaryLinesOf,
-  rootModesFirstRelease,
   rootModesVersionLine,
   timingReportLine,
   wrapperVersionLine,
@@ -47,9 +51,9 @@ const installPath = join(
 const testDeadlineMilliseconds = 120_000;
 
 /**
- The release the fixtures install.
+ The release the fixtures install, which is one whose build answers the root modes' words.
  */
-const releaseVersion = '0.6.1-alpha.10';
+const releaseVersion = '0.6.1-alpha.46';
 
 /**
  The release the fixtures start from, which is the one their lockfile names.
@@ -65,6 +69,20 @@ const concurrentlyWrittenVersion = '0.6.1-alpha.11';
  A release older than the first one that answers the root modes, which is what a rollback asks for.
  */
 const releaseBeforeTheRootModes = '0.6.1-alpha.45';
+
+/**
+ Releases with the answer each one's install has to get about the root modes' words: every release from the first one
+ that answers them asks the words, and none before it does.
+ */
+const rootModesAnswers: readonly (readonly [string, boolean])[] = [
+  ['0.6.1-alpha.9', false],
+  ['0.6.1-alpha.10', false],
+  [releaseBeforeTheRootModes, false],
+  ['0.6.1-alpha.46', true],
+  ['0.6.1-alpha.47', true],
+  ['0.6.1', true],
+  ['0.7.0-alpha.1', true],
+];
 
 /**
  One line of the wrapper's own commit timing record, which a fixture writes beside the common Git directory.
@@ -117,13 +135,88 @@ await describe({
     it({
       name: 'names the release text an installed wrapper prints',
       fn: async () => {
-        expect(wrapperVersionLine({ version: releaseVersion, }),).toBe('monochromatic-git-policy-cli 0.6.1-alpha.10,',);
+        expect(wrapperVersionLine({ version: '0.6.1-alpha.10', }),).toBe('monochromatic-git-policy-cli 0.6.1-alpha.10,',);
       },
     }),
     it({
       name: 'names the release text the installed handler prints',
       fn: async () => {
-        expect(rootModesVersionLine({ version: releaseVersion, }),).toBe('monochromatic-git-policy-cli zfs-root 0.6.1-alpha.10',);
+        expect(rootModesVersionLine({ version: '0.6.1-alpha.10', }),).toBe('monochromatic-git-policy-cli zfs-root 0.6.1-alpha.10',);
+      },
+    }),
+    it({
+      name: 'asks the root modes of every release from the first one that answers them, and of none before it',
+      fn: async () => {
+        for (const [version, answers] of rootModesAnswers)
+          expect([version, releaseAnswersTheRootModes({ version, }),],).toEqual([version, answers,],);
+      },
+    }),
+    it({
+      name: 'keeps the first release that answers the root modes in step with the release list',
+      fn: async () => {
+        expect(rootModesReleases.length,).toBeGreaterThan(0,);
+        expect(rootModesReleases[0],).toBe(rootModesFirstRelease,);
+        for (const release of rootModesReleases) {
+          expect([release, releaseAnswersTheRootModes({ version: release, }),],).toEqual([release, true,],);
+          expect([release, releaseBeforeTheRootModes, compareReleases({
+            left: release,
+            right: releaseBeforeTheRootModes,
+          },) > 0,],).toEqual([release, releaseBeforeTheRootModes, true,],);
+        }
+      },
+    }),
+    it({
+      name: 'orders releases the way a rollback moves: preleases by their identifiers, and a release above its prereleases',
+      fn: async () => {
+        /**
+         Pairs whose order a rollback depends on, oldest first.
+         */
+        const ascending = [
+          '0.6.1-alpha.9',
+          '0.6.1-alpha.10',
+          '0.6.1-alpha.46',
+          '0.6.1-alpha.46.beta',
+          '0.6.1-beta.1',
+          '0.6.1',
+          '0.6.2-alpha.1',
+          '0.7.0',
+        ];
+        for (let index = 0; index < (ascending.length - 1); index += 1) {
+          /**
+           Each step's two releases.
+           */
+          const older = ascending[index] ?? '';
+          const newer = ascending[index + 1] ?? '';
+          expect([older, newer, Math.sign(compareReleases({
+            left: older,
+            right: newer,
+          },)),],).toEqual([older, newer, -1,],);
+          expect([older, newer, Math.sign(compareReleases({
+            left: newer,
+            right: older,
+          },)),],).toEqual([older, newer, 1,],);
+          expect([older, Math.sign(compareReleases({
+            left: older,
+            right: older,
+          },)),],).toEqual([older, 0,],);
+        }
+      },
+    }),
+    it({
+      name: 'refuses a version that is not a release it can order, naming what was typed',
+      fn: async () => {
+        for (const version of ['latest', '0.6', '0.6.1-alpha..2', '0.6.x.1', '']) {
+          /**
+           The refusal one such version gets, or nothing when it was ordered.
+           */
+          let refusal: string | undefined;
+          try {
+            releaseAnswersTheRootModes({ version, });
+          } catch (error) {
+            refusal = (error instanceof NativeGateError) ? error.message : 'not a NativeGateError';
+          }
+          expect([version, refusal?.includes(JSON.stringify(version,)) ?? false,],).toEqual([version, true,],);
+        }
       },
     }),
     it({
@@ -440,23 +533,50 @@ await describe({
       },
     }),
     it({
-      name: 'names the first release that answers the root modes when an earlier release installs',
+      name: 'installs a release older than the root modes, commits its lock, and prints that release\'s line',
       fn: async () => {
         await using fixture = await createInstallFixture({
           version: releaseBeforeTheRootModes,
           options: { withoutRootModes: true, },
         });
         /**
-         How the refused rollback ended.
+         How the rollback ended.
          */
         const printed = await install({
           fixture,
           args: [releaseBeforeTheRootModes,],
         });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stdout,).toContain(wrapperVersionLine({ version: releaseBeforeTheRootModes, }),);
+        expect(printed.stdout,).toContain(`${releaseBeforeTheRootModes} is before ${rootModesFirstRelease}`,);
+        expect(printed.stdout,).toContain(`installed ${releaseBeforeTheRootModes} and committed the lock`,);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual([
+          `chore(toolchain): monochromatic-git-policy-cli ${releaseBeforeTheRootModes}`,
+          'first',
+        ],);
+        expect(await committedFileText({
+          repository: fixture.repository,
+          name: lockFileName,
+        }),).toContain(releaseBeforeTheRootModes,);
+      },
+    }),
+    it({
+      name: 'refuses a release at or after the root modes whose build answers none of them',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: rootModesFirstRelease,
+          options: { withoutRootModes: true, },
+        });
+        /**
+         How the refused install ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [rootModesFirstRelease,],
+        });
         expect(printed.status,).toBe(1,);
+        expect(printed.stderr,).toContain('does not answer the root modes',);
         expect(printed.stderr,).toContain(rootModesFirstRelease,);
-        expect(printed.stderr,).toContain('a release older than it answers nothing here whatever the archive holds',);
-        expect(printed.stderr,).toContain('nothing committed',);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
       },
     }),
