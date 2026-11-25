@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T16:50:32-05:00
+## Status at 2026-11-25T17:32:08-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -99,6 +99,13 @@ Unprofiled development processes remain a residual risk.
   The exact confined PNG read changed from `Permission denied` to the independent SHA-256 match.
   The owner's real drag retry remains open; see
   `doc/troubleshooting/spectacle-screenshot-drag-helium-tempfile.md`.
+- Later on 2026-11-25, the owner explicitly approved read-only Helium access to all of
+  `~/Plain`, including its KeePassXC databases, for Dolphin file drags.
+  `/etc/apparmor.d/local/helium` grants only `owner @{HOME}/Plain/{,**} r`.
+  The exact confined Markdown read changed from `Permission denied` to the independent SHA-256
+  match, while `.bash_profile` remained denied.
+  The owner's real Dolphin-to-Helium drag then succeeded. See
+  `doc/troubleshooting/dolphin-file-drag-helium-plain-read.md`.
 - `/etc/apparmor.d/abstractions/app/chromium_crashpad_handler.d` audits the pre-existing
   crash-report path and permissions without adding a path or permission.
 - `/etc/apparmor.d/local/keepassxc` grants recursive directory-only `owner @{HOME}/**/ r` for the
@@ -392,14 +399,14 @@ checked all 809 expected profile artifacts and live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-keepassxc-atomic-save-fix-2026-11-25T16-48-29-0500.json`.
+The latest such report is `verified-selected-dolphin-plain-drag-fix-2026-11-25T17-30-36-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T16-49-54-0500`.
-All 22
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T17-32-08-0500`.
+All 23
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
