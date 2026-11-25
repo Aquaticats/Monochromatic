@@ -7545,8 +7545,8 @@ The wrapper's own value is that same `false`,
 so a command the wrapper runs names one program that answers nothing and prints nothing.
 A sentence stood there for one release to carry the next step at a new host key,
 and it went because a value OpenSSH cannot start kills a connection through a `ProxyCommand`
-(the SPEC's "Git commands that may need a login" holds the record,
-the control and the decision).
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md` holds the answer,
+and the SPEC's rule for `no_prompt_overlay` names the control that holds the ending).
 This release names no next step at a new host key;
 how that text reaches a person is the project's next choice.
 A control that compares a forwarded command's environment builds the rule from those two functions
