@@ -16,14 +16,17 @@ about the boot mount provider and the ordering of plan step 19 in
 and about which checkouts the route serves in
 [the step 10 record](../decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md).
 Every claim about a program this repository does not own is read from that program's source,
-and every claim about this repository's code is read on this round's base,
-`9939a0d7a6`,
-which is `main`'s tip merged into this round's branch.
+and every claim about this repository's code is read at this branch's tip,
+`8f2df052d0`,
+which merges `main`'s `3f459371af`; the round merged `main` before its first edit and again at the
+end, so the line numbers are true where the branch stands.
 A citation given at another commit says which,
-and gives this base's line beside it where the line moved;
-every `path:line` citation in this document is resolved at this base in
+and gives this tip's line beside it where the line moved;
+every citation that names a path is resolved at this tip in
 `keep/citations-at-this-rounds-base.txt`,
-which shows the line each one names.
+which shows the line each one names,
+and the bare `:line` continuations that follow a named file in a list were read by hand at the same
+tip.
 The decision records and the handover are untouched by this round.
 
 This is the fifth revision,
@@ -62,7 +65,7 @@ in one parenthesized label:
   replayed or re-analysed by this round with the same result;
 - (source PATH:LINE),
   one line of this repository's code,
-  read at `9939a0d7a6` unless the citation says another commit;
+  read at `8f2df052d0` unless the citation says another commit;
 - (upstream PATH:LINE),
   another program's source,
   read through `gh`;
@@ -441,6 +444,15 @@ not against the tree the read happened to have open.
   The first is cited by its paragraph and its module line,
   and the second pair by constant name,
   as this document's advice for moved lines already says.
+- A third drift is this round's own find:
+  `SPEC.md`'s sentence "and the executable does not read the name it was started under" stood at
+  `:19261` at `f3d81e0910`, at `:19588` at `45ac28ae47`,
+  at `:19625` when this round merged `main` the first time,
+  and at `:19705` at this branch's tip.
+  The citation gives the tip's line and the two earlier ones,
+  and the sentence is cited by its own text as well,
+  so a later reader finds it again.
+  The README bullets moved the same way and are given at the tip.
 - `--replace` was printed as a bare flag while the usage block omitted it and the section said a
   second run "refuses with `checkout-record-differs` and names the field",
   which cannot hold when every field is equal.
@@ -703,7 +715,8 @@ which is another module's `#[cfg]` line at this base).
 Three places say the wrapper never reads its start name,
 and the answer changes all three for exactly one name:
 
-- `SPEC.md:19261`,
+- `SPEC.md:19705`
+  (`:19261` at `f3d81e0910`),
   in "#### External hooks":
   "and the executable does not read the name it was started under".
 - `src/native/source_guard/hook_self_invocation_tests.rs:74`,
@@ -2021,8 +2034,8 @@ The four forbidden-spelling witnesses of the third revision
 (`w1` to `w4`) fail on their pinned lines now rather than on a ban,
 which is the same verdict from a guard that no longer needs the bans.
 
-`SPEC.md:19588` becomes
-(it was `:19261` at `f3d81e0910`; the sentence moved with the askpass change):
+`SPEC.md:19705` becomes
+(it was `:19588` at `45ac28ae47` and `:19261` at `f3d81e0910`):
 
 > Git never starts the wrapper for a hook:
 > the wrapper writes no hook entry,
@@ -4358,8 +4371,8 @@ is the finding.
 ## What changes, and in which step
 
 Every path in this section is re-read with `rg`,
-and each line number is given at this round's base,
-`9939a0d7a6`,
+and each line number is given at this branch's tip,
+`8f2df052d0`,
 unless it says `f3d81e0910`,
 which is the commit the third revision read and the line has not moved since.
 `rg --hidden -c "mount-git-worktree-clone-datasets"` finds 154 lines in 56 files at this base,
@@ -4413,8 +4426,8 @@ and `toolchain:lock:check` compares the plan and the lock offline:
 - `package/git-policy/cli/README.md`:
   `:11`,
   `:1925`,
-  `:7275`,
-  `:7282` and `:8131`
+  `:7325`,
+  `:7332` and `:8205`
   (`:11`,
   `:1912`,
   `:7188`,
@@ -4431,12 +4444,13 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   "## The two executables and shipped policies" (`:249`) becomes
   "## The single executable and shipped policies" and says how the root modes are reached;
   `:255` and `:266` name the family through the words or the one file;
-  `:7943`,
-  `:22139` and `:22319` name a mode's command and become the words
+  `:8023`,
+  `:22256` and `:22436` name the modes' commands and become the words
   (`:7652`,
   `:21812` and `:21992` at `f3d81e0910`);
-  the sentence "and the executable does not read the name it was started under" is at `:19588`
-  (`:19261` at `f3d81e0910`) and is rewritten as "The guard change,
+  the sentence "and the executable does not read the name it was started under" is at `:19705`
+  (`:19588` at `45ac28ae47`,
+  `:19261` at `f3d81e0910`) and is rewritten as "The guard change,
   exactly" gives it;
 - `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md`:
   a note under its status that the second program was removed by this decision,
@@ -5214,8 +5228,8 @@ This round's folder,
   no unit of either round listed after they ended,
   and no probe process in `ps`;
 - `citations-at-this-rounds-base.txt`:
-  every `path:line` this document cites,
-  printed with the line it names at this round's base (`9939a0d7a6`),
+  every citation that names a path,
+  printed with the line it names at this branch's tip (`8f2df052d0`),
   and `citation-drift-fifth.log`,
   which compares that dump with the fourth round's and shows the one citation that moved;
 - `occurrences-fifth.txt`:
