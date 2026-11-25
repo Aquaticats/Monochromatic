@@ -2421,10 +2421,26 @@ and that the removal and a new add are the way to move the work.
 `git worktree remove` is refused for a slot the binding record proves is a whole worktree,
 because Git's removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for `git worktree prune`,
-and the clone dataset with the checked-out files would then be reachable by nobody.
+and the clone dataset with the checked-out files would then be reachable by nobody
+(`SPEC.md`,
+"Removal of a ZFS worktree clone").
 The refusal prints the slot's state,
 its dataset and the one next safe action,
-and says that this release has no removal for a clone.
+says that this release has no removal for a clone,
+and prints what a removal would prove and lose:
+the clone and the origin snapshot the lineage proof matched,
+every snapshot of the clone's own history by name,
+and every bookmark the head destroy would take with it,
+with the sentence that nothing was unmounted,
+no removal intent was filed and no destruction plan was written.
+A promoted clone,
+or a clone whose recorded identities the pool no longer answers,
+is refused with the check that stopped it and the object it named,
+before anything is deleted,
+and every snapshot and bookmark still stands.
+The plan is read through one reader
+(`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
+which plan steps 15 to 18 call rather than reading the folder again.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go.
 
