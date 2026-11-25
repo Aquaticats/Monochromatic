@@ -130,6 +130,29 @@ then migrate in classes (Git-directory reads, record folders, user paths);
 make `common_directory_of` the one `commondir` reader.
 Size: 138 sites in about 100 files; 6 `commondir` copies; about 40 copied bounded-read or open bodies.
 
+Round of 2026-11-25, branch `fix/git-policy-cli-raw-file-reads-through-the-plain-file-reader`:
+the guard landed as `source_guard/raw_file_reads_tests.rs`,
+and its first measurement was 151 calls in 101 release files
+(159 calls in 107 files by text, less the six test-only files the declaration scan leaves out).
+Seventeen sites in eleven release files moved onto `plain_file`:
+`commondir`,
+`HEAD`,
+the `.git` pointer file,
+`FETCH_HEAD`,
+a rebase or sequencer todo list,
+and a configuration file,
+with `foundation/common_directory_of_a_git_directory.rs` as the one `commondir` reader.
+What is left is on `KEPT_SITES` of the guard: 134 calls in 91 files, in five named classes.
+The classes for later rounds: the system's own facts (`system`),
+the wrapper's own records (`own-record`),
+the remaining Git-directory reads (`git-directory`: the index, pack files, `MERGE_MSG`, `sequencer/opts`,
+a registration's `gitdir`, `.git/info/exclude`),
+paths the person's project holds (`person-path`),
+and the copied bounded-read or non-blocking-open bodies
+(`invocation/real_git_candidate.rs`'s `read_up_to`,
+`worktree/worktree_clean_content.rs`'s and `account_companion/companion_mount_table.rs`'s `read_at_most`,
+and `foundation/private_storage.rs`'s `read_regular_file`, which `repo_read` and four other folders still name).
+
 ### Item 3. Tests change process-wide state, which only a process per test makes safe
 
 Category 1, tests.
