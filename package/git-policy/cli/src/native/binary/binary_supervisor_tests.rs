@@ -19,8 +19,8 @@
 use super::support::{Fixture, bounded, bounded_for, executable, fixture, own_group, remove, spawn_owned, supervised_wait, wrapper_first_path};
 use super::supervisor::{
     CPU_BUDGET, Judge, Limits, NO_PROGRESS_WINDOW, POLL, Reason, SHARED, SHARED_BACKSTOP_SECONDS, UNCLAIMED_EXIT_STATUS, UNCLAIMED_GRACE,
-    disk_wait_looks, end_command, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded, looks_of, plant_kill, take_kill,
-    unclaimed_kill, watch,
+    Occupied, disk_wait_looks, end_command, ending_the_command_of, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded,
+    kill_to_abort, looks_of, plant_kill, take_kill, unclaimed_kill, waiting_for, watch,
 };
 use super::supervisor_pin::{Delivered, Pin, end_tree};
 use super::supervisor_proc::{Look, Sample, children, describe, look_at, note_states, parse_io, parse_stat, stat_of, task_states, tick, tree_of, waits_for_an_answer};
@@ -702,6 +702,40 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     let claimed: u32 = u32::try_from(i32::MAX - 7).expect("positive");
     assert_eq!(take_kill(claimed), Some(String::from("the planted kill")));
     assert_eq!(unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE), None, "a claimed kill is not reported again");
+}
+
+/// A kill whose command a thread of this process is occupied with is never what aborts the process,
+/// however much time has passed:
+/// a wait claims that kill as soon as this host schedules its thread,
+/// and a kill whose ending is still going on cannot be claimed at all until the ending is over.
+/// Neither is how much wall time has passed.
+/// A kill nothing is occupied with is, once the grace has passed.
+#[test]
+fn a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process() {
+    let at: Instant = Instant::now();
+    let pid: i32 = i32::MAX - 6;
+    plant_kill(pid, "the planted kill", at);
+    let numbered: u32 = u32::try_from(pid).expect("positive");
+    let waiting: Occupied = waiting_for(numbered);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        None,
+        "a wait is inside for the command, so its claim is on the way and nothing aborts"
+    );
+    std::mem::drop(waiting);
+    let ending: Occupied = ending_the_command_of(pid);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        None,
+        "the ending is still going on, so nobody could have claimed it yet and nothing aborts"
+    );
+    std::mem::drop(ending);
+    assert_eq!(
+        kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
+        Some(String::from("the planted kill")),
+        "no thread is occupied with the kill, so the process aborts with its message"
+    );
+    assert_eq!(take_kill(numbered), Some(String::from("the planted kill")));
 }
 
 /// How much longer than the grace the ending of a command takes in the control below,
