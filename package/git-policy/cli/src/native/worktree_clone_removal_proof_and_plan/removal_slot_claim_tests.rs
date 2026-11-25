@@ -182,11 +182,10 @@ fn an_add_of_the_slot_meets_the_claim_a_removal_holds() {
     let fixture: RemovalFixture = RemovalFixture::healthy("claim-add-meets");
     let home: PathBuf = home_folder(fixture.common());
     let mut claim = take_the_removals_claim(fixture.common(), THE_SLOT).expect("the removal takes the claim");
-    // The add's own call, `worktree_clone_add_route::add_route_run::take_the_claim`.
-    match take_claim(home.as_path(), claim_prefix(THE_SLOT).as_os_str()).expect("the claim folder answers") {
-        ClaimOutcome::Busy(owner) => assert_eq!(owner.pid, i64::from(std::process::id()), "the add is stopped by the live owner's process"),
-        ClaimOutcome::Held(_) => panic!("an add must not take the claim a removal holds"),
-    }
+    // The add route's own call, so an add that changed its claim's key or folder would fail this control.
+    let refused = crate::worktree_clone_add_route::add_route_run::take_the_claim(home.as_path(), THE_SLOT).expect_err("an add must not take the claim a removal holds");
+    assert!(refused.message.contains("another command holds the claim on"), "the add's own refusal is the one that stops it, and it says: {}", refused.message);
+    assert!(refused.message.contains(format!("(process {})", std::process::id()).as_str()), "the add names the live owner's process: {}", refused.message);
     assert_eq!(release_at_the_last_step(&mut claim), ClaimEnd::Released);
     match take_claim(home.as_path(), claim_prefix(THE_SLOT).as_os_str()).expect("the claim folder answers") {
         ClaimOutcome::Held(_next) => assert_eq!(the_claim_generations(&fixture), vec![2], "the released claim is replaced by the next generation, which removes the older one"),

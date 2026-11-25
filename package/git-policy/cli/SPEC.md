@@ -5584,10 +5584,14 @@ and the claim's own rule lets the next command take the next generation,
 so nothing is left to clean up by hand.
 Every way out of the order before its last step,
 a refusal or an error,
-gives the claim back the same way,
-and a release that cannot rewrite its file is printed in the report rather than swallowed:
-the claim then names the process until the process ends,
-when it stops counting as alive.
+gives the claim back as that path's own drop,
+best effort:
+a rewrite that fails there leaves the claim naming this process,
+and the claim's liveness rule frees the slot when the process ends,
+when the next command takes the next generation.
+A release at the last step that cannot rewrite its file is printed in the report rather than
+swallowed,
+with the same consequence named.
 
 Steps 1 to 4 write no removal record and unmount nothing.
 This release's removal command runs their reads through the read-only reading,
@@ -5609,11 +5613,16 @@ A refusal changes nothing at all:
 the plan folder is not created,
 the clone's intent property keeps its value,
 and no record is rewritten.
-The writing path's own refusals are the same,
-with one difference its first step makes:
-a removal takes the slot's claim before it reads anything,
-so a refusal there leaves the record folder and one claim file that says `released`,
-which is what tells a second command that this one is not working on the slot.
+The claim's own two refusals,
+a slot a live command holds and a claim that cannot be taken,
+change nothing of the clone at all:
+they come before the first read,
+so such a removal read no record,
+destroyed nothing and wrote no plan.
+A refusal that takes the claim and then stops,
+at a holder,
+at a check or at the settle,
+gives the claim back and leaves the records its own sentences name.
 
 The whole removal is built on one writing path,
 `worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,

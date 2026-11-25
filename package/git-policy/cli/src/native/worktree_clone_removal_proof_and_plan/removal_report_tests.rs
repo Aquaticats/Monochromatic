@@ -84,7 +84,7 @@ fn a_name_the_plan_did_not_settle_is_printed_as_not_destroyed() {
 fn the_released_claim_prints_that_the_next_command_starts_at_once() {
     let done: TheRemovalDone = a_finished_removal();
     let text: String = done.text();
-    assert!(text.contains("the slot's per-slot claim is released, so the next command on `fix-flaky-test` starts at once"), "{text}");
+    assert!(text.contains("the slot's per-slot claim is released, so nothing of this removal keeps another command off `fix-flaky-test`"), "{text}");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn a_claim_that_could_not_be_released_prints_why_and_what_waits() {
     done.claim = ClaimEnd::RefusedToRelease { said: String::from("the claim on the slot fix-flaky-test could not be released (permission denied)") };
     let text: String = done.text();
     assert!(text.contains("the claim on the slot fix-flaky-test could not be released (permission denied)"), "{text}");
-    assert!(text.contains("waits until this process ends, when the claim stops counting as alive"), "{text}");
+    assert!(text.contains("another command on `fix-flaky-test` is refused until this process ends, when the claim stops counting as alive"), "{text}");
 }
 
 #[test]

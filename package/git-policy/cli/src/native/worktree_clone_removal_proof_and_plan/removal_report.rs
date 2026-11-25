@@ -197,9 +197,9 @@ impl TheRemovalDone {
             lines.push(format!("  the removal's plan still stands at {}; nothing was destroyed twice.", self.plan_path.display()));
         }
         lines.push(match &self.claim {
-            ClaimEnd::Released => format!("  the slot's per-slot claim is released, so the next command on `{}` starts at once.", self.slot),
+            ClaimEnd::Released => format!("  the slot's per-slot claim is released, so nothing of this removal keeps another command off `{}`.", self.slot),
             ClaimEnd::RefusedToRelease { said } => format!(
-                "  {said}, so the next command on `{}` waits until this process ends, when the claim stops counting as alive and the next command takes the next generation.",
+                "  {said}, so another command on `{}` is refused until this process ends, when the claim stops counting as alive and the next command takes the next generation.",
                 self.slot
             ),
             ClaimEnd::Held => format!("  the removal still holds the slot's per-slot claim: `{}` is not free until its last step runs.", self.slot),

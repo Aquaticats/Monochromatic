@@ -26,6 +26,12 @@
 //!  longer runs,
 //!  which the next command takes over under the claim's own rule,
 //!  so nothing is left to clean up by hand.
+//!  A refusal or an error before the last step gives the claim back as the error path's
+//!  own drop,
+//!  best effort:
+//!  a rewrite that fails there leaves the claim naming this process,
+//!  and the claim's liveness rule frees the slot once the process ends,
+//!  when the next command takes the next generation.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -392,11 +392,11 @@ impl RemovalStop {
                 "the binding the add wrote for the slot `{slot}` carries no `{field}`, so the removal cannot prove the clone's lineage. Nothing was destroyed, and the registration stands. Ways forward: read the binding record under the slot's name and run the removal again once it carries the field; a slot whose add never reached the clone has nothing for a removal to destroy."
             ),
             RemovalStop::TheSlotIsClaimed { slot, pid, path } => format!(
-                "another command holds the claim on the slot `{slot}` (process {pid}, claim file {}), so this removal changed nothing. Nothing was destroyed, and the registration, the plan and every snapshot and bookmark stand. Ways forward: wait for that command to end, or run the removal again once it has; a held slot is refused rather than queued, and a removal that was killed leaves a claim the next command takes over under the claim's own rule.",
+                "another command holds the claim on the slot `{slot}` (process {pid}, claim file {}), so this removal took no claim, read no record and destroyed nothing. Nothing was destroyed by this run. Ways forward: wait for that command to end, or run the removal again once it has; a held slot is refused rather than queued, and a removal that was killed leaves a claim the next command takes over under the claim's own rule.",
                 path.display()
             ),
             RemovalStop::TheClaimCannotBeTaken { slot, said } => format!(
-                "the claim on the slot `{slot}` cannot be taken ({said}), so this removal changed nothing. Nothing was destroyed, and the registration, the plan and every snapshot and bookmark stand. Ways forward: read the file the message names; a claim file where no wrapper command is running is one a person removes after checking that, and the next command then takes the next generation."
+                "the claim on the slot `{slot}` cannot be taken ({said}), so this removal took no claim, read no record and destroyed nothing. Nothing was destroyed by this run. Ways forward: read what the message names, check whether a command of the wrapper is working on this slot, and run the removal again; a claim file is the object that decides who may work on the slot, so no automatic step removes one."
             ),
             RemovalStop::DoesNotAnswer { object, reason } => format!(
                 "the pool does not answer for `{object}` ({reason}), so the removal cannot prove its lineage and stops before its first delete. Nothing was destroyed, and the registration stands. Ways forward: run the removal again once the pool answers for that name."
