@@ -190,3 +190,41 @@ fn without_a_runtime_directory_the_note_is_empty_and_the_command_refuses() {
     assert_eq!(code, 1);
     assert!(stderr.contains("XDG_RUNTIME_DIR is not set") && stderr.contains(NAMED_COMMAND), "{stderr}");
 }
+
+/// What:
+///  `doctor`'s note counts the journal of a removed worktree that no note and no socket file names,
+///  read from the fixture's own home, runtime and state directories,
+///  and says nothing of this machine's state folder.
+/// Why:
+///   That count is what tells a person the command has something to clear,
+/// and a journal that no unit names was invisible to it before (issue 6322).
+/// The fixture names its own `HOME`, `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
+/// which is what makes the reading touch nothing of this machine.
+#[test]
+fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
+    let world: World = world("stop-units-note-journal-only");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal folder");
+    let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
+    std::fs::write(
+        journal.join("1.done"),
+        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+    )
+    .expect("a landed batch that names the Git directory");
+    // The note and the socket file a removal that kept this journal took with it.
+    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
+    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    let home: PathBuf = world.root.join("home");
+    std::fs::create_dir_all(&home).expect("home directory");
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("HOME"), home.clone().into_os_string()),
+        (OsString::from("XDG_RUNTIME_DIR"), world.runtime.clone().into_os_string()),
+        (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
+    ];
+    let note: String = units_note(environment.as_slice());
+    assert!(note.contains("1 removed worktree are still set up"), "the journal that no unit names is counted: {note}");
+    assert!(note.contains(NAMED_COMMAND), "the note names the command that clears it: {note}");
+    remove(world.root.as_path());
+}
