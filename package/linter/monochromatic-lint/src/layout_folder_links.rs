@@ -330,12 +330,15 @@ fn tolerated_loops(
 }
 
 /// What:
-///  The findings for uses that join two folders already inside one tolerated loop.
+///  The findings for uses that join two folders already inside one tolerated loop,
+///  and that no loop finding reports.
 /// Why:
 ///  A loop the list tolerates must only lose uses:
 ///  a new use inside it adds a loop edge that no entry records,
 ///  and no entry may be added for it,
 ///  so the run says to remove the use or untangle the loop first.
+///  A use that a loop finding already lists is left to that finding,
+///  or one added edge would be reported once per old use of the loop it joins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,6 +347,7 @@ fn tolerated_loops(
 fn new_loop_uses(
     grouped: &FolderUses,
     loops: &BTreeMap<PathBuf, (u8, usize)>,
+    reported_loops: &BTreeMap<PathBuf, (u8, usize)>,
     tolerated: &BTreeSet<(u8, usize)>,
     list: &AllowList,
     base: &Path,
@@ -365,6 +369,12 @@ fn new_loop_uses(
                 continue;
             }
             if !tolerated.contains(loop_of_from) {
+                continue;
+            }
+            // A loop the loop check reports already lists this use.
+            if let Some(reported) = reported_loops.get(from)
+                && reported_loops.get(to) == Some(reported)
+            {
                 continue;
             }
             findings.push(LayoutFinding {
@@ -492,8 +502,17 @@ pub fn check_folder_links(
         return findings;
     };
     let loops: BTreeMap<PathBuf, (u8, usize)> = loop_of_each_folder(&folder_list, &grouped, &groups);
+    let reported_loops: BTreeMap<PathBuf, (u8, usize)> =
+        loop_of_each_folder(&folder_list, &reported, &groups);
     let tolerated_loops: BTreeSet<(u8, usize)> = tolerated_loops(&grouped, &loops, list, base);
-    findings.extend(new_loop_uses(&grouped, &loops, &tolerated_loops, list, base));
+    findings.extend(new_loop_uses(
+        &grouped,
+        &loops,
+        &reported_loops,
+        &tolerated_loops,
+        list,
+        base,
+    ));
     let (mut kept, mut used): (Vec<LayoutFinding>, BTreeSet<usize>) = tolerated(findings, list);
     used.extend(live_use_entries(&grouped, &loops, list, base));
     kept.extend(dead_entry_findings(list, &used, base));
