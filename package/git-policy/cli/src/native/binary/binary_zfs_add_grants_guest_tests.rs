@@ -155,6 +155,18 @@ impl Drop for Withheld<'_> {
     }
 }
 
+/// Clear one arm's slot before it runs,
+/// and leave the world alone when the arm never made one.
+/// Why:
+///  The arms run at names of their own,
+///  so an untouched slot is the usual case and `git worktree remove` on it
+///  writes a `fatal` line into the log for nothing.
+fn clear_a_fresh_slot(fixture: &Fixture, name: &str) {
+    if fixture.slot(name).exists() || fixture.dataset_stands(fixture.clone(name).as_str()) {
+        fixture.clear_the_slot(name);
+    }
+}
+
 /// Every snapshot the checkout holds,
 /// so a refusal arm can prove the add took none.
 fn snapshots_of_the_checkout(fixture: &Fixture) -> String {
@@ -182,7 +194,7 @@ fn every_withheld_permission_refuses_or_warns_as_the_record_says() {
     let fixture: Fixture = Fixture::prepare();
     for grant in &DECIDED {
         let name: String = arm_slot(grant);
-        fixture.clear_the_slot(name.as_str());
+        clear_a_fresh_slot(&fixture, name.as_str());
         let withheld: Withheld<'_> = Withheld::from_the_fixture(&fixture, grant);
         let output: Output = fixture.run_add(name.as_str());
         let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
@@ -229,7 +241,7 @@ fn the_whole_delegation_prints_no_line() {
     }
     let fixture: Fixture = Fixture::prepare();
     let name: &str = "grants-all";
-    fixture.clear_the_slot(name);
+    clear_a_fresh_slot(&fixture, name);
     let output: Output = fixture.run_add(name);
     let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
     assert!(output.status.success(), "the add under the whole delegation failed: {said}");
