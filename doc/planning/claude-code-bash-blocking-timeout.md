@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:28:41-05:00.
+State recorded 2026-11-25T17:29:22-05:00.
 
 ## Requirement as stated
 
@@ -294,6 +294,23 @@ The native result explicitly said no output had been read when it moved.
 The task later exited 0,
 and its output file contained `done`.
 This proves the accepted filter-dependent termination versus auto-background divergence.
+
+### Timeout input matrix
+
+A disposable session exercised six input shapes through the real filter wrapper:
+
+- `printf quick` with neither execution field received `timeout: 1000`
+  and returned `quick` synchronously.
+- A caller's `timeout: 500` survived unchanged.
+  Its command returned output and a background task ID rather than being rewritten to `1000`.
+- A caller's `timeout: 600000` survived unchanged and returned its quick output synchronously.
+- A caller's `timeout: 0` survived unchanged and returned its quick output synchronously.
+- Explicit `run_in_background: true` with no timeout stayed without a timeout.
+  It returned a background task ID immediately and later exited 0.
+- Explicit `run_in_background: false` with no timeout received `timeout: 1000`
+  and returned its quick output synchronously.
+
+Every rewrite preserved the caller's `description`.
 
 ## Verification still owed
 
