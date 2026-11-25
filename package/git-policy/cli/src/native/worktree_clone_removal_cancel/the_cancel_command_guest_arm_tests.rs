@@ -35,7 +35,7 @@ use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmou
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
 use crate::worktree_clone_removal_cancel::the_cancel_command::{TheCancelCommand, TheCancellation, cancel_the_removal};
-use crate::worktree_clone_removal_cancel::the_removal_claim::{ClaimHeld, TheRemovalClaim};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
 use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity, TheMountRequest};
 use crate::worktree_clone_removal_cancel::the_slot_mount::TheSlotMount;
 use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
@@ -132,8 +132,8 @@ impl TheStagedFolder for NoStagedFolder {
 struct AClaimTheArmHolds;
 
 impl TheRemovalClaim for AClaimTheArmHolds {
-    fn take(&self, _slot: &str) -> Result<ClaimHeld, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
-        return Ok(ClaimHeld::for_a_control("the guest arm"));
+    fn take(&self, _slot: &str) -> Result<HeldClaim, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
+        return Ok(HeldClaim::AControl);
     }
 }
 

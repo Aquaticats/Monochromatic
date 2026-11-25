@@ -32,7 +32,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_SNAPSHOT, RemovalFixture, ScriptedPool, SLOT, guid, the_stats};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_removal_claim::{ClaimHeld, TheRemovalClaim};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
 use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity, TheMountRequest};
 use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
@@ -256,11 +256,11 @@ pub struct ScriptedClaim {
 }
 
 impl TheRemovalClaim for ScriptedClaim {
-    fn take(&self, slot: &str) -> Result<ClaimHeld, CancelRefusal> {
+    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal> {
         self.order.borrow_mut().push(format!("claim:{slot}"));
         return match &self.refusal {
             Some(refusal) => Err(refusal.clone()),
-            None => Ok(ClaimHeld::for_a_control("4242")),
+            None => Ok(HeldClaim::AControl),
         };
     }
 }

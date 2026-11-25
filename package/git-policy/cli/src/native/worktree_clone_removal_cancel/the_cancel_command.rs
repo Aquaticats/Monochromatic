@@ -46,7 +46,7 @@ use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{TheReversalDone, TheReversalRequest, reverse_the_removal};
 use crate::worktree_clone_removal_cancel::the_plan_it_leaves::{ThePlansFate, the_plan_a_cancellation_leaves};
 use crate::worktree_clone_removal_cancel::the_proof::{TheRecordsProof, WhatTheRecordsProve, prove_the_slot_is_a_removals, prove_the_slots_records};
-use crate::worktree_clone_removal_cancel::the_removal_claim::{ClaimHeld, TheRemovalClaim};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
 use crate::worktree_clone_removal_cancel::the_reversing_request::TheMountRequest;
 use crate::worktree_clone_removal_cancel::the_slot_mount::{TheSlotMount, counts_as_at_its_slot, word as slot_word};
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
@@ -295,7 +295,7 @@ pub fn cancel_the_removal(input: &TheCancelCommand<'_>) -> Result<TheCancellatio
     // The records are proved before the claim is taken, so a caller's mistake leaves it untouched.
     let claimed: DatasetGuid = prove_the_slot_is_a_removals(&proof)?;
     // The held claim gives the slot back on every path out, the refusals included, when it is dropped.
-    let _held: ClaimHeld = input.claim.take(input.request.slot.as_str())?;
+    let _held: HeldClaim = input.claim.take(input.request.slot.as_str())?;
     return act_under_the_claim(input, &proof, claimed);
 }
 

@@ -34,52 +34,25 @@ use std::path::Path;
 /// What:
 ///  A slot claim this run holds.
 /// Why:
-///  The claim is that removal-order claim itself,
-///  whose drop gives the slot back on every path out,
-///  and a control needs an answer that creates no file,
-///  so the two live in one type.
+///  The live arm is the removal order's own claim,
+///  whose drop gives the slot back on every path out;
+///  the control arm creates nothing,
+///  so the command's decisions are provable without a repository.
+///  One enum keeps the live claim's only reader, its own drop, from being a field no code
+///  names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ClaimHeld = { claim?: RemovalClaim; owner: string };
+/// type HeldClaim = { kind: 'live'; claim: RemovalClaim } | { kind: 'a-control' };
 /// ```
 #[derive(Debug)]
-pub struct ClaimHeld {
+pub enum HeldClaim {
     /// The claim this process took,
-    /// and nothing in a control.
-    /// Its only reader is the removal claim's own `Drop`,
-    /// which rewrites the file as released when this value goes,
-    /// so no code reads the field and the compiler cannot see the drop's read.
-    /// An owner accessor would be a second name for the same fact and nothing would call it,
-    /// and holding the claim in a `ManuallyDrop` would leave this command to release a slot
-    /// on paths it forgets.
-    #[allow(dead_code, reason = "the removal claim's Drop is this field's only reader, and the compiler does not count a drop as a read")]
-    claim: Option<RemovalClaim>,
-    /// The owner the claim names.
-    owner: String,
-}
-
-impl ClaimHeld {
-    /// What:
-    ///  A claim a control holds,
-    ///  which creates no file.
-    /// Why:
-    ///  The command's decisions must be provable without a repository,
-    ///  and only a live take may create a claim file.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// ClaimHeld.forAControl('4242');
-    /// ```
-    pub fn for_a_control(owner: &str) -> ClaimHeld {
-        return ClaimHeld { claim: None, owner: String::from(owner) };
-    }
-
-    /// The owner the claim names,
-    /// which is this process for a live take.
-    pub fn owner(&self) -> &str {
-        return self.owner.as_str();
-    }
+    /// released when this value goes.
+    Live(RemovalClaim),
+    /// A control's answer,
+    /// which holds nothing.
+    AControl,
 }
 
 /// What:
@@ -91,7 +64,7 @@ impl ClaimHeld {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface TheRemovalClaim { take(slot: string): ClaimHeld }
+/// interface TheRemovalClaim { take(slot: string): HeldClaim }
 /// ```
 pub trait TheRemovalClaim {
     /// Take this slot's removal claim.
@@ -99,7 +72,7 @@ pub trait TheRemovalClaim {
     /// # Errors
     /// A live command holding the slot,
     /// or a claim whose folder or file could not be used.
-    fn take(&self, slot: &str) -> Result<ClaimHeld, CancelRefusal>;
+    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal>;
 }
 
 /// What:
@@ -119,9 +92,9 @@ pub struct LiveTheRemovalClaim<'a> {
 }
 
 impl TheRemovalClaim for LiveTheRemovalClaim<'_> {
-    fn take(&self, slot: &str) -> Result<ClaimHeld, CancelRefusal> {
+    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal> {
         let claim: RemovalClaim = take_the_removals_claim(self.common_dir, slot).map_err(|stop| return of_a_claim_stop(&stop))?;
-        return Ok(ClaimHeld { claim: Some(claim), owner: format!("this command (pid {})", std::process::id()) });
+        return Ok(HeldClaim::Live(claim));
     }
 }
 
