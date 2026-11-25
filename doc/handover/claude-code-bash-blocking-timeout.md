@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:31:28-05:00.
+State recorded 2026-11-25T17:40:27-05:00.
 This work is incomplete and unapproved.
 
 ## Current state
@@ -29,6 +29,9 @@ and startup,
 resume,
 policy-disabled,
 and background-disabled warning behavior.
+An interactive PTY probe confirmed that the startup warning is visible,
+while noninteractive text mode exposes it only through structured hook output.
+The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q20 A`.
 
 ## Open work
 
