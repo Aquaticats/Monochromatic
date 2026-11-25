@@ -68,6 +68,13 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a release file reading a test-only switch itself:
+/// every such value is taken through `foundation/test_only_switches.rs`,
+/// whose read a release build does not hold.
+#[cfg(test)]
+#[path = "no_release_read_of_a_test_only_switch_tests.rs"]
+mod no_release_read_of_a_test_only_switch_tests;
+
 /// The owner's move to tokio needs its workers to await:
 /// no thread,
 /// no sleeping clock,
