@@ -36,3 +36,7 @@ use super::test_support::fixture_root;
 pub(crate) fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
     return in_a_root_taking_any_name(fixture_root().as_path(), test);
 }
+
+/// Controls for the wrapper above.
+#[path = "fixture_root_taking_any_name_of_unit_tests_tests.rs"]
+mod tests;
