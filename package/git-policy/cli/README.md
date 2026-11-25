@@ -495,8 +495,7 @@ Read-only commands,
   so a Git that never answers is stopped and named.
   Every push uploads with `GIT_ASKPASS` set to the empty string,
    `GIT_TERMINAL_PROMPT=0`,
-   `SSH_ASKPASS` set to the sentence that answers nothing and names a way forward (
-   `NO_ANSWER_SENTENCE`) and `SSH_ASKPASS_REQUIRE=force`,
+   `SSH_ASKPASS` set to `false` and `SSH_ASKPASS_REQUIRE=force`,
   whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
@@ -5741,22 +5740,17 @@ fractional or non-numeric value is ignored.
    failure above,
   and no desktop password dialog opens for nobody to answer.
   OpenSSH reads neither of those,
-  so its own two variables name one sentence that answers nothing and names a way forward,
+  so its own two variables name the standard program that answers nothing (`SSH_ASKPASS=false`)
    and send every question to it (`SSH_ASKPASS_REQUIRE=force`),
    which reaches the questions OpenSSH asks at a terminal as well,
   and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
   because no command the wrapper runs or forwards asks a person for a credential.
-  The sentence is not a program: it cannot start,
-  and OpenSSH prints its own line about that with the sentence inside it,
-   `ssh_askpass: exec(monochromatic-git-policy-cli: …): File name too long`,
-  above its refusal.
-  A typed `git clone` or `git fetch` at an unknown host key,
-   or at a key whose passphrase nothing can supply,
-  therefore reads that line and then acts on it,
-  and the same line prints on a command that succeeds when the question was about adding a key to an agent
-   (`AddKeysToAgent=ask`) or about a key skipped for one that works,
-  which the sentence's own words say
-  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+  The value has to be a program OpenSSH can start:
+  a value it cannot start makes the failing child kill the connection's `ProxyCommand`,
+  so a connection that ended 0 without one ends 255 with it.
+  The wrapper adds no words of its own where a question was asked,
+  so this release names no next step at a new host key;
+  how such a text reaches a person is the project's next choice.
   An SSH key whose passphrase no agent holds therefore fails at once,
   at a terminal or without one,
    while a key without a passphrase needs no agent at all,
@@ -7535,12 +7529,13 @@ The wrapper adds the same four variables to every command it forwards
 (`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
 with or without a controlling terminal:
 the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.
-The wrapper's own value is not `false`:
-it is `NO_ANSWER_SENTENCE`, one sentence that cannot start and says what a person does instead,
-so a command the wrapper runs prints OpenSSH's `ssh_askpass: exec(…)` line with that sentence in it
-before the refusal.
-The `false` above is what a test or a script names, and a test that wants the same silence keeps it:
-nothing in a test depends on that sentence's wording.
+The wrapper's own value is that same `false`,
+so a command the wrapper runs names one program that answers nothing and prints nothing.
+A sentence stood there for one release to carry the next step at a new host key,
+and it went because a value OpenSSH cannot start kills a connection through a `ProxyCommand`
+(the SPEC's "Git commands that may need a login" holds the record, the control and the decision).
+This release names no next step at a new host key;
+how that text reaches a person is the project's next choice.
 A control that compares a forwarded command's environment builds the rule from those two functions
 (`forward` in `src/native/invocation/entry_tests.rs`),
 so no control depends on the terminal the runner happens to have.

@@ -487,53 +487,24 @@ pub const ASKPASS_REQUIRE_VARIABLE: &str = "SSH_ASKPASS_REQUIRE";
 /// whether or not a terminal and a display are there.
 pub const ASKPASS_REQUIRE_FORCE: &str = "force";
 
-/// What:
-///  The text the no-prompt rule writes into [`SSH_ASKPASS_VARIABLE`] in place of a program:
-///  one sentence that says the question was answered no and what a person does instead.
-/// Why:
-///   The owner chose this on 2026-11-24
-///  (`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-///  the answer "J: the sentence in SSH_ASKPASS"):
-///  `ssh_askpass` starts the value with `execlp` (`readpass.c:77` at `V_10_6_P2`),
-///  a name this long cannot be started,
-///  and OpenSSH prints its own failure with the value inside it
-///  (`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`),
-///  so the sentence and then OpenSSH's own refusal are what the person reads,
-///  and no program starts at all.
-///  The failure is `File name too long` because the name is longer than a file name may be;
-///  the text therefore stays long,
-///  and the controls read the whole line rather than a phrase of it.
-///  Two of the wrapper's readers must stay silent about this line
-///  (`src/native/lfs/lfs_pre_push.rs`):
-///  the host-key detector `reads_as_unknown_host_key` treats a line that names a host key or a certificate outside
-///  single quotes as another refusal than the one it explains the words of,
-///  so this text names neither,
-///  and neither the login nor the key detector may fire on it,
-///  because the line prints on commands that succeed as well.
-///  `the_wrappers_sentence_for_openssh_turns_no_reading_on` holds all three.
-///  The sentence prints where nothing failed:
-///  `AddKeysToAgent=ask` with an agent that does not hold the key yet,
-///  and a key whose passphrase nobody can give, skipped for one that works, both end 0 with the line on standard
-///  error,
-///  so its last clause says that the question alone never says whether another key answered it.
-///  It holds no line break, so it is one environment string,
-///  and no command in it is built from text outside it:
-///  `<host>` and `<port>` are placeholders the reader fills from the command just typed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const askpassText = 'monochromatic-git-policy-cli: OpenSSH asked a question only a person can answer, ...';
-/// ```
-pub const NO_ANSWER_SENTENCE: &str = "monochromatic-git-policy-cli: OpenSSH asked a question only a person can answer, \
-    and no command the wrapper runs asks one, so the answer was no. If the question was about the ssh key of a machine \
-    this one has not seen, connect once with plain `ssh <host>` (with `-p <port>` if the command names one), which the \
-    wrapper does not touch and which still asks. If it was about the passphrase of a key, start an agent with \
-    `eval \"$(ssh-agent)\"` and load the key with `ssh-add`. Run this command again if it failed: the question alone never \
-    says whether another key answered it.";
+/// The program OpenSSH is given in place of the account's own:
+/// the standard one that prints nothing and reports failure.
+///  A child's `PATH` is the caller's,
+/// and `ssh_askpass` finds the program with `execlp`
+///  (`readpass.c:77`),
+/// so its failure to find one is a start that exits non-zero,
+/// which is the answer below.
+///  The value has to be one OpenSSH can start:
+///  a value it cannot start makes its failing child send SIGHUP to the `ProxyCommand` the connection is using,
+///  which ends such a connection where this program ends 0
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, H1 of the alpha.46 release pass).
+///  This release names no next step at a new host key itself;
+///  how that text reaches a person is the project's next choice.
+pub const NO_ANSWER_PROGRAM: &str = "false";
 
 /// What:
-///  The two variables that send every question OpenSSH would ask a person to a value that answers nothing:
-///  [`SSH_ASKPASS_VARIABLE`] naming [`NO_ANSWER_SENTENCE`],
+///  The two variables that send every question OpenSSH would ask a person to a program that answers nothing:
+///  [`SSH_ASKPASS_VARIABLE`] naming [`NO_ANSWER_PROGRAM`],
 ///  and [`ASKPASS_REQUIRE_VARIABLE`] set to [`ASKPASS_REQUIRE_FORCE`].
 /// Why:
 ///  `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s;
@@ -547,23 +518,26 @@ pub const NO_ANSWER_SENTENCE: &str = "monochromatic-git-policy-cli: OpenSSH aske
 ///  a passphrase question is neither an askpass question nor one that may read standard input (150-167),
 ///  and so it opened `/dev/tty` and asked (185).
 ///  `force` sets `use_askpass` and `allow_askpass` both (131-133),
-///  so the question goes to that value (172-182),
-/// a start that fails leaves no answer (179-181),
+///  so the question goes to the program (172-182),
+/// a program that fails leaves no answer (179-181),
 /// and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 ///  (`sshconnect2.c:1549-1558`).
 ///  A key the agent holds needs no passphrase,
 /// so it still opens the connection.
-///  The value cannot start, which `ssh_askpass` reads as no answer,
-/// and OpenSSH prints its own failure with the sentence inside it,
-/// which is the next step a person reads ([`NO_ANSWER_SENTENCE`]).
+///  The program's absence fails the same way:
+/// a child that cannot `execlp` it exits non-zero,
+/// which `ssh_askpass` reads as no answer.
+///  The wrapper ships for Linux only (`README.md`,
+/// "Requirements"),
+/// where coreutils or busybox puts `false` on `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sshNoAnswer: [string, string][] = [['SSH_ASKPASS', askpassText], ['SSH_ASKPASS_REQUIRE', 'force']];
+/// const sshNoAnswer: [string, string][] = [['SSH_ASKPASS', 'false'], ['SSH_ASKPASS_REQUIRE', 'force']];
 /// ```
 pub fn ssh_no_answer_overlay() -> Vec<(OsString, OsString)> {
     return vec![
-        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_SENTENCE)),
+        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_PROGRAM)),
         (OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_FORCE)),
     ];
 }

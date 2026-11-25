@@ -699,11 +699,9 @@ and `read_passphrase` turns that into an empty answer at 179 to 181).
 (`sshconnect2.c` at `V_10_6_P2` lines 1549 to 1558),
 so a key the agent holds still opens the connection and a key whose passphrase no agent holds fails at once.
 
-The two paragraphs above are the 2026-11-19 record.
-Since 2026-11-24 the first value is not `false` but `NO_ANSWER_SENTENCE`, one sentence that cannot start,
-so OpenSSH prints the sentence inside its own failed start;
-the empty answer, the skipped key and the connection that still opens are unchanged
-(see "The sentence in `SSH_ASKPASS` prints a next step" below).
+The paragraphs above are the 2026-11-19 record, and they are what the code does again:
+a sentence stood in for `false` from 2026-11-24 to 2026-11-25 and was removed for the reason recorded in
+"A sentence in `SSH_ASKPASS` killed every proxied connection" below.
 
 Measured on 2026-11-19 through the wrapper built from the fixed branch,
 at a pseudo-terminal,
@@ -772,11 +770,10 @@ and that a caller's own `SSH_ASKPASS` is replaced for these children.
 `no_prompt_overlay` in `package/git-policy/cli/src/native/invocation/child_environment.rs`
 is the whole rule:
 the never-prompt pair (`GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`)
-and OpenSSH's two (`SSH_ASKPASS` set to `NO_ANSWER_SENTENCE` and `SSH_ASKPASS_REQUIRE=force`,
+and OpenSSH's two (`SSH_ASKPASS` set to `false` and `SSH_ASKPASS_REQUIRE=force`,
 `ssh_no_answer_overlay`) in one list.
-The 2026-11-19 record below named `false` there;
-the sentence replaced it on 2026-11-24
-("The sentence in `SSH_ASKPASS` prints a next step").
+A sentence stood there from 2026-11-24 to 2026-11-25 and was removed
+("A sentence in `SSH_ASKPASS` killed every proxied connection").
 The commit service's children get it through `service_child_overlay`,
 and every command the wrapper runs or forwards gets it through `invocation_overlay`,
 with or without a controlling terminal.
@@ -897,131 +894,79 @@ moved verbatim on 2026-11-23:
   brief under
   `~/temp/agent/git-policy-cli-lfs-narrow-check-findings-and-owner-answers-fixed-2026-11-20/`.
 
-## The sentence in `SSH_ASKPASS` prints a next step (found 2026-11-24)
+## A sentence in `SSH_ASKPASS` killed every proxied connection (found 2026-11-25)
 
 ### Symptom
 
-None: this section records a chosen behaviour, its measured line and what it costs,
-for the person who meets OpenSSH's `ssh_askpass: exec(…): File name too long` line and wonders where it came from.
+A typed `git push`, `fetch`, `clone` or LFS transfer through the wrapper ends 255 where it used to end 0,
+prints `ssh_askpass: exec(<a long sentence>): File name too long` on standard error,
+and then Git's own "Could not read from remote repository".
+It happens only where the connection runs through a `ProxyCommand` or a `ProxyJump`,
+where the first key the server accepts has a passphrase that no agent holds,
+and where a later key would have worked.
 
-### What a person meets
+### What a person met
 
-A typed `git clone` or `git fetch` at a host key this machine has not seen,
-with the no-prompt rule in force, prints this and ends 128
-(run, `~/temp/agent/build-host-key-next-step-option-j-2026-11-24/keep/new-host-key-line.log`,
-OpenSSH 10.6p2 and Git 2.56.1 in a container of the gate image):
+The value the no-prompt rule wrote into `SSH_ASKPASS` was one 571-byte sentence
+(`NO_ANSWER_SENTENCE`, removed on 2026-11-25),
+chosen so that OpenSSH's failed start would print the wrapper's next step at a new host key.
+`ssh_askpass` starts that value with `execlp` (`readpass.c:77` at `V_10_6_P2`),
+and when the start fails it calls
+`fatal_f("exec(%s): %s", askpass, strerror(errno))` (`readpass.c:78`).
+In the `ssh` client `fatal_f` ends in `cleanup_exit` (`clientloop.c` lines 2886 to 2891),
+which calls `ssh_kill_proxy_command()`
+(`sshconnect.c` lines 305 to 312: `kill(proxy_command_pid, SIGHUP)`).
+The failing child holds the parent's `proxy_command_pid` (`sshconnect.c` line 288),
+so the child that could not start the sentence sends SIGHUP to the connection's own proxy,
+and the transport is dead before OpenSSH can go on to the next key.
+OpenSSH starts every proxy as `$SHELL -c "exec <command>"` (`sshconnect.c` line 126),
+so the process the child kills is the proxy whatever the account's shell is.
+A startable value takes another path: the child starts, exits 1, and no `fatal_f` runs.
 
-```text
-Cloning into '/work/agent-probe/clone'...
-ssh_askpass: exec(monochromatic-git-policy-cli: OpenSSH asked a question only a person can answer, and no command the wrapper runs asks one, so the answer was no. If the question was about the ssh key of a machine this one has not seen, connect once with plain `ssh <host>` (with `-p <port>` if the command names one), which the wrapper does not touch and which still asks. If it was about the passphrase of a key, start an agent with `eval "$(ssh-agent)"` and load the key with `ssh-add`. Run this command again if it failed: the question alone never says whether another key answered it.): File name too long
-Host key verification failed.
-fatal: Could not read from remote repository.
+### The four arms, measured
 
-Please make sure you have the correct access rights
-and the repository exists.
-```
+A real `sshd` and `ssh` 10.6p2 in a capped container of the gate image
+(`--network none --rm --cpus 2 --memory 2g`),
+one client key protected by a passphrase nobody can give and one that works, both accepted,
+the protected one offered first.
+The `ssh` at `/usr/bin/ssh` in that container runs under this host's enforcing `ssh` profile and cannot start `false`
+either, so the same arms were run with a copy of that binary at a path no profile names
+(run and log: `~/temp/agent/askpass-false-and-commit-push-pass-fixes-2026-11-25/keep/h1-proxy-experiment-*`):
 
-The middle line is OpenSSH's own
-`fatal_f("exec(%s): %s", askpass, strerror(errno))` (`readpass.c:78` at `V_10_6_P2`)
-around the value the no-prompt rule wrote into `SSH_ASKPASS`:
-one sentence, `NO_ANSWER_SENTENCE` in
-`package/git-policy/cli/src/native/invocation/child_environment.rs`.
-`SSH_ASKPASS_REQUIRE=force` still sends every question to that value,
-and the value cannot start, so no program runs and the empty answer is still no.
+- the wrapper's own rule, direct connection: exit 0, and the clone was written;
+- the wrapper's own rule, `ProxyCommand`: exit 128, the relay started, nothing was cloned;
+- the same connection with `SSH_ASKPASS=false` set by hand, `ProxyCommand`: exit 0, the ref was listed;
+- the same connection with the sentence set by hand, `ProxyCommand`: exit 128;
+- under the confined `ssh`: `/bin/sh: Permission denied` for every `ProxyCommand` arm and both values,
+  because the profile refuses the shell OpenSSH runs a proxy with.
 
-### Why a sentence and not a program
+### What this repository does instead
 
-The owner chose this on 2026-11-24
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-"J: the sentence in SSH_ASKPASS"):
-the wrapper never hands its own path to ssh or to Git,
-and a second shipped program is ruled out
-(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
-The sentence is 571 bytes, longer than a file name may be,
-so `execlp` fails with `File name too long` (`readpass.c:77`)
-rather than `No such file or directory`:
-a short text would read like a missing file instead of a sentence.
+`SSH_ASKPASS=false` again (`NO_ANSWER_PROGRAM` in
+`package/git-policy/cli/src/native/invocation/child_environment.rs`),
+which is what alpha.45 had,
+so the empty answer, the skipped key and the connection that still opens are as the 2026-11-19 record describes.
+The wrapper prints no next step of its own where a question was asked;
+this release names no next step at a new host key, and how such a text reaches a person is the project's next choice
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`).
 
-### The wording is constrained by three readings
+### The machine's own policy can refuse the program
 
-`reads_as_unknown_host_key` (`src/native/lfs/lfs_pre_push.rs`)
-explains a host-key refusal only when every line of the transcript that names a host key or a certificate
-outside single quotes is that refusal's own.
-This line is in every transcript a push or upload the wrapper runs produces,
-so a sentence naming a host key would stop the upload's explanation and the service's push record from printing,
-and one holding a login failure's words would make a successful command explain a login it never had.
-The sentence therefore says "the ssh key of a machine" and never "host key", and holds none of the login words.
-The wording was chosen over teaching the detector to skip this line,
-because the reading exists to distrust lines whose words it has not seen;
-`HOST_KEY_NOT_KNOWN_SENTENCE_OPENING` is the one exception, and it is there because a hook echoes the wrapper's own
-sentence into a push's words, which nothing does with this line.
-A wording edit that names a host key fails
-`the_wrappers_sentence_for_openssh_turns_no_reading_on` and
-`an_unknown_host_key_reads_while_the_askpass_value_is_the_wrappers_sentence`;
-the red was measured by naming a host key in the sentence
-(`~/temp/agent/build-host-key-next-step-option-j-2026-11-24/keep/detector-red-wording-names-a-host-key.log`).
-
-### The line prints on a command that succeeds
-
-`AddKeysToAgent=ask` with an agent that does not hold the key yet asks
-`Add key <path> (<type>) to agent?`,
-and a key whose passphrase nobody can give is skipped for the next key
-(`load_identity_file` reads the empty answer as one nobody gave, `sshconnect2.c:1549-1558`).
-Both end 0 and both print the sentence, so the sentence's last clause says that the question alone never says whether
-another key answered it.
-
-Measured for the first case in a container of the gate image,
-with the agent and `ssh-add` run from copies under `/work` (see "What did not work" below),
-the same clone in three arms
-(run, `~/temp/agent/build-host-key-next-step-option-j-2026-11-24/keep/addkeys-agent-arm.log`):
-
-- a recorder program in `SSH_ASKPASS` was started for the question and refused by the host's `git//ssh`
-  confinement (the profile allows no program but the few it names), which proves a question is asked there;
-- the rule as it stood on `main`, `SSH_ASKPASS=false`, ends 0 with no line at all;
-- the wrapper's own overlay ends 0 with the whole sentence on standard error.
-
-The second case is held by
-`a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_with_the_sentence`
-in `package/git-policy/cli/src/native/binary/binary_ssh_terminal_tests.rs`.
-
-### What it costs
-
-- One generic text: the sentence cannot name the host, the port or the key,
-  so it says `ssh <host>` and `-p <port>` and leaves the reader to fill them from the command just typed.
-- The framing: the advice arrives inside `ssh_askpass: exec(…): File name too long`.
-- `ssh -q` and `LogLevel=QUIET` suppress the whole line, because OpenSSH's log level drops even `fatal`
-  (`log.c:461`, `log.c:354-393` at `V_10_6_P2`).
-- A typed LFS push and the service's push record print the sentence and then the wrapper's own sentence for an
-  unknown host key, because both read the same transcript.
-
-### What did not work
-
-- Mounting a probe script into the container and running it failed with
-  `/bin/bash: /work/agent-probe-arm.sh: Permission denied`,
-  so the script went in on standard input (`/bin/bash -s`);
-  the mount is a host file whose owner the rootless container maps away, and no AppArmor rule was involved.
-- `/usr/bin/ssh-agent -a /work/agent-probe/agent.sock` printed
-  `unix_listener: cannot bind to path /work/agent-probe/agent.sock: Permission denied`:
-  this host confines `ssh-agent` by path, and that profile attaches to the container's `/usr/bin/ssh-agent` too.
-  A copy of the program at `/work/agent-probe/bin/ssh-agent` binds the socket and holds no identity.
+A host whose `ssh` profile denies starting `false` cannot show either ending:
+its transcript reads `ssh_askpass: exec(false): Permission denied`,
+and a `ProxyCommand` connection there fails with alpha.45's value too.
+This machine is such a host.
+The control below therefore says so and checks nothing on such a machine,
+and keeps the assertion that catches the regression on every machine where the ending can be shown.
 
 ### Tests that hold it
 
-- `a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-  `a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-  `a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal` and
-  `a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal`
-  each start a throwaway `sshd` and require the whole line, in that order, before the refusal the arm meets;
-  the clone control runs the real Git on the same fixture and requires no such line.
-- `a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent` requires that a key that asks nothing
-  prints no line at all.
-- `the_wrappers_sentence_for_openssh_turns_no_reading_on` and
-  `an_unknown_host_key_reads_while_the_askpass_value_is_the_wrappers_sentence`
-  hold the wording against the three readings.
-- `an_upload_refused_for_an_unknown_host_key_reads_words_that_hold_the_wrappers_askpass_line` and
-  `a_record_of_a_push_refused_for_an_unknown_key_reads_words_that_hold_the_wrappers_askpass_line`
-  hold the two faces a person reads.
-- In the gate image, a narrowed run of the touched modules passed every one of them
-  (`Summary [4.667s] 121 tests run: 121 passed, 10785 skipped`);
-  the same run against the rule as `main` had it failed the five new controls, each at the line's absence,
-  and passed nothing else differently (`114 passed, 7 failed`).
+`a_key_nobody_can_unlock_is_skipped_for_one_that_works_behind_a_proxy_command`
+(`package/git-policy/cli/src/native/binary/binary_ssh_terminal_tests.rs`)
+starts a throwaway `sshd`, offers the protected key before one that works,
+names a Python relay as the fixture's own `ProxyCommand`,
+requires that the relay started, that the clone ended 0 and that the clone was written.
+No control before it ran a `ProxyCommand`, which is why the gate passed the sentence.
+`REFUSED_ASKPASS_LINE` and `assert_the_no_answer_program_ran` in the same file keep every other arm honest:
+an arm whose transcript shows that OpenSSH could not start the value proves nothing about the empty answer.

@@ -9275,7 +9275,8 @@ Every Git and `git-lfs` child gets one list,
 `no_prompt_overlay` in `src/native/invocation/child_environment.rs`:
 `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS` set to one sentence that answers nothing and names what a person does instead,
+`SSH_ASKPASS` set to `false`,
+the standard program that answers nothing,
 and `SSH_ASKPASS_REQUIRE=force`.
 The service's children take it through `service_child_overlay`,
 which `service_work.rs` uses for the service's landing and upkeep context and for each push's environment,
@@ -9306,47 +9307,34 @@ a start that fails leaves no answer (`readpass.c:179-181`),
 and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 (`sshconnect2.c:1549-1558`).
 `ssh_askpass` starts that value with `execlp` (`readpass.c:77`),
-and the value is not a program.
-It is one sentence, `NO_ANSWER_SENTENCE` in `src/native/invocation/child_environment.rs`,
-which the owner chose on 2026-11-24
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-"J: the sentence in SSH_ASKPASS"):
-a name that long cannot be started,
-and OpenSSH prints its own failure with the sentence inside it
-(`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`),
-so the person reads
-`ssh_askpass: exec(monochromatic-git-policy-cli: ...): File name too long`
-before OpenSSH's own refusal.
-No program starts,
-so nothing has to be installed on `PATH`
-and no confinement has to allow an execute in place of a person.
-The sentence names no host key and no certificate outside single quotes and holds none of the login words,
-because a transcript that holds it is still judged by `reads_as_unknown_host_key` and by the two login readings
-(`the_wrappers_sentence_for_openssh_turns_no_reading_on` in `src/native/lfs/lfs_pre_push_tests.rs`).
-That is also why the wrapper's own sentence for an unknown host key still prints below the program's words:
-the upload's explanation and the service's push record read the same transcript
-(`an_upload_refused_for_an_unknown_host_key_reads_words_that_hold_the_wrappers_askpass_line`,
-`a_record_of_a_push_refused_for_an_unknown_key_reads_words_that_hold_the_wrappers_askpass_line`).
-A person meets the line at both refusals this rule causes,
-measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
-`git clone` and `git fetch` print it before `Host key verification failed.` at an unknown host key,
-and before `Permission denied (publickey).` at a key whose passphrase nobody can give,
-each ending 128 with Git's own lines below
-(`a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-`a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-`a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal` and
-`a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal`
+and `false` is a program that prints nothing and exits 1,
+so the question is answered with nothing and no program of the desktop's starts.
+The value has to be one OpenSSH can start:
+a value it cannot start makes the failing child send SIGHUP to the `ProxyCommand` the connection runs through
+(`sshconnect.c:305-312` at `V_10_6_P2`),
+which ends such a connection where `false` ends 0.
+One release put a sentence there instead, and that is why it went
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+the answer "Put `false` back"):
+behind a `ProxyCommand` or a `ProxyJump`,
+a connection whose first accepted key had a passphrase no agent held ended 255 where alpha.45's `false` ended 0.
+A control against a throwaway `sshd` proves the ending this release gives that connection:
+the protected key is offered before one that works,
+the connection runs through a `ProxyCommand`,
+and the clone ends 0
+(`a_key_nobody_can_unlock_is_skipped_for_one_that_works_behind_a_proxy_command`
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
-The line also prints where nothing failed:
-with `AddKeysToAgent=ask` and an agent that does not hold the key yet,
-and with a key whose passphrase nobody can give skipped for one that works,
-the command ends 0 and the line is on standard error anyway
-(`a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_with_the_sentence`,
-and the `AddKeysToAgent=ask` arm in
-`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
-The sentence's last clause says so,
-and that is the cost of one generic text:
-it cannot say which question it was printed for.
+The wrapper adds no words of its own where a question was asked:
+the program it names answers nothing and prints nothing.
+This release therefore names no next step at a new host key,
+and how such a text reaches a person is the project's next choice
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
+the record that chose the delivery this release removed).
+A person meets OpenSSH's own refusals at both questions this rule answers with nothing,
+measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
+`Host key verification failed.` at an unknown host key,
+and `Permission denied (publickey).` at a key whose passphrase nobody can give,
+each ending 128 with Git's own lines below and no line of the wrapper's among them.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -10640,7 +10628,7 @@ The refusal that follows a login failure says what the wrapper did about prompti
 and every refusal says the wrapper never lets a command ask for a credential,
 with `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS` set to the sentence that answers nothing and `SSH_ASKPASS_REQUIRE=force`,
+`SSH_ASKPASS` set to `false` and `SSH_ASKPASS_REQUIRE=force`,
 whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
