@@ -345,8 +345,14 @@ on the merged result `source_guard` gave 88 of 88, the removal module 108 with i
 step 15's wiring runs since 2026-11-24T23:50-05:00 (`pi-zfs-step-15-wire-the-deferred-origin-checks`, brief `~/temp/agent/zfs-step-15-wire-the-deferred-origin-checks-2026-11-24/prompt.md`),
 placing its checks in the writing path behind that cut, with the plan's mark-between-the-checks measurement in a guest through the library path;
 the root modes' eleven choices are answered (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`),
-and the seventh revision writes them in (`pi-zfs-root-modes-seventh-revision`, brief `~/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/prompt.md`),
-after which the one-program build starts from it;
+and the seventh revision wrote them in, merged as `295759966f` (report `keep/report-pi-zfs-root-modes-seventh-revision.md` in `~/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/`):
+every choice section states its answer, no printed guard holds a lexer, the lint pin compares lint-level anchors with `reason` items skipped,
+the three function-wide allows narrow to their statement, and `mount-path-descendant` gains two `zfs mount` refusals and a fixed proof order;
+its commit `610e0de110` lost two words of its subject to shell expansion (corrected by a commit comment, not amended);
+the one-program build runs since 2026-11-25T00:33-05:00 (`pi-build-the-root-modes-into-the-one-wrapper-executable`,
+brief `~/temp/agent/build-the-root-modes-into-the-one-wrapper-executable-2026-11-25/prompt.md`),
+building what the design's change list assigns to the one-program change and leaving steps 18 and 19's parts;
+the reads' `work/` folders hold the logs their reports cite, and the fourth round's `scratch/` is cited by the proposal, so those stay;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
 and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
