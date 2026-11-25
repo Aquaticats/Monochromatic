@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:44:36-05:00.
+State recorded 2026-11-25T17:48:01-05:00.
 
 ## Requirement as stated
 
@@ -384,6 +384,55 @@ An interactive PTY session using a disposable HOME did display
 with the full consequence and remedies.
 The evidence therefore supports interactive warning visibility and headless structured-hook output,
 not a claim that every output surface renders `systemMessage`.
+
+### Controlled headless durations
+
+Each command wrote its own start time.
+`resultAfterMs` below is the interval from that marker to the tool result's timestamp,
+not a claim about every stage of native delivery.
+The measurements are single samples per arm,
+so they establish that one-second blocking is not guaranteed but do not establish an exact native floor.
+
+Unwrapped results were:
+
+- Duration 1200:
+  1277 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  1829 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 2500:
+  1953 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Duration 5000:
+  1836 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Caller timeout 500 with duration 5000:
+  1953 ms,
+  `timedOutAfterMs: 500` and a message rounded to `1s`.
+
+Wrapped results were:
+
+- Duration 1200:
+  1297 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  924 ms,
+  `timedOutAfterMs: 1000`.
+  This timestamp anomaly is retained rather than explained away.
+- Duration 2500:
+  1949 ms,
+  `timedOutAfterMs: 1000`.
+- Duration 5000:
+  1924 ms,
+  `timedOutAfterMs: 1000`.
+- Caller timeout 500 with duration 5000:
+  1969 ms,
+  `timedOutAfterMs: 500` and a message rounded to `1s`.
+
+The measurement files are `duration-unwrapped-measurements.jsonl`
+and `duration-wrapped-measurements.jsonl` in the probe evidence folder.
+The interactive arm is still required before the user answers the timing question.
 
 ## Verification still owed
 
