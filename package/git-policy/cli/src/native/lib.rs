@@ -421,6 +421,23 @@ pub mod checkout_boot_units;
 #[cfg(target_os = "linux")]
 pub use checkout_boot_units::*;
 
+/// The immutable covered entry of the checkout's underlay:
+///  what the kernel says about the entry at the checkout path and its parent,
+///  why a reading is refused,
+///  and the protected, unprotected or unproven answer a boot takes before it
+///  attaches a clone or trusts a reimported or rolled-back checkout.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// no command and no boot check reads it until that step's wiring calls it.
+/// It is Linux only,
+/// like the `statx(2)` attributes it reads.
+#[cfg(target_os = "linux")]
+pub mod checkout_underlay_entry;
+
+/// The same re-export for `checkout_underlay_entry`.
+#[cfg(target_os = "linux")]
+pub use checkout_underlay_entry::*;
+
 /// The settling command a state a resume meets names and this release does not have yet:
 ///  its grammar and the two values a person confirms,
 ///  its six reads in the design's order,
