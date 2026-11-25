@@ -379,7 +379,9 @@ the comment at `add_zfs.rs:103` to `:109`,
 and the add record design's A9 paragraph,
 which is a build note written after that design was accepted;
 the implementation plan's "Owned by issue 6462" line goes with them.
-Adding the check changes the add's preflight and nothing else.
+Adding the check changes the add's own reads:
+the preflight's container reply,
+and the clone's read when the owner puts the check after creation.
 
 B amends the accepted handler record
 (`doc/decision/cli-git-zfs-worktree-design.md:40`),
@@ -414,7 +416,7 @@ and the ranks of B and A stand as they are.
 ```text
 ZFS add: the clone's mountpoint, and where its check runs.
 
-Today the add asks the pool for `mountpoint=legacy`; the kernel refuses it for the account, so the add cannot clone.
+Today the add asks the pool for `mountpoint=legacy`; the kernel refuses it for the account (the managed user), so the add cannot clone. The container is the dataset the clones are created in.
 
 Choice 1, which answer:
 C (recommended): no property; the clone inherits `legacy` from the container. The accepted design's own sentence, no new permission, no root write. Cost: the container must be verified.
@@ -424,7 +426,7 @@ A (worst): grant the account `mountpoint`, in two shapes, descendants or at crea
 Choice 2, only if C, where the check runs:
 Both (recommended): refuse in the preflight, then a detect-only read after creation.
 Preflight only: refuses before any write; a container changed during the add is unseen.
-Read after creation only: detect-only; a wrong clone stands until step 14.
+Read after creation only: detect-only; a wrong clone stands until the removal step (step 14) settles it.
 No check: doctor and the sweep only; the mount wait times out.
 
 Answer Choice 1 with C, B or A. If C, answer Choice 2 with both, preflight only, read after creation only, or no check.
@@ -1338,7 +1340,7 @@ and `doctor` and the sweep are what report it then.
   the negative control the second revision ran (the account's `zfs set mountpoint` and `zfs inherit mountpoint` refused,
   `userprop` accepted);
   a container with an ordinary mountpoint,
-  which the preflight's new check refuses;
+  which a check in the preflight refuses;
   and,
   if the owner picks a check,
   the container changed between the preflight and the clone,
@@ -1558,7 +1560,7 @@ It found no High, four Mediums and the Lows this section lists.
   "no clone is made" is replaced by the measured equivalent request;
   A's two shapes are separated with the shape left for later;
   the section ends with how to answer;
-  and a compact question of 1302 characters follows it.
+  and a compact question of 1407 characters follows it.
 
 ### Low
 
