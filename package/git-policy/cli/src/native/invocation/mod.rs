@@ -5,7 +5,7 @@
 //!  forwarding,
 //!  startup and management words.
 //! Why:
-//!  The thin executables call into this folder first.
+//!  The thin executable calls into this folder first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

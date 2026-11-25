@@ -242,8 +242,8 @@ pub use worktree_clone_mount::*;
 ///  the receipts under `/run`,
 ///  the readiness record,
 ///  and the wrapper's wait for a matching receipt.
-/// It is shared by both executables,
-///  so both read one grammar,
+/// The wrapper and the root modes it carries both read it,
+///  so the two read one grammar,
 ///  and it is Linux only,
 ///  like the directory-relative calls its receipts use.
 #[cfg(target_os = "linux")]
@@ -470,7 +470,8 @@ pub use worktree_clone_link_repair::*;
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an
 ///  entry out.
-/// Both executables read it and neither may read the other's folder,
+/// The wrapper and the root modes both read it,
+///  and neither may read the other's folder,
 ///  so it sits above both,
 ///  and it is Linux only,
 ///  like the table it reads.

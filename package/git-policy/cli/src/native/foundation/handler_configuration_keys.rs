@@ -1,6 +1,6 @@
 //! What:
 //!  The keys the root-owned handler configuration holds,
-//!  in the one place both executables read them from.
+//!  in the one place the wrapper and the root modes read them from.
 //! Why:
 //!  The sweep and the start probe read the same file
 //!  (`/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`,

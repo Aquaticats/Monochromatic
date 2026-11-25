@@ -215,7 +215,7 @@ impl ConfigurationRefusal {
     /// file,
     /// and the answer a file that leaves them out gets.
     /// Why:
-    ///  Both programs find every entry a file leaves out from this process's own
+    ///  The wrapper and the root modes both find every entry a file leaves out from this process's own
     ///  mount table,
     ///  so a reader who has no file needs no setup a release does not carry,
     ///  and the names are written once rather than in every refusal.
