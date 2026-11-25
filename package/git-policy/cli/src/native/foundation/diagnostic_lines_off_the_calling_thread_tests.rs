@@ -3,6 +3,15 @@
 //! a stream that drains gets the lines in the order they were said,
 //! the queue is bounded and says how many lines it dropped,
 //! and the end of a process waits for what it handed over and no longer.
+//!
+//! These controls are written for one process per test, which is how the package's gate runs them
+//! (`cargo nextest`): the queue and its thread belong to the process, `give_the_thread` puts a
+//! control's stream in the one place they write, and a control whose reader goes ends that thread
+//! for good.
+//! A run that shares one process between them, which `cargo test --lib` does, therefore fails them
+//! whichever order it takes: measured on 2026-11-25, `cargo test --lib diagnostic_lines_off_the_calling_thread`
+//! failed 3 of the 5 on the pristine tree and 4 of the 5 after an unrelated change to the door,
+//! `--test-threads=1` failed 2 of the 5, and each of the five passed alone in a process of its own.
 
 use super::*;
 
