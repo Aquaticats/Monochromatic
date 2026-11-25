@@ -712,6 +712,23 @@ so the line goes into its source.
 Other tools that follow links (the repository linter's walker,
 editors' indexers) are checked when the links are built.
 
+Measured again on 2026-11-25 in the wrapper itself:
+a link set that holds mutual uses makes the walk itself unaffordable.
+`cargo package --list` answered in 1.9 s over 3038 paths with the 109 links the crate had,
+and gave no answer after 120 s with 421 added ones,
+warning about filesystem loops nested more than twenty folders deep.
+A fixture of eight folders isolates the cause:
+each folder linking the other seven gave no answer in 60 s,
+where the same eight folders in a chain answered in 0.13 s.
+So a crate that still has folder loops records its missing links instead of writing them,
+and writes them folder by folder as the loops go;
+the wrapper's two allow lists say which links are owed,
+as `package/git-policy/cli/README.md` says under "Who depends on whom".
+Two readers of that list are affected:
+the crate's control `source_guard::packaged_uses_links_tests`,
+which reads `cargo package --list`,
+and a release's `cargo publish --dry-run`.
+
 ## Oversized files
 
 The 37 files over the `rust/max-lines` limit overlap with the file loops
