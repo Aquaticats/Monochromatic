@@ -134,7 +134,7 @@ impl RemovalPoolReads for LiveRemovalReads {
             let createtxg: u64 = nested_u64(value, "createtxg").ok_or_else(|| return format!("the bookmark {} carries no creation transaction group", pair.name))?;
             objects.push(LiveObject {
                 kind: EntryKind::Bookmark,
-                name: name_below(pair.name.as_str(), dataset, '#')?,
+                name: the_bookmarks_own_name(pair.name.as_str(), dataset)?,
                 guid: guid_of(guid, pair.name.as_str())?,
                 createtxg,
                 owning_dataset: String::from(dataset),
@@ -175,6 +175,36 @@ fn name_below(full: &str, dataset: &str, separator: char) -> Result<String, Stri
     };
     if owner != dataset {
         return Err(format!("the pool listed `{full}` under {dataset}, and its owner is {owner}"));
+    }
+    return Ok(String::from(name));
+}
+
+/// What:
+///  One bookmark reply's own name,
+///  which the kernel reports without the dataset the bookmark belongs to.
+/// Why:
+///  A snapshot's listing answers `dataset@name` and a bookmark's answers the bookmark's name alone,
+///  so a reader that asked for `#` would refuse every live bookmark as a name of another dataset.
+///  A name that does carry a `#` is accepted only when its owner is this dataset,
+///  which is what a future kernel's fuller answer would look like.
+///
+/// # Throws
+/// A name of another dataset,
+/// or a name that is no bookmark's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = bookmarksOwnName(pair.name, dataset);
+/// ```
+fn the_bookmarks_own_name(reported: &str, dataset: &str) -> Result<String, String> {
+    let Some((owner, name)) = reported.split_once('#') else {
+        if reported.is_empty() {
+            return Err(String::from("the pool listed a bookmark with no name"));
+        }
+        return Ok(String::from(reported));
+    };
+    if owner != dataset {
+        return Err(format!("the pool listed the bookmark `{reported}` for {dataset}, and its owner is {owner}"));
     }
     return Ok(String::from(name));
 }
