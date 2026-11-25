@@ -383,7 +383,7 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
         Ok(staged) => staged,
         Err(reason) => return Restored::LeftAsFound(reason),
     };
-    if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path) {
+    if let Err(error) = the_exchange(staged.as_path(), path) {
         let _dropped = std::fs::remove_file(staged.as_path());
         // A displaced directory on another filesystem than the worktree cannot exchange a file with the lock (`EXDEV`),
         //  which is what a linked worktree whose Git directory the main checkout holds does:
@@ -401,6 +401,31 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
         return replace_after_a_second_look(path, checkout, read, directory);
     }
     return judge_the_displaced(path, staged.as_path(), read);
+}
+
+/// What:
+///  The exchange that puts the checked-out bytes back,
+///  or the refusal a control stands in for.
+/// Why:
+///   The one pair this branch serves is a clone's root on the clone's dataset
+///  with its Git directory on the checkout's,
+///  and an unprivileged control cannot build two filesystems inside one fixture
+///  root.
+///  The guest arm proves the kernel's own `EXDEV` across the two datasets;
+///  the seam is how a host control reaches the branch at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// exchange(staged, lock) // or the refusal a control planted
+/// ```
+fn the_exchange(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    {
+        if THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| return flag.replace(false)) {
+            return Err(std::io::Error::from_raw_os_error(libc::EXDEV));
+        }
+    }
+    return crate::rename_that_never_replaces::exchange(from, to);
 }
 
 /// Whether a refused exchange says the two names are on different filesystems.
@@ -607,6 +632,13 @@ thread_local! {
     ///   The window cannot be reached from outside the writer on a wall clock,
     /// and a control that waited on one would pass whatever the code did.
     pub(crate) static BETWEEN_THE_READING_AND_THE_RESTORE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+    /// A control may make the next exchange answer the kernel's `EXDEV`,
+    /// so the branch for a displaced directory on another filesystem is reached
+    /// in a fixture root that holds one filesystem.
+    /// Why:
+    ///   No unprivileged control can build the pair the branch serves,
+    ///   and a branch nothing reaches is a branch nothing proves.
+    pub(crate) static THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Controls stay out of the release executable.
