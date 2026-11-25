@@ -2490,7 +2490,13 @@ on one writing path no command reaches
 - the removal's own records,
   removed last,
   and the report that names what was destroyed,
-  what went with the head and what a person still has to do.
+  what went with the head and what a person still has to do;
+- the finish pass,
+  which reads the plan folder before a forwarded command once a later step calls it,
+  settles the registration a plan whose head is `gone` still names,
+  removes the binding's files and then the plan,
+  and releases the slot's claim,
+  so a tail no next removal of that slot can reach is finished without an add.
 
 All of that waits for one thing a person needs:
 `cancel-worktree-removal <slot>`,
