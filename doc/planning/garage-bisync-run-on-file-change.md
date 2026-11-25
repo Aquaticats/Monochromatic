@@ -130,6 +130,45 @@ two things need measuring on a disposable Garage before the design settles:
   outside this shell's `PATH`.
 - No vet report for a file watcher exists under `doc/audit/`.
 
+## Measured on a throwaway Garage (2026-11-25T17:30:22-05:00)
+
+Garage v2.3.0 and the host's `rclone v1.76.0` ran in a podman pod,
+with the live unit's bisync flags,
+on a small tree bind-mounted from `~/temp/agent` (the same ZFS home dataset as `~/Plain`),
+and `inotifywait --monitor --recursive` recording every event in the tree during each step.
+Logs and per-step summaries:
+`~/temp/agent/garage-bisync-on-change-grilling-2026-11-25/throwaway-garage-test/keep/`.
+The pod was removed afterwards.
+
+- A run that finds no change writes nothing in the tree:
+  only folder open, read and close events.
+- A run that uploads a local edit writes nothing in the tree either.
+- The run after an upload stamps the uploaded file's mtime ("Updated modification time in destination"),
+  which is one `ATTRIB` event;
+  the run after that writes nothing.
+  So a watcher that reports `ATTRIB` starts one extra run per upload,
+  and that run ends the chain.
+- Two saves of `main.kdbx` with one run between them,
+  and no other run before the second save's run,
+  left `main.kdbx.conflict1` on both sides holding the first save's bytes,
+  while `main.kdbx` kept the newer bytes.
+  This reproduces the pile-up the troubleshooting doc predicts,
+  now that `--conflict-resolve newer` keeps the loser under a `.conflictN` name.
+- A second bisync pass right after an uploading run (a "settle pass") prevents it:
+  two save cycles,
+  each followed by a run and a settle pass,
+  added no new `.conflictN` file.
+- A save made while a run was uploading was not seen by that run;
+  the next run uploaded it without a conflict.
+  So a change that lands mid-run needs one more run after the current one ends.
+- A download from the bucket writes `<name>.<8 hex digits>.partial`
+  (create, modify, close, attribute change),
+  then renames it to the final name;
+  the next run writes nothing.
+  Downloaded objects get no phantom.
+- A save done as "write a temporary file, rename it over the original" shows a create and writes on the temporary name,
+  then the rename.
+
 ## Owner answers, round 2 (2026-11-25T17:19:41-05:00)
 
 - Portability is a hard requirement:
