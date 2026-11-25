@@ -2122,8 +2122,10 @@ what changes is:
 - `SPEC.md`'s sentence about the words;
 - the guest commands in `e2e/start-probe-guest.ts`.
 
-Nothing about the name,
-the layouts or the guards changes.
+Nothing about the one name,
+the layouts or the dispatch's placement changes,
+and the guard's body pins stand because they compare against `ROOT_GROUP_WORD`,
+not against the word's text.
 
 ## Choice 3: what root's install holds
 
