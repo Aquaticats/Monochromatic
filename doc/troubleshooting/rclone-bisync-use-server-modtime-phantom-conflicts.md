@@ -405,6 +405,10 @@ Read the previous run's upload line instead.
 
 ## Upstream report draft (not filed)
 
+The owner at 2026-11-25T18:04:35-05:00, after the reproduction fix described next:
+"Make the changes but don't post it."
+The fix is applied; the draft is not to be posted.
+
 Reproduction checked at 2026-11-25T18:02:38-05:00 by the coordinating session,
 on a throwaway Garage v2.3.0 in podman with rclone v1.76.0:
 the steps as first drafted failed at step 2 with
