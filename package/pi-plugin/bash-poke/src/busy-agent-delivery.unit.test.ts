@@ -59,10 +59,15 @@ const builtExtension = join(import.meta.dirname, '..', 'dist', 'final', 'node', 
 const fixtureExtension = join(import.meta.dirname, 'busy-agent-host-fixture.ts', );
 
 /**
- Pi's CLI entry, the `bin` of the Pi package this package depends on.
+ Main module of the Pi package this package depends on.
+ */
+const piPackageEntry = fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent', ), );
+
+/**
+ Pi's CLI entry, the package's `bin`, beside its main module.
  */
 const piCli = join(
-  dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent', ), ), ),
+  dirname(piPackageEntry, ),
   'bundle',
   'cli.js',
 );
@@ -245,8 +250,8 @@ function parseHostEvent(line: string, ): HostEvent {
    Parsed value, checked before use.
    */
   const value: unknown = JSON.parse(line, );
-  if ((typeof value !== 'object') || (value === null) || !('type' in value)
-    || (typeof value.type !== 'string'))
+  if (((typeof value) !== 'object') || (value === null) || (!('type' in value))
+    || ((typeof value.type) !== 'string'))
     throw new Error(`Pi RPC printed a line that is not an event: ${line}`, );
   return value as HostEvent;
 }
@@ -264,14 +269,14 @@ function parseHostEvent(line: string, ): HostEvent {
  ```
  */
 function contentText(content: unknown, ): string {
-  if (typeof content === 'string')
+  if ((typeof content) === 'string')
     return content;
   if (!Array.isArray(content, ))
     return '';
   return content
     .map(function partText(part: unknown, ): string {
-      return ((typeof part === 'object') && (part !== null) && ('text' in part)
-        && (typeof part.text === 'string'))
+      return (((typeof part) === 'object') && (part !== null) && ('text' in part)
+        && ((typeof part.text) === 'string'))
         ? part.text
         : '';
     }, )
@@ -293,14 +298,14 @@ function contentText(content: unknown, ): string {
  ```
  */
 function readHostMessage(message: unknown, ): HostMessage {
-  if ((typeof message !== 'object') || (message === null) || !('role' in message)
-    || (typeof message.role !== 'string'))
+  if (((typeof message) !== 'object') || (message === null) || (!('role' in message))
+    || ((typeof message.role) !== 'string'))
     throw new Error(`message_end event carried no role: ${JSON.stringify(message, )}`, );
 
   /**
    Custom type when this is an extension message.
    */
-  const customType = ('customType' in message) && (typeof message.customType === 'string')
+  const customType = ('customType' in message) && ((typeof message.customType) === 'string')
     ? message.customType
     : message.role;
   return {
@@ -488,7 +493,7 @@ async function runHost(
       finished.reject(error, );
     }
   }, );
-  child.once('exit', function onEarlyExit(code: number | null, ): void {
+  child.once('exit', function onEarlyExit(code: unknown, ): void {
     finished.reject(new Error(`Pi host exited before the case finished (code ${String(code, )}); stderr: ${stderrChunks.join('', )}`, ), );
   }, );
 
@@ -499,16 +504,17 @@ async function runHost(
     finished.reject(new Error(`Pi host did not finish within ${String(HOST_DEADLINE_MS, )} ms; stderr: ${stderrChunks.join('', )}`, ), );
   }, HOST_DEADLINE_MS, );
 
+  using stopWaiting = {
+    [Symbol.dispose](): void {
+      clearTimeout(deadline, );
+      for (const timer of timers)
+        clearTimeout(timer, );
+      lines.close();
+    },
+  };
+
   script.start(control, );
-  try {
-    await finished.promise;
-  }
-  finally {
-    clearTimeout(deadline, );
-    for (const timer of timers)
-      clearTimeout(timer, );
-    lines.close();
-  }
+  await finished.promise;
   return {
     messages,
     stderr: stderrChunks.join('', ),
@@ -547,7 +553,7 @@ await describe({
                   control.send({ id: 'prompt', type: 'prompt', message: 'Run the busy fixture.', }, );
                 },
                 onEvent({ event, control, }, ): void {
-                  if ((event.type === 'tool_execution_start') && !state.bashSent) {
+                  if ((event.type === 'tool_execution_start') && (!state.bashSent)) {
                     state.bashSent = true;
                     control.send({ id: 'bash', type: 'bash', command: POKED_COMMAND, }, );
                   }
@@ -644,7 +650,7 @@ await describe({
                   control.send({ id: 'prompt', type: 'prompt', message: 'Run the busy fixture.', }, );
                 },
                 onEvent({ event, control, }, ): void {
-                  if ((event.type === 'tool_execution_start') && !state.bashSent) {
+                  if ((event.type === 'tool_execution_start') && (!state.bashSent)) {
                     state.bashSent = true;
                     control.send({ id: 'bash', type: 'bash', command: POKED_COMMAND, }, );
                     // Interactive Escape while streaming clears the queue and then aborts.

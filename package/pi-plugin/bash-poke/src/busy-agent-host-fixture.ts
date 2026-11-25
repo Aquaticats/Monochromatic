@@ -104,7 +104,7 @@ function readPositiveInteger({ name, }: { readonly name: string; }, ): number {
    Parsed value, checked before use.
    */
   const value = Number(raw, );
-  if (!Number.isInteger(value, ) || value < 1)
+  if ((!Number.isInteger(value, )) || (value < 1))
     throw new Error(`${name} must be a positive integer, got ${raw}`, );
   return value;
 }
@@ -155,7 +155,10 @@ export default function busyAgentHostFixture(pi: ForeignBorrowed<ExtensionAPI>, 
    */
   const toolReplies: readonly AssistantMessage[] = Array.from(
     { length: steps, },
-    function toolReply(_unused: unknown, index: number, ): AssistantMessage {
+    function toolReply(
+      _unused: unknown,
+      index: number,
+    ): AssistantMessage {
       return fauxAssistantMessage(fauxToolCall(
         FIXTURE_TOOL_NAME,
         {},
@@ -191,7 +194,12 @@ export default function busyAgentHostFixture(pi: ForeignBorrowed<ExtensionAPI>, 
     async execute() {
       await wait(stepMs, );
       return {
-        content: [{ type: 'text', text: TOOL_RESULT_TEXT, }, ],
+        content: [
+          {
+            type: 'text',
+            text: TOOL_RESULT_TEXT,
+          },
+        ],
         details: {},
       };
     },
