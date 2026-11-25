@@ -47,8 +47,14 @@ import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 const CRATE_DIR = '/opt/removal-lineage-proof';
 /** Milliseconds one host command may take. */
 const HOST_COMMAND_TIMEOUT_MS = 120_000;
-/** Milliseconds the guest's build of the library and its tests may take. */
-const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
+/**
+ * Milliseconds the guest's build of the library and its tests may take.
+ * Measured on this host at one job: 24m55s on 2026-11-25T14:45 and 38m16s at 15:33, both while other
+ * rounds built on the same machine, and a third run was killed at the 40 minutes this bound was.
+ * The bound is a stop for a build that hangs, not a deadline the machine is expected to meet, so it
+ * carries room for a slower build under the load this host's rounds make.
+ */
+const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
 /** Milliseconds the guest arm may take. */
 const ARM_TIMEOUT_MS = 1_200_000;
 /** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
