@@ -93,7 +93,7 @@ const NAMES_CODE: [&str; 53] = [
     "}",
     "fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {",
     "let first: &OsStr = handed[0].as_os_str();",
-    "if handed.len() > 1 && (first == OsStr::new(\"--help\") || first == OsStr::new(\"--version\")) {",
+    "if handed.len() > 1 && (first == OsStr::new(COMMAND_WORD.current) || first == OsStr::new(\"--help\") || first == OsStr::new(\"--version\")) {",
     "return handed[1].as_os_str();",
     "}",
     "return first;",

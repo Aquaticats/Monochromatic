@@ -157,14 +157,19 @@ fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {
 ///  accepted and the second is what the name does not allow,
 ///  so a person who typed the second word reads about that word and not about
 ///  the one the file does answer.
+///  The program's own word is the same case:
+///  the two group words are accepted only together,
+///  so a misspelt group word or the wrapper's `service` after it is the word
+///  the person got wrong,
+///  while the word standing alone is the one named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wordThatCannotBeHonoured = (handed) => (handed.length > 1 && ['--help', '--version'].includes(handed[0])) ? handed[1] : handed[0];
+/// const wordThatCannotBeHonoured = (handed) => (handed.length > 1 && [COMMAND_WORD.current, '--help', '--version'].includes(handed[0])) ? handed[1] : handed[0];
 /// ```
 fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {
     let first: &OsStr = handed[0].as_os_str();
-    if handed.len() > 1 && (first == OsStr::new("--help") || first == OsStr::new("--version")) {
+    if handed.len() > 1 && (first == OsStr::new(COMMAND_WORD.current) || first == OsStr::new("--help") || first == OsStr::new("--version")) {
         return handed[1].as_os_str();
     }
     return first;
