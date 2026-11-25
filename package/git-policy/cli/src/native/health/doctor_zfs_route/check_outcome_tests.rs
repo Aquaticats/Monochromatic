@@ -45,7 +45,7 @@ fn an_unknown_line_carries_the_reason() {
 /// so one report line names one check.
 #[test]
 fn every_check_name_is_unique() {
-    let checks: [Check; 33] = [
+    let checks: [Check; 39] = [
         Check::Device,
         Check::Abi,
         Check::Pool,
@@ -71,9 +71,15 @@ fn every_check_name_is_unique() {
         Check::UnresolvedRequests,
         Check::StagingFolder,
         Check::StagingBindPropagation,
+        Check::CloneState,
+        Check::Registration,
+        Check::BindingRecord,
+        Check::RemovalPlan,
+        Check::CloneSnapshots,
+        Check::CloneOrigin,
+        Check::CloneRetention,
+        Check::BlockedRemoval,
         Check::Holders,
-        Check::DeferredOrigin,
-        Check::RemovalPlans,
         Check::CancelCommand,
         Check::BootProtection,
         Check::ServiceUnit,

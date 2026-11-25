@@ -23,6 +23,11 @@
 //! const report = route_checks(facts).find((entry) => entry.check === 'container-dataset');
 //! ```
 
+use super::blocked_removal_checks::BlockedRemovalFacts;
+use super::clone_origin_checks::{CloneOriginFacts, RecordedOrigin};
+use super::clone_retention_checks::{AccountingFacts, CloneRetentionFacts};
+use super::clone_snapshot_checks::CloneSnapshotFacts;
+use super::clone_state_checks::CloneStateFacts;
 use super::delegation_checks::{DelegationFacts, Grant};
 use super::handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PathFacts, PathState, ReadinessFacts, RequestFacts, RESULTS_DIRECTORY_MODE, READINESS_DIRECTORY_MODE, ROOT_OWNER,
@@ -30,13 +35,23 @@ use super::handler_checks::{
 use super::holder_checks::HolderFacts;
 use super::identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity};
 use super::mount_checks::MountCheckFacts;
-use super::route_checks::RouteFacts;
+use super::registration_checks::RegistrationFacts;
+use super::removal_plan_checks::{PlanFileReading, RemovalPlanFacts};
+use super::route_checks::{CloneFacts, RouteFacts};
 use super::staging_folder_checks::{StagingBind, StagingFolderFacts, staging_binds};
 use super::store_listing::{ListedEntry, RecordFacts, SlotRecordFacts, StoreListingFacts};
 use super::zfs_checks::{AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, DeviceState, PoolFacts, Reading};
 use crate::fs_mount_options::parse_mount_table;
+use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, PropertyValue};
 use crate::worktree_clone_mount_protocol::ReadyState;
+use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveInventory;
+use crate::worktree_clone_slot_state::slot_state_mounts::{MountRows, SlotMount};
+use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
+use crate::worktree_clone_slot_state::slot_state_test_records::record_at;
+use crate::worktree_removal_deferred_origin_check::origin_mark::OriginMark;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 use std::path::PathBuf;
 
@@ -67,6 +82,9 @@ pub(crate) const LIVE_BOOT: &str = "4c4c4544-0042-3510-8051-b4c04f4e4d32";
 /// The staging folder prefix,
 /// which a control's names carry.
 pub(crate) const STAGING_PREFIX: &str = crate::worktree_clone_unmount::staging_folder_name::STAGING_FOLDER_PREFIX;
+
+/// The origin snapshot every fixture clone names.
+pub(crate) const ORIGIN_SNAPSHOT: &str = "zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f";
 
 /// One healthy dataset of the route's layout,
 /// with the fields a control changes.
@@ -367,6 +385,95 @@ pub(crate) fn healthy_route_facts() -> RouteFacts {
         requests: vec![healthy_request()],
         staging: StagingFolderFacts { cache: path_facts(cache.as_str(), PathState::Directory { owner: ACCOUNT, mode: 0o700 }), account: ACCOUNT, folders: Vec::new() },
         staging_binds: staging_binds_value,
-        holders: HolderFacts { clone: String::from(CLONE_DATASET), holders: Vec::new(), incomplete: Vec::new() },
+        clones: vec![healthy_clone()],
+    };
+}
+
+/// The slot the healthy clone stands at,
+/// which is the store's own name for it.
+pub(crate) const CLONE_SLOT: &str = "one";
+
+/// The clone's whole slot path.
+pub(crate) fn clone_slot_path() -> PathBuf {
+    return PathBuf::from(format!("{CHECKOUT}/.claude/worktrees/{}", CLONE_SLOT));
+}
+
+/// The one accounting value a healthy object carries,
+/// with the four named fields a control changes.
+pub(crate) fn accounting(object: &str, used: u64) -> AccountingFacts {
+    return AccountingFacts {
+        object: String::from(object),
+        used: PropertyValue::Number(used),
+        written: PropertyValue::Number(used),
+        used_by_dataset: PropertyValue::Number(used),
+        used_by_snapshots: PropertyValue::Number(0),
+    };
+}
+
+/// One managed clone at the design's healthy state:
+/// mounted at its slot,
+/// its Git registration complete,
+/// no plan,
+/// no snapshot of its own,
+/// an unmarked origin,
+/// no holder and no blocked removal.
+pub(crate) fn healthy_clone() -> CloneFacts {
+    let slot_path: PathBuf = clone_slot_path();
+    let mut record = record_at(Phase::Filled, slot_path.as_path());
+    record.clone_dataset = String::from(CLONE_DATASET);
+    record.origin_snapshot = String::from(ORIGIN_SNAPSHOT);
+    record.origin_dataset = Some(String::from(CHECKOUT_DATASET));
+    let registration: PathBuf = PathBuf::from("/home/user/Monochromatic/.git/worktrees/one");
+    record.registration = Some(registration.as_os_str().as_encoded_bytes().to_vec());
+    let binding: BindingReading = BindingReading::Record(Box::new(record));
+    let readings: SlotReadings = SlotReadings {
+        slot: String::from(CLONE_SLOT),
+        slot_path: slot_path.clone(),
+        binding,
+        plan: PlanReading::NoPlan,
+        intent: IntentFacts::Absent,
+        mounts: MountRows::Rows(vec![MountedDatasetInstance { dataset: String::from(CLONE_DATASET), mount_point: slot_path.clone(), root: PathBuf::from("/") }]),
+        slot_mount: SlotMount::Something { described: String::from("a zfs mount of the clone dataset") },
+        registration_stands: Some(true),
+    };
+    let holders: HolderFacts = HolderFacts { clone: String::from(CLONE_DATASET), holders: Vec::new(), incomplete: Vec::new() };
+    return CloneFacts {
+        state: CloneStateFacts { readings, staging_binds: Vec::new() },
+        registration: RegistrationFacts {
+            slot: String::from(CLONE_SLOT),
+            recorded: Some(registration),
+            at_the_path: PathState::Directory { owner: ACCOUNT, mode: 0o755 },
+            gitdir: Some(slot_path.join(".git")),
+            slot_git: slot_path.join(".git"),
+        },
+        plan: RemovalPlanFacts { clone: String::from(CLONE_DATASET), reading: PlanFileReading::NoPlan },
+        snapshots: CloneSnapshotFacts {
+            clone: String::from(CLONE_DATASET),
+            clone_createtxg: 121_294,
+            live: Reading::Read(LiveInventory { dataset: String::from(CLONE_DATASET), dataset_guid: DatasetGuid::parse("7").expect("the fixture GUID reads"), objects: Vec::new() }),
+            recorded: Vec::new(),
+        },
+        origin: CloneOriginFacts {
+            clone: String::from(CLONE_DATASET),
+            recorded: Some(RecordedOrigin { dataset: String::from(CHECKOUT_DATASET), snapshot: String::from(ORIGIN_SNAPSHOT) }),
+            live: Some(Reading::Read(OriginMark::Unmarked)),
+        },
+        retention: CloneRetentionFacts {
+            clone: String::from(CLONE_DATASET),
+            dataset: Reading::Read(accounting(CLONE_DATASET, 4_096)),
+            snapshots: Vec::new(),
+            inherited: Vec::new(),
+            origin_snapshot: Some(String::from(ORIGIN_SNAPSHOT)),
+        },
+        blocked: BlockedRemovalFacts {
+            slot: String::from(CLONE_SLOT),
+            clone: String::from(CLONE_DATASET),
+            intent: None,
+            recorded: Vec::new(),
+            holders: holders.clone(),
+            in_the_callers_session: Vec::new(),
+            the_forced_arm_is_measured: false,
+        },
+        holders,
     };
 }

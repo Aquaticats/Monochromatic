@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- Drive plan step 18's `doctor` checks for steps 2 to 9 in a throwaway `mvm` guest.
+ Drive plan step 18's `doctor` checks for steps 2 to 9 and its removal-side lines in a throwaway `mvm` guest.
 
  The checks read `/dev/zfs`, a real pool's dataset properties and the kernel's delegation reply, so only a guest with a
  file-backed pool can show them. This driver owns the guest through the ZFS binding's own recipe
@@ -31,6 +31,20 @@ const POOL = 'zpcachyos';
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_GUEST';
 /** The variable the arm reads for the pool's name. */
 const POOL_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_POOL';
+/** The variable the removal-side arm reads for its guest. */
+const REMOVAL_GUEST_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_GUEST';
+/** The variable the removal-side arm reads for its pool. */
+const REMOVAL_POOL_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_POOL';
+/** The variable the removal-side arm reads for its OpenZFS prefix. */
+const REMOVAL_PREFIX_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_PREFIX';
+/** The variable the removal-side arm reads for its fixture root. */
+const REMOVAL_ROOT_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_ROOT';
+/** The pool the removal-side arm builds. */
+const REMOVAL_POOL = 'zfsdoctorremoval';
+/** The OpenZFS prefix the removal-side arm's commands come from. */
+const REMOVAL_PREFIX = '/opt/openzfs-2.4.4';
+/** The folder the removal-side arm's fixture lives under. */
+const REMOVAL_ROOT = '/home/zfs-doctor-removal-fixture';
 /** Milliseconds one host command may take. */
 const HOST_COMMAND_TIMEOUT_MS = 120_000;
 /** Milliseconds the guest's crate build may take. */
@@ -52,6 +66,13 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST rename-grant-is-a-finding',
   'DOCTOR-GUEST readiness-from-another-boot-is-a-finding',
   'DOCTOR-GUEST later-steps-are-unknown',
+  'DOCTOR-GUEST-REMOVAL healthy-lines-pass',
+  'DOCTOR-GUEST-REMOVAL interrupt-state-is-a-finding',
+  'DOCTOR-GUEST-REMOVAL blocked-removal-names-the-holder',
+  'DOCTOR-GUEST-REMOVAL lost-snapshot-is-a-finding',
+  'DOCTOR-GUEST-REMOVAL origin-mark-is-a-finding',
+  'DOCTOR-GUEST-REMOVAL pruned-registration-is-a-finding',
+  'DOCTOR-GUEST-REMOVAL retention-names-its-fields',
 ];
 
 //endregion Constants
@@ -173,10 +194,18 @@ function arm(chosen: Options): void {
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
     `export ${POOL_VARIABLE}=${POOL}`,
+    `export ${REMOVAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
+    `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
+    `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
     'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
-    'exit $status',
+    'if /root/.cargo/bin/cargo nextest run --release --locked --lib --no-capture --status-level all ' +
+      '--filterset "test(zfs_doctor_removal_lines_guest)" > /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
+    'cat /root/doctor-removal-arm.log',
+    'if test $status -ne 0; then exit $status; fi',
+    'exit $removal',
   ].join('\n');
   const pulled = guest({ chosen, script, log: 'guest-arm.log', timeout: ARM_TIMEOUT_MS, });
   if (/(^|\n)SKIP/m.test(pulled))
