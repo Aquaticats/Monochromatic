@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:29:22-05:00.
+State recorded 2026-11-25T17:29:56-05:00.
 
 ## Requirement as stated
 
@@ -311,6 +311,17 @@ A disposable session exercised six input shapes through the real filter wrapper:
   and returned its quick output synchronously.
 
 Every rewrite preserved the caller's `description`.
+
+### Working-directory persistence
+
+A quick `cd .../cwd-quick && pwd` received `timeout: 1000`,
+finished synchronously,
+and the next `pwd` returned `cwd-quick`.
+A subsequent `cd ../cwd-moved && node ...` moved to the background at its timeout.
+Its own output showed `cwd-moved`,
+while the native result said session cwd remained `cwd-quick`.
+The next `pwd` confirmed `cwd-quick`.
+This verifies the accepted timing-dependent persistence consequence.
 
 ## Verification still owed
 
