@@ -197,8 +197,13 @@ async function build(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --locked --bins --tests > /root/sanoid-coverage-build.log 2>&1',
-    'tail --lines=3 /root/sanoid-coverage-build.log',
+    // Two jobs keep rustc and the linker inside the guest's memory: the host backs the guest's pages, and a build
+    // that runs one compiler per vCPU peaked above what the guest could take when the host was short.
+    'export CARGO_BUILD_JOBS=2',
+    'if cargo build --release --locked --bins --tests > /root/sanoid-coverage-build.log 2>&1; then status=0; else status=$?; fi',
+    'grep --extended-regexp "^(error|warning)" --after-context=6 /root/sanoid-coverage-build.log | tail --lines=80 || true',
+    'tail --lines=5 /root/sanoid-coverage-build.log',
+    'exit $status',
   ].join('\n');
   guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
 }
@@ -210,6 +215,7 @@ function arm(chosen: Options): void {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
+    'export CARGO_BUILD_JOBS=2',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
     `export ${POOL_VARIABLE}=${POOL}`,
     'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
