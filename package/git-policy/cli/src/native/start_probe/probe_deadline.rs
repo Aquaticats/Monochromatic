@@ -143,10 +143,22 @@ pub fn deadline_from_words(value: Option<&str>) -> Duration {
 /// ```
 pub fn the_bound() -> Duration {
     #[cfg(feature = "start-probe-raised-deadline")]
-    if let Some(raised) = deadline_from_words(std::env::var(DEADLINE_SWITCH_VARIABLE).ok().as_deref()) {
+    if let Some(raised) = raised_by_the_test_variable() {
         return raised;
     }
     return PROBE_DEADLINE;
+}
+
+/// The bound the deadline variable names,
+/// read only by a build made for a control.
+#[cfg(feature = "start-probe-raised-deadline")]
+fn raised_by_the_test_variable() -> Option<Duration> {
+    let word: String = std::env::var(DEADLINE_SWITCH_VARIABLE).ok()?;
+    let milliseconds: u64 = word.parse::<u64>().ok()?;
+    if milliseconds == 0 {
+        return None;
+    }
+    return Some(Duration::from_millis(milliseconds));
 }
 
 /// The bound the deadline variable names,

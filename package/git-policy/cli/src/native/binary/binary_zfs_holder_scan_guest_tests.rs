@@ -288,7 +288,10 @@ struct Run {
 /// Run the built handler once with the given words.
 fn handler(arguments: &[&str]) -> Run {
     let binary: PathBuf = crate::support_installed_name::installed_name("holder-scan");
-    let output: Output = Command::new(binary).args(crate::support_installed_name::root_mode_words()).args(arguments).output().expect("the mode starts under the installed name");
+    // No argument at all is the sweep, which the installed name starts and the words refuse, so the two shapes are
+    // built here rather than by every caller.
+    let words: Vec<&str> = if arguments.is_empty() { Vec::new() } else { crate::support_installed_name::root_mode_words().to_vec() };
+    let output: Output = Command::new(binary).args(words).args(arguments).output().expect("the mode starts under the installed name");
     return Run {
         status: output.status.code(),
         said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),

@@ -143,7 +143,7 @@ fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
 /// (`handler_mode_dispatch_tests`).
 #[test]
 fn the_root_modes_answer_their_version_and_refuse_their_request_modes_behind_the_gate() {
-    let link: PathBuf = crate::support_installed_name::installed_name("modes");
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-version");
     let words: [&str; 2] = crate::support_installed_name::root_mode_words();
     let (version_status, version) = started(link.display().to_string().as_str(), &["--version"]);
     assert_eq!(version_status, Some(0), "{version}");
@@ -155,8 +155,8 @@ fn the_root_modes_answer_their_version_and_refuse_their_request_modes_behind_the
         eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here says nothing about a machine without the device; the gate image has none and runs this arm");
         return;
     }
-    for mode in [words[0], "boot-reconcile", "shutdown-unmount"] {
-        let arguments: Vec<&str> = if mode == words[0] { vec![words[0], words[1], "boot-reconcile"] } else { vec![words[0], words[1], mode] };
+    for mode in ["boot-reconcile", "shutdown-unmount"] {
+        let arguments: Vec<&str> = vec![words[0], words[1], mode];
         let (status, said) = started(link.display().to_string().as_str(), arguments.as_slice());
         assert_eq!(status, Some(2), "{arguments:?} must refuse: {said}");
         assert!(said.contains("the start-time ZFS compatibility gate refused"), "{arguments:?} names the gate: {said}");
@@ -184,7 +184,7 @@ fn a_start_probe_that_is_not_root_is_refused_before_any_write() {
         eprintln!("SKIPPED: this run is root, so a caller that is not root cannot be shown here; the dispatch control drives the same refusal in process");
         return;
     }
-    let link: PathBuf = crate::support_installed_name::installed_name("modes");
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-not-root");
     let words: [&str; 2] = crate::support_installed_name::root_mode_words();
     let (status, said) = started(link.display().to_string().as_str(), &[words[0], words[1], "start-probe"]);
     assert_eq!(status, Some(2), "a caller that is not root must be refused: {said}");
@@ -217,7 +217,7 @@ fn the_executable_starts_without_the_zfs_device() {
     }
     let (wrapper_status, wrapper_said) = started(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
     assert_eq!(wrapper_status, Some(0), "the wrapper starts without OpenZFS: {wrapper_said}");
-    let link: PathBuf = crate::support_installed_name::installed_name("modes");
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-without-device");
     let (modes_status, modes_said) = started(link.display().to_string().as_str(), &["--version"]);
     assert_eq!(modes_status, Some(0), "the root modes start without OpenZFS: {modes_said}");
 }
