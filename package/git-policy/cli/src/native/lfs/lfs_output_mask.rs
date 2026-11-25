@@ -33,7 +33,7 @@
 //! backtick,
 //! white space or control character.
 //!  A path segment is kept while it is short and a plain label:
-//!  at most [`LONGEST_PLAIN_WORD`] characters,
+//!  at most [`MASKED_SEGMENT_LENGTH`] characters,
 //! and every one of them a letter,
 //! a digit or one of the separators `-`,
 //! `.`,
@@ -50,7 +50,7 @@
 //! and a value is a secret wherever it sits,
 //! so it is always hidden.
 //!  What this cannot do:
-//! a token of no more than [`LONGEST_PLAIN_WORD`] characters still reads as a label
+//! a token of no more than [`MASKED_SEGMENT_LENGTH`] characters still reads as a label
 //! when it carries no percent encoding and no other punctuation mark,
 //! which the owner accepted when choosing this rule on 2026-11-24;
 //! and a query key of that shape is not hidden either,
@@ -84,7 +84,7 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 ///  and what is measured now is the whole segment,
 ///  so a folder name of short words is hidden once the segment passes this length.
 ///  The cost the owner accepted is that a short token in a path prints.
-pub const LONGEST_PLAIN_WORD: usize = 20;
+pub const MASKED_SEGMENT_LENGTH: usize = 20;
 
 /// Whether the mask this module writes starts at `offset` of `text`.
 /// Why:
@@ -307,7 +307,7 @@ fn is_plain_label(label: &[u8]) -> bool {
 
 /// What:
 ///  Whether a path segment is short and plain enough to print:
-///  no more than [`LONGEST_PLAIN_WORD`] characters of letters,
+///  no more than [`MASKED_SEGMENT_LENGTH`] characters of letters,
 ///  digits and the separators `-`,
 ///  `.`,
 ///  `_` and `~`.
@@ -326,10 +326,10 @@ fn is_plain_label(label: &[u8]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// segment.length <= LONGEST_PLAIN_WORD && /^[A-Za-z0-9._~-]*$/.test(segment)
+/// segment.length <= MASKED_SEGMENT_LENGTH && /^[A-Za-z0-9._~-]*$/.test(segment)
 /// ```
 fn is_short_plain_segment(label: &[u8]) -> bool {
-    return label.len() <= LONGEST_PLAIN_WORD && label.iter().all(is_path_segment_byte);
+    return label.len() <= MASKED_SEGMENT_LENGTH && label.iter().all(is_path_segment_byte);
 }
 
 /// Whether a byte is one a path segment label is made of:
