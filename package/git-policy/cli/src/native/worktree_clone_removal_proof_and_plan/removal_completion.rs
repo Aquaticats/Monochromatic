@@ -1,5 +1,6 @@
 //! What:
 //!  One removal from its plan to its end:
+//!  the slot's per-slot claim at the order's first step,
 //!  the origin cleanup record before the first destroy,
 //!  the snapshot requests with a fresh check and a fresh holder scan before each,
 //!  the names settled by their GUIDs,
@@ -7,7 +8,8 @@
 //!  the origin attempt,
 //!  the Git settle,
 //!  the removal's own records,
-//!  and the report.
+//!  the report,
+//!  and the claim released as the order's last step.
 //! Why:
 //!  This is the writing path plan step 16 builds behind the removal's cut:
 //!  nothing in the release's command path calls it,
@@ -15,7 +17,14 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 16).
 //!  The order is the origin cleanup design's fourteen steps,
-//!  and every refusal before a destroy leaves the clone unmounted with its records kept
+//!  and its first and last are the claim:
+//!  taken before anything reads a record,
+//!  and released after the plan is proved gone,
+//!  so an add or a second removal of the same slot meets it rather than interleaving
+//!  with this one's writes
+//!  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+//!  "The removal's one order of writes and removals").
+//!  Every refusal before a destroy leaves the clone unmounted with its records kept
 //!  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
 //!  "The removal's one order of writes and removals").
 //!  The checks sit immediately before the requests they guard,
@@ -48,6 +57,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::{attempt_
 use crate::worktree_clone_removal_proof_and_plan::removal_report::{OriginCleanupDone, TheRemovalDone};
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer};
 use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
 use crate::worktree_clone_removal_proof_and_plan::removal_resume::{TheStart, start_the_removal};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
@@ -101,7 +111,7 @@ pub struct RemovalCompletion<'a> {
 
 /// What:
 ///  One whole removal,
-///  from the plan that stands or the one this run writes to the report.
+///  from the slot's claim to the report and the claim's release.
 /// Why:
 ///  The report is the removal's only trace beyond its records,
 ///  and the value keeps what was destroyed beside what remains,
@@ -116,17 +126,24 @@ pub struct RemovalCompletion<'a> {
 /// const done = completeTheRemoval(input);
 /// ```
 pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalDone, RemovalStop> {
+    // Step 1: the claim before any read, so an add or a second removal of this slot meets it here rather than
+    // interleaving with this run's records.
+    let mut claim: RemovalClaim = take_the_removals_claim(input.entry.common_dir, input.entry.slot)?;
     let started: TheStart = start_the_removal(input.entry, input.reads, input.unmount, input.clock, input.probe)?;
     let folder: PlanFolder = PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
         return RemovalStop::PlanUnreadable { path: plans_folder(input.entry.common_dir), refusal };
     })?;
-    return match started {
-        TheStart::Gone { plan, plan_path, lost, pool } => the_head_gone_path(input, folder, plan, plan_path, lost, pool),
+    let mut done: TheRemovalDone = match started {
+        TheStart::Gone { plan, plan_path, lost, pool } => the_head_gone_path(input, folder, plan, plan_path, lost, pool)?,
         TheStart::Present { entered } => {
             let lost: NamesToBeLost = entered.lost.clone();
-            the_head_present_path(input, folder, entered, lost)
+            the_head_present_path(input, folder, entered, lost)?
         }
     };
+    // Step 14: the release is last, after the plan is proved gone, so no command sees a free slot whose removal's
+    // last witness still stands. Every way out before this line gives the claim back through its own drop.
+    done.claim = release_at_the_last_step(&mut claim);
+    return Ok(done);
 }
 
 /// The path where the clone stands:
@@ -190,6 +207,7 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
         origin,
         settle,
         records,
+        claim: ClaimEnd::Held,
         plan_path,
         requests,
     });
@@ -294,6 +312,7 @@ fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, standin
         origin,
         settle,
         records,
+        claim: ClaimEnd::Held,
         plan_path,
         requests: Vec::new(),
     });

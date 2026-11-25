@@ -6,7 +6,7 @@
 //!  every near-miss name,
 //!  and the two argument vectors a shell cannot spell.
 //! Why:
-//!  Only the installed ZED history event's name selects a root mode,
+//!  Only the ZED history event's own name selects a root mode,
 //!  and everything else a start can be is the wrapper,
 //!  so each case is held here rather than trusted to a reading of the code
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;

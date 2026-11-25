@@ -273,6 +273,10 @@ run = "node e2e/mount-git-worktree-clone-datasets-guest.ts"
 description = "Run plan step 12's slot classes, move and removal refusals, prune pointer and repair report end to end in the throwaway `mvm` libvirt guest: one real Git registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, the wrapper's refusals of `git worktree move` and `git worktree remove` beside Git's own answers, the prune pass that writes the recorded pointer back, and the repair report before Git runs, with and without a registration; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
 run = "node e2e/slot-state-and-move-refusal-guest.ts"
 
+[tasks."e2e:settling-command"]
+description = "Run the settling command's guest arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then a clone that stands refusing the command with every record left, a clone a person destroyed outside the wrapper settled with its registration and its three records, and a slot whose checkout has begun keeping its registration, its pointer and the person's file while only the records go; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
+run = "node e2e/settling-command-guest.ts"
+
 [tasks."e2e:deferred-origin-check"]
 description = "Run plan step 15's deferred-origin arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the planned removal going on, an origin snapshot marked with `zfs destroy -d` refusing, the reap that mark causes when a removal goes ahead, and an origin moved by `zfs promote` refusing; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
 run = "node e2e/deferred-origin-check-guest.ts"

@@ -270,7 +270,7 @@ The root modes are modes of this file,
  the words `monochromatic-git-policy-cli zfs-root <mode>` select a mode on any file,
  which is what a unit's `ExecStart`,
  an adoption and a person use;
- and the installed ZED history event's own file name,
+ and the ZED history event's own file name,
  `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
  whose ZED entry `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
  is a link to it,
@@ -281,7 +281,7 @@ The setup of plan step 19 installs that file and the link,
  and no release installs them yet;
  nothing in that folder is linked as `git`.
 The default invocation,
- which is how the installed ZED event starts it,
+ which is how ZED's own start calls it,
  runs the clone-mount sweep;
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
@@ -5461,9 +5461,16 @@ and the removal's command path is
 `src/native/worktree_copying/worktree_removal_of_a_bound_clone.rs`.
 
 A removal is one order,
-and every step of it that decides anything runs before anything is written:
+and every step of it that decides anything runs before anything is written,
+and the slot's per-slot claim is its first step and its last:
 
-1. The add's binding record for the slot,
+1. The per-slot claim on the slot,
+   taken before any record is read,
+   in the add's own folder and under the add's own name,
+   the claim an add of the same slot takes
+   (`worktree_clone_removal_proof_and_plan::removal_slot_claim`,
+   `lock/single_owner_claim.rs`),
+   then the add's binding record for the slot,
    its registration's own identity,
    and the origin-side inventory the add recorded.
 2. The lineage proof:
@@ -5563,10 +5570,39 @@ and every step of it that decides anything runs before anything is written:
    and the lines that name what was destroyed,
    what the head took with it,
    what remains,
-   and what a person still has to do.
+   and what a person still has to do,
+   and then the per-slot claim released,
+   after the plan is proved gone,
+   so no command meets a free slot whose removal's last witness still stands.
 
-Steps 1 to 4 write nothing and unmount nothing,
-and they are what this release's removal command runs.
+Two commands on one slot meet that claim rather than each other's writes:
+a second removal of the slot is refused while the first holds it,
+with the owner's process and claim file named,
+and so is an add of it,
+because the add takes the same claim in the same folder.
+A held slot is refused rather than queued,
+the rule "The per-slot claim" states for the handler's own claim,
+and the add's claim refuses with the owner's process id.
+A removal that is killed before its last step leaves a claim that names a process which no longer
+runs,
+and the claim's own rule lets the next command take the next generation,
+so nothing is left to clean up by hand.
+Every way out of the order before its last step,
+a refusal or an error,
+gives the claim back as that path's own drop,
+best effort:
+a rewrite that fails there leaves the claim naming this process,
+and the claim's liveness rule frees the slot when the process ends,
+when the next command takes the next generation.
+A release at the last step that cannot rewrite its file is printed in the report rather than
+swallowed,
+with the same consequence named.
+
+Steps 1 to 4 write no removal record and unmount nothing,
+and the only thing among them that writes at all is step 1's claim file.
+This release's removal command runs their reads through the read-only reading,
+which takes no claim,
+because a claim is a write and this release removes nothing.
 `git worktree remove` of a slot a whole managed clone is bound to refuses,
 prints the slot's report,
 and prints the proof's own answer:
@@ -5583,10 +5619,23 @@ A refusal changes nothing at all:
 the plan folder is not created,
 the clone's intent property keeps its value,
 and no record is rewritten.
+The claim's own two refusals,
+a slot a live command holds and a claim that cannot be taken,
+change nothing of the clone at all:
+they come before the first read,
+so such a removal read no record,
+destroyed nothing and wrote no plan.
+A refusal that takes the claim and then stops,
+at a holder,
+at a check or at the settle,
+gives the claim back and leaves the records its own sentences name.
 
 The whole removal is built on one writing path,
 `worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
 and no command reaches it.
+That path takes the slot's per-slot claim at its first step and releases it at its last,
+and the read-only reading a command does call takes no claim and writes no claim file:
+this release's removal command still changes nothing at all.
 The removal's command path still calls the read-only reading
 (`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
 and names none of the three writing functions:
@@ -5673,6 +5722,8 @@ What this release does not do:
 - It removes no clone.
   The refusal above is the whole of its removal behaviour,
   and the writing path that would finish one is built and reachable from no command.
+- It takes no per-slot claim on any command's behalf,
+  so no claim file is written and no command is refused for a slot another one owns.
 - It writes no removal intent,
   unmounts no clone,
   writes no destruction plan,
@@ -5690,6 +5741,71 @@ What this release does not do:
 - It adopts no plan from a command;
   a removal that finds one adopts it and continues,
   and no release command runs one.
+
+#### The settling command, built and reachable from no command
+
+Design:
+`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"The settling command" and its veto entries V21 and V23;
+`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+"A slot whose recorded clone is gone and cannot be proved gone".
+The code is `src/native/worktree_clone_record_settling/`.
+
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing
+the next add,
+and the project chose a command that removes the record once a person confirms it.
+The command is
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
+and it is built ahead of the plan's order:
+
+- No management grammar admits it,
+  no `git` command reaches it,
+  `doctor`,
+  the mount handler and the boot units do not either,
+  and the round that switches removal on adds it to the grammar and to every sentence that names it.
+- Its confirmation is three values the record supplies and the person types:
+  the slot twice,
+  and the last four decimal digits of the record's own `cloneGuid=`.
+  A printed line carries both as placeholders,
+  so a blind paste fails either comparison,
+  and the command never prompts.
+- Its six reads run in one order:
+  the slot's claim under the per-slot claim file,
+  the binding record,
+  the pinned clone parent's children for the clone's GUID and its name,
+  the slot's `.git` and the registration's identity,
+  a standing origin cleanup record,
+  and a standing destruction plan.
+  A live claim,
+  an unreadable record,
+  a record holding no clone,
+  a clone that stands or whose name or GUID answers elsewhere,
+  a mount at the slot,
+  a pointer naming another registration,
+  a registration of another identity,
+  a person's own lock,
+  a cleanup record or a plan naming other objects,
+  and a plan whose head is `gone` each refuse by name and change nothing.
+  A refused or partial pool listing is not a refusal:
+  the state the command exists for is exactly that,
+  so the listing's words are printed as the evidence the person confirms.
+- With no checkout begun it writes a lost lock again,
+  runs step 10's recipe over the registration,
+  prints the lost names of a standing plan and removes it,
+  then removes the two inventories,
+  then the binding,
+  and releases the claim last.
+- With a checkout begun it removes the plan and the three records,
+  leaves the registration,
+  the pointer and the person's files,
+  writes no lock,
+  and names `git worktree remove <slot>`.
+- It prints the record it confirmed,
+  the slot's entries,
+  the pool's answer,
+  the cleanup record and the plan it found,
+  the exact removals in order,
+  and one sentence that afterwards the wrapper can no longer prove which clone the slot held.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -7653,7 +7769,7 @@ The sweep that reads the intent and files a receipt is the plan's step 8,
 and the handler runs it in two modes:
 
 - no argument,
-  which is what the installed ZED event starts,
+  which is what ZED's own start hands it,
   reads the handler configuration,
   this boot's start probe record,
   the pool and the checkout,
@@ -20075,7 +20191,7 @@ Git never starts the wrapper for a hook:
 the wrapper writes no hook entry,
 passes no hooks path of a directory it made,
 and reads the name it was started under in one module only,
-the installed ZED history event's,
+the ZED history event's,
 where that name selects the clone-mount sweep and the modes' own `--help` and
 `--version`,
 and nothing else a Git command means

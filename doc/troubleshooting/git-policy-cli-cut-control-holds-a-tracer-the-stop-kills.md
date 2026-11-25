@@ -197,6 +197,144 @@ Tradeoff:
 which this fixture never does.
 - The checkpoint now reads both files.
 
+## A machine without the tracer: the control blamed the holder's speed (issue 6460)
+
+The three controls of `src/native/lock/git_stop_lock_tests.rs` that arrange the cut were red on this host,
+alone,
+each in
+its own process,
+and green in the container gate.
+This host installs no `strace`,
+and the holder's shell named it bare,
+so Git never started and no look could ever see the lock.
+
+### The symptom
+
+At `49029c6828` (the tip of `main` this record's branch starts from),
+a worktree of its own,
+one control per process
+(`keep/red-four-controls-alone-at-the-pre-fix-commit.log` of the round
+`lock-kill-controls-that-fail-alone-on-this-host-2026-11-25`):
+
+- `a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove` failed after 18.18 s with
+  `bounded run SlowToFinishCleanup: no look saw the lock and its pid file within the hold of 18.095958s, so the stop was
+  asked before the holder held the lock`;
+- `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock` failed after 18.17 s with the same line;
+- `a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove` failed after 600.15 s with
+  `watched step HeldPastTheStopGrace: the holder never announced that it held the lock, so the stop was asked before the
+  lock existed`.
+
+Both failure lines named the control's own ordering,
+and neither named the program that was missing.
+
+### What this host does differently
+
+`pacman -Q strace` answers `error: package 'strace' was not found`,
+`/usr/bin/strace` does not exist,
+and
+`command -v strace` under the fixture's own `PATH` (`/usr/bin:/bin:/usr/sbin`) finds nothing
+(`keep/probe-the-fixture-path-without-a-tracer.log`).
+The gate's image installs it:
+`bin/build-git-test-image.ts` lists
+it among the tools the tests start.
+
+### The cause
+
+Both `Holder` kinds that hold a removal back,
+`SlowToFinishCleanup` and `HeldPastTheStopGrace`,
+are Git wrapped in the
+tracer (`held_before_the_pid_file_goes`),
+and that string spelled the program `strace`.
+The holder's shell runs with the
+fixture's own `PATH`,
+which holds no such program here,
+so the shell answered
+
+```text
+sh: line 1: strace: command not found
+```
+
+and exited 127 before Git started (measured with that `PATH` alone in the environment,
+`keep/probe-the-fixture-path-without-a-tracer.log`).
+Nothing then wrote `refs/remotes/origin/main.lock` or its pid
+file,
+so `the_holder_holds_its_lock` was false at every look.
+
+The two bounded controls fail at their announcement hold:
+`ANNOUNCEMENT_HOLD` is `STOP_CEILING`,
+which is
+`LONGEST_DELAY_SEEN` (6031.986 ms) times the owner's margin of 3,
+so 18.095958 s
+(`src/native/foundation/worst_delay_seen_on_this_host.rs`),
+the same number their line printed.
+
+The watched control has no announcement hold and is slower for a second reason.
+Its holder's shell waits for the lock in
+a loop that starts a `sleep` every 50 ms,
+and a step that starts processes reads as work,
+so the watched stop's quiet
+window never fired;
+only the step's own ceiling ended it,
+`OBJECT_STEP_CEILING` of ten minutes
+(`src/native/service/wait_ceilings.rs`),
+which is the 600.15 s.
+
+### The measurement that shows the tracer is the cause
+
+With a copy of the gate image's `strace` (7.3,
+taken from a layer of that image as issue 6459's round did) on the test
+process's own `PATH`,
+the same three controls at the same source commit passed in 4.62 s,
+7.62 s and 8.14 s
+(`keep/green-lock-controls-alone-with-a-tracer.log`).
+Nothing else changed:
+the copy is the only difference between the
+red and the green arm.
+
+### The fix
+
+- `src/native/testing/strace_the_controls_run_under.rs`,
+  moved from the binary controls' own `binary_strace_support.rs`,
+is the one copy of the answer both test crates reach (`src/native/binary/binary_tests.rs` includes it by path,
+  as it
+includes `real_git_lfs_the_run_requires.rs`).
+- The holder runs the absolute path that answer gives,
+  so the fixture's own `PATH` no longer decides whether the cut can
+be made.
+- A control whose machine has no tracer prints one line naming itself and passes,
+  as the btrfs and real-tool controls
+do,
+  and `--success-output=final` brings that line into a green gate's log:
+
+```text
+STRACE CONTROL NOT RUN: stop-lock-push-slow-cleanup (no strace on PATH)
+```
+
+- A run that must have the tracer fails instead of passing with controls unchecked:
+  `CLI_GIT_REQUIRE_STRACE`,
+  which the
+gate image sets (`bin/native-test-containerfile.ts`),
+  names the variable and the program.
+
+The three controls passed here in 0.00 s each,
+printing that line
+(`keep/green-lock-controls-alone-without-a-tracer.log`).
+
+### What is not claimed
+
+- No production code runs `strace`;
+  it is a control's tool,
+  so nothing a person runs changed.
+- The host's AppArmor records need no reading for this cause:
+  no denial is involved,
+  and the checker's windows for the
+runs above are in `keep/windows.txt` in case a record of those minutes is wanted for another reason.
+- The 600 s wait of the watched control is not a product defect of its own:
+  it needs a command that keeps starting
+processes while it never takes the lock,
+  which is the shape of this control's waiting loop when the program it pipes to
+is missing.
+
 ## What does not work
 
 - `-P` given the canonical path of a file reached through a symbolic link.

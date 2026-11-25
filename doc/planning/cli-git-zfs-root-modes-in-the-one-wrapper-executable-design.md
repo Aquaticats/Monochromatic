@@ -1416,8 +1416,8 @@ because a person who typed `--version x` reads why:
 $ /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets --version x
 `x` is an argument this start does not take: under this file's own name only no argument,
 `--help` and `--version` are answered. Nothing was done. Ways forward: run the file with no argument for
-the clone-mount sweep, with `--help` for the modes' usage, or with `--version` alone; every mode is reached
-through the words, as `monochromatic-git-policy-cli zfs-root <mode>`.
+the clone-mount sweep, with `--help` for the modes' usage, or with `--version` alone; every mode with a
+word is reached through the words, as `monochromatic-git-policy-cli zfs-root <mode>`.
 ```
 
 The words of this refusal are this revision's,
@@ -2614,7 +2614,6 @@ choice 8's word and choice 9's token where those answers put them:
 
 ```text
 usage: <file> monochromatic-git-policy-cli zfs-root <mode>
-  (no argument)        run the clone-mount sweep the installed ZED event starts
   boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart
   start-probe          run the start probe's arms and write this boot's result
   shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost
@@ -2630,10 +2629,12 @@ usage: <file> monochromatic-git-policy-cli zfs-root <mode>
                        mount one nested dataset at its own mountpoint, under the recorded checkout
   --help               print this text
   --version            print this build's version
-Every root mode is reached through the words `<file> monochromatic-git-policy-cli zfs-root <mode>`,
+Every mode with a word is reached through the words `<file> monochromatic-git-policy-cli zfs-root <mode>`,
 with `<file>` the root-owned file.
 Plan step 19's setup installs `<file>` as /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets
 and links it as history_event-mount_git_worktree_clone_datasets for ZED; no release installs it yet.
+ZED starts /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets with no argument,
+and that start runs the clone-mount sweep, which has no mode word.
 The modes that make requests open /dev/zfs through this repository's binding, never a CDDL library and never the zfs program.
 ```
 
@@ -2641,6 +2642,10 @@ The first line names the root-owned file before the words,
 and no line offers a mode in brackets:
 the words follow whatever path starts the program,
 so the words alone reach Git as an unknown command.
+The rows below it name mode words only,
+so the sweep has no row there:
+`zfs-root` with no mode word after it is refused,
+and the sweep is named by the history event link, which ZED starts with no argument.
 That is the alpha.46 release pass's answer A,
 which also settles the closing sentences:
 they say who installs the file and when,
@@ -2650,7 +2655,7 @@ and the sweep's refusal to an administrator says the same
 "How the root modes' usage reads").
 The words in it are choice 5's,
 so no refusal and no usage names `mount-git-worktree-clone-datasets` any more;
-the last three lines are replaced by the sentences above,
+the closing sentences are replaced by the sentences above,
 because the build is one file at one path, the words are what a person types, and the file is not installed yet.
 The two `record-checkout` and `mount-path-descendant` blocks are this design's
 (proposal);
@@ -3083,7 +3088,7 @@ $ /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets --version x
 monochromatic-git-policy-cli zfs-root: `x` is an argument this start does not take: under this
 file's own name only no argument, `--help` and `--version` are answered. Nothing was done. Ways
 forward: run the file with no argument for the clone-mount sweep, with `--help` for the modes'
-usage, or with `--version` alone; every mode is reached through the words, as
+usage, or with `--version` alone; every mode with a word is reached through the words, as
 `monochromatic-git-policy-cli zfs-root <mode>`.
 ```
 

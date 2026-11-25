@@ -2239,6 +2239,27 @@ Steps 4 and 5,
 origin cleanup and the Git settle,
 need a destroyed clone and are built in step 16.
 
+(Amended 2026-11-25 by an agent,
+in a round of its own;
+this note is unapproved and non-final.)
+That round built the order's per-slot claim,
+which the origin cleanup design's list names as its steps 1 and 14
+(`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+"The removal's one order of writes and removals"):
+the slot's claim is taken before the entry reads a record and released after the plan is
+proved gone,
+so a second removal of the slot,
+and an add of it,
+take the same claim file and are refused while the first command holds it.
+It sits in the whole order's path,
+`removal_completion::complete_the_removal`,
+and not in this step's entry,
+because the entry is one part of the order and the claim has to outlast every part;
+the wiring round that switches the command path on therefore gets it with that path.
+The entry,
+the reading and every command take no claim.
+`SPEC.md`'s removal section states the claim as the order's first and last step.
+
 #### Design sections
 
 "Removal and recovery" steps 1 and 2;

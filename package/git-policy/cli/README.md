@@ -1928,11 +1928,11 @@ One archive carries one executable,
 It is the file a caller runs as `git`;
 root reaches its modes through the words
 `monochromatic-git-policy-cli zfs-root <mode>`
- or through one root-owned file under the installed ZED history event's name,
+ or through one root-owned file under the ZED history event's name,
  and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
 The root modes run these kinds of work:
-no argument at all is the clone-mount sweep the installed ZED event starts,
+no argument at all is the clone-mount sweep ZED's own start runs,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
@@ -2469,6 +2469,12 @@ What this release builds and does not yet run is the rest of that removal,
 on one writing path no command reaches
 (`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
 
+- the slot's per-slot claim,
+  taken before the first read and released after the plan is proved gone,
+  so a second removal of the slot,
+  and an add of it,
+  are refused while one command holds the slot
+  (`src/native/worktree_clone_removal_proof_and_plan/removal_slot_claim.rs`);
 - the snapshot batch and the head destroy,
   with a fresh all-namespace holder scan and the marked-origin check before each request and before
   the head,
@@ -2539,6 +2545,23 @@ and deciding between a re-registration at a commit a person names and removing t
 `git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
 wires its checks;
 this release prints them from the add's and the removal's refusals.
+
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
+and the command that settles it is built and reachable from nothing:
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
+takes the slot's claim,
+reads the record,
+the pool,
+the slot,
+an origin cleanup record and a destruction plan,
+and removes the registration and the three records once the two flags confirm the record,
+or only the records when a checkout has begun there
+(`SPEC.md`,
+"The settling command,
+built and reachable from no command").
+No management grammar admits it yet,
+so the sentences that name it today still send a person to a command this release does not have,
+and the round that switches removal on adds it to the grammar.
 
 ### The Git lock a managed clone's registration holds
 

@@ -1194,6 +1194,16 @@ which half of the change carries the effect,
 because compaction's result outlasts its window and makes A after B no control;
 and whether the rates stay down as builds fragment memory again over hours.
 
+One longer reading under the chosen setting,
+from 2026-11-25T13:59:11-05:00 to 14:29:11-05:00 (1800 s, eight build rounds running, `keep/long-window.txt`):
+`pgsteal_kswapd` 19.39 GiB, `pgsteal_direct` 3.51 GiB, `pswpout` 9.53 GiB, `pswpin` 3.87 GiB,
+stall 5.3 s, 5987 compaction stalls,
+and 296285 hugepage faults allocated against 588196 fallen back.
+Per 120 seconds that is about 1.29 GiB reclaimed by kswapd and 0.64 GiB swapped out,
+against window 1's 23.70 GiB and 18.22 GiB;
+the load differs between the two readings,
+so this is a reading beside window 1 and not a ratio to a control.
+
 Persisted for boots:
 `/etc/tmpfiles.d/thp.conf`,
 which replaces the distribution's file of the same name,
@@ -1284,13 +1294,105 @@ the record holds no measurement of a lower job count,
 and a lower pressure figure bought by running fewer jobs would answer a different question from the one
 "The comparison that would verify the change" asks.
 
-## What is planned for disk swap when an old drive is released
+## zram writeback to the old NVMe, set up 2026-11-25
 
-From the findings:
-a raw swap partition on the released drive,
+The plan this heading held until 2026-11-25 read:
+"a raw swap partition on the released drive,
 with zram writing its idle pages back to it,
 or zswap in front of it.
-Neither exists today.
+Neither exists today."
+On the owner's answers "Shrink p6 by 64 GiB" and "zram writeback (Recommended)",
+the first of those now exists.
+
+### The partition
+
+The old NVMe (`nvme0n1`, an SPCC M.2 drive at 3% used after 111 TB written and 11,119 power-on hours, `smartctl --attributes`)
+held a two-device btrfs (`bazzite_bazzite`, `p6` and `p2`, both LUKS2) with 7 GiB unallocated.
+From 2026-11-25T14:30:24-05:00, in a root unit with private mounts:
+`btrfs balance start -musage=20` moved 59 of 1796 chunks (devid 1 then 19.02 GiB unallocated, at 14:50:05),
+and `btrfs filesystem resize 1:-66G` moved 46 data chunks at about 21 s each
+and printed `Resize device id 1 (/dev/dm-0) from 881.10GiB to 815.10GiB` at 15:06:34.
+Before the table changed:
+devid 1's superblock read `total_bytes 875207589888`
+and the device tree held no extent at or beyond it.
+`btrfs filesystem show --raw` is no progress reading during a shrink,
+because it reads the on-disk superblock, which the shrink writes only at its end.
+`sfdisk` refuses a disk with any open mapping ("This disk is currently in use"),
+so both mappings were closed before the new table went in:
+`p6` keeps its start (2152962048) with 1713616896 sectors,
+and `p7` is 134217728 sectors (64 GiB) from 3866578944,
+PARTUUID `4762e2b4-dd7b-4505-8161-6e989d53e40c`, type Linux data, so nothing swaps on it raw.
+`p6` reopened maps 877355073536 bytes over btrfs's 875207589888, superblock checksum `[match]`.
+The tables before, intended and as written, and the LUKS2 header area, are in
+`~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`.
+
+### The encrypted writeback device
+
+`/etc/crypttab` maps `p7` as `old-nvme-zram-writeback` in plain mode with a key from `/dev/urandom` at every boot
+(`plain,cipher=aes-xts-plain64,size=512,sector-size=4096,nofail`),
+so nothing written back outlives a power-off.
+`systemctl start 'systemd-cryptsetup@old\x2dnvme\x2dzram\x2dwriteback.service'` set it up from that line at 15:12:30.
+
+### A second zram device now, zram0 itself from the next boot
+
+zram0 held 31.41 GiB of pages in 11.04 GiB of RAM at 15:02,
+and a backing device is set only on an unsized device,
+so giving zram0 one now needs a `swapoff` that pulls all of it back into RAM.
+Instead `zram1` was added (`hot_add`) with `backing_dev` the mapping, `compressed_writeback` on, `zstd`,
+zram0's size, and swap priority 110 over zram0's 100,
+so new swap-outs land where idle pages can leave RAM while zram0 drains as its pages are read.
+A positive control wrote zram1's pages back through the mapping:
+`bd_stat` went from `0 0 0` to `723160 3517 726722` (pages of 4 KiB),
+and the budget left read 321854 of 1048576.
+
+For the next boot,
+`/etc/systemd/zram-generator.conf.d/50-zram0-writeback-to-old-nvme.conf` sets zram0's `writeback-device`,
+and `/etc/systemd/system/systemd-zram-setup@zram0.service.d/50-compressed-writeback.conf` turns on
+`compressed_writeback` before the generator sizes the device
+(the kernel takes it only on an unsized device, `Documentation/admin-guide/blockdev/zram.rst` at v7.3,
+and zram-generator 1.2.1 has no option for it).
+The generator run into a scratch folder makes zram0's setup `BindsTo=` and `After=`
+`dev-mapper-old\x2dnvme\x2dzram\x2dwriteback.device` (`src/generator.rs` `handle_zram_bindings` at v1.2.1),
+so a boot without the old drive's mapping sets up no zram swap at all: that is the cost of this order.
+
+### The hourly writeback and its budget
+
+`zram-idle-writeback.timer` runs `zram-idle-writeback.service` 15 minutes after boot and every 15 minutes after
+(hourly with a 4 GiB budget until 2026-11-25T15:27-05:00, shortened so idle pages leave RAM sooner at the same daily ceiling),
+on every zram device with a backing device:
+the budget refilled to 262144 pages (1 GiB),
+`echo 900 > idle` marking pages untouched for 15 minutes,
+then `echo idle > writeback`.
+At most 96 GiB a day is about 35 TB a year,
+about 1% of this drive's life at the wear rate `smartctl` reads.
+The positive control's `echo all > idle` also wrote back pages that were still in use:
+by 15:27 `bd_stat` read `57639 278410 726722`,
+so 278410 of the 726722 pages written had been read back from disk;
+an age threshold is what keeps hot pages in RAM.
+
+What writeback does not do is raise how many builds fit at once.
+At 2026-11-25T15:25:14-05:00, with seven build rounds running, `MemAvailable` was 1928 MiB and the stall rising,
+but the largest user was a one-off `btrfs check` at its 16 GiB cap;
+once it stopped, at 15:27:04, `MemAvailable` read 22343 MiB and the stall avg10 0.02.
+The rounds then sat at 0.03 to 2.40 GiB each and had peaked at 7.15 to 7.97 GiB while compiling (`memory.peak`).
+That compile peak is the limit:
+memory the compiler needs at once, which swap cannot stand in for without slowing the build,
+and zram's own RAM (5.73 GiB on zram0, which gets no backing device until a reboot, and 4.16 GiB on zram1) is the most writeback can return.
+
+### What AppArmor would have stopped
+
+Two refusals in the `zram-generator` profile would each have left the next boot with no zram swap,
+and only a dry run and a probe found them:
+it could not read `/etc/systemd/zram-generator.conf.d/` (`Permission denied (os error 13)` from the generator),
+and the kernel's open of the mapping when `--setup-device` writes `backing_dev` was denied as `open /dev/dm-0 wr`.
+A throwaway `zram2` with a config line only under `/run` showed the second:
+error 13 before the rule, and error 16 (busy, since `zram1` holds the mapping) after it.
+Both rules are the eleventh batch's, in `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`.
+
+### Left
+
+`btrfs check --readonly` of the old filesystem and growing devid 1 into its 2 GiB margin
+run from a waiting command, after this step, on the owner's word.
 
 ## What is not known
 
