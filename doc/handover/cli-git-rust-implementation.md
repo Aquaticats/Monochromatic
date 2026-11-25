@@ -330,9 +330,18 @@ in `src/native/worktree_clone_removal_proof_and_plan/` (merged `3271ca042c`, `so
 its guest arm on a file-backed pool showed the promoted-clone refusal with every protected snapshot surviving, reverse promotion, a stale bookmark refused by name and a replaced clone refused;
 what its wiring needs is in its report (`report-pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead.md` in `~/temp/agent/zfs-step-14-lineage-proof-and-removal-plan-built-ahead-2026-11-24/keep/`):
 the entry `enter_the_removal`, this folder's plan reader as the route's one reader for steps 15 to 18, step 10's `is_canonical_guid_name` to expose, and the `## Lifecycle` section of `SPEC.md`;
+step 13 is wired and merged (`ee44eb6656`, `source_guard` 84 of 84 and `native:check` clean on the combined tip):
+the add's resume, the one command that holds a slot's claim and proves its registration,
+classifies the lock and writes a lost one back with its one line,
+an operator's lock keeps refusing removal and a single `--force` (guest arm),
+and the release stays unreached;
+its mounted proof compares the mount's dataset name where the lock design says `cloneGuid=`,
+so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-proof-compares-the-clone-guid`, since 2026-11-24T20:30-05:00);
+step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
+held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
+and runs the proof read-only inside the refusal;
 running since 2026-11-24T19:10-05:00:
-step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
-and issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
