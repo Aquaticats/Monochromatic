@@ -378,7 +378,10 @@ and the 6322 round's own worktree keeps its journal of five fresh finished batch
 when the same command clears it;
 the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt
 (the 6454 worktree's removal at 2026-11-24T21:04-05:00 kept one; a run of the fixed build's `service stop-units-of-removed-worktrees` after this batch clears them);
-the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
+the gate on `main` at `0152f18bb7` (run `native-VeMLmC`, 2026-11-24T21:47:39-05:00 to 22:04:19-05:00, for the batch of 6454, the GUID follow-up, 6455, 6456 and the preflight control)
+gave `11062 tests run: 11060 passed (5 slow), 2 failed, 43 skipped`, the cause-H pair alone, each with cause H's own message,
+and its only AppArmor denials were `umount`'s two `dac_override`;
+before it, the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
