@@ -103,6 +103,35 @@ two things need measuring on a disposable Garage before the design settles:
   the failure alert,
   and systemd's one-run-at-a-time guarantee for a unit.
 
+## Facts gathered for round 2
+
+- systemd path units do not recurse:
+  `path_spec_watch` in systemd v262 `src/core/path.c:38-98` adds one inotify watch on the configured path
+  and on its parent directories,
+  with no walk into subfolders,
+  so a `PathChanged=` on `~/Plain` sees only entries directly inside it.
+  A path unit cannot meet the round 1 answer "every folder,
+  including folders created later".
+- Repository precedent for the same shape of problem:
+  `doc/planning/kopia-source-watch-package.md` (design plan only, never built)
+  plans one user daemon that watches backup sources recursively with Chokidar,
+  debounces,
+  starts a Kopia snapshot,
+  and keeps a periodic timer as the safety net;
+  it rejects `systemd.path` (not recursive) and a raw `inotifywait` loop (custom debounce and parsing),
+  and lists `watchexec` as an alternative.
+- `package/watch-restart/cli` is a Chokidar-based package that replaced `watchexec` in a dev loop
+  because of a SIGINT hang in `watchexec`'s `-j` filter mode
+  and signals not reaching grandchildren (`doc/troubleshooting/mise-watch.md`);
+  it restarts a long-running child,
+  which is a different job from running a sync to completion.
+- `watchexec` 2.8.0 is locked in `toolchain.lock.json`
+  and installed at `~/.local/share/monochromatic-dev/toolchain/bin/watchexec`,
+  outside this shell's `PATH`.
+- No vet report for a file watcher exists under `doc/audit/`.
+
 ## Open questions, round 2
 
-- Which watcher watches `~/Plain` recursively and starts the unit.
+- Whether one watcher must run on Linux, macOS and Windows alike.
+- Who runs the broad discovery for the watcher vet,
+  which `.claude/skills/choosing-technology/SKILL.md` requires before a recommendation.
