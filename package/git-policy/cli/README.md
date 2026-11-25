@@ -2457,6 +2457,38 @@ and deciding between a re-registration at a commit a person names and removing t
 wires its checks;
 this release prints them from the add's and the removal's refusals.
 
+### The Git lock a managed clone's registration holds
+
+A managed clone's Git registration is locked,
+so `git worktree prune` keeps it while the slot shows no `.git`
+(design:
+`doc/planning/cli-git-zfs-add-time-git-lock-design.md`;
+`SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot").
+The add takes the lock in the same Git call that registers the worktree,
+and the words in it are a pure function of the add's own random nonce,
+so no second copy of them is stored anywhere.
+`git worktree list` shows the worktree as locked,
+and `git worktree move` and `git worktree remove` refuse it,
+which is what the wrapper wants for a slot it binds anyway.
+
+The wrapper tells three things apart by comparing bytes and never by reading the words' meaning:
+the lock its add wrote,
+a lock a person wrote,
+and a lock or registration nothing of this slot's explains.
+If the lock is gone,
+an interrupted add that holds the slot and has just proved its registration writes it again and says so in one line;
+that undoes a deliberate `git worktree unlock`,
+which is the cost the project accepted
+(`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`).
+A lock holding a person's words is never overwritten:
+the add refuses,
+says what stands,
+and names `git worktree unlock <slot>` as the way out.
+The lock is released only by the removal's registration-cleanup step,
+after the clone's destruction is proven,
+and this release does not release it.
+
 ### Converting the checkout to a btrfs subvolume
 
 `git monochromatic-git-policy-cli migrate-to-subvolume` turns the repository's main checkout into a btrfs subvolume at the same path.
@@ -7719,11 +7751,35 @@ because a release waits on that gate and its suite is what the CPUs shorten
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+- The image build has a bound of its own,
+  8 GiB from `bin/native-gate-container-limits.ts` (`gateBuildMemory`),
+  because it compiles the crate's three layers at four jobs rather than running the suite.
+  The build's compile of the wrapper's own sources peaked at 5,363.4 MiB under a 10 GiB cap no step of it met,
+  and the shared 2 GiB held that step at its cap in reclaim:
+  `memory.peak` 2,048 MiB,
+  `memory.events` `max` 149,888,
+  its own `memory.pressure` some avg10 22.33,
+  29.8 s of stall over 196 s,
+  and 197.1 s against 87.2 s without the cap.
+  That reclaim is the stall the issue measured at 2026-11-24T19:20-05:00
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`),
+  and `doc/planning/git-policy-cli-cachyos-test-containers.md`
+  ("The image build's own memory bound, measured 2026-11-24") holds the arms,
+  the ratios and the bound's arithmetic.
+  Eight GiB is 1.53 times the measured peak and inside the 20 GiB the gate's own systemd unit allows.
+  The base image's own build keeps the 2 GiB default,
+  because it compiles nothing and no measurement of it exists.
+  A host with less than 8 GiB to spare runs the build from `--memory`,
+  which bounds the build and the suite together,
+  and a gate given more than four CPUs compiles more jobs at once and wants its `--memory` raised the same way.
 
 A bound a person passes after the `--` still wins,
 with one exception:
 the process bound is a floor that follows the test count,
 so a `--pids-limit` below it is raised and the gate prints the line that says so.
+A `--memory` bounds the image build as it bounds the suite's containers,
+so a host with less memory than the build's own 8 GiB is served by lowering that one value;
+the gate prints which bound each container got before it builds.
 Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:
 

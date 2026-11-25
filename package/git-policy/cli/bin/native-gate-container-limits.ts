@@ -19,6 +19,7 @@
  room the gate's own systemd unit leaves above them.
  */
 import {
+  type ContainerLimitFlag,
   type ContainerLimits,
   defaultContainerLimits,
 } from './container-limits.ts';
@@ -35,6 +36,30 @@ import {
  allows, so the gate keeps its measured share while the host's other agents build beside it.
  */
 export const gateContainerCpus = 4;
+
+/**
+ Memory the gate's image build may use: 8 GiB.
+
+ Not the repository default, which stays the suite's and Clippy's bound. The build compiles the crate's three layers at
+ four jobs, and the arms of 2026-11-24 (`podman build --no-cache` at the gate's own CPU count, the build containers'
+ cgroups read every 250 ms; `doc/planning/git-policy-cli-cachyos-test-containers.md`, "The image build's own memory
+ bound, measured 2026-11-24") peaked at 5,363.4 MiB in the compile of the wrapper's own sources under a 10 GiB cap no
+ step of it met. The same step under the shared 2 GiB reached that cap and stayed there: `memory.peak` 2,048 MiB,
+ `memory.events` `max` 149,888, its own `memory.pressure` some avg10 22.33, 29.8 s of stall over 196 s, and 197.1 s
+ against 87.2 s without the cap. That reclaim is what the issue measured at 2026-11-24T19:20-05:00
+ (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, the catalogue of that evening), and
+ it lifted the machine-wide stall that decides whether new work may start.
+
+ 8 GiB is 8,192 MiB, 1.53 times that measured peak, so a source change that adds work still fits, and it is well inside
+ the 20 GiB the gate's own systemd unit allows (`bin/native-gate-caps.ts`).
+
+ The bound is sized at the gate's own four compile jobs. A gate given more CPUs compiles more jobs at once and wants more
+ memory, and a host that cannot spare 8 GiB wants less; `--memory <size>` after the task name is the one option that does
+ both, because it bounds the build and the suite together. A build held below what it compiles needs is not a smaller
+ build but a slower one: its pages are reclaimed and swapped instead of used, and the capped arm here spent 29.8 s of its
+ 196 s compile held at the cap.
+ */
+export const gateBuildMemory = '8g';
 
 /**
  Processes one test thread of the suite was measured to need, which sizes the process bound for any thread count.
@@ -93,7 +118,8 @@ export const gateContainerLimits: ContainerLimits = gateLimitsFrom({
     ...defaultContainerLimits,
     cpus: gateContainerCpus,
   },
-})
+  givenFlags: [],
+},)
   .limits;
 
 //endregion The bounds the gate sizes itself
@@ -101,11 +127,12 @@ export const gateContainerLimits: ContainerLimits = gateLimitsFrom({
 //region What the gate runs with
 
 /**
- The limit a run's containers actually use, and the line that says so when it is not what the person asked for.
+ The limit a run's containers actually use, the bound the image build uses, and the line that says so when a process
+ bound is not what the person asked for.
 
  @example
  ```ts
- const { limits, raised } = gateLimitsFrom({ given: defaultContainerLimits });
+ const { limits, buildLimits, raised } = gateLimitsFrom({ given: defaultContainerLimits, givenFlags: [] });
  ```
  */
 export type GateLimits = {
@@ -114,42 +141,101 @@ export type GateLimits = {
    */
   readonly limits: ContainerLimits;
   /**
+   The bound the gate's image build runs under: {@link limits} with the build's own memory default, or the memory the
+   person gave, which bounds the build as it bounds every other container.
+   */
+  readonly buildLimits: ContainerLimits;
+  /**
    What the gate says about a process bound it had to raise, absent when it kept the one it was given.
    */
   readonly raised?: string;
 };
 
 /**
- The gate's limits from the ones its parser read, with the process bound raised to what the test threads need.
+ The line a gate prints to name which memory bound each of its containers runs under.
 
- A process cap below the thread count's need is not a smaller bound but a coin flip: the same four threads passed every
- test under 1024 processes and failed three at 512. So the cap is a floor here and any larger value, the person's
- included, is kept; the memory and CPU bounds are the person's, unchanged.
+ The build's bound and the suite's differ unless the person passed `--memory`, and a log that names both is what lets a
+ reader tell a build held at its cap from a suite that had room.
 
- @param given - the limits the parser read from the gate's own options and the person's
+ @param limits - the limits the suite's and Clippy's containers run under
 
- @returns the limits to run with, and the line to print when the process bound was raised
+ @param buildLimits - the limits the image build runs under
+
+ @returns one line, ending in a period
 
  @example
  ```ts
- const { limits, raised } = gateLimitsFrom({ given: { memory: '2g', cpus: 4, pidsLimit: 512 } });
+ console.log(buildMemoryLine({ limits: gateContainerLimits, buildLimits }));
  ```
  */
-export function gateLimitsFrom({ given, }: {
+export function buildMemoryLine({
+  limits,
+  buildLimits,
+}: {
+  readonly limits: ContainerLimits;
+  readonly buildLimits: ContainerLimits;
+},): string {
+  if (buildLimits.memory === limits.memory)
+    return `The image build and the suite's containers are bounded at ${limits.memory}, the memory this gate was given.`;
+  return `The image build is bounded at ${buildLimits.memory}, its own measured bound; the suite's and Clippy's containers at ${limits.memory}. A --memory after the task name bounds both.`;
+}
+
+/**
+ The gate's limits from the ones its parser read, with the process bound raised to what the test threads need and the
+ image build given its own memory bound.
+
+ A process cap below the thread count's need is not a smaller bound but a coin flip: the same four threads passed every
+ test under 1024 processes and failed three at 512. So the cap is a floor here and any larger value, the person's
+ included, is kept.
+
+ The image build compiles the crate rather than running it, so it gets {@link gateBuildMemory} instead of the repository's
+ 2 GiB. A `--memory` the person gave still bounds it, because the person asking every container of the gate for a smaller
+ bound means the build too; `givenFlags` is what tells a person's own `--memory 2g` from the repository default they never
+ named.
+
+ @param given - the limits the parser read from the gate's own options and the person's
+
+ @param givenFlags - the limit options the parser read, so a memory the person named is told from the default
+
+ @returns the limits to run with, the bound to build with, and the line to print when the process bound was raised
+
+ @example
+ ```ts
+ const { limits, buildLimits, raised } = gateLimitsFrom({
+   given: { memory: '2g', cpus: 4, pidsLimit: 512 },
+   givenFlags: [],
+ });
+ ```
+ */
+export function gateLimitsFrom({
+  given,
+  givenFlags,
+}: {
   readonly given: ContainerLimits;
+  readonly givenFlags: readonly ContainerLimitFlag[];
 },): GateLimits {
   /**
    Processes the test threads of these limits need.
    */
   const needed = processesForTestThreads(given.cpus,);
-  if (given.pidsLimit >= needed)
-    return { limits: given, };
-  return {
-    limits: {
+  /**
+   The limits every container of the gate runs under, which is the person's own when its process bound is enough.
+   */
+  const limits = given.pidsLimit >= needed
+    ? given
+    : {
       ...given,
       pidsLimit: needed,
+    };
+  return {
+    limits,
+    buildLimits: {
+      ...limits,
+      memory: givenFlags.includes('--memory',) ? given.memory : gateBuildMemory,
     },
-    raised: `The gate runs ${String(given.cpus)} test threads at once, which need ${String(needed)} processes, so its containers get that: this gate's process bound follows its test-thread count, and the --pids-limit it was given was ${String(given.pidsLimit)}.`,
+    ...(given.pidsLimit >= needed
+      ? {}
+      : { raised: `The gate runs ${String(given.cpus)} test threads at once, which need ${String(needed)} processes, so its containers get that: this gate's process bound follows its test-thread count, and the --pids-limit it was given was ${String(given.pidsLimit)}.` }),
   };
 }
 

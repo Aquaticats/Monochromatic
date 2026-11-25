@@ -3,10 +3,11 @@
 //!  on a file-backed pool:
 //!  Git's own `worktree add --lock --reason` writing the wrapper's sentence,
 //!  the clone mounted over the slot and unmounted,
+//!  the mounted arm of the two-fact proof (measurement `M2`),
 //!  the pointer deleted,
 //!  the lock read as the wrapper's own through the two-fact proof,
 //!  the three prune commands keeping the registration while it stands,
-//!  a person's lock read as theirs,
+//!  a person's lock read as theirs and still refusing a removal,
 //!  the put-back writing a lost lock again,
 //!  the release refused without this slot's proof and made after the clone is destroyed,
 //!  and the same three commands then removing the registration,
@@ -34,6 +35,7 @@
 use super::zfs_sweep_guest::{CHECKOUT_VARIABLE, GUEST_VARIABLE as SWEEP_GUEST_VARIABLE, POOL_VARIABLE, SBIN_VARIABLE, command_ok, make_the_designs_layout, mount_row, required, zfs, zfs_ok};
 use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentity, Phase, Request, RequestForm, lock_file_bytes, lock_words, open_or_create_home, write_binding};
 use git_policy_cli::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
+use git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use git_policy_cli::worktree_clone_managed_lock::{
     InstallAnswer, LockOwnership, ManagedLockState, RecordedClone, ReleaseRefusal, TheLiveCloneAnswer, classify_the_managed_lock, prove_the_recorded_clone_is_gone, read_the_recorded_facts,
     release_the_managed_lock, write_the_lost_lock,
@@ -89,6 +91,19 @@ fn git_ok(checkout: &Path, arguments: &[&str]) {
         .output()
         .unwrap_or_else(|error| panic!("git {arguments:?} could not start: {error}"));
     assert!(output.status.success(), "git {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+}
+
+/// Run one plain Git command that must be refused,
+/// and answer what it said.
+fn git_refused(checkout: &Path, arguments: &[&str]) -> String {
+    let output: std::process::Output = Command::new("git")
+        .current_dir(checkout)
+        .args(["-c", "user.name=lock-arm", "-c", "user.email=lock-arm@example.invalid", "-c", "commit.gpgsign=false"])
+        .args(arguments)
+        .output()
+        .unwrap_or_else(|error| panic!("git {arguments:?} could not start: {error}"));
+    assert!(!output.status.success(), "git {arguments:?} was not refused, and nothing in this arm may remove a locked worktree");
+    return String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
 }
 
 /// One dataset's GUID,
@@ -188,11 +203,20 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     }
     assert!(mount_row(slot.as_path()).is_some(), "the clone stands at the slot after the property is set");
     command_ok("mount", &["--make-private", slot.display().to_string().as_str()]);
+    // Measurement M2's mounted arm: while the clone covers the slot, the recorded underlay identity
+    // no longer answers at that path, and the proof passes through the clone the record names.
+    let common: PathBuf = checkout.join(".git");
+    let covered: FolderIdentity = FolderIdentity::of_folder(slot.as_path()).expect("the mounted root's identity reads");
+    assert_ne!(covered, slot_identity, "the mount covers the underlay, so its identity does not answer at the slot");
+    println!("LOCK mounted slot-identity-answers=no");
+    let at_the_mount = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    assert!(matches!(at_the_mount.state, ManagedLockState::Managed { .. }), "a mounted clone's lock reads as the add's through the mount: {:?}", at_the_mount.state);
+    assert!(!at_the_mount.the_slot_shows_no_pointer(), "the covered slot shows the clone's own .git");
+    println!("LOCK mounted classified managed=yes");
     zfs_ok(sbin.as_str(), &["unmount", clone.as_str()]);
     // Item 6's deletion: the underlay's pointer goes, and the lock is the only protection left.
     std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
-    let common: PathBuf = checkout.join(".git");
-    let classification = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
+    let classification = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
     assert!(matches!(classification.state, ManagedLockState::Managed { .. }), "the lock reads as the add's through the two-fact proof: {:?}", classification.state);
     assert!(classification.the_slot_shows_no_pointer(), "the slot shows no `.git`");
     println!("LOCK classified managed-nonce=1 pointer=absent");
@@ -206,18 +230,26 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     // `git worktree lock` and `unlock` take the registration's own id, which is the slot's name here.
     git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
     git_ok(checkout.as_path(), &["worktree", "lock", "--reason", A_PERSONS_WORDS, SLOT]);
-    let operator = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
+    let operator = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
     assert_eq!(operator.ownership(), LockOwnership::AnOperatorsLock);
     println!("LOCK operator class=an-operators-lock");
+    // The acceptance test's arm: an operator's lock continues to refuse a removal, which is Git's own refusal here
+    // because this release has no removal for a whole clone, and one force does not pass it either.
+    let refused: String = git_refused(checkout.as_path(), &["worktree", "remove", SLOT]);
+    assert!(refused.contains("locked"), "the refusal names the lock rather than only the missing pointer: {refused}");
+    let forced: String = git_refused(checkout.as_path(), &["worktree", "remove", "--force", SLOT]);
+    assert!(forced.contains("locked"), "one force does not pass a lock: {forced}");
+    assert!(registration.is_dir(), "nothing was removed");
+    println!("LOCK operator git-removal-refused=yes single-force-refused=yes");
     // The put-back, after the person's lock goes and the slot's claim is the arm's to hold.
     git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
-    let lost = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
+    let lost = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
     assert_eq!(lost.ownership(), LockOwnership::NoLockStands, "the lost lock is the state the put-back answers");
     match write_the_lost_lock(registration.as_path(), SLOT, &RequestNonce::parse(NONCE).expect("the arm's nonce reads")) {
         InstallAnswer::Wrote { line } => assert!(line.contains("had lost its managed Git lock"), "the one line says what it did: {line}"),
         other => panic!("the put-back wrote nothing: {other:?}"),
     }
-    let again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path());
+    let again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
     assert!(matches!(again.state, ManagedLockState::Managed { .. }), "the put-back's lock reads as the add's: {:?}", again.state);
     println!("LOCK put-back wrote=yes line=yes");
     // T13: the installed lock protects exactly as Git's own write does, which the same three commands try.

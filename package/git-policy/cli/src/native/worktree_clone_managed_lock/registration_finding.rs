@@ -110,7 +110,7 @@ pub fn the_slots_the_home_names(common_dir: &Path) -> Vec<String> {
 /// Whether one decision attributed itself to this add,
 /// which is the finder's own count of the two-match refusal.
 fn attributes_itself(decision: &EntryDecision) -> bool {
-    return matches!(decision, EntryDecision::Adopt { .. } | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
+    return matches!(decision, EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
 }
 
 /// What:

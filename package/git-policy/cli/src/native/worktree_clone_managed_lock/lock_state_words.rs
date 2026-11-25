@@ -40,7 +40,7 @@ fn words_of_the_cause(cause: &TheWordsCause) -> String {
 ///  "The states Git's source can leave",
 ///  and the merged finder's own row words are its reading of them.
 ///  Rows 1 to 5 are the entries the recipe clears in that order,
-///  row 7 is a registration Git's failure path unlocked,
+///  a complete registration is adopted rather than named by a row,
 ///  and every other incomplete shape is row 8's,
 ///  the kill inside Git's own removal of a failed add.
 fn row_number(row: &EntryRow) -> u8 {
@@ -50,7 +50,6 @@ fn row_number(row: &EntryRow) -> u8 {
         EntryRow::GitdirOnly => 3,
         EntryRow::PointerOnly => 4,
         EntryRow::Commondir => 5,
-        EntryRow::UnlockedComplete => 7,
         EntryRow::Complete
         | EntryRow::ForeignLock
         | EntryRow::AnotherSlotsRegistration

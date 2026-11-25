@@ -30,6 +30,7 @@ import { gateRunLineOf, } from './native-gate-container-identity.ts';
 import { gateRunContainersOf, } from './native-gate-run-containers.ts';
 import { gateRunManifestOf, } from './native-gate-run-manifest.ts';
 import {
+  buildMemoryLine,
   gateContainerLimitOptions,
   gateLimitsFrom,
 } from './native-gate-container-limits.ts';
@@ -66,13 +67,15 @@ import { wrapperCrates, } from './native-wrapper-snapshot.ts';
 
 // Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
 // and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
-// test threads need (bin/native-gate-container-limits.ts).
+// test threads need, and the image build takes its own measured memory bound rather than the suite's
+// (bin/native-gate-container-limits.ts).
 /**
- The limits the parser read, and the arguments left over, which are a usage error.
+ The limits the parser read, the arguments left over, which are a usage error, and which limit options it read.
  */
 const {
   limits: givenLimits,
   rest: unknownOptions,
+  givenFlags: givenLimitFlags,
 } = parseContainerLimitOptions({
   // The gate's own bounds come first, so a person's option after them wins: the parser keeps the last repeat.
   options: [
@@ -85,14 +88,25 @@ const {
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
 /**
- The limits this gate's containers run under, with the process bound raised to what its test threads need.
+ The limits this gate's containers run under, with the process bound raised to what its test threads need, and the bound
+ its image build runs under.
  */
 const {
   limits: containerLimits,
+  buildLimits,
   raised: raisedProcessBound,
-} = gateLimitsFrom({ given: givenLimits, });
+} = gateLimitsFrom({
+  given: givenLimits,
+  givenFlags: givenLimitFlags,
+});
 if (raisedProcessBound !== undefined)
   console.log(raisedProcessBound);
+// The build compiles the crate rather than running it, so it has a bound of its own; the line says which bound each
+// container of this gate has, which is what a log needs when a build or a suite meets its own cap.
+console.log(buildMemoryLine({
+  limits: containerLimits,
+  buildLimits,
+},),);
 
 // The gate is this package's authority, so it reads the sidecars' locks before it builds anything: a dependency this
 // package gained, dropped or moved makes a sidecar's lock stale, and the sidecar's own build only finds that later.
@@ -194,6 +208,8 @@ for (const line of syscallProfile.lines) console.log(line,);
 console.log(gateRunLineOf({ runId: run.runId, },),);
 // The base is the newest CachyOS image on its `latest` tag with pacman's current Git, Node, pnpm, strace, cargo-nextest and the Rust toolchain on top
 // (doc/decision/container-base-distro.md): the pull happens here, once, and every step after it is offline.
+// Its own build keeps the repository's shared memory default: it compiles nothing, and no measurement of it exists, so
+// the gate's build bound above is the test image's alone.
 /**
  The derived base image, built now when the registry's current CachyOS image or its Containerfile is new to this host.
  */
@@ -231,7 +247,7 @@ await runCommand({
     '--network=none',
     '--http-proxy=false',
     '--pull=never',
-    ...buildLimitArguments(containerLimits),
+    ...buildLimitArguments(buildLimits),
     '--tag',
     testImage,
     context.path,

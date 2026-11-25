@@ -330,9 +330,18 @@ in `src/native/worktree_clone_removal_proof_and_plan/` (merged `3271ca042c`, `so
 its guest arm on a file-backed pool showed the promoted-clone refusal with every protected snapshot surviving, reverse promotion, a stale bookmark refused by name and a replaced clone refused;
 what its wiring needs is in its report (`report-pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead.md` in `~/temp/agent/zfs-step-14-lineage-proof-and-removal-plan-built-ahead-2026-11-24/keep/`):
 the entry `enter_the_removal`, this folder's plan reader as the route's one reader for steps 15 to 18, step 10's `is_canonical_guid_name` to expose, and the `## Lifecycle` section of `SPEC.md`;
+step 13 is wired and merged (`ee44eb6656`, `source_guard` 84 of 84 and `native:check` clean on the combined tip):
+the add's resume, the one command that holds a slot's claim and proves its registration,
+classifies the lock and writes a lost one back with its one line,
+an operator's lock keeps refusing removal and a single `--force` (guest arm),
+and the release stays unreached;
+its mounted proof compares the mount's dataset name where the lock design says `cloneGuid=`,
+so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-proof-compares-the-clone-guid`, since 2026-11-24T20:30-05:00);
+step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
+held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
+and runs the proof read-only inside the refusal;
 running since 2026-11-24T19:10-05:00:
-step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
-and issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
@@ -353,9 +362,17 @@ which asserts the pool's refusal text, while the gate's container has no `/dev/z
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
-running since 2026-11-24T19:50-05:00, once that stall was falling:
-the round that makes that control hold without `/dev/zfs` (`pi-fix-preflight-dirty-source-test-without-dev-zfs`)
-and the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
+that control now derives the refusal it expects from the device layer, so it holds with and without `/dev/zfs`
+(merged `c12b45dfc4`; red then green in the gate image itself),
+and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
+(added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
+the image build now has its own measured bound, 8 GiB against a measured peak of 5,363.4 MiB uncapped,
+while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` still sets both
+(merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
+that round also found `package/container-limit/core`'s ledger test failing on `main`:
+16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456,
+its round `pi-fix-container-start-sites-ledger` running since 2026-11-24T20:40-05:00);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
