@@ -102,7 +102,7 @@ pub enum RequestResult {
 /// and
 /// [`BatchRefusal::WouldDefer`] when the built request carries a `defer` key.
 pub fn send_request(
-    device: &impl SnapshotDestroyDevice,
+    device: &dyn SnapshotDestroyDevice,
     pool: &str,
     names: &[String],
 ) -> Result<RequestResult, BatchRefusal> {

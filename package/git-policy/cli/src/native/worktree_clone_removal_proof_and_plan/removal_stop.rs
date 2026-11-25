@@ -92,11 +92,14 @@ impl BookmarkRefusalReason {
 }
 
 /// What:
-///  Every way a removal stops before its first delete.
+///  Every way a removal stops.
 /// Why:
-///  A stop keeps the registration,
-///  the records and every snapshot,
-///  and each arm names what a person has to change before a retry.
+///  A stop before the first delete keeps the registration,
+///  the records and every snapshot;
+///  a stop after one of the batch's requests keeps the plan's own record of what that request
+///  did,
+///  and its message says which of the two states it left.
+///  Each arm names what a person has to change before a retry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -196,15 +199,35 @@ pub enum RemovalStop {
         /// each named.
         refused: Vec<RefusedBookmark>,
     },
-    /// The origin is marked for deferred destroy.
-    OriginMarked {
+    /// The origin is marked for deferred destroy,
+    /// or a check could not judge the clone or its origin,
+    /// at the look or at one of the two checks.
+    OriginCheckRefused {
         /// Step 15's own refusal,
-        /// with its counts and its message.
+        /// with its cause, its counts and its message.
         refusal: Box<OriginRefusal>,
         /// What the plan already records as lost,
         /// which its sentence says,
         /// and nothing on a first removal.
         history: RemovalHistory,
+    },
+    /// The verified snapshot set is not a request this route will send.
+    TheSnapshotSetIsNotSendable {
+        /// What the split or the request builder refused,
+        /// in its own words.
+        said: String,
+        /// How many requests this run had already sent,
+        /// whose answers the plan records.
+        sent: usize,
+    },
+    /// The plan could not hold an answer the kernel gave,
+    /// so it now says less than the pool does.
+    ThePlanCouldNotHoldTheAnswer {
+        /// The plan's file.
+        path: PathBuf,
+        /// Why the line could not be written,
+        /// in the record's own words.
+        said: String,
     },
     /// A destruction plan for this clone already stands,
     /// and a resumed removal is what continues it.
@@ -311,7 +334,14 @@ impl RemovalStop {
                     lines.join("\n")
                 )
             }
-            RemovalStop::OriginMarked { refusal, history } => refusal.message(history),
+            RemovalStop::OriginCheckRefused { refusal, history } => refusal.message(history),
+            RemovalStop::TheSnapshotSetIsNotSendable { said, sent } => format!(
+                "this removal cannot submit its verified snapshots as one request: {said} No snapshot request was sent for that set, and {sent} request(s) this run already sent are recorded in the plan. The removal stops with the clone unmounted and the intent and the plan standing. Ways forward: read the plan with `monochromatic-git-policy-cli doctor`; the set is rebuilt from a fresh inventory before the next attempt, and a byte budget sized to the set is what removes this stop."
+            ),
+            RemovalStop::ThePlanCouldNotHoldTheAnswer { path, said } => format!(
+                "the destruction plan at {} could not hold an answer the kernel gave ({said}), so the plan now says less about this clone's own snapshots than the pool does. No further request was sent, the clone stands, and the intent and the plan are kept. Ways forward: read the plan and the clone's own snapshots with `monochromatic-git-policy-cli doctor`; a name the plan calls `planned` may already be gone, and a later attempt settles such a name by a fresh read before anything is sent for it.",
+                path.display()
+            ),
             RemovalStop::APlanStands { slot, path } => format!(
                 "a removal's destruction plan for the slot `{slot}` stands at {}, and this entry writes a plan only when none stands. Nothing was destroyed, every snapshot and bookmark stands, and the registration stands. Ways forward: the removal that wrote this plan continues from it, and a resumed removal reads its lines so a snapshot it already recorded is proved rather than requested again.",
                 path.display()

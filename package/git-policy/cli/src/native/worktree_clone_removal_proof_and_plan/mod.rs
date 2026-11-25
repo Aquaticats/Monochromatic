@@ -93,6 +93,10 @@
 //!   intent,
 //!   unmount and plan take,
 //!   and every step of it that changes nothing.
+//! - `removal_destruction.rs`:
+//!   the deferred-origin check before every snapshot request,
+//!   the batch those requests destroy,
+//!   the fresh enumeration and the check before the head destroy.
 //! - `removal_reading.rs`:
 //!   the removal's read-only reading:
 //!   what a removal would prove and lose,
@@ -126,6 +130,7 @@ pub mod bookmark_rule;
 pub mod loss_names;
 pub mod unmount_request;
 pub mod removal_entry;
+pub mod removal_destruction;
 pub mod removal_reading;
 
 pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
@@ -150,6 +155,7 @@ pub use bookmark_rule::{Explanations, explanations_of, refuse_the_unexplained_bo
 pub use loss_names::NamesToBeLost;
 pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, RemovalUnmount, UnmountAnswer, UnmountProof, verify_the_answer};
 pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
+pub use removal_destruction::{DestructionUnderway, RemovalDestruction, destroy_the_removal};
 pub use removal_reading::{RemovalReading, read_the_removal};
 
 /// The plan every control of this folder starts from.
@@ -171,3 +177,16 @@ pub(crate) mod removal_fixtures;
 #[cfg(test)]
 #[path = "removal_guest_arm_tests.rs"]
 mod removal_guest_arm_tests;
+
+/// The live pool and repository the guest arms build,
+/// shared by both of them.
+/// Never part of the release executable.
+#[cfg(test)]
+#[path = "removal_live_fixtures_tests.rs"]
+pub(crate) mod removal_live_fixtures;
+
+/// The guest arm of the destruction step,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "removal_destruction_guest_arm_tests.rs"]
+mod removal_destruction_guest_arm_tests;

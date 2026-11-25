@@ -196,7 +196,7 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
     }
     let mark: OriginMark = mark_of_reply(&origin_snapshot_identity);
     if let Verdict::Refused(refusal) = judge_the_look(recorded.clone_dataset.as_str(), recorded.slot.as_str(), recorded.origin_snapshot.as_str(), &mark) {
-        return Err(RemovalStop::OriginMarked { refusal: Box::new(refusal), history: history.clone() });
+        return Err(RemovalStop::OriginCheckRefused { refusal: Box::new(refusal), history: history.clone() });
     }
     let inventory: LiveInventory = crate::worktree_clone_removal_proof_and_plan::removal_reads::whole_inventory(reads, recorded.clone_dataset.as_str(), clone.guid)
         .map_err(|reason| return RemovalStop::InventoryUnreadable { clone: recorded.clone_dataset.clone(), reason })?;
