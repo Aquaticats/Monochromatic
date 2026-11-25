@@ -4,6 +4,7 @@
 //!  Git's own `worktree add --lock --reason` writing the wrapper's sentence,
 //!  the clone mounted over the slot and unmounted,
 //!  the mounted arm of the two-fact proof (measurement `M2`),
+//!  a clone destroyed and made again under the same name, which its GUID refuses,
 //!  the pointer deleted,
 //!  the lock read as the wrapper's own through the two-fact proof,
 //!  the three prune commands keeping the registration while it stands,
@@ -34,11 +35,12 @@
 
 use super::zfs_sweep_guest::{CHECKOUT_VARIABLE, GUEST_VARIABLE as SWEEP_GUEST_VARIABLE, POOL_VARIABLE, SBIN_VARIABLE, command_ok, make_the_designs_layout, mount_row, required, zfs, zfs_ok};
 use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentity, Phase, Request, RequestForm, lock_file_bytes, lock_words, open_or_create_home, write_binding};
+use git_policy_cli::worktree_clone_add_route::add_zfs::OpenedDevice;
 use git_policy_cli::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
 use git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use git_policy_cli::worktree_clone_managed_lock::{
-    InstallAnswer, LockOwnership, ManagedLockState, RecordedClone, ReleaseRefusal, TheLiveCloneAnswer, classify_the_managed_lock, prove_the_recorded_clone_is_gone, read_the_recorded_facts,
-    release_the_managed_lock, write_the_lost_lock,
+    DatasetGuidReads, InstallAnswer, LockOwnership, ManagedLockState, RecordedClone, ReleaseRefusal, TheLiveCloneAnswer, classify_the_managed_lock, prove_the_recorded_clone_is_gone,
+    read_the_recorded_facts, release_the_managed_lock, write_the_lost_lock,
 };
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -111,6 +113,38 @@ fn git_refused(checkout: &Path, arguments: &[&str]) -> String {
 fn guid_of(sbin: &str, dataset: &str) -> DatasetGuid {
     let (_ok, said, _error) = zfs(sbin, "zfs", &["get", "-H", "-o", "value", "guid", dataset], None);
     return DatasetGuid::parse(said.trim()).expect("the dataset's GUID reads");
+}
+
+/// What:
+///  The pool's GUIDs, read through the add route's own device.
+/// Why:
+///  The mounted arm compares the record's `cloneGuid=` with the GUID of the dataset the mount's source names,
+///  and that read is the route's own `OpenedDevice::identity_of`,
+///  so this arm asks the same reader a real pool answers
+///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+///  "What proves ownership",
+///  measurement `M2`).
+struct TheGuestsPool;
+
+impl DatasetGuidReads for TheGuestsPool {
+    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String> {
+        let device: OpenedDevice = OpenedDevice::open()?;
+        return device.identity_of(dataset).map(|identity| return identity.guid);
+    }
+}
+
+/// Make the clone stand at the slot,
+/// mounting it when no mount stands,
+/// and keep the slot's mount private to this namespace.
+fn mount_the_clone_at_the_slot(sbin: &str, clone: &str, slot: &Path) {
+    zfs_ok(sbin, &["set", format!("mountpoint={}", slot.display()).as_str(), clone]);
+    // A mounted dataset moves to its new mountpoint as the property is set, so the mount is made only when none stands.
+    let (_ok, mounted, _error) = zfs(sbin, "zfs", &["get", "-H", "-o", "value", "mounted", clone], None);
+    if mounted.trim() == "no" {
+        zfs_ok(sbin, &["mount", clone]);
+    }
+    assert!(mount_row(slot).is_some(), "the clone stands at the slot after the property is set");
+    command_ok("mount", &["--make-private", slot.display().to_string().as_str()]);
 }
 
 /// The bytes of one path,
@@ -195,28 +229,46 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     zfs_ok(sbin.as_str(), &["clone", format!("{checkout_dataset}@{ORIGIN}").as_str(), clone.as_str()]);
     write_the_record(checkout.as_path(), slot.as_path(), registration.as_path(), pointer.as_slice(), slot_identity, sbin.as_str(), pool.as_str(), checkout_dataset.as_str(), clone.as_str());
     // The clone covers the slot, and its unmount puts the underlay back.
-    zfs_ok(sbin.as_str(), &["set", format!("mountpoint={}", slot.display()).as_str(), clone.as_str()]);
-    // A mounted dataset moves to its new mountpoint as the property is set, so the mount is made only when none stands.
-    let (_ok, mounted, _error) = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "mounted", clone.as_str()], None);
-    if mounted.trim() == "no" {
-        zfs_ok(sbin.as_str(), &["mount", clone.as_str()]);
-    }
-    assert!(mount_row(slot.as_path()).is_some(), "the clone stands at the slot after the property is set");
-    command_ok("mount", &["--make-private", slot.display().to_string().as_str()]);
+    mount_the_clone_at_the_slot(sbin.as_str(), clone.as_str(), slot.as_path());
     // Measurement M2's mounted arm: while the clone covers the slot, the recorded underlay identity
     // no longer answers at that path, and the proof passes through the clone the record names.
     let common: PathBuf = checkout.join(".git");
     let covered: FolderIdentity = FolderIdentity::of_folder(slot.as_path()).expect("the mounted root's identity reads");
     assert_ne!(covered, slot_identity, "the mount covers the underlay, so its identity does not answer at the slot");
     println!("LOCK mounted slot-identity-answers=no");
-    let at_the_mount = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    let at_the_mount = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
     assert!(matches!(at_the_mount.state, ManagedLockState::Managed { .. }), "a mounted clone's lock reads as the add's through the mount: {:?}", at_the_mount.state);
     assert!(!at_the_mount.the_slot_shows_no_pointer(), "the covered slot shows the clone's own .git");
     println!("LOCK mounted classified managed=yes");
+    // M2's identity arm: the record's `cloneGuid=` answers at the covered path, through the route's own read.
+    let recorded_guid: DatasetGuid = guid_of(sbin.as_str(), clone.as_str());
+    assert_eq!(TheGuestsPool.guid_of(clone.as_str()).expect("the pool answers the mounted clone's GUID"), recorded_guid, "cloneGuid= answers while the clone covers the slot");
+    println!("LOCK mounted clone-guid-answers=yes");
+    // A clone destroyed and made again under the same name answers another GUID,
+    // so the name alone would pass a replacement and the GUID refuses it.
+    zfs_ok(sbin.as_str(), &["unmount", clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["destroy", "-f", clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["clone", format!("{checkout_dataset}@{ORIGIN}").as_str(), clone.as_str()]);
+    mount_the_clone_at_the_slot(sbin.as_str(), clone.as_str(), slot.as_path());
+    let replacement_guid: DatasetGuid = guid_of(sbin.as_str(), clone.as_str());
+    assert_ne!(replacement_guid, recorded_guid, "the replacement clone under the same name answers another GUID");
+    let replacement = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
+    assert!(!matches!(replacement.state, ManagedLockState::Managed { .. }), "a replacement under the record's clone name is refused: {:?}", replacement.state);
+    assert_eq!(replacement.ownership(), LockOwnership::Unexplained, "the replacement explains no lock of this slot");
+    println!("LOCK mounted cloned-again refused=yes");
+    // A clone made again and recorded by the add is this slot's, so the arm goes on with that clone.
+    zfs_ok(sbin.as_str(), &["unmount", clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["destroy", "-f", clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["clone", format!("{checkout_dataset}@{ORIGIN}").as_str(), clone.as_str()]);
+    mount_the_clone_at_the_slot(sbin.as_str(), clone.as_str(), slot.as_path());
+    write_the_record(checkout.as_path(), slot.as_path(), registration.as_path(), pointer.as_slice(), slot_identity, sbin.as_str(), pool.as_str(), checkout_dataset.as_str(), clone.as_str());
+    let recorded_again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
+    assert!(matches!(recorded_again.state, ManagedLockState::Managed { .. }), "the clone the record names again reads as the add's: {:?}", recorded_again.state);
+    println!("LOCK mounted restored-clone managed=yes");
     zfs_ok(sbin.as_str(), &["unmount", clone.as_str()]);
     // Item 6's deletion: the underlay's pointer goes, and the lock is the only protection left.
     std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
-    let classification = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    let classification = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
     assert!(matches!(classification.state, ManagedLockState::Managed { .. }), "the lock reads as the add's through the two-fact proof: {:?}", classification.state);
     assert!(classification.the_slot_shows_no_pointer(), "the slot shows no `.git`");
     println!("LOCK classified managed-nonce=1 pointer=absent");
@@ -230,7 +282,7 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     // `git worktree lock` and `unlock` take the registration's own id, which is the slot's name here.
     git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
     git_ok(checkout.as_path(), &["worktree", "lock", "--reason", A_PERSONS_WORDS, SLOT]);
-    let operator = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    let operator = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
     assert_eq!(operator.ownership(), LockOwnership::AnOperatorsLock);
     println!("LOCK operator class=an-operators-lock");
     // The acceptance test's arm: an operator's lock continues to refuse a removal, which is Git's own refusal here
@@ -243,13 +295,13 @@ fn the_managed_lock_outlives_the_pointer_and_goes_after_the_clone() {
     println!("LOCK operator git-removal-refused=yes single-force-refused=yes");
     // The put-back, after the person's lock goes and the slot's claim is the arm's to hold.
     git_ok(checkout.as_path(), &["worktree", "unlock", SLOT]);
-    let lost = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    let lost = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
     assert_eq!(lost.ownership(), LockOwnership::NoLockStands, "the lost lock is the state the put-back answers");
     match write_the_lost_lock(registration.as_path(), SLOT, &RequestNonce::parse(NONCE).expect("the arm's nonce reads")) {
         InstallAnswer::Wrote { line } => assert!(line.contains("had lost its managed Git lock"), "the one line says what it did: {line}"),
         other => panic!("the put-back wrote nothing: {other:?}"),
     }
-    let again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets);
+    let again = classify_the_managed_lock(common.as_path(), SLOT, slot.as_path(), &LiveMountedDatasets, &TheGuestsPool);
     assert!(matches!(again.state, ManagedLockState::Managed { .. }), "the put-back's lock reads as the add's: {:?}", again.state);
     println!("LOCK put-back wrote=yes line=yes");
     // T13: the installed lock protects exactly as Git's own write does, which the same three commands try.
