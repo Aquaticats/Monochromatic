@@ -142,10 +142,11 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  add another rung makes: the ladder hands the person's own words to Git,
     //  whose `worktree add` takes the lock and the reason by itself
     //  (`SPEC.md`, the ladder's forms).
-    //  So a source the route declines, asked one question above, takes the ladder
-    //  with its words instead of failing here (issue 6453).
-    //  The cost is the source read above on every add this refusal ends, which is
-    //  what the issue accepts for the routing to be right.
+    //  So a source the route declines, which the check just before this one
+    //  answers, takes the ladder with its words instead of failing here (issue
+    //  6453).
+    //  The cost is the source check on every add this refusal ends, which the issue
+    //  accepts for the routing to be right.
     if let Some(word) = person_lock_word(arguments) {
         return Err(StepRefusal::refused(format!(
             "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
