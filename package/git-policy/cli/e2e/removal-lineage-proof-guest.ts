@@ -8,20 +8,30 @@
  with OpenZFS 2.4.4, the Rust toolchain and `cargo-nextest`, then builds this crate inside it, runs the arm, and destroys
  the guest.
 
- The arms, as the plan's step 14 asks (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 14"):
+ The arms, as the plan's steps 14 and 15 ask
+ (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 14" and "Step 15"):
+ step 14's:
  - the healthy removal enters, writes its plan and prints the one own snapshot it loses;
  - VM item 11's promote: the proof refuses a promoted clone before the first delete, every protected snapshot and
    bookmark tuple survives, and reverse promotion restores the recorded lineage;
  - VM item 13's bookmarks: a bookmark a live snapshot explains passes, and one whose snapshot went refuses and is named;
  - VM item 12's replacement and grants: the decided grant set carries no lineage-changing permission, and a same-name
-   replacement clone refuses on its GUID.
+   replacement clone refuses on its GUID;
+
+ and step 15's, through the library's writing path, because the removal's command path stays cut until step 16:
+ - a healthy removal destroys the clone's own snapshots, records every answer and stops before the head destroy;
+ - the look inside the entry refuses a mark that is already there, with nothing written;
+ - the first check refuses a mark that appears after the look, with no request sent;
+ - the owed measurement's second half: the mark appears after the batch and the head check refuses, with the plan
+   keeping what the batch destroyed and the Git registration surviving;
+ - a replacement clone whose different origin is marked refuses at the entry's own proof, with no request sent.
 
  Usage: node e2e/removal-lineage-proof-guest.ts <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  The evidence of one run is `removal-lineage-arm.log`, pulled back into the log directory, and a run passes only when it
- carries every `REMOVAL` line below and no `SKIPPED` line, so an arm that returned without running fails the run instead
- of reporting a green suite.
+ carries every `REMOVAL` and `DESTRUCTION` line below and no `SKIPPED` line, so an arm that returned without running fails
+ the run instead of reporting a green suite.
  */
 import { spawnSync, } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
@@ -50,6 +60,8 @@ const SWAP_GIB = '6G';
 
 /** The environment the arm reads, so it never opens the host's device. */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_LINEAGE_GUEST';
+/** The environment step 15's destruction arm reads, so it never opens the host's device. */
+const DESTRUCTION_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_DESTRUCTION_GUEST';
 /** The environment the refusal arm reads, which drives the built wrapper's `git worktree remove`. */
 const REFUSAL_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST';
 /** The pool the refusal arm builds its own datasets in, beside the proof arm's pool. */
@@ -58,10 +70,14 @@ const REFUSAL_POOL = 'removal-refusal';
 const REFUSAL_ROOT = '/home/removal-refusal-fixture';
 /** The checkout the refusal arm registers a real worktree in. */
 const REFUSAL_CHECKOUT = '/root/removal-refusal-checkout';
-/** The pool the arm builds and destroys. */
+/** The pool step 14's arm builds and destroys. */
 const POOL = 'zfsstep14';
-/** The folder the pool's image and the fixture repository live under. */
+/** The folder step 14's pool image and fixture repository live under. */
 const FIXTURE_ROOT = '/home/zfs-step-14-fixture';
+/** The pool step 15's destruction arm builds and destroys, so the two arms never share one. */
+const DESTRUCTION_POOL = 'zfsstep15destruction';
+/** The folder step 15's pool image and fixture repository live under. */
+const DESTRUCTION_ROOT = '/home/zfs-step-15-destruction-fixture';
 /** The OpenZFS 2.4.4 prefix the guest's recipe installs. */
 const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
 /** The `PATH` the guest's OpenZFS userspace needs. */
@@ -85,6 +101,12 @@ const EXPECTED_MARKERS = [
   'REMOVAL-ARMS bookmark-stale=refused',
   'REMOVAL-ARMS replacement=refused',
   'REMOVAL-ARMS done',
+  'DESTRUCTION healthy=destroyed',
+  'DESTRUCTION look=refused',
+  'DESTRUCTION first-check=refused',
+  'DESTRUCTION head-check=refused',
+  'DESTRUCTION replacement=refused',
+  'DESTRUCTION done',
 ] as const;
 
 /** The step, the guest name, the log directory and whether `all` keeps the guest. */
@@ -329,17 +351,26 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_POOL=${POOL}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_ROOT=${FIXTURE_ROOT}`,
+    `export ${DESTRUCTION_GUEST_VARIABLE}=${chosen.name}`,
+    `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_POOL=${DESTRUCTION_POOL}`,
+    `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_PREFIX=${OPENZFS_PREFIX}`,
+    `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_ROOT=${DESTRUCTION_ROOT}`,
     `export ${REFUSAL_GUEST_VARIABLE}=${chosen.name}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${REFUSAL_POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${REFUSAL_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all ' +
-      '--filterset "test(the_removal_lineage_guest_arms)" > /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
-    'tail --lines=40 /root/removal-lineage-arm.log',
+    // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
+    // and the failure's own output is printed rather than the last forty lines of a passing run.
+    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
+      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms)" ' +
+      '> /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
+    'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
+    'tail --lines=120 /root/removal-lineage-arm.log',
     // The refusal arms run through the built wrapper's own `git worktree remove`, in the same log.
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level fail ' +
       '--filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
+    'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=60 /root/removal-lineage-arm.log',
     'test "$status" = 0',
     'test "$refusal" = 0',
@@ -352,6 +383,8 @@ async function run(chosen: Options): Promise<void> {
     // The pool goes even when the arm left it behind, so the guest is ready for another run.
     `zpool destroy -f ${POOL} 2>/dev/null || true`,
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
+    `zpool destroy -f ${DESTRUCTION_POOL} 2>/dev/null || true`,
+    `rm --force ${DESTRUCTION_ROOT}/pool.img 2>/dev/null || true`,
   ].join('\n');
   guestStart({ chosen, script: arm, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });
