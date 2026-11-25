@@ -64,6 +64,21 @@ pub mod claim_time;
 /// The repositories the service looks at again when a claim another instance holds may have run out.
 pub mod service_retry;
 
+/// The bytes of one note the claim watch keeps:
+/// the format words,
+/// the bound on its length,
+/// and the spelling of a path in hexadecimal.
+pub mod service_claim_watch_note_format;
+
+/// What the notes of one claim watch say about the repositories they name,
+/// read without keeping anything.
+pub mod service_claim_watch_watched_repositories;
+
+/// Writing a note:
+/// the landing's own write,
+/// and the store's write under the first free name.
+pub mod service_claim_watch_writing_a_note;
+
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
