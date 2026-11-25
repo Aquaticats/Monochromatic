@@ -393,8 +393,16 @@ which read `clippy.toml` beside `Cargo.toml` while the gate snapshot (`bin/nativ
 fixed as `1e562c82c1` (the snapshot's unit test and `lint:types` pass; the next batch's gate shows it in the image);
 its only AppArmor denials were `umount`'s two `dac_override`;
 the lost guest results are issue 6458 (filed 2026-11-25; mvm's templates give `qemu-guest-agent` no out-of-memory protection, a reading, not a cause),
-and its diagnosis round `pi-mvm-long-guest-command-loses-its-result` (brief `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/prompt.md`)
-runs since the memory stall fell again (avg10 0.14 under avg60 3.49, after a rise to 6.21 over 1.97);
+its round merged as `aa39116642` (issue 6458 closed; report `keep/report-pi-mvm-long-guest-command-loses-its-result.md` in `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/`):
+a build step's kernel out-of-memory kill in the agent's cgroup makes systemd's default `OOMPolicy=stop` stop `qemu-guest-agent.service`,
+which kills the command, and the restarted agent's empty table answers that the PID does not exist;
+the Linux template now writes a drop-in with `OOMPolicy=continue`, so a killed command reports 137 and the agent stays
+(control in a guest red then green; the driver's build peaked at 7.45 GiB of the guest's 7.75 GiB,
+so the guest's size, swap or job count is a separate choice the round left open);
+the troubleshooting doc is `doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`;
+mvm's `dist` in the main checkout was rebuilt at 2026-11-25T06:02-05:00 so new templates carry it,
+and `~/.local/share/mvm/images/template-ubuntu.qcow2` (baked 2026-11-18, before the fix) is deleted once no guest runs, so the next `mvm create` bakes it again
+(not `mvm update`, which removes every cached image);
 the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees;
 the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-25T05:36:56-05:00 from the gate worktree's `target/debug`,
 removed 21 such journals (those three among them), stopped 18 units of removed worktrees, left the seven unmatched instances untouched,
