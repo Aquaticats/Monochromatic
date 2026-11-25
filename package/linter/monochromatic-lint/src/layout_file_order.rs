@@ -39,6 +39,7 @@
 /// the tree,
 /// the uses and the top doc reader.
 use crate::{
+    layout_allow_list::{AllowKind, AllowList, dead_entry_findings, tolerated},
     layout_finding::{LayoutFinding, shown},
     layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
     layout_group_entries::find_groups,
@@ -173,6 +174,7 @@ fn loop_findings(
             help: Some(String::from(
                 "Move what they share into a file of its own that both use, so that one direction of use disappears.",
             )),
+            key: String::new(),
         });
     }
     return (findings, component);
@@ -211,6 +213,7 @@ fn list_findings(
             help: Some(format!(
                 "Add the two lines `//! {head},` and `//! {tail}` to the top doc, so the marker is wrapped where the Markdown rule `markdown/semantic-line-breaks` breaks it (it may wrap at any other word too), then one line `//! - `name.rs`: what it does` per file, each file after the files it uses."
             )),
+            key: format!("no-file-list {}", shown(index, base)),
         });
         return findings;
     };
@@ -226,6 +229,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: None,
+                key: format!("listed-twice {} {}", shown(index, base), entry.name),
             });
             continue;
         }
@@ -246,6 +250,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: Some(String::from("Remove the line, or correct the file name.")),
+                key: format!("foreign-name {} {}", shown(index, base), entry.name),
             });
         }
     }
@@ -261,6 +266,7 @@ fn list_findings(
                 help: Some(format!(
                     "Add a line `//! - `{name}`: what it does` after the files it uses."
                 )),
+                key: format!("missing-entry {} {}", shown(index, base), name),
             });
         }
     }
@@ -286,9 +292,238 @@ fn list_findings(
                 shown(index, base)
             ),
             help: Some(format!("List `{}` before `{}`.", names[*to], names[*from])),
+            key: format!(
+                "order {} {} {}",
+                shown(index, base),
+                names[*from],
+                names[*to]
+            ),
         });
     }
     return findings;
+}
+
+/// What:
+///  The uses that stay in the loop check of one folder:
+///  every one except the pairs the list tolerates for that folder.
+/// Why:
+///  A loop is reported only when one of its uses is not tolerated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withoutToleratedFiles(folder: Path, edges: Map<[number, number], Proof>, listed: Path[], list: AllowList): Map<[number, number], Proof>;
+/// ```
+fn without_tolerated_files(
+    folder: &Path,
+    base: &Path,
+    edges: &BTreeMap<(usize, usize), Proof>,
+    listed: &[PathBuf],
+    list: &AllowList,
+) -> BTreeMap<(usize, usize), Proof> {
+    let mut kept: BTreeMap<(usize, usize), Proof> = BTreeMap::<(usize, usize), Proof>::new();
+    for ((from, to), proof) in edges {
+        let tolerated_use: bool = list.covers_file_use(
+            Path::new(shown(folder, base).as_str()),
+            file_name(&listed[*from]).as_str(),
+            file_name(&listed[*to]).as_str(),
+        );
+        if tolerated_use {
+            continue;
+        }
+        kept.insert((*from, *to), proof.clone());
+    }
+    return kept;
+}
+
+/// What:
+///  Which loop each listed file of a folder is in.
+/// Why:
+///  An allow-list entry about one use between two files stays alive only while its two files are in one loop together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function loopOfEachFile(listed: Path[], edges: Map<[number, number], Proof>): Map<number, number>;
+/// ```
+fn loop_of_each_file(
+    listed: &[PathBuf],
+    edges: &BTreeMap<(usize, usize), Proof>,
+) -> BTreeMap<usize, usize> {
+    let mut adjacency: Vec<Vec<usize>> = vec![Vec::<usize>::new(); listed.len()];
+    for (from, to) in edges.keys() {
+        adjacency[*from].push(*to);
+    }
+    let mut loops: BTreeMap<usize, usize> = BTreeMap::<usize, usize>::new();
+    for (number, members) in find_loops(adjacency.as_slice()).into_iter().enumerate() {
+        for member in members {
+            loops.insert(member, number);
+        }
+    }
+    return loops;
+}
+
+/// What:
+///  The index of a listed file by its name,
+///  because an entry names files and the rule works on positions.
+/// Why:
+///  A name that the folder does not hold names no use and is a dead entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function positionOf(listed: Path[]): Map<string, number>;
+/// ```
+fn position_of(listed: &[PathBuf]) -> BTreeMap<String, usize> {
+    let mut positions: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
+    for (index, file) in listed.iter().enumerate() {
+        positions.insert(file_name(file), index);
+    }
+    return positions;
+}
+
+/// What:
+///  The findings for uses that join two files of a folder that already sit in one tolerated loop.
+/// Why:
+///  A tolerated loop may only lose uses,
+///  so a new use inside it is a loop edge no entry records and no round may record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function newLoopFileUses(folder: Path, edges: Map<[number, number], Proof>, listed: Path[], loops: Map<number, number>, list: AllowList, base: Path): LayoutFinding[];
+/// ```
+fn new_loop_file_uses(
+    folder: &Path,
+    edges: &BTreeMap<(usize, usize), Proof>,
+    listed: &[PathBuf],
+    loops: &BTreeMap<usize, usize>,
+    tolerated: &BTreeSet<usize>,
+    list: &AllowList,
+    base: &Path,
+) -> Vec<LayoutFinding> {
+    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    let shown_folder: String = shown(folder, base);
+    for ((from, to), proof) in edges {
+        let tolerated_use: bool = list.covers_file_use(
+            Path::new(shown_folder.as_str()),
+            file_name(&listed[*from]).as_str(),
+            file_name(&listed[*to]).as_str(),
+        );
+        if tolerated_use {
+            continue;
+        }
+        let Some(loop_of_from) = loops.get(from) else {
+            continue;
+        };
+        if loops.get(to) != Some(loop_of_from) {
+            continue;
+        }
+        if !tolerated.contains(loop_of_from) {
+            continue;
+        }
+        findings.push(LayoutFinding {
+            file: proof.file.clone(),
+            line: proof.line,
+            message: format!(
+                "`{}` uses `{}` (`{}`), and both files sit inside one loop the allow list tolerates today; a tolerated loop may only lose uses, so a new use inside it is a new loop edge.",
+                file_name(&listed[*from]),
+                file_name(&listed[*to]),
+                proof.text
+            ),
+            help: Some(format!(
+                "Remove the use, or untangle the loop in {} first: an allow-list entry records today's findings and a round never adds one.",
+                shown(folder, base)
+            )),
+            key: String::new(),
+        });
+    }
+    return findings;
+}
+
+/// What:
+///  The loops of one folder that one of the list's entries already tolerates a use of.
+/// Why:
+///  A loop the list knows nothing about is reported by the loop check,
+///  so only a loop the list has started tolerating can hide a use added later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function toleratedFileLoops(folder: Path, edges: Map<[number, number], Proof>, listed: Path[], loops: Map<number, number>, list: AllowList, base: Path): Set<number>;
+/// ```
+fn tolerated_file_loops(
+    folder: &Path,
+    edges: &BTreeMap<(usize, usize), Proof>,
+    listed: &[PathBuf],
+    loops: &BTreeMap<usize, usize>,
+    list: &AllowList,
+    base: &Path,
+) -> BTreeSet<usize> {
+    let mut tolerated: BTreeSet<usize> = BTreeSet::<usize>::new();
+    let shown_folder: String = shown(folder, base);
+    for (from, to) in edges.keys() {
+        let listed_use: bool = list.covers_file_use(
+            Path::new(shown_folder.as_str()),
+            file_name(&listed[*from]).as_str(),
+            file_name(&listed[*to]).as_str(),
+        );
+        if !listed_use {
+            continue;
+        }
+        let Some(loop_of_from) = loops.get(from) else {
+            continue;
+        };
+        if loops.get(to) == Some(loop_of_from) {
+            tolerated.insert(*loop_of_from);
+        }
+    }
+    return tolerated;
+}
+
+/// What:
+///  The entries of one folder that still hold:
+///  the use exists and its two files are still in one loop together.
+/// Why:
+///  They are the entries that tolerated something;
+///  every other entry about a folder is dead and must be deleted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function liveFileUseEntries(folder: Path, edges: Map<[number, number], Proof>, listed: Path[], loops: Map<number, number>, list: AllowList): Set<number>;
+/// ```
+fn live_file_use_entries(
+    folder: &Path,
+    base: &Path,
+    edges: &BTreeMap<(usize, usize), Proof>,
+    listed: &[PathBuf],
+    loops: &BTreeMap<usize, usize>,
+    list: &AllowList,
+    used: &mut BTreeSet<usize>,
+) {
+    let positions: BTreeMap<String, usize> = position_of(listed);
+    let shown_folder: String = shown(folder, base);
+    for (index, entry) in list.entries().iter().enumerate() {
+        let AllowKind::FileUse {
+            folder: listed_folder,
+            from,
+            to,
+        } = &entry.kind
+        else {
+            continue;
+        };
+        if *listed_folder != Path::new(shown_folder.as_str()) {
+            continue;
+        }
+        let (Some(from_index), Some(to_index)) = (positions.get(from), positions.get(to)) else {
+            continue;
+        };
+        if !edges.contains_key(&(*from_index, *to_index)) {
+            continue;
+        }
+        let Some(loop_of_from) = loops.get(from_index) else {
+            continue;
+        };
+        if loops.get(to_index) != Some(loop_of_from) {
+            continue;
+        }
+        used.insert(index);
+    }
 }
 
 /// What:
@@ -297,15 +532,24 @@ fn list_findings(
 ///  The index file of every folder is checked for code first,
 ///  even when the folder has no other file;
 ///  a folder with fewer than one listed file has nothing to order and nothing to list.
+///  `allow` is the list the rule's `allow` option names,
+///  and the top doc is still expected to list every file,
+///  because a list records findings and never changes what a top doc owes its reader.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkFileOrder(tree: ModuleTree, uses: ModuleUse[], base: Path): LayoutFinding[];
+/// function checkFileOrder(tree: ModuleTree, uses: ModuleUse[], base: Path, allow?: AllowList): LayoutFinding[];
 /// ```
-pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> Vec<LayoutFinding> {
+pub fn check_file_order(
+    tree: &ModuleTree,
+    uses: &[ModuleUse],
+    base: &Path,
+    allow: Option<&AllowList>,
+) -> Vec<LayoutFinding> {
     let (by_folder, roots) = files_by_folder(tree);
     let groups: BTreeSet<PathBuf> = find_groups(tree);
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    let mut used: BTreeSet<usize> = BTreeSet::<usize>::new();
     for (folder, files) in &by_folder {
         // A group folder has no files to order and is checked by the folder rule.
         if groups.contains(folder) {
@@ -324,8 +568,41 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
             continue;
         }
         let edges = uses_between(tree, uses, listed.as_slice());
-        let (loops, component) = loop_findings(listed.as_slice(), &edges, base);
+        let reported: BTreeMap<(usize, usize), Proof> = match allow {
+            Some(list) => without_tolerated_files(folder, base, &edges, listed.as_slice(), list),
+            None => edges.clone(),
+        };
+        let (loops, component) = loop_findings(listed.as_slice(), &reported, base);
         findings.extend(loops);
+        if let Some(list) = allow {
+            let loops_of_files: BTreeMap<usize, usize> = loop_of_each_file(listed.as_slice(), &edges);
+            let tolerated: BTreeSet<usize> = tolerated_file_loops(
+                folder,
+                &edges,
+                listed.as_slice(),
+                &loops_of_files,
+                list,
+                base,
+            );
+            findings.extend(new_loop_file_uses(
+                folder,
+                &edges,
+                listed.as_slice(),
+                &loops_of_files,
+                &tolerated,
+                list,
+                base,
+            ));
+            live_file_use_entries(
+                folder,
+                base,
+                &edges,
+                listed.as_slice(),
+                &loops_of_files,
+                list,
+                &mut used,
+            );
+        }
         let Some(index_path) = index else {
             findings.push(LayoutFinding {
                 file: listed[0].clone(),
@@ -335,6 +612,7 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
                     shown(folder, base)
                 ),
                 help: Some(String::from("Add a mod.rs that declares the modules and carries the top doc.")),
+                key: format!("no-top-doc {}", shown(folder, base)),
             });
             continue;
         };
@@ -346,6 +624,7 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
                     line: 0,
                     message: format!("{} cannot be read: {error}.", shown(&index_path, base)),
                     help: None,
+                    key: format!("unreadable-index {}", shown(&index_path, base)),
                 });
                 continue;
             }
@@ -355,12 +634,19 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
             &doc,
             &index_path,
             listed.as_slice(),
-            &edges,
+            &reported,
             &component,
             base,
         ));
     }
-    return findings;
+    let Some(list) = allow else {
+        return findings;
+    };
+    let (mut kept, mut entries_used): (Vec<LayoutFinding>, BTreeSet<usize>) =
+        tolerated(findings, list);
+    entries_used.extend(used);
+    kept.extend(dead_entry_findings(list, &entries_used, base));
+    return kept;
 }
 
 /// Controls of the file rule stay outside release artifacts.

@@ -23,7 +23,7 @@ fn findings_of(root: &Path) -> Vec<String> {
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
     let prefix: String = format!("{}/", root.display());
-    return check_file_order(&tree, uses.as_slice(), root)
+    return check_file_order(&tree, uses.as_slice(), root, None)
         .iter()
         .map(|item| {
             return format!("{}:{} {}", item.file.display(), item.line, item.message)
@@ -497,7 +497,7 @@ fn the_missing_list_help_shows_the_wrapped_marker() {
     ]);
     let tree = tree_of(&fixture.path);
     let uses = collect_uses(&tree);
-    let found = check_file_order(&tree, uses.as_slice(), &fixture.path);
+    let found = check_file_order(&tree, uses.as_slice(), &fixture.path, None);
     let help: &str = found[0].help.as_deref().expect("help");
     let (head, tail) = LIST_MARKER.split_once(", ").expect("marker has a comma");
     assert!(
@@ -536,4 +536,79 @@ fn layout_the_smallest_proof_of_a_use_between_two_files_wins_in_any_order() {
         let edges = uses_between(&tree, order.as_slice(), listed.as_slice());
         assert_eq!(edges[&(1, 0)].line, 1, "{order:?}");
     }
+}
+
+/// Run the rule with an allow list and render each finding as `file:line message`,
+///  with the fixture folder removed.
+fn findings_with(root: &Path, lines: &str) -> Vec<String> {
+    let tree = tree_of(root);
+    assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let uses = collect_uses(&tree);
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+        .expect("the fixture list is valid");
+    let prefix: String = format!("{}/", root.display());
+    return check_file_order(&tree, uses.as_slice(), root, Some(&list))
+        .iter()
+        .map(|item| {
+            return format!("{}:{} {}", item.file.display(), item.line, item.message)
+                .replace(prefix.as_str(), "");
+        })
+        .collect::<Vec<String>>();
+}
+
+/// With both uses of a two-file loop on the list the loop is not reported,
+///  and the top doc still lists both files.
+#[test]
+fn listed_file_uses_take_their_loop_out_of_the_report() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["one.rs", "two.rs"], &["one", "two"]).as_str(),
+        ),
+        ("src/a/one.rs", "use super::two::X;\n"),
+        ("src/a/two.rs", "use super::one::Y;\n"),
+    ]);
+    assert_eq!(findings_with(&fixture.path, "").len(), 1);
+    let listed: &str = "file-uses src/a one.rs -> two.rs\nfile-uses src/a two.rs -> one.rs\n";
+    assert_eq!(findings_with(&fixture.path, listed), Vec::<String>::new());
+}
+
+/// A listed file use that names no use is a finding on its own line.
+#[test]
+fn a_listed_file_use_that_names_no_use_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["one.rs"], &["one"]).as_str(),
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    let found: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("allow-list.txt:1 The allow-list entry `file-uses src/a one.rs -> two.rs`"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A listed key takes exactly the doc finding it names out of the report.
+#[test]
+fn a_listed_doc_key_takes_its_finding_out_of_the_report() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["one.rs"], &["one", "two"]).as_str(),
+        ),
+        ("src/a/one.rs", ""),
+        ("src/a/two.rs", ""),
+    ]);
+    assert_eq!(findings_with(&fixture.path, "").len(), 1);
+    let listed: &str = "missing-entry src/a/mod.rs two.rs\n";
+    assert_eq!(findings_with(&fixture.path, listed), Vec::<String>::new());
+    let found: Vec<String> = findings_with(&fixture.path, "missing-entry src/a/mod.rs other.rs\n");
+    assert_eq!(found.len(), 2, "{found:#?}");
 }
