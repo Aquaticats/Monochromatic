@@ -1357,13 +1357,27 @@ so a boot without the old drive's mapping sets up no zram swap at all: that is t
 
 ### The hourly writeback and its budget
 
-`zram-idle-writeback.timer` runs `zram-idle-writeback.service` an hour after boot and hourly after,
+`zram-idle-writeback.timer` runs `zram-idle-writeback.service` 15 minutes after boot and every 15 minutes after
+(hourly with a 4 GiB budget until 2026-11-25T15:27-05:00, shortened so idle pages leave RAM sooner at the same daily ceiling),
 on every zram device with a backing device:
-the budget refilled to 1048576 pages (4 GiB),
-`echo 3600 > idle` marking pages untouched for an hour,
+the budget refilled to 262144 pages (1 GiB),
+`echo 900 > idle` marking pages untouched for 15 minutes,
 then `echo idle > writeback`.
 At most 96 GiB a day is about 35 TB a year,
 about 1% of this drive's life at the wear rate `smartctl` reads.
+The positive control's `echo all > idle` also wrote back pages that were still in use:
+by 15:27 `bd_stat` read `57639 278410 726722`,
+so 278410 of the 726722 pages written had been read back from disk;
+an age threshold is what keeps hot pages in RAM.
+
+What writeback does not do is raise how many builds fit at once.
+At 2026-11-25T15:25:14-05:00, with seven build rounds running, `MemAvailable` was 1928 MiB and the stall rising,
+but the largest user was a one-off `btrfs check` at its 16 GiB cap;
+once it stopped, at 15:27:04, `MemAvailable` read 22343 MiB and the stall avg10 0.02.
+The rounds then sat at 0.03 to 2.40 GiB each and had peaked at 7.15 to 7.97 GiB while compiling (`memory.peak`).
+That compile peak is the limit:
+memory the compiler needs at once, which swap cannot stand in for without slowing the build,
+and zram's own RAM (5.73 GiB on zram0, which gets no backing device until a reboot, and 4.16 GiB on zram1) is the most writeback can return.
 
 ### What AppArmor would have stopped
 
