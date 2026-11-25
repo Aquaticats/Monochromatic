@@ -263,12 +263,27 @@ fn record_line<'a>(record: &'a str, key: &str) -> Option<&'a str> {
     return record.lines().find(|line| return line.starts_with(prefix.as_str())).map(|line| return &line[prefix.len()..]);
 }
 
+/// The words a sweep's report begins its line about one clone with,
+/// which are the words `CloneOutcome::line` prints before the dataset.
+pub(super) const ANSWER_WORDS: [&str; 7] = ["attached", "unmounted", "reattached", "refused", "nothing", "failed", "held"];
+
+/// Whether one printed line is the sweep's line about this dataset,
+/// which the line names as a field of its own.
+/// The dataset is the line's second field,
+/// so a longer dataset holding this one as its prefix is another line's clone,
+/// and a refusal whose message names this dataset is still a line about another clone.
+pub(super) fn printed_line_about(line: &str, dataset: &str) -> bool {
+    let mut fields = line.split(' ');
+    let Some(word) = fields.next() else {
+        return false;
+    };
+    return ANSWER_WORDS.contains(&word) && fields.next() == Some(dataset);
+}
+
 /// The line the sweep printed about one dataset,
 /// or nothing when it printed none.
 pub(super) fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
-    return said.lines().find(|line| {
-        return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("unmounted ") || line.starts_with("reattached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held "));
-    });
+    return said.lines().find(|line| return printed_line_about(line, dataset));
 }
 
 /// What:

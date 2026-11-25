@@ -201,8 +201,10 @@ fn sweep() -> (Option<i32>, String) {
     return (out.status.code(), format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)));
 }
 
+/// The line the sweep printed about one clone,
+/// or nothing when it printed none.
 fn line_about(said: &str, clone: &str) -> String {
-    return said.lines().find(|l| return l.contains(clone) && (l.starts_with("unmounted ") || l.starts_with("reattached ") || l.starts_with("attached ") || l.starts_with("refused ") || l.starts_with("failed "))).unwrap_or("").to_string();
+    return super::zfs_sweep_guest::line_about(said, clone).unwrap_or("").to_string();
 }
 
 fn scene(world: &World, label: &str) -> Scene {
