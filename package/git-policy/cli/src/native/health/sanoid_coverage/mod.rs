@@ -124,6 +124,6 @@ pub use coverage_finding::{
 /// The corrections and the sentences that read a measured value.
 pub use coverage_words::{AUTO_SNAPSHOT_OFF, AUTO_SNAPSHOT_PROPERTY, marker_correction, mountpoint_words};
 /// The comparison of a measured tree and configuration with the decision.
-pub use coverage_checks::{CoverageFacts, check_coverage};
+pub use coverage_checks::{COVERAGE_CHECK_NAME, CoverageFacts, check_coverage};
 /// What the space guard can prune and what it cannot.
 pub use space_guard_scope::{FIELD_GUARD_DATASET, FIELD_GUARD_RECURSION, SCOPE_CHECK_NAME, ScopeAnswer, SpaceGuardFacts, check_space_guard_scope};

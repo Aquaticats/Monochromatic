@@ -78,6 +78,14 @@ fn detail_of(answer: &CoverageAnswer) -> &str {
     };
 }
 
+/// The two checks this folder reports answer under names of their own.
+#[test]
+fn the_two_check_names_are_their_own() {
+    assert_eq!(super::COVERAGE_CHECK_NAME, "sanoid-coverage");
+    assert_eq!(crate::health::sanoid_coverage::SCOPE_CHECK_NAME, "space-guard-scope");
+    assert_ne!(super::COVERAGE_CHECK_NAME, crate::health::sanoid_coverage::SCOPE_CHECK_NAME);
+}
+
 /// The healthy machine passes and prints no line.
 #[test]
 fn the_healthy_machine_passes_and_prints_no_line() {

@@ -102,8 +102,29 @@ fn zfs(arguments: &[&str]) -> String {
     return run("zfs", arguments);
 }
 
+/// Whether one dataset exists.
+fn exists(dataset: &str) -> bool {
+    let output = Command::new("zfs").args([ "list", "-H", "-o", "name", dataset ]).output().expect("zfs runs");
+    return output.status.success();
+}
+
+/// Create every dataset above one in the pool,
+/// unmounted,
+/// so `zfs create` finds a parent without mounting a container in the tree.
+fn create_ancestors(pool: &Pool, dataset: &str) {
+    let leaf: &str = dataset.strip_prefix(format!("{}/", pool.name).as_str()).expect("a dataset under the pool");
+    let parts: Vec<&str> = leaf.split('/').collect();
+    for index in 1..parts.len() {
+        let ancestor: String = format!("{}/{}", pool.name, parts[..index].join("/"));
+        if !exists(ancestor.as_str()) {
+            zfs(&[ "create", "-o", "mountpoint=none", "-o", "canmount=off", ancestor.as_str() ]);
+        }
+    }
+}
+
 /// Create one dataset with the properties the arm gives it.
-fn create(dataset: &str, properties: &[String]) {
+fn create(pool: &Pool, dataset: &str, properties: &[String]) {
+    create_ancestors(pool, dataset);
     let mut arguments: Vec<&str> = vec![ "create", ];
     for property in properties {
         arguments.push("-o");
@@ -179,10 +200,10 @@ fn build_subtree(pool: &Pool, subtree: &str, with_scratch: bool) -> CoverageDeci
     let root: String = format!("{FIXTURE}/{subtree}");
     fs::create_dir_all(root.as_str()).expect("the subtree folder");
     let decision: CoverageDecision = decision_for(pool, subtree, with_scratch);
-    create(&pool.dataset(subtree, "ROOT/cos/home"), &[ format!("mountpoint={root}/home"), ]);
-    create(&pool.dataset(subtree, "ROOT/cos/home/worktrees"), &[ format!("mountpoint={root}/home/worktrees"), ]);
+    create(pool, &pool.dataset(subtree, "ROOT/cos/home"), &[ format!("mountpoint={root}/home"), ]);
+    create(pool, &pool.dataset(subtree, "ROOT/cos/home/worktrees"), &[ format!("mountpoint={root}/home/worktrees"), ]);
     if with_scratch {
-        create(&pool.dataset(subtree, SCRATCH), &[ format!("mountpoint={root}/home/scratch"), ]);
+        create(pool, &pool.dataset(subtree, SCRATCH), &[ format!("mountpoint={root}/home/scratch"), ]);
     }
     let leaves: [&str; 9] = [
         "ROOT/cos/varcache",
@@ -196,7 +217,7 @@ fn build_subtree(pool: &Pool, subtree: &str, with_scratch: bool) -> CoverageDeci
         "nosnap/git-worktree-probe",
     ];
     for leaf in leaves {
-        create(&pool.dataset(subtree, leaf), &mount_properties(root.as_str(), leaf));
+        create(pool, &pool.dataset(subtree, leaf), &mount_properties(root.as_str(), leaf));
     }
     for exclusion in &decision.exclusions {
         let marker: String = format!("{AUTO_SNAPSHOT_PROPERTY}={AUTO_SNAPSHOT_OFF}");
@@ -435,6 +456,8 @@ fn prune_keeps_the_pinned_origin(pool: &Pool) {
     zfs(&[ "snapshot", format!("{home}@{ORIGIN}{ORIGIN_NONCE}").as_str() ]);
     zfs(&[ "snapshot", format!("{home}@manual-hold").as_str() ]);
     zfs(&[ "snapshot", format!("{worktrees}@{ORIGIN}{ORIGIN_NONCE}").as_str() ]);
+    let before: Vec<String> = snapshots(pool, "decided");
+    assert!(has_autosnap(&before, home.as_str()), "the prune has an hourlie to find: {before:?}");
     let text: String = format!("{}\n[template_home]\n  autosnap = yes\n  autoprune = yes\n  hourly = 0\n", generated_text(&decision));
     let root: String = format!("{FIXTURE}/decided");
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, root.as_str(), "prune-run", text.as_str(), &[ "--prune-snapshots" ]);

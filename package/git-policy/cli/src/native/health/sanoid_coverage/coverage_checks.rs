@@ -46,6 +46,9 @@ use super::sanoid_section::{
     AUTOSNAP_SETTING, PATH_SETTING, PROCESS_CHILDREN_ONLY_SETTING, RECURSIVE_SETTING, RECURSIVE_ZFS, Recursion, SKIP_CHILDREN_SETTING, TEMPLATE_SETTING, is_false_word, recursion_of,
 };
 
+/// The check's stable name in a report line.
+pub const COVERAGE_CHECK_NAME: &str = "sanoid-coverage";
+
 /// What:
 ///  Every fact the coverage comparison reads,
 ///  gathered once.
