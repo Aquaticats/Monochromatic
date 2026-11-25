@@ -215,10 +215,14 @@ fn a_killed_writer_leaves_one_staging_entry_and_no_record() {
 }
 
 /// What:
-///  The removal takes both known staging forms and nothing else:
+///  The listing the adoption decides on takes both known staging forms and nothing else:
 ///  the records stay as they were,
-///  and a dot entry matching neither form is left for an administrator.
+///  a dot entry matching neither form is left for an administrator,
+///  and the names the same listing answers hold no staging entry.
 /// Why:
+///  This listing is the adoption's only remover,
+///  which is what lets it remove a killed writer's litter without a lock,
+///  so a build that listed the folder and forgot the removal would pass every other control.
 ///  The two forms are what this repository's writers make;
 ///  a third form means a writer this layout has not accounted for,
 ///  which only `doctor` reports and nobody removes.
@@ -234,10 +238,9 @@ fn the_adoption_removes_the_staging_entries_a_killed_writer_left() {
         std::fs::write(folder.join(name), b"staged bytes").expect("a staging entry");
     }
     let store_read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
-    let mut removed: Vec<String> = store_read.remove_staging_entries().expect("the known forms are removed");
-    removed.sort();
-    assert_eq!(removed, vec![parent_staging.clone(), slot_staging.clone()], "exactly the two known forms are removed and answered");
-    assert_eq!(entries(folder.as_path()), vec![unknown.clone(), String::from(PARENT_RECORD_NAME), String::from("one")], "the records stay and the unknown dot entry is left");
+    let (names, _removed): (Vec<String>, Vec<String>) = store_read.list_and_remove_staging_entries().expect("the listing removes the known forms");
+    assert_eq!(names, vec![String::from("one")], "the listing answers the slot record and no staging name");
+    assert_eq!(entries(folder.as_path()), vec![unknown.clone(), String::from(PARENT_RECORD_NAME), String::from("one")], "both known forms are gone, and the records and the unknown dot entry stay");
     assert_eq!(bytes(folder.as_path(), "one"), record_before, "the record is untouched");
     remove(root.as_path());
 }
