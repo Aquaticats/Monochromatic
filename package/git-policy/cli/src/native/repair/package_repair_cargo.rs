@@ -510,7 +510,11 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         return Vec::new();
     }
     let search_path: Option<OsString> = request.environment.search_path.clone();
-    let looked = run_a_job_or_in_turn((search_path, request.destination.to_path_buf()), look_for_the_program).await;
+    let looked = run_a_job_or_in_turn(
+        (search_path, request.destination.to_path_buf(), request.environment.start_directory.clone()),
+        look_for_the_program,
+    )
+    .await;
     let (found_program, real_destination): (Option<PathBuf>, Result<PathBuf, std::io::Error>) = match looked {
         Ok(found) => found,
         // Which workspaces need what was not learnt, so the repair says what it could not do and names the command.

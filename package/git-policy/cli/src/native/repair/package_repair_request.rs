@@ -197,6 +197,11 @@ pub struct RepairEnvironment {
     pub ceiling: Duration,
     /// The most threads the repairs use together.
     pub workers: usize,
+    /// The directory the process that repairs was started in,
+    ///  read once there;
+    ///  a relative search path entry of a tool names a directory of it.
+    ///  A control names the fixture its repair happens in.
+    pub start_directory: crate::start_directory::StartDirectory,
 }
 
 impl RepairEnvironment {
@@ -212,7 +217,7 @@ impl RepairEnvironment {
     /// ```
     pub fn from_process() -> RepairEnvironment {
         let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, ceiling: crate::wait_ceilings::REPAIR_TOOL_CEILING, workers: workers_for(available) };
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, ceiling: crate::wait_ceilings::REPAIR_TOOL_CEILING, workers: workers_for(available), start_directory: crate::start_directory::StartDirectory::read_from_the_process() };
     }
 
     /// The two bounds one tool runs under.

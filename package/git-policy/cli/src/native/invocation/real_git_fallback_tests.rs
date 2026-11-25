@@ -223,7 +223,13 @@ fn process_inputs_name_the_unit_below_an_absolute_runtime_directory_only() {
         if let Some(text) = value {
             environment.push((OsString::from("XDG_RUNTIME_DIR"), OsString::from(text)));
         }
-        return process_resolution_inputs(environment.as_slice()).expect("process inputs").service_unit;
+        // The unit is read from the environment alone, so any directory this command was started in answers the same.
+        return process_resolution_inputs(
+            environment.as_slice(),
+            &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+        )
+        .expect("process inputs")
+        .service_unit;
     };
     assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/systemd/user/monochromatic-git-policy-cli@.service")));
     assert_eq!(named(None), None);

@@ -388,6 +388,7 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
             lfs_settings: None,
             lfs_destination: None,
             stack: false,
+            start_directory: Some(root.clone()),
         };
         let code: i32 = run_stacked_push(&forward);
         // Only reached when the death could not end this process: the parent names that status.

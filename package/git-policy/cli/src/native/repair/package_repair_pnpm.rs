@@ -133,7 +133,7 @@ fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRe
         return PnpmRepair::NothingToDo;
     }
     let manual: String = manual_command(destination);
-    let Some(program) = find_program(PROGRAM, environment.path()) else {
+    let Some(program) = find_program(PROGRAM, environment.path(), &environment.start_directory) else {
         return PnpmRepair::NoPnpm(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
     };
     let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: crate::package_repair_request::with_the_persons_path(environment) };

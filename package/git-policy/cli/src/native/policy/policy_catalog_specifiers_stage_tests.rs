@@ -41,6 +41,7 @@ fn checks_over(repo: &Path) -> ShippedChecks<ScriptedFacts> {
         os(&["add", "package.json"]),
         LifecycleContent::Requested(CandidateRequest::Add(os(&["package.json"]))),
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
 }
 

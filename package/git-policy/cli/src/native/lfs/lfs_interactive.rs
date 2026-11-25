@@ -143,14 +143,15 @@ impl GitQuery for InteractiveQuery<'_> {
 /// function uploadFirst(request: InteractiveUpload): number | undefined;
 /// ```
 pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
-    if let Some(refusal) = lfs_refusal(request.prefix, request.region, request.environment) {
+    // The directory the upload's `git-lfs` runs in, which is where its own relative `PATH` entries are read.
+    let directory: std::path::PathBuf =
+        effective_directory(std::env::current_dir().unwrap_or_default().as_path(), request.prefix);
+    if let Some(refusal) = lfs_refusal(request.prefix, request.region, request.environment, directory.as_path()) {
         // Terminal output error: the exit status already carries the refusal.
         let _written = std::io::stderr().write_all(refusal.as_bytes());
         return Some(1);
     }
     let mut query: InteractiveQuery<'_> = InteractiveQuery { request };
-    let directory: std::path::PathBuf =
-        effective_directory(std::env::current_dir().unwrap_or_default().as_path(), request.prefix);
     let read: Result<Settings, PlanError> = match request.settings {
         Some(held) => Ok(held.to_vec()),
         None => read_settings(&mut query),

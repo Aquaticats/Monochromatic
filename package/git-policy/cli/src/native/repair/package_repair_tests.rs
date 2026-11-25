@@ -97,7 +97,13 @@ fn scene(name: &str) -> Scene {
     }
     std::fs::write(destination.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
     let record: PathBuf = root.join("record");
-    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 2 };
+    let environment: RepairEnvironment = RepairEnvironment {
+        search_path: Some(bin.clone().into_os_string()),
+        quiet_window: Duration::from_secs(60),
+        ceiling: Duration::from_secs(600),
+        workers: 2,
+        start_directory: crate::start_directory::StartDirectory::at(root.as_path()),
+    };
     return Scene { root, source, destination, bin, record, environment };
 }
 
@@ -193,10 +199,7 @@ fn a_relative_search_entry_starts_the_program_the_add_resolved_here() {
     fake_pnpm(&scene, 0);
     // The add's search path is its own `bin`, which is a relative entry of the directory it runs in.
     scene.environment = RepairEnvironment { search_path: Some(OsString::from("bin")), ..scene.environment.clone() };
-    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
-    std::env::set_current_dir(scene.root.as_path()).expect("the fixture is the directory the add runs in");
     let (findings, printed) = repair(&scene, RepairSwitch::default());
-    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
     assert_eq!(findings.len(), 1, "{findings:?} {printed}");
     assert!(matches!(findings[0].outcome, Outcome::Repaired { .. }), "{findings:?} {printed}");
     let ran: String = std::fs::read_to_string(scene.record.as_path()).expect("the tool the add started");

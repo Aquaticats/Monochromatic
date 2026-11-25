@@ -783,7 +783,13 @@ fn a_build_directory_below_directories_that_do_not_exist_yet_is_filled() {
 /// as the service's own may have,
 /// and short bounds so a control never waits.
 fn an_environment_with_no_programs() -> RepairEnvironment {
-    return RepairEnvironment { search_path: None, quiet_window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5), workers: 1 };
+    return RepairEnvironment {
+        search_path: None,
+        quiet_window: std::time::Duration::from_millis(200),
+        ceiling: std::time::Duration::from_secs(5),
+        workers: 1,
+        start_directory: crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
+    };
 }
 
 /// What:

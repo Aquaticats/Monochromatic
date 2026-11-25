@@ -74,6 +74,7 @@ fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Direct(vec![OsString::from(":/")])),
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
 }
 
@@ -418,6 +419,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         os_arguments(&["kept"]),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let mut arguments_kept: PassResult = warned.clone();
     arguments_kept.arguments = os_arguments(&["kept"]);
@@ -463,6 +465,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         os_arguments(&[]),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     corrected.content.apply(vec![Correction {
         path: b"a.txt".to_vec(),

@@ -62,7 +62,7 @@ fn command_of(values: &[&str]) -> ResolvedCommand {
 fn a_move_of_a_bound_slot_is_refused_at_the_command() {
     let bound: Slot = slot("command-move");
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.common.join("worktrees").join("one").as_path(), Some(bound.pointer.clone())), "one");
-    let ending: Option<Action> = move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(bound.common.as_path()));
+    let ending: Option<Action> = move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(bound.common.as_path()), Some(std::path::Path::new("/")));
     match ending {
         Some(Action::Exit { code, stderr: refusal, .. }) => {
             assert_eq!(code, REFUSAL_STATUS);
@@ -74,7 +74,7 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
     assert!(bound.slot.is_dir(), "nothing was moved");
     // A slot no record names is Git's, and the wrapper says nothing about it.
     let other: Slot = slot("command-move-unbound");
-    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(other.common.as_path())).is_none());
+    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(other.common.as_path()), Some(std::path::Path::new("/"))).is_none());
     remove(bound.root.as_path());
     remove(other.root.as_path());
 }
@@ -134,14 +134,14 @@ fn a_repair_prints_the_report_before_git() {
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
     std::fs::remove_file(bound.slot.join(".git")).expect("pointer removed");
     let mut stderr: String = String::new();
-    before_a_repair(&command_of(&["worktree", "repair", "one"]), Some(bound.common.as_path()), &mut stderr);
+    before_a_repair(&command_of(&["worktree", "repair", "one"]), Some(bound.common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
     assert!(stderr.contains("link: damaged, and the registration stands"), "{stderr}");
     assert!(stderr.contains("next safe command: `git worktree repair"), "{stderr}");
     let mut quiet: String = String::new();
-    before_a_repair(&command_of(&["worktree", "list"]), Some(bound.common.as_path()), &mut quiet);
+    before_a_repair(&command_of(&["worktree", "list"]), Some(bound.common.as_path()), &mut quiet, Some(std::path::Path::new("/")));
     assert!(quiet.is_empty(), "{quiet}");
     let mut absent: String = String::new();
-    before_a_repair(&command_of(&["worktree", "repair", "absent"]), Some(bound.common.as_path()), &mut absent);
+    before_a_repair(&command_of(&["worktree", "repair", "absent"]), Some(bound.common.as_path()), &mut absent, Some(std::path::Path::new("/")));
     assert!(absent.is_empty(), "{absent}");
     remove(bound.root.as_path());
 }
@@ -156,9 +156,9 @@ fn a_repository_without_records_gets_nothing() {
     let root: PathBuf = fixture("command-no-records");
     let common: PathBuf = common_directory_in(root.as_path());
     let mut stderr: String = String::new();
-    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "two"]), Some(common.as_path())).is_none());
+    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "two"]), Some(common.as_path()), Some(std::path::Path::new("/"))).is_none());
     assert!(before_a_prune(&command_of(&["worktree", "prune"]), Some(common.as_path()), &mut stderr).is_none());
-    before_a_repair(&command_of(&["worktree", "repair"]), Some(common.as_path()), &mut stderr);
+    before_a_repair(&command_of(&["worktree", "repair"]), Some(common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
     assert!(stderr.is_empty(), "{stderr}");
     remove(root.as_path());
 }

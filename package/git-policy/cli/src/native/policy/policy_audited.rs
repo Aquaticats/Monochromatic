@@ -50,13 +50,14 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function recordAudited({ facts, arguments, audited, location })
+/// function recordAudited({ facts, arguments, audited, location, start })
 /// ```
 pub fn record_audited(
     facts: &mut dyn RepositoryFacts,
     arguments: &[OsString],
     audited: AuditedCommand,
     location: &RepositoryLocation,
+    start: Option<&Path>,
 ) {
     let context: GitContext = facts.transaction_context();
     match audited {
@@ -68,7 +69,8 @@ pub fn record_audited(
             //  and a subdirectory of the worktree both change that.
             let directory: PathBuf = match worktree_root(&location.identity) {
                 Some(root) => effective_directory(root, location.prefix.as_slice()),
-                None => std::env::current_dir().unwrap_or_default(),
+                // The directory this command was started in, and the empty path when the caller named none.
+                None => start.map_or_else(std::path::PathBuf::new, std::path::Path::to_path_buf),
             };
             let target: PathBuf = removal_target(&context, removal.target.as_os_str(), directory.as_path());
             let read: Vec<AuditFact> =

@@ -328,8 +328,11 @@ fn host_platform_is_unix_on_linux() {
 /// Process inputs take PATH and PATHEXT from the given environment and identity from the process.
 #[test]
 fn process_inputs_combine_environment_and_process_identity() {
+    let directory: PathBuf = crate::test_support::fixture("process-inputs-directory");
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(directory.as_path());
     let from_environment: ResolutionInputs = process_resolution_inputs(
         environment(&[("PATH", "/first:/second"), ("PATHEXT", ".X")]).as_slice(),
+        &start,
     )
     .expect("process facts");
     assert_eq!(from_environment.platform, host_platform());
@@ -339,18 +342,16 @@ fn process_inputs_combine_environment_and_process_identity() {
         from_environment.own_executable,
         crate::test_support::this_test_binary().expect("current executable")
     );
-    assert_eq!(
-        from_environment.current_directory,
-        std::env::current_dir().expect("current directory")
-    );
+    assert_eq!(from_environment.current_directory, directory, "the directory the caller named is the one the search reads");
     assert_eq!(
         from_environment.common_paths,
         common_git_paths(host_platform(), &[])
     );
-    let unset: ResolutionInputs = process_resolution_inputs(&[]).expect("process facts");
+    let unset: ResolutionInputs = process_resolution_inputs(&[], &start).expect("process facts");
     assert_eq!(unset.path, OsString::new());
     assert_eq!(
         unset.path_extensions,
         OsString::from(DEFAULT_WINDOWS_PATH_EXTENSIONS)
     );
+    crate::test_support::remove(directory.as_path());
 }

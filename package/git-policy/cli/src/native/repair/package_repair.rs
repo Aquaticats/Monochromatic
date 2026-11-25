@@ -244,8 +244,13 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
     let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
     let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
         Ok(common) => {
-            let state: crate::package_repair_relink::TheHandOver =
-                (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
+            let state: crate::package_repair_relink::TheHandOver = (
+                request.git.clone(),
+                common,
+                request.destination.to_path_buf(),
+                entry.clone(),
+                request.environment.start_directory.clone(),
+            );
             run_a_job_or_in_turn(state, hand_over_in_a_job).await
         }
         Err(reason) => Ok(Err(NotTaken { reason, queued: None })),

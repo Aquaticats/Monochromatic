@@ -361,7 +361,8 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     if !forward.stack {
         return ended;
     }
-    let Ok(cwd) = std::env::current_dir() else {
+    // The directory the command was started in, which the forward carried; nothing to name leaves the status as it is.
+    let Some(cwd) = forward.start_directory.clone() else {
         return code;
     };
     let git = PushGit {

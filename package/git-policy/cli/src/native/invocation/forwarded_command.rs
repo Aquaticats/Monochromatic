@@ -159,23 +159,32 @@ pub use crate::alias_value::{ConfigVariable, alias_selection, alias_variable_mat
 ///  The value of the alias Git keeps,
 ///  read from one `git config --null --list`,
 ///  or nothing when Git keeps none or dies on one.
+///  `Option<&Path>` is the directory this command was started in,
+///       which this read runs in,
+///       and nothing when the caller named none.
 /// Why:
 ///   `lookupAlias`:
 ///  `config_alias_cb` overwrites the value it kept on every matching variable,
 ///  so the last of `alias.<name>` and `[alias "<name>"] command` in config order wins,
 ///  and a matching variable with no value is Git's own `missing value` refusal,
 ///  which leaving the alias to Git reproduces.
+///  The read runs in the directory the command was started in,
+///  because that is where Git reads the configuration this question is about:
+///  a read that asked the process instead answered with whatever directory another
+///  test had moved the process to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function lookupAlias({ gitPath, globalArgs, name }): Promise<string | typeof ALIAS_UNSET>;
+/// async function lookupAlias({ gitPath, globalArgs, name, start }): Promise<string | typeof ALIAS_UNSET>;
 /// ```
-pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString) -> Option<Vec<u8>> {
+pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString, start: Option<&Path>) -> Option<Vec<u8>> {
+    // A caller that named no directory reads no alias: Git cannot start somewhere this command was not started.
+    let directory: &Path = start?;
     let mut arguments: Vec<OsString> = global.to_vec();
     arguments.push(OsString::from("config"));
     arguments.push(OsString::from("--null"));
     arguments.push(OsString::from("--list"));
-    let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
+    let mut request: GitRequest = GitRequest::new(directory, arguments.as_slice());
     request.without_prefix = true;
     let output = match run_git(context, &request) {
         Ok(output) if output.succeeded() => output,
@@ -272,22 +281,28 @@ fn os_words(words: Vec<Vec<u8>>) -> Vec<OsString> {
 ///  expanding aliases up to
 ///       `MAX_ALIAS_EXPANSIONS` times;
 ///  a built-in name starts no Git process.
+///  `Option<&Path>` is the directory this command was started in,
+///       which Git starts in too and moves only for the caller's `-C`,
+///       and nothing when the caller can name none.
 /// Why:
 ///   `resolveForwardedCommand`.
+///  A relative `PATH` entry and a relative exec path name a directory of the caller's,
+///  and the alias value is read there,
+///  so that directory is an input of the reading and never a fresh read of the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function resolveForwardedCommand({ args, environment, gitPath }): Promise<ResolvedGitCommand>;
+/// async function resolveForwardedCommand({ args, environment, gitPath, start }): Promise<ResolvedGitCommand>;
 /// ```
 pub fn resolve_forwarded_command(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
+    start: Option<&Path>,
 ) -> ResolvedCommand {
-    // The directory this process was started in; Git starts in it too and moves only for the caller's `-C`, so a
+    // The directory this command was started in; Git starts in it too and moves only for the caller's `-C`, so a
     //  relative `PATH` entry or exec path is resolved from here.
-    let current_directory: Option<PathBuf> = std::env::current_dir().ok();
-    return resolve_command(context, environment, arguments, 0, &[], current_directory.as_deref());
+    return resolve_command(context, environment, arguments, 0, &[], start);
 }
 
 /// What:
@@ -382,7 +397,7 @@ fn resolve_command(
         //  would miss what the process that started this one passed along.
         let mut process_globals: Vec<OsString> = inherited_globals.to_vec();
         process_globals.extend(current[..layout.prefix_len].iter().cloned());
-        let Some(value) = lookup_alias(context, process_globals.as_slice(), &name) else {
+        let Some(value) = lookup_alias(context, process_globals.as_slice(), &name, current_directory) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.

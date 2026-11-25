@@ -99,7 +99,7 @@ pub(crate) struct Fill {
 /// const cargoFor = (worktreeRoot, environment) => findProgram('cargo', environment.path()) ?? (exists(join(worktreeRoot, OWN_CARGO_LINK)) ? join(worktreeRoot, OWN_CARGO_LINK) : undefined);
 /// ```
 fn cargo_for(root: &Path, environment: &RepairEnvironment) -> Option<PathBuf> {
-    if let Some(found) = find_program(PROGRAM, environment.path()) {
+    if let Some(found) = find_program(PROGRAM, environment.path(), &environment.start_directory) {
         return Some(found);
     }
     let own: PathBuf = root.join(OWN_CARGO_LINK);
