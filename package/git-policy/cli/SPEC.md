@@ -4901,6 +4901,12 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
+  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  source check,
+  so a declined add reaches the ladder with the words Git's own `worktree add`
+  takes by itself,
+  and only an add the route serves reads the sentence about the managed lock it
+  takes.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
   in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
@@ -8811,7 +8817,8 @@ and the next command that finds the lock gone moves the branch
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types,
 and for a `git commit`:
-nothing the machine or other processes do ends them with a nonzero status.
+nothing the machine or other processes do ends them with a nonzero status,
+with the one exception below of a merge the branch moved under before it could land.
 That covers a held `index.lock`,
 a branch that moved underneath the command (the auto-push's own reconcile merge included),
 a slow disk,
@@ -8849,8 +8856,13 @@ it exits 0,
 says that the merge is not saved,
 where the person's own bytes are kept,
 and that the next git command puts them back and leaves the merge to them.
-A merge whose branch moved while it was prepared ends the same way,
-with the line saying that the branch moved and that the merge does not land.
+A branch that moved while the merge was prepared is the one ending of this path that refuses:
+no command can finish a merge built on a head the branch no longer names,
+so the merge is neither applied nor saved,
+and the command exits nonzero saying the branch moved and that running the merge again is safe
+(owner,
+issue 6473,
+2026-11-25).
 The line each of these prints states the state the settle read:
 the branch it found,
 what of the merge is in the index and the worktree,

@@ -421,6 +421,186 @@ and say how long it waited.
   The profile change above already removed the larger halves,
   so this is the smallest of the three.
 
+## Memory per build, measured 2026-11-25
+
+Status: measured here on 2026-11-25 by one agent,
+unapproved and not final.
+It tests the memory questions the research of the same day left open
+(`rust-build-peak-across-worktrees-research-2026-11-25`, in that round's folder)
+and changes no profile setting, no `Cargo.toml` and no launcher;
+the numbers are for its owner to choose from.
+
+Every number here is one build of this package in one worktree,
+never a test run,
+and the default command is the one a round runs after an edit:
+`cargo test --locked --offline --lib --no-run`,
+which compiles the non-test library and the library test harness and then links them.
+
+### What one arm is
+
+Each arm ran in its own `systemd-run --user --scope` in `agent-work.slice`,
+with `MemoryMax=12G`,
+`CPUQuota=1200%`,
+`TasksMax=1024`,
+`IOWeight=1` and `RuntimeMaxSec=1800`.
+Before every arm the crate root `src/native/lib.rs` was touched,
+so only this crate's own units rebuilt,
+as after an edit in a round.
+`nproc` inside such a scope reads 12,
+so Cargo's default job count is 12 in the control builds.
+
+A memory gate ran before each arm and no arm started until it passed:
+memory pressure's `some avg10` at or below its `avg60`,
+and `MemFree` plus the part of the ZFS ARC's `size` above `c_min` at least 7,080 MiB.
+
+Three counters are recorded per arm:
+
+- the scope's `memory.peak`,
+  which counts page cache as well as anonymous memory and is not the number to compare;
+- the maximum of `anon` in the scope's `memory.stat`,
+  sampled once a second,
+  which is the number compared here;
+- the largest resident size of any `rustc` in the scope,
+  from the same once-a-second sample of its processes.
+
+Wall time is the scope's own lifetime.
+Because this host builds other agents' code at the same time,
+each arm is reported as a ratio to the control builds run immediately before and after it,
+with the range that dividing by each of the two gives.
+Sampling once a second can miss a spike shorter than a second,
+so every maximum here is a lower bound;
+`memory.peak` is the kernel's own high-water mark and is exact.
+
+### The control's spread
+
+Nine control builds ran between the other arms.
+Their `anon` maxima are 5,663, 6,244, 6,275, 6,541, 6,595, 6,703, 6,786, 6,789 and 6,807 MiB,
+with a median of 6,595 MiB,
+so one build of one unchanged crate can sit 20% above another on this host.
+`memory.peak` moves with it, from 5,962 to 7,159 MiB,
+the largest `rustc` from 5,789 to 6,875 MiB,
+and wall time from 82.7 to 148.9 s.
+A difference smaller than 1.20 is no difference these builds can show.
+
+### Every arm, as a ratio to the control around it
+
+- `-j 4`, twice: `anon` 6,604 MiB (1.010 times the mean of the controls either side,
+  range 0.970 to 1.052) and 6,519 MiB (1.016 times, range 0.988 to 1.044),
+  `memory.peak` 6,882 and 6,823 MiB,
+  the largest `rustc` 6,667 and 6,579 MiB,
+  wall 101.4 and 132.3 s.
+  A third of the default job count changed nothing outside the spread.
+- `-j 1`, twice: `anon` 5,757 MiB (0.852 times, range 0.846 to 0.859) and 5,641 MiB
+  (0.866 times, range 0.831 to 0.903),
+  `memory.peak` 5,985 and 5,851 MiB,
+  the largest `rustc` 5,825 and 5,756 MiB,
+  wall 145.7 and 193.0 s.
+  The direction is down in both runs and wall time rose from a 103.5 s median to 145.7 and 193.0 s,
+  but 13% to 15% is under the control's 20% spread,
+  so two builds do not settle it.
+- `-Z time-passes`: `anon` 6,379 MiB (0.946 times, range 0.940 to 0.952),
+  `memory.peak` 6,570 MiB,
+  the largest `rustc` 6,424 MiB,
+  wall 138.8 s.
+  This is the same build with one more `rustc` flag, so a ratio near one is the expected answer.
+- Half the test code left out: `anon` 4,663 MiB (0.700 times, range 0.687 to 0.713),
+  `memory.peak` 4,875 MiB,
+  the largest `rustc` 4,741 MiB,
+  wall 47.1 s.
+  Both far outside the spread: the lowest peak and the shortest build of the round.
+- `cargo check --locked --offline --all-targets`: `anon` 4,011 MiB,
+  `memory.peak` 4,117 MiB,
+  the largest `rustc` 4,049 MiB,
+  wall 73.6 s.
+- `cargo clippy --locked --offline --all-targets`, with `-D warnings` as the round's task passes it:
+  `anon` 4,225 MiB,
+  `memory.peak` 4,298 MiB,
+  the largest `clippy-driver` 4,277 MiB,
+  wall 67.9 s.
+
+The two metadata passes match the 4,084 to 4,192 MiB and 4,295 to 4,379 MiB
+that the same day's research sampled from other sessions' processes,
+which is evidence that these arms measure what that sampling measured.
+
+### Which pass holds the peak
+
+`cargo rustc --locked --offline --lib --profile test -- -Z time-passes`
+printed the resident size at the boundaries of each pass of the same test unit.
+From one build whose sampled peak was 6,570 MiB,
+the largest end-of-pass figures were:
+
+- `macro_expand_crate`, 1,183 MiB after 5.2 s;
+- `type_check_crate`, 2,827 MiB, 1,308 MiB of it in 21.2 s;
+- `MIR_checking`, 4,122 MiB, 1,296 MiB of it in 14.1 s;
+- `monomorphization_collector_graph_walk`, 5,056 MiB, 1,023 MiB of it in 30.7 s;
+- `codegen_to_LLVM_IR`, 6,410 MiB, 1,252 MiB of it in 26.7 s;
+- `codegen_crate`, 6,410 MiB, 2,387 MiB of it in 61.8 s;
+- `link_crate`, 2,262 MiB after 16.5 s, since linking runs after code generation and frees memory it no longer needs.
+
+So the front end reaches 4,122 MiB by the end of `MIR_checking`,
+code generation adds 2,288 MiB on top of that,
+and the sampled peak of 6,570 MiB sits above every end-of-pass figure,
+because the resident size between two pass boundaries is not one of the printed numbers.
+That is the front-end and code-generation split the research could only infer
+from the 1.9 to 2.4 GiB gap between the check and codegen forms of this unit.
+
+### What each result says about the research's ranking
+
+1.  Compile less of the crate in a round.
+    Confirmed, and measured: leaving out 49.9% of the library test unit's test lines
+    (165,191 of 331,058 lines, 265 module declarations in 253 files)
+    brought the compared peak to 0.700 times the control and the build to 47.1 s
+    against a control median of 103.5 s.
+    The research's guess of 4 to 5 GiB for half the test code measured 4,663 MiB of `anon`
+    and 4,875 MiB of `memory.peak`.
+    The scaling is not linear in lines: half the test lines bought 30% of the peak,
+    because the non-test library, the dependencies and the front end of the remaining tests stay.
+    The project's way to compile less per edit is already decided:
+    the crate split into reusable crates (`doc/planning/cli-git-source-layout.md`, "Splitting into crates (owner, 2026-11-04)"),
+    whose native-layer move waits until the open branches merge (issue 6261, "Defer until branches merge").
+    This arm measures that lever; it adds no new choice.
+2.  Fewer parallel jobs per build.
+    Weakened to a small effect at the extreme: `-j 4` changed nothing outside the spread,
+    and `-j 1` gained 13% to 15% at most, which the control's own spread cannot separate from host load,
+    while wall time went from a 103.5 s median to 145.7 and 193.0 s.
+    A round that adopts it should expect no change at four jobs and a longer wait at one.
+3.  Lighter debuginfo (`debug = false`).
+    Its reach is the code-generation part, 2,288 MiB of the 6,410 MiB the pass table shows,
+    and debug information is written during exactly those passes.
+    The arm was not run because the owner rejected the setting on 2026-11-13.
+4.  Limit how many peaks overlap.
+    Unchanged by these arms, and the control's 20% spread is the argument for it:
+    two builds of one unchanged crate differed by 1,144 MiB,
+    so a cap set from a single measurement is wrong by that much.
+5.  `codegen-units`.
+    Same reach as item 3 and still unknown in sign; not measured.
+6.  `sccache` as the wrapper.
+    Not measured, and nothing here moves it: it refuses the unit that sets the peak,
+    and a metadata pass alone costs 4,011 to 4,225 MiB of `anon`.
+7.  A shared build directory across worktrees.
+    Not measured, and the same reason holds: the unit that sets the peak is this crate's own,
+    compiled in every worktree that edits code, so a shared directory shares nothing of it.
+
+The cause worth recording is the control's spread itself.
+Two faithful builds of one unchanged crate reached 5,663 and 6,807 MiB of `anon`,
+and the slow controls read low, 5,663 MiB at 126.5 s and 6,244 MiB at 148.9 s,
+against 6,789 MiB at 103.5 s.
+That is the shape a token-limited code generation step has:
+when the host gives the build less parallelism, both the peak and the progress fall.
+It is the same mechanism `-j` limits, which is why `-j 1` can only be read as "no more than 15%" here,
+and why any future arm on this page needs its control beside it.
+
+### Where the numbers and logs are
+
+The round folder `rust-build-memory-peak-arms-2026-11-25` holds them, outside the repository:
+`keep/arm-summary.json` is every counter of every arm,
+`keep/time-passes-rows.tsv` is the pass table, `keep/arms-so-far.tsv` is one line per arm,
+and `scratch/arms/<number>-<arm>/` holds a `arm.json`, `build.log`, `samples.tsv` and `gate.log` per arm.
+The half-test-code edit was a working-tree edit only, never committed or stashed,
+restored with `git checkout` once it was recorded, after which `git status --short` was empty;
+`keep/half-modules-edit.patch` is that edit.
+No test binary was run, no profile or manifest was changed, and no container ran.
+
 ## The setting this package now uses
 
 ```toml

@@ -35,7 +35,7 @@ use crate::merge_isolation_git_reads::Session;
 use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
 use crate::merge_isolation_recovery_steps::IndexHeldAt;
-use crate::merge_isolation_run_types::{Bail, IsolatedMerge, Plan, refused};
+use crate::merge_isolation_run_types::{BRANCH_MOVED_EXIT_CODE, Bail, IsolatedMerge, Plan, refused};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -189,7 +189,10 @@ fn the_end_in_the_state_read(
         });
     }
     if at.branch_moved {
-        return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_merge_the_branch_moved_under(reference, lock.as_path(), &bytes) });
+        // Nothing of this merge is in the checkout and nothing of it is saved on a side ref, so no later command can finish it:
+        //  a 0 here named a merge that never happened (issue 6473). The line says what the settle read, and that running the merge
+        //  again is safe.
+        return Err(refused(BRANCH_MOVED_EXIT_CODE, a_merge_the_branch_moved_under(reference, lock.as_path(), &bytes)));
     }
     if at.the_merges_entries_in_the_checkout {
         return Ok(IsolatedMerge::Finished {

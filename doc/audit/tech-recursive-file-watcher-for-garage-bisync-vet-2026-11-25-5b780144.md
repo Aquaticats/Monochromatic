@@ -13,8 +13,9 @@
   Broad discovery ran as the Pi subagent run the owner chose on 2026-11-25T17:19:41-05:00.
   The owner added a mid-run requirement at 2026-11-25T17:38:21-05:00,
   and the coordinator re-keyed the report for it at 2026-11-25T17:51:19-05:00
-  (see "Prior compatible report").
-  Targeted evidence for the 20 ready-to-use survivors starts next.
+  and again at 2026-11-25T17:59:11-05:00 for the owner's round 4 requirements
+  (see "Prior compatible report" and "Screening against the round 4 requirements").
+  Five candidates go on to targeted evidence.
 - Subject:
   recursive file watcher for garage bisync.
 - Scope:
@@ -24,12 +25,12 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:51:19-05:00.
+  2026-11-25T17:59:11-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
 - Compatibility fingerprint:
-  `43409b2337bcac1b82e6ab195c96f8254f834ebc9560380d5b2ef839990078c2`.
+  `5b7801441f5b6ae0540e6245aaa384f31f14cc934100ef4ec6c004e4e576d601`.
   The canonical input is the RFC 8785 serialization of the object in "Fingerprint input".
 - Active audit owner:
   the Claude Code session that runs the grilling in `doc/planning/garage-bisync-run-on-file-change.md`;
@@ -44,6 +45,10 @@
   which made the old fingerprint incompatible;
   the file was moved here with `git mv` and its content carried over unchanged apart from the metadata,
   "Fingerprint input" and "Hard constraints".
+  It was re-keyed a second time at 2026-11-25T17:59:11-05:00,
+  from `doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-43409b23.md` (fingerprint `43409b2337bcac1b82e6ab195c96f8254f834ebc9560380d5b2ef839990078c2`),
+  when the owner's round 4 answers added two hard constraints,
+  the same way.
 
 ## Fingerprint input
 
@@ -59,7 +64,9 @@
   },
   "hardConstraints": [
     "after a change that lands while a sync runs, one more sync starts after that run ends, by the watcher or by a small wrapper around its command",
+    "never interrupts a running command; each run finishes",
     "open source with inspectable source",
+    "queues one more run of its command natively when events arrive while the command runs",
     "runs an arbitrary command, here systemctl --user start rclone-bisync-garage.service",
     "runs on Linux x86-64, macOS arm64 and Windows x64",
     "watches every folder under the root recursively, including folders created after it starts"
@@ -105,6 +112,9 @@ The owner's answers that bind this vet:
 - After a change that lands while a sync runs,
   one more sync starts after that run ends,
   by the watcher or by a small wrapper around its command.
+- Never interrupts a running command;
+  each run finishes.
+- Queues one more run of its command natively when events arrive while the command runs.
 
 ### Requirement added during discovery
 
@@ -1373,6 +1383,127 @@ unestablishable security boundary, no inspectable validation path, unsupported r
 It is not a watcher and is not screened;
 it is recorded because the owner asked what a candidate does when the inotify watch limit runs out,
 and this is the tool that answers the same question for the session as a whole.
+
+## Screening against the round 4 requirements
+
+The owner made two more requirements hard at 2026-11-25T17:59:11-05:00
+(`doc/planning/garage-bisync-run-on-file-change.md`, section "Owner answers, round 4"):
+the watcher never interrupts a running command,
+and it queues one more run of its command natively when events arrive while the command runs,
+because the chosen follow-up shape is a queuing watcher calling a trigger unit ordered after the sync unit.
+
+Each outcome below rests on the discovery run's reading of the candidate's primary docs,
+quoted from its ledger entry;
+none is a source-level or measured result yet.
+A candidate whose source shows a native queue the docs do not mention returns to the pool.
+
+- watchexec 2.8.0:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively, '--on-busy-update=queue' ("run the command once again when the current run has finished if any events occur while it's running"). No wrapper needed.).
+- Watchman 2026.11.23.00:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The trigger page states Watchman runs a single instance of the trigger process at a time and, after it terminates, respawns for changes that landed in the meantime.).
+- chokidar-cli (3.0.0 published on npm, 4.0.0 at repository HEAD):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper. The source's own comment says "commands might be still run concurrently" ('index.js:163'), so nothing queues a second run.
+- onchange 7.1.0:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The source keeps a FIFO job queue with '--jobs' concurrency (default 1) and starts the next job when the running one finishes ('src/index.ts:151-224'). No wrapper needed.).
+- watchfiles 1.3.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper, and it also conflicts with "never kills a run in progress". A change during a run interrupts that run.
+- modd 0.8:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The runner handles one batch at a time from a buffered channel ('modd.go:202-225'), so a change during a run is handled as a further run after the current block returns.).
+- iwatcher 0.1.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper. It has "Skip-if-running": "if the previous command is still executing, the new trigger is silently dropped".
+- directory-watcher 3.2.1:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. "Collecting goes on while a hook runs. Each wait that ends puts its runs in the target's queue", with 'option.queue.size' defaulting to 2048.).
+- wgo 0.7.2:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper; a change restarts the command.
+- arelo 1.15.4:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper; a change restarts the command.
+- run-when-changed 2.1.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper until validation shows otherwise.
+- watch-run 1.2.5 (queckezz, the npm package):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchlist 0.3.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- funzzy 2.0.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchexec-simple (0.2.0 on crates.io, repository last pushed 2023-10-24):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper.
+- godemon:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchngo:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- quay 0.2.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; the per-command timeout suggests a single worker; assume a wrapper.
+- Rushabh5000/watch-run (a different project from the npm package):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- prem-the-dev/watch-run (a third project with this name):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+
+The libraries stay barred by the existing-tools rule while ready-to-use tools pass.
+`watch-restart`'s exit (it restarts a long-running child) now matches the treatment of the restart-style tools above.
+
+## Repository precedent missed by discovery (2026-11-25T18:16:16-05:00)
+
+The owner pointed out,
+after screening,
+that this repository had already judged `watchexec` and built its own replacement.
+Source class 4 recorded both facts as neutral context;
+it missed the verdicts:
+
+- `package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507`
+  (commit `eb40277d13`, 2026-05-11T17:38:01-04:00) rates `watchexec` for the editord dev loop
+  "Fit: rejected",
+  citing the `-j` SIGINT hang and process-tree signal loss
+  (`doc/troubleshooting/mise-watch.md`, "Bug 5" and "Bug 4", measured on watchexec 2.5.0 and 2.5.1).
+- The same handover, `:718-723`, states the constraint
+  "We cannot adopt a tool whose async runtime we cannot inspect."
+- The same handover, `:143-160` and "Can we just use watchman?",
+  rates Watchman "would work, but not justified for this case":
+  a long-lived daemon meant to serve many tools and folders,
+  where one tool watches one folder.
+- `doc/audit/pitchfork-jdx.md` (2026-06-21) ranks watch-restart over watchexec for one watched long-running child,
+  and keeps watchexec for "portable, stateless command running with rich event/filter modes".
+- `package/watch-restart/cli` is the repository's own owner of "watch files and run a command"
+  (Chokidar, a content-hash filter that skips byte-identical writes by default,
+  process-group signalling);
+  it exited screening here because it restarts its child,
+  but `AGENTS.md` rule `RCI` asks to extend an owner that already exists
+  before adopting a new one,
+  so extending it with a run-to-completion queue mode is a candidate this report did not consider.
+
+The owner decided at 2026-11-25T18:18:47-05:00
+(design record, "Owner answers, round 5"):
+"Vet 3p, no watchexec.
+Only going back to watch-restart if nothing works,
+because watch-restart has its own critical problems we'd need to fix if we use it."
+So `watchexec` exits on the owner's decision and the recorded rejection;
+Watchman stays,
+with its "not justified" verdict recorded as counterevidence;
+extending `watch-restart` is the fallback only if every remaining candidate fails.
+
+Whether these verdicts transfer to this job
+(no `-j` filter, queue mode, a one-level `systemctl` child on Linux)
+is unverified;
+the owner decides how to proceed (design record, "Owner answers").
 
 ## Evidence records
 

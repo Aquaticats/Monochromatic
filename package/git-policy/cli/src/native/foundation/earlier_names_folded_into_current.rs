@@ -32,7 +32,7 @@
 //! ```
 
 use crate::earlier_folder_entries_moved_into_current_folder::{FolderFold, fold_folder};
-use crate::earlier_log_lines_added_to_current_log::{FoldSteps, LogFold, NeverStopped, fold_log, numbered_copies};
+use crate::earlier_log_lines_added_to_current_log::{FoldSteps, LogFold, fold_log, numbered_copies};
 use crate::earlier_service_journal_adopted::earlier_journals_in_state;
 use crate::earlier_service_process_look::{Hold, Holding, ServiceLook, earlier_service_process_hold, effective_user};
 use crate::rename_that_never_replaces::rename_noreplace;
@@ -331,24 +331,8 @@ fn failure_line(directory: &Path, name: RenamedName, outcome: &Outcome) -> Optio
 }
 
 /// What:
-///  `fold_kept_names`,
-/// with the one line to standard error:
-/// once per process when the fold waits for an earlier program,
-///  and once per process when a name could not be folded.
-/// Why:
-///   The fold never stops a command;
-/// the lines are the only report of a fold that did not happen.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function foldAndTell(directory: string, names: KeptName[]): void;
-/// ```
-pub fn fold_and_tell(directory: &Path, names: &[KeptName]) {
-    fold_kept_names_and_tell(directory, names, &FoldSurroundings::of_this_process(), &mut NeverStopped);
-}
-
-/// What:
-///  `fold_and_tell` with the surroundings and steps given.
+///  The fold of one Git directory's kept names,
+/// with the surroundings and steps given, and its one line to standard error.
 /// Why:
 ///   The surroundings name the process table and the state folder the look reads,
 /// and a control must give its own:

@@ -6,6 +6,9 @@
 //!  a checkout whose source the fill's own restore would refuse makes the
 //!  preflight decline, so the add takes the ladder and nothing of the route's is
 //!  written,
+//!  a source the route serves that names the person's own lock word is refused in
+//!  the route's own sentence,
+//!  a source the route declines that names one takes the ladder with its words,
 //!  a checkout with an ordinary uncommitted change is served,
 //!  and a sparse checkout,
 //!  a worktree-scope configuration and an unfinished merge still fail the add.
@@ -36,6 +39,7 @@
 use super::preflight_the_add;
 use super::OpenedDevice;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
@@ -240,6 +244,77 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
     assert!(devices_own.contains(&refusal.message), "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}");
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
     assert!(!route.destination.exists(), "the slot stays empty before the claim");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add that names the person's own lock word from a source the route declines
+///  takes the ladder with its words,
+///  and reads no sentence of a route that is not serving it.
+/// Why:
+///  The refusal's sentence says the ZFS clone route takes the managed lock itself,
+///  which is a rule of that route:
+///  the ladder hands the person's words to Git,
+///  whose `worktree add` takes the lock and the reason by itself
+///  (`SPEC.md`, the ladder's forms).
+///  So a source the fill's own restore cannot prove declines before the route's own
+///  invocation rules are judged (issue 6453).
+///  Every word the constant names stands once on this side,
+///  because a refusal judged for one of them ahead of the source's answer would fail
+///  here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const word of PERSON_LOCK_WORDS) expect(preflight(nestedRepositoryCheckout, wordsWith(word))).toBeNull();
+/// ```
+#[test]
+fn a_lock_word_from_a_declined_source_takes_the_ladder() {
+    for word in PERSON_LOCK_WORDS {
+        let given: &str = std::str::from_utf8(word).expect("every lock word is ASCII");
+        let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(format!("preflight-declined-{}", given.trim_start_matches('-')).as_str());
+        let nested: PathBuf = route.source_root.join("nested");
+        std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+        git(nested.as_path(), &["init", "--quiet"]);
+        std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+        let mut words: Vec<OsString> = the_adds_words(&route);
+        words.insert(2, OsString::from(given));
+        match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
+            Ok(None) => {}
+            Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read, and `{given}` was not the reason"),
+            Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove, in a sentence about `{given}`: {}", refusal.message),
+        }
+        assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten for `{given}`");
+        assert!(!route.destination.exists(), "the slot stays empty when the route declines an add given `{given}`");
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  An add that names the person's own lock word from a source the route serves is
+///  still refused in the route's own sentence.
+/// Why:
+///  The control beside this one shows a decline,
+///  and this one shows the same question answering a refusal,
+///  so the lock rule is not lost with the order:
+///  an add the route serves and that locked itself would leave a registration whose
+///  words the wrapper's proof cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(preflight(cleanCheckout, wordsWith('--lock'))).toThrow(/takes the managed lock itself/);
+/// ```
+#[test]
+fn a_lock_word_from_a_served_source_keeps_the_routes_own_sentence() {
+    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves("preflight-served-lock-word");
+    let mut words: Vec<OsString> = the_adds_words(&route);
+    words.insert(2, OsString::from("--lock"));
+    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
+        Ok(_) => panic!("the route takes the managed lock itself, so an add it serves and that names `--lock` is refused before the claim"),
+        Err(refusal) => refusal,
+    };
+    assert!(refusal.message.contains("takes the managed lock itself"), "the sentence is the route's own: {}", refusal.message);
+    assert!(refusal.message.contains("--lock"), "the sentence names the word the person gave: {}", refusal.message);
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "a refused add writes nothing, so the claim is not taken");
     remove(root.as_path());
 }
 
