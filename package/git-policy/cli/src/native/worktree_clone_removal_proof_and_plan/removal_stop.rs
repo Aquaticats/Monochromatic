@@ -204,7 +204,8 @@ pub enum RemovalStop {
     /// at the look or at one of the two checks.
     OriginCheckRefused {
         /// Step 15's own refusal,
-        /// with its cause, its counts and its message.
+        /// with its cause,
+        /// its counts and its message.
         refusal: Box<OriginRefusal>,
         /// What the plan already records as lost,
         /// which its sentence says,
