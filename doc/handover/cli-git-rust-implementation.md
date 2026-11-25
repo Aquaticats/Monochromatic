@@ -366,8 +366,13 @@ that control now derives the refusal it expects from the device layer, so it hol
 (merged `c12b45dfc4`; red then green in the gate image itself),
 and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
 (added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
-running since 2026-11-24T19:50-05:00, once that stall was falling:
-the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
+the image build now has its own measured bound, 8 GiB against a measured peak of 5,363.4 MiB uncapped,
+while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` still sets both
+(merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
+that round also found `package/container-limit/core`'s ledger test failing on `main`:
+16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456,
+its round `pi-fix-container-start-sites-ledger` running since 2026-11-24T20:40-05:00);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
