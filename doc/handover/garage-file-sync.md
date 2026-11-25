@@ -30,6 +30,20 @@ The four older `main.kdbx.conflict*` files remain on both sides;
 they are historical artifacts,
 not evidence that the latest sync failed.
 
+## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
+
+Read-only over ssh; nothing was changed.
+The LaunchAgent `cat.aquati.rclone-bisync-garage` is loaded
+(`launchctl print`: 198 runs, last exit code 7, program `/opt/homebrew/bin/rclone`).
+`~/Library/Logs/rclone-bisync-garage.log` starts at 2026-09-14 16:00
+and holds 682 runs that each end with
+`Bisync critical error: cannot find prior Path1 or Path2 listings, likely due to critical error on prior run`,
+and no `Bisync successful` line at all.
+The work folder `~/Library/Caches/rclone/bisync/` is empty.
+So this client has not synced since its agent was installed:
+its baseline listings either never existed at the agent's paths or were removed.
+Recovering needs a `--resync`, which the owner has not authorised.
+
 ## What this builds
 
 - Garage v2.3.0 single-node S3 store on the Coolify host,

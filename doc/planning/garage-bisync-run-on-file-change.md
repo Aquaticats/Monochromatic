@@ -198,6 +198,34 @@ which the fallback would have to clear first:
   (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
   and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
 
+## The Mac client, probed read-only over `ssh m1` (2026-11-25T18:50:01-05:00)
+
+- macOS 27.2 on arm64;
+  `kern.maxfiles: 122880`,
+  `kern.maxfilesperproc: 61440`,
+  `launchctl limit maxfiles` soft 256 and hard unlimited,
+  `ulimit -n` 256.
+  directory-watcher's kqueue backend needs about 11786 descriptors for a tree the size of this PC's `~/Plain`:
+  under the per-process ceiling,
+  far over the default soft limit,
+  so a LaunchAgent for it would have to raise its own soft limit.
+- `~/Plain` exists there,
+  and `launchctl list` shows `cat.aquati.rclone-bisync-garage` loaded with last exit status 7,
+  the status bisync exits with when it aborts.
+  Read at 2026-11-25T18:51:49-05:00 on the owner's go-ahead:
+  every run since the agent's log began (2026-09-14 16:00, 682 runs) aborted
+  with "cannot find prior Path1 or Path2 listings",
+  none succeeded,
+  and `~/Library/Caches/rclone/bisync/` is empty;
+  recorded in `doc/handover/garage-file-sync.md` "Client check (macOS, `ssh m1`)".
+
+## Owner answers, round 6 (2026-11-25T18:51:49-05:00)
+
+- onchange exits: its per-event queue meets the round 3 wording but not its purpose.
+- modd exits on the provenance gate; building it from source was declined.
+- The Mac's failing agent was read, not changed (see the Mac client section).
+- directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
