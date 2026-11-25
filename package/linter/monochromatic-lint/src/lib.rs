@@ -113,6 +113,9 @@ pub mod fix_loop;
 ///  for every consumer of the gitignore matcher.
 #[doc(hidden)]
 pub mod gitignore_pattern;
+/// The findings a layout rule tolerates today,
+///  read from the file its `allow` option names.
+mod layout_allow_list;
 /// Where a Cargo package's code starts:
 ///  its library root and executable roots.
 mod layout_crate_roots;
