@@ -37,8 +37,8 @@
 
 use git_policy_cli::doctor_zfs_route::{
     AbiFacts, CheckOutcome, CheckReport, DatasetFacts, DatasetRole, DelegationFacts, DeviceFacts, DeviceState, RecordedIdentity, HolderFacts, LiveIdentity, MountCheckFacts, ParentIdentityFacts, PathState, PoolFacts, Reading,
-    ReadinessFacts, RecordFacts, RequestFacts, SlotIdentityFacts, SlotRecordFacts, StagedFolder, StagingFolderFacts, StoreListingFacts, check_clone_properties, check_delegation, check_key, grants_of, remove_known_staging_forms,
-    route_checks, staging_binds, StagingRemovalRequest,
+    ReadinessFacts, RecordFacts, RequestFacts, SlotIdentityFacts, SlotRecordFacts, StagedFolder, StagingFolderFacts, StoreListingFacts, check_clone_properties, check_delegation, check_key, check_snapdir,
+    check_unknown_dot_entries, grants_of, remove_known_staging_forms, route_checks, snapdir_setting, staging_binds, StagingRemovalRequest,
 };
 use git_policy_cli::fs_mount_options::parse_mount_table;
 use git_policy_cli::worktree_clone_mount::{
@@ -163,8 +163,8 @@ fn install_layout() {
     run("truncate", &[ "--size", POOL_IMAGE_SIZE, image.as_str() ]);
     run("zpool", &[ "create", "-f", "-o", "cachefile=none", "-O", "mountpoint=none", pool_name.as_str(), image.as_str() ]);
     zfs(&[ "create", "-o", "mountpoint=none", format!("{pool_name}/home").as_str() ]);
-    zfs(&[ "create", "-o", format!("mountpoint={CHECKOUT}").as_str(), checkout_dataset().as_str() ]);
-    zfs(&[ "create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", container_dataset().as_str() ]);
+    zfs(&[ "create", "-o", format!("mountpoint={CHECKOUT}").as_str(), "-o", "snapdir=disabled", checkout_dataset().as_str() ]);
+    zfs(&[ "create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", "-o", "snapdir=disabled", container_dataset().as_str() ]);
     zfs(&[ "snapshot", format!("{}@origin", checkout_dataset()).as_str() ]);
     zfs(&[ "clone", "-o", "mountpoint=legacy", format!("{}@origin", checkout_dataset()).as_str(), clone_dataset().as_str() ]);
     // The account's folders below the checkout, which the store records and the walk holds.
@@ -608,6 +608,8 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
     assert_pass(&reports, "pool");
     assert_pass(&reports, "checkout-dataset");
     assert_pass(&reports, "container-dataset");
+    assert_pass(&reports, "checkout-snapdir");
+    assert_pass(&reports, "container-snapdir");
     assert_pass(&reports, "key");
     assert_pass(&reports, "clone-properties");
     println!("DOCTOR-GUEST group-one-passes");
@@ -696,6 +698,10 @@ fn break_each_fact() {
     breaks_rename_grant();
     breaks_readiness_boot();
     breaks_missing_slot();
+    breaks_snapdir_visible();
+    breaks_snapdir_hidden();
+    breaks_snapdir_default();
+    snapdir_follows_the_container();
 }
 
 /// A container that could mount itself is a finding naming `canmount`.
@@ -799,6 +805,16 @@ fn breaks_staging_forms() {
     };
     assert_eq!(field, "staging");
     assert!(detail.contains('2'), "{detail}");
+    // The dot entry that matches neither form is reported and left in place,
+    // and the two known forms are not reported as unknown names.
+    let unknown: CheckOutcome = check_unknown_dot_entries(&store);
+    let CheckOutcome::Finding { field: unknown_field, detail: unknown_detail } = unknown else {
+        panic!("a stranger's dot entry is a finding: {unknown:?}");
+    };
+    assert_eq!(unknown_field, "name");
+    assert!(unknown_detail.contains(".partial-write"), "{unknown_detail}");
+    assert!(!unknown_detail.contains(".0123456789abcdef0123456789abcdef"), "{unknown_detail}");
+    assert!(!unknown_detail.contains("..parent."), "{unknown_detail}");
     let stored: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(store_path())).expect("the store opens under root control");
     let removal = remove_known_staging_forms(StagingRemovalRequest { store: &stored }).expect("the removal runs");
     assert_eq!(removal.removed.len(), 2, "{removal:?}");
@@ -844,6 +860,111 @@ fn breaks_missing_slot() {
     assert!(field.contains("no-such-slot"), "{field}");
     assert!(detail.contains("not there"), "{detail}");
     println!("DOCTOR-GUEST missing-slot-is-a-finding");
+}
+
+/// What:
+///  A checkout dataset that lists its snapshot directory is a finding naming
+///  `visible`, the command that sets `disabled`, and the module floor.
+/// Why:
+///  Only `disabled` keeps the kernel from mounting a snapshot an account enters
+///  by name,
+///  so a person must learn the value, the command and that an older module has
+///  no such value,
+///  and the value is read through this route's own dataset-stats reply rather
+///  than through `zfs get`
+///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+///  "What hiding comes to, answered 2026-11-23").
+fn breaks_snapdir_visible() {
+    zfs(&[ "set", "snapdir=visible", checkout_dataset().as_str() ]);
+    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let checkout: &DatasetFacts = datasets.iter().find(|dataset| return dataset.name == checkout_dataset()).expect("the checkout is read");
+    let answer: CheckOutcome = check_snapdir(checkout);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a checkout showing its snapshot directory is a finding: {answer:?}");
+    };
+    assert_eq!(field, "snapdir");
+    assert!(detail.contains("`visible`"), "{detail}");
+    assert!(detail.contains(format!("zfs set snapdir=disabled {}", checkout_dataset()).as_str()), "{detail}");
+    assert!(detail.contains("OpenZFS 2.3.0"), "{detail}");
+    println!("DOCTOR-GUEST snapdir-visible-is-a-finding");
+    zfs(&[ "set", "snapdir=disabled", checkout_dataset().as_str() ]);
+}
+
+/// What:
+///  A container set to `hidden` is a finding naming that word,
+///  which is how this arm measures what the kernel reports for the value the
+///  reply otherwise leaves out.
+/// Why:
+///  The default and an explicitly set `hidden` are the same state to a person,
+///  so a build that could not name one of them would report a value nobody can
+///  act on.
+fn breaks_snapdir_hidden() {
+    zfs(&[ "set", "snapdir=hidden", container_dataset().as_str() ]);
+    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let container: &DatasetFacts = datasets.iter().find(|dataset| return dataset.name == container_dataset()).expect("the container is read");
+    let answer: CheckOutcome = check_snapdir(container);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a container set to hidden is a finding: {answer:?}");
+    };
+    assert_eq!(field, "snapdir");
+    assert!(detail.contains("`hidden`"), "{detail}");
+    assert!(detail.contains("every clone below it inherits"), "{detail}");
+    println!("DOCTOR-GUEST snapdir-hidden-is-a-finding");
+    zfs(&[ "set", "snapdir=disabled", container_dataset().as_str() ]);
+}
+
+/// What:
+///  A container that inherits an unset value is a finding naming the default
+///  `hidden`,
+///  which is the one state the kernel's reply leaves out.
+/// Why:
+///  An absent property must be reported as the default and not as an unread
+///  value,
+///  because a machine that never ran the setup has to learn what its snapshot
+///  directories still do.
+fn breaks_snapdir_default() {
+    zfs(&[ "inherit", "snapdir", container_dataset().as_str() ]);
+    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let container: &DatasetFacts = datasets.iter().find(|dataset| return dataset.name == container_dataset()).expect("the container is read");
+    let answer: CheckOutcome = check_snapdir(container);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("an unset container is a finding: {answer:?}");
+    };
+    assert_eq!(field, "snapdir");
+    assert!(detail.contains("unset"), "{detail}");
+    assert!(detail.contains("default `hidden`"), "{detail}");
+    println!("DOCTOR-GUEST snapdir-default-is-a-finding");
+    zfs(&[ "set", "snapdir=disabled", container_dataset().as_str() ]);
+}
+
+/// One dataset's `snapdir` as the route's own dataset-stats reply reports it.
+fn snapdir_of(dataset: &str) -> git_policy_cli::doctor_zfs_route::SnapdirSetting {
+    let held: DatasetIdentity = identity(dataset);
+    return snapdir_setting(&held.properties);
+}
+
+/// What:
+///  A dataset created plainly below the container follows the container's
+///  `snapdir` rather than keeping a copy,
+///  which is the fact the container's line states about every clone.
+/// Why:
+///  The decision's words are that the setup sets the value on the clone
+///  container and the clones inherit it,
+///  so a child that did not follow its parent would leave every clone showing
+///  its own snapshot directory;
+///  the child carries no origin, so the read is inheritance rather than a value
+///  a clone copied from its origin snapshot.
+fn snapdir_follows_the_container() {
+    let probe: String = format!("{}/snapdir-probe", container_dataset());
+    zfs(&[ "create", "-o", "mountpoint=legacy", probe.as_str() ]);
+    let inherited: git_policy_cli::doctor_zfs_route::SnapdirSetting = snapdir_of(probe.as_str());
+    assert_eq!(inherited, git_policy_cli::doctor_zfs_route::SnapdirSetting::Word("disabled"), "a child below a disabled container inherits it: {inherited:?}");
+    zfs(&[ "set", "snapdir=visible", container_dataset().as_str() ]);
+    let followed: git_policy_cli::doctor_zfs_route::SnapdirSetting = snapdir_of(probe.as_str());
+    assert_eq!(followed, git_policy_cli::doctor_zfs_route::SnapdirSetting::Word("visible"), "a child follows its parent's value: {followed:?}");
+    println!("DOCTOR-GUEST snapdir-follows-the-container");
+    zfs(&[ "destroy", "-r", "-f", probe.as_str() ]);
+    zfs(&[ "set", "snapdir=disabled", container_dataset().as_str() ]);
 }
 
 //endregion

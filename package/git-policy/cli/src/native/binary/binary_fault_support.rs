@@ -20,7 +20,9 @@
 //! The sweeps that once failed,
 //! killed or delayed every system call of the
 //!  earlier landing retired with that landing.
-//! A host without `strace` reports that and checks nothing,
+//! A control whose run has no `strace` fails with both ways forward,
+//! or names itself and passes only when the run states that the absence is
+//!  known (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`),
 //! as the budget
 //!  controls do.
 //!

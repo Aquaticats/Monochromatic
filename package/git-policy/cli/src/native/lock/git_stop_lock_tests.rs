@@ -23,6 +23,7 @@ use crate::process_tree::TreeMember;
 use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
+use crate::testing::strace_the_controls_run_under::{strace_available_or_acknowledged, strace_program};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::cell::Cell;
 use std::os::unix::process::CommandExt;
@@ -409,12 +410,53 @@ fn stage(name: &str) -> Stage {
 /// so without it a stop that kills the `strace` lets the handler finish the cleanup the hold was keeping in the cut.
 /// Recorded in `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
 /// with the probes behind each of these.
-fn held_before_the_pid_file_goes(hold: Duration) -> String {
+///
+/// The tracer is the one this run found on its own `PATH`
+/// (`strace_the_controls_run_under::strace_program`),
+/// never a bare name:
+/// the holder's `PATH` is the fixture's, and a machine without the tracer cannot make the cut at all
+/// (`can_arrange_the_cut`).
+fn held_before_the_pid_file_goes(tracer: &Path, hold: Duration) -> String {
     let microseconds: u128 = hold.as_micros();
+    let quoted: String = crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(tracer.as_os_str()));
     return format!(
-        "strace -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
+        "{quoted} -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
          -e inject=unlink:delay_exit={microseconds}:when=1 -e inject=unlinkat:delay_exit={microseconds}:when=1 /usr/bin/git"
     );
+}
+
+/// What:
+///  The tracer the two slow-cleanup holders run under,
+/// which the control found before it built the holder.
+/// Why:
+///   The path is read once per holder and must be one the machine has;
+/// a control that reaches here without a tracer overwrote its own report of that,
+/// so the read refuses loudly instead.
+fn the_tracer() -> PathBuf {
+    return strace_program().expect("the control checked that strace is on PATH before it built the holder");
+}
+
+/// What:
+///  Whether this control can arrange the cut here,
+/// and the one line that names it when this machine has no tracer.
+/// Why:
+///   The cut is a syscall the tracer delays at its exit,
+/// so a machine without `strace` cannot make it at all;
+/// the control used to run anyway and report "no look saw the lock and its pid file",
+/// which named the holder's speed rather than the missing program
+/// (this host, 2026-11-25:
+/// `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
+/// "A machine without the tracer").
+/// The answer is the one every traced control reads
+/// (`strace_the_controls_run_under::strace_available_or_acknowledged`):
+/// a run that never said it has no tracer fails here,
+/// naming the variable and the program,
+/// and a run that stated the absence gets the line that says this control did not run.
+/// A gate image that lost the program is red, not green with these controls unchecked;
+/// the image installs `strace` (`native-test-base.Containerfile`).
+fn can_arrange_the_cut(kind: Holder, control: &str) -> bool {
+    let traced: bool = matches!(kind, Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace);
+    return !traced || strace_available_or_acknowledged(control);
 }
 
 /// The command that holds the lock of `HELD_REF`:
@@ -433,8 +475,8 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
     let watcher: PathBuf = stage.root.join("hold-the-pipe-open.sh");
     crate::test_support::executable(watcher.as_path(), format!("#!/bin/sh\nwhile {lives}; do sleep 0.1; done\n").as_bytes());
     let git: String = match kind {
-        Holder::SlowToFinishCleanup => held_before_the_pid_file_goes(CLEANUP_HOLD),
-        Holder::HeldPastTheStopGrace => held_before_the_pid_file_goes(2 * crate::bounded_push::STOP_GRACE),
+        Holder::SlowToFinishCleanup => held_before_the_pid_file_goes(the_tracer().as_path(), CLEANUP_HOLD),
+        Holder::HeldPastTheStopGrace => held_before_the_pid_file_goes(the_tracer().as_path(), 2 * crate::bounded_push::STOP_GRACE),
         Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
     };
     // The watcher keeps the pipe to Git's input on its standard output, which is what holds the transaction open, and it is
@@ -637,6 +679,9 @@ fn bounded_run(kind: Holder, name: &str, leftover: Leftover) {
 ///  needed and did not see,
 /// never a watchdog.
 fn bounded_run_with(kind: Holder, name: &str, rule: StopRule, leftover: Leftover) {
+    if !can_arrange_the_cut(kind, name) {
+        return;
+    }
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
@@ -691,6 +736,9 @@ fn assert_the_holder_announced_its_lock(stage: &Stage, kind: Holder, how: &str) 
 
 /// A watched step stops the holder at its bound.
 fn watched_step(kind: Holder, name: &str, leftover: Leftover) {
+    if !can_arrange_the_cut(kind, name) {
+        return;
+    }
     let stage: Stage = stage(name);
     let mut command: Command = holder(&stage, kind);
     let terms: WatchTerms = WatchTerms {

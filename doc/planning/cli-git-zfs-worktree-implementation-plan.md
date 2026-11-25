@@ -2063,6 +2063,19 @@ this step's failure path then destroys the clone and the origin snapshot,
 so the add itself uses both `destroy` grants,
 the six permissions step 10 refuses on become eight,
 and the group table step 10 keeps is rewritten here.
+State of 2026-11-25:
+the build kept the failure path's destroy out,
+so the add's own steps still use the six and the table still refuses six and
+warns on the three a removal uses
+(`package/git-policy/cli/src/native/worktree_clone_add_route/add_grants.rs`);
+the settle a failed add hands over to is step 14's,
+which is the step that lands the move,
+and `source_guard/add_route_issues_no_destroy_tests.rs` fails the day the add's
+folder names a destroying entry without moving them.
+Owned by issue 6462:
+the add's clone asks the pool for `mountpoint=legacy`,
+and `mountpoint` is a delegation the design forbids the account,
+so the guest refuses that request for a delegated account whatever the nine say.
 
 #### Design sections
 
@@ -2229,6 +2242,27 @@ and the `unmount` request with its proof.
 Steps 4 and 5,
 origin cleanup and the Git settle,
 need a destroyed clone and are built in step 16.
+
+(Amended 2026-11-25 by an agent,
+in a round of its own;
+this note is unapproved and non-final.)
+That round built the order's per-slot claim,
+which the origin cleanup design's list names as its steps 1 and 14
+(`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+"The removal's one order of writes and removals"):
+the slot's claim is taken before the entry reads a record and released after the plan is
+proved gone,
+so a second removal of the slot,
+and an add of it,
+take the same claim file and are refused while the first command holds it.
+It sits in the whole order's path,
+`removal_completion::complete_the_removal`,
+and not in this step's entry,
+because the entry is one part of the order and the claim has to outlast every part;
+the wiring round that switches the command path on therefore gets it with that path.
+The entry,
+the reading and every command take no claim.
+`SPEC.md`'s removal section states the claim as the order's first and last step.
 
 #### Design sections
 

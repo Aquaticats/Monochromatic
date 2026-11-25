@@ -85,7 +85,7 @@ description = "Run the TypeScript checks of this package (or of `-- <task>...`) 
 run = "node bin/native-ts-checks.ts"
 
 [tasks."native:install"]
-description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff against the last commit, converges the installed tools, refuses unless `git --version` names the release and `git monochromatic-git-policy-cli zfs-root --version` names it too, commits what the lock then holds unless the last commit already holds it (refusing when another process wrote the lock while the release was installed, and leaving that write as it is), then prints the newest timing line and the service journal of the sample commit; `--deadline-seconds` must be from 1 to 2147483; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff against the last commit, converges the installed tools, refuses unless `git --version` names the release and, from 0.6.1-alpha.46 on, `git monochromatic-git-policy-cli zfs-root --version` names it too (a release before that floor cannot answer the words, so its install skips that check and keeps the ones it can answer), commits what the lock then holds unless the last commit already holds it (refusing when another process wrote the lock while the release was installed, and leaving that write as it is), then prints the newest timing line and the service journal of the sample commit; `--deadline-seconds` must be from 1 to 2147483; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
 # The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
 # bin/native-install.ts.
 run = "node bin/native-install.ts"
@@ -126,6 +126,10 @@ run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -
 
 [tasks."native:test:host"]
 description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`)"
+# The controls that trace a command under `strace` fail, naming the variable and the program, when this host has no
+# tracer and the run says nothing; none of the tasks in this file sets CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED, because every
+# one of them runs where `strace` is installed (this host, and the gate image built from native-test-base.Containerfile).
+# A run that truly has no tracer states it, and then each such control prints one line naming itself and passes.
 run = "cargo nextest run --locked --offline --lib"
 
 [tasks."native:test:archive"]
@@ -143,6 +147,8 @@ description = "Run every native test with its btrfs controls real instead of ski
 # other half of that bargain: on a btrfs host nothing is acknowledged, so each of those controls really runs, and no list
 # of their names can go stale as tests are added. Its root is btrfs by definition, so the one ZFS control acknowledges
 # the absence of a ZFS fixture root here; native:test:host leaves that unset, and on this ZFS host it runs for real.
+# CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED stays unset too: this task runs on a host, which has `strace`, so the traced
+# controls really run and a host that lost the tracer fails them instead of passing without a count.
 run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1 CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
 
 [tasks."test:git-image"]
@@ -272,6 +278,10 @@ run = "node e2e/mount-git-worktree-clone-datasets-guest.ts"
 [tasks."e2e:zfs-slot-state"]
 description = "Run plan step 12's slot classes, move and removal refusals, prune pointer and repair report end to end in the throwaway `mvm` libvirt guest: one real Git registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, the wrapper's refusals of `git worktree move` and `git worktree remove` beside Git's own answers, the prune pass that writes the recorded pointer back, and the repair report before Git runs, with and without a registration; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
 run = "node e2e/slot-state-and-move-refusal-guest.ts"
+
+[tasks."e2e:settling-command"]
+description = "Run the settling command's guest arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then a clone that stands refusing the command with every record left, a clone a person destroyed outside the wrapper settled with its registration and its three records, and a slot whose checkout has begun keeping its registration, its pointer and the person's file while only the records go; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
+run = "node e2e/settling-command-guest.ts"
 
 [tasks."e2e:deferred-origin-check"]
 description = "Run plan step 15's deferred-origin arm end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the planned removal going on, an origin snapshot marked with `zfs destroy -d` refusing, the reap that mark causes when a removal goes ahead, and an origin moved by `zfs promote` refusing; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"

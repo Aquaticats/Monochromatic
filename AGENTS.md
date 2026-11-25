@@ -78,6 +78,13 @@ QWD:
  only a failed try defers it,
  and deferring means writing it to the handover in the same turn.
 
+NWC:
+ A wait on a condition ("when memory allows",
+ "once X ends") names the test that ends it
+ and starts a command that waits on that test,
+ in the same turn;
+ never a bare "when X allows".
+
 DCK:
  After corrections,
  decisions,
@@ -167,7 +174,8 @@ Stop at completion or an external blocker.
 
 PXQ:
  "Completion" means the queue:
- tracked work left -> start the next item unasked.
+ start every ready tracked item unasked,
+ not only the next.
 Never end a turn on a status report the user must answer with "continue";
  low context is no reason to stop.
 

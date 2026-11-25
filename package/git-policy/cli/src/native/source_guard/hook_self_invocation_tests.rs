@@ -6,7 +6,7 @@
 //! making,
 //! or start Git's hook runner,
 //! and the executable reads a start name in one comparison,
-//! of the installed ZED history event's own name,
+//! of the ZED history event's own name,
 //! and nowhere else.
 //! The binary controls (`binary_external_hook_tests.rs`) prove the behavior end to end:
 //! no configured hook runs,

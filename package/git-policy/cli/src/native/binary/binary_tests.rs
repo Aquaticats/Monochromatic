@@ -420,10 +420,13 @@ mod commit_form_refusal;
 #[path = "binary_version_cache_tests.rs"]
 mod version_cache;
 
-/// Finding `strace`,
+/// `strace`,
 /// which the budget,
-/// fault and child-bound controls run a wrapped command under.
-#[path = "binary_strace_support.rs"]
+/// fault,
+/// child-bound and stop-lock controls run a wrapped command under,
+/// and the rule each of them follows when this run has none;
+/// the one copy the library's unit tests share.
+#[path = "../testing/strace_the_controls_run_under.rs"]
 mod strace;
 
 /// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program,
@@ -1070,7 +1073,6 @@ mod zfs_adoption_guest;
 /// and the pool's full answer at the clone.
 #[path = "binary_zfs_add_guest_tests.rs"]
 mod zfs_add_guest;
-
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 

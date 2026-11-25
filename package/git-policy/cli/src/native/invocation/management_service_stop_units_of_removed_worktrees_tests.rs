@@ -193,12 +193,14 @@ fn without_a_runtime_directory_the_note_is_empty_and_the_command_refuses() {
 
 /// What:
 ///  `doctor`'s note counts the journal of a removed worktree that no note and no socket file names,
-///  read from the fixture's own home, runtime and state directories,
+///  read from the fixture's own home,
+/// runtime and state directories,
 ///  and says nothing of this machine's state folder.
 /// Why:
 ///   That count is what tells a person the command has something to clear,
 /// and a journal that no unit names was invisible to it before (issue 6322).
-/// The fixture names its own `HOME`, `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
+/// The fixture names its own `HOME`,
+/// `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
 /// which is what makes the reading touch nothing of this machine.
 #[test]
 fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
@@ -226,5 +228,116 @@ fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
     let note: String = units_note(environment.as_slice());
     assert!(note.contains("1 removed worktree are still set up"), "the journal that no unit names is counted: {note}");
     assert!(note.contains(NAMED_COMMAND), "the note names the command that clears it: {note}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A removed worktree whose note and socket file are gone and whose journal holds work
+///  makes standard output name the journal it kept,
+///  and the line that says no unit or journal belongs to a removed worktree is not printed beside it.
+/// Why:
+///   M2 of the alpha.46 commit,
+/// push and LFS release pass measured one run that said on standard output
+///  "no commit service unit or journal belongs to a removed worktree"
+///  while standard error named the journal it had just kept for a removed worktree.
+///  The two lines contradict each other,
+///  and standard output is the half a person reads to learn what the command found.
+#[test]
+fn a_kept_journal_is_named_on_standard_output_and_the_none_line_is_not_printed() {
+    let world: World = world("stop-units-kept-journal-stdout");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal folder");
+    let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
+    std::fs::write(
+        journal.join("1.done"),
+        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+    )
+    .expect("a landed batch that names the Git directory");
+    std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
+    // The note and the socket file a removal that kept this journal took with it.
+    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
+    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let mut manager: Recorder = Recorder::default();
+    let (code, stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        !stdout.contains("no commit service unit or journal belongs to a removed worktree"),
+        "a journal was kept for a removed worktree, so that line would contradict standard error: {stdout}"
+    );
+    assert!(
+        stdout.contains("kept the commit service journal of the removed worktree")
+            && stdout.contains("repository/.git/worktrees/gone")
+            && stdout.contains(world.gone_instance.as_str())
+            && stdout.contains(journal.display().to_string().as_str()),
+        "standard output names the journal it kept, whose it was and where it is: {stdout}"
+    );
+    assert!(stderr.contains("7.intent"), "standard error still says what kept it: {stderr}");
+    assert!(journal.exists(), "the journal is kept");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A journal that names no worktree and that no socket file and no note stand beside
+///  is not counted as an instance that cannot be matched:
+///  the command says a person can look at it and remove it by hand.
+/// Why:
+///   M1 of the alpha.46 commit,
+/// push and LFS release pass measured seven such journals on a real machine,
+///  every one holding nothing but `busy` and an empty `claim-watch`.
+///  No unit can exist for them (a socket file or a note is what makes one possible),
+///  and the line that counted them said nothing a person could do,
+///  so every `doctor` named a number that no command could lower.
+#[test]
+fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchable() {
+    let world: World = world("stop-units-journal-without-units");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let instance: String = String::from("0000000000000000000000000000000e");
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), instance.as_str());
+    std::fs::create_dir_all(journal.join("claim-watch").as_path()).expect("journal with an empty claim watch");
+    std::fs::write(journal.join("busy"), b"1").expect("the service's record that it is running");
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let mut manager: Recorder = Recorder::default();
+    let (code, _stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        !stderr.contains("2 commit service instances cannot be matched"),
+        "the journal with no unit beside it is not counted with the socket file's instance: {stderr}"
+    );
+    assert!(
+        stderr.contains("1 commit service instance cannot be matched"),
+        "only the instance a socket file stands beside is counted as unmatchable: {stderr}"
+    );
+    assert!(
+        stderr.contains("1 commit service journal names no worktree"),
+        "the line is about the journal that has no unit: {stderr}"
+    );
+    assert!(stderr.contains("by hand"), "the line says a person can remove it after looking: {stderr}");
+    let journals_folder: String = state
+        .join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current)
+        .join(crate::service_journal_folder_of_an_instance::JOURNAL_FOLDER)
+        .display()
+        .to_string();
+    assert!(stderr.contains(journals_folder.as_str()), "the line says where to look: {stderr}");
+    assert!(journal.exists(), "nothing of it is touched");
+    // `doctor` says the same about the same journal.
+    let home: PathBuf = world.root.join("home");
+    std::fs::create_dir_all(home.as_path()).expect("home directory");
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("HOME"), home.into_os_string()),
+        (OsString::from("XDG_RUNTIME_DIR"), world.runtime.clone().into_os_string()),
+        (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
+    ];
+    let note: String = units_note(environment.as_slice());
+    assert!(!note.contains("2 commit service instances cannot be matched"), "the note does not count it with the socket file's instance: {note}");
+    assert!(
+        note.contains("1 commit service journal names no worktree and has no unit beside it"),
+        "the note is about the journal that has no unit: {note}"
+    );
+    assert!(note.contains("by hand after looking"), "the note says what a person can do: {note}");
     remove(world.root.as_path());
 }

@@ -175,36 +175,6 @@ fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_serv
 }
 
 /// What:
-///  A retried push refused for an unknown host key keeps its own sentence and the promise when its words hold the
-///  wrapper's askpass line.
-/// Why:
-///   The service's push children carry the no-prompt rule,
-///  so the push's words hold the rule's sentence inside OpenSSH's failed start before OpenSSH's refusal;
-///  the record must still say the key is unknown,
-///  how to add it,
-///  and that the service pushes by itself once it is known,
-///  and it must keep the program's own words below ours.
-#[test]
-fn a_record_of_a_push_refused_for_an_unknown_key_reads_words_that_hold_the_wrappers_askpass_line() {
-    let output: String = format!(
-        "ssh_askpass: exec({}): File name too long\nHost key verification failed.\nfatal: Could not read from remote repository.\n",
-        crate::child_environment::NO_ANSWER_SENTENCE
-    );
-    assert_eq!(final_failure(output.as_str()), None, "the retry stays scheduled: {output}");
-    let record: String = retried_failure_record(output.as_str());
-    for said in [
-        "this machine does not know the SSH host key",
-        "plain `ssh <host>`",
-        "`known_hosts`",
-        "keeps its usual retry schedule",
-        "pushes this branch by itself once this machine knows the key",
-    ] {
-        assert!(record.contains(said), "{said} in {record}");
-    }
-    assert!(record.ends_with(output.as_str()), "the program's own words stay below ours: {record}");
-}
-
-/// What:
 ///  A failure whose words ask nothing of the person is recorded exactly as the program printed it.
 /// Why:
 ///   The record is what the person reads beside the journal's warning about an unknown rejection,

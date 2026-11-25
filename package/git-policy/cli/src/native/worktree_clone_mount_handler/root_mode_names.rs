@@ -1,6 +1,6 @@
 //! What:
 //!  The one module that decides which start is a root-mode start:
-//!  the installed ZED history event's own file name,
+//!  the ZED history event's own file name,
 //!  the words `monochromatic-git-policy-cli zfs-root`,
 //!  and the mode word after them.
 //! Why:
@@ -27,7 +27,7 @@ use std::path::Path;
 
 use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
 
-/// The installed ZED history event's own file name: the one start name that
+/// The ZED history event's own file name: the one start name that
 /// selects a root mode, compared as the whole last path component.
 pub const ZEDLET_START_NAME: &str = "history_event-mount_git_worktree_clone_datasets";
 
@@ -102,7 +102,7 @@ fn starts_with_the_group_words(handed: &[OsString]) -> bool {
 }
 
 /// What:
-///  Whether a start name is the installed ZED history event's.
+///  Whether a start name is the ZED history event's own.
 /// Why:
 ///   A name this rule cannot read as text is not the zedlet's,
 ///  so a start whose name is not UTF-8 is the wrapper rather than a guess.
