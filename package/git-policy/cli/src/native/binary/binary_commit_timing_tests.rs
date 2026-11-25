@@ -22,7 +22,7 @@ use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
-use super::strace::{strace_available, strace_program};
+use super::strace::{strace_available_or_acknowledged, strace_program};
 use super::support::{Fixture, Observed, assert_nothing_in_group, bounded_for, fixture, git, group_of, kill_with_everything_it_started, observe, repository, spawn_owned, wrapper_first_path};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
@@ -1190,8 +1190,7 @@ fn traced_for_files(inner: &Command, trace: &Path) -> Command {
 /// This is the control for the 5.6 s `lock_wait_ms` of the 0.5.13 upgrade commit.
 #[test]
 fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no file call was traced");
+    if !strace_available_or_acknowledged("a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free") {
         return;
     }
     let fixture: Fixture = fixture("timing-upgrade-lock");
