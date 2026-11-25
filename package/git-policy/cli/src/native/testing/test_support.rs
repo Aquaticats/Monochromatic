@@ -275,7 +275,9 @@ thread_local! {
 /// What:
 ///  Start a helper process that dies with the test thread that started it,
 /// whether the test passes,
-/// fails or panics.
+/// fails,
+/// panics,
+/// or the whole test process is killed.
 /// Why:
 ///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture.
 /// The
@@ -284,12 +286,44 @@ thread_local! {
 /// and the group is
 ///  killed when the thread's fixtures are dropped,
 /// the same moment the fixture directories go.
+///  The group kill is a guard this process runs,
+///  and a process ended by `SIGKILL` or by `run_progress`'s `abort` runs no guard,
+///  so the helper also asks the kernel for a parent-death signal,
+///  which ends it when the thread that started it is gone however the process ends.
 pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
+    // SAFETY: between `fork` and `exec` only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
+    //  A test binary ended by `SIGKILL`, or by the `abort`s of `run_progress`, runs no guard at all, so the group kill below
+    //  never happens; the kernel's parent-death signal is what ends the child then.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
     let child: std::process::Child = command.spawn()?;
     own_group(&child);
     return Ok(child);
+}
+
+/// What:
+///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
+/// Why:
+///  A stand-in that `exec`s a long sleep inherits this run's output pipe and holds it open,
+///  so a caller that pipes the run's output waits for a process the run has already lost (issue 6463);
+///  a program whose output nobody reads gives the pipe back by holding none.
+/// Gotcha:
+///  This overrides whatever streams the caller set,
+///  so a control that reads its child's output starts it with `spawn_owned` and says which stream it pipes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawnOwned(command, { stdio: 'ignore' });
+/// ```
+pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<std::process::Child> {
+    command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    return spawn_owned(command);
 }
 
 /// What:

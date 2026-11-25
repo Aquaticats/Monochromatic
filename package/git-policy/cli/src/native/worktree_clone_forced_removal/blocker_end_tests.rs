@@ -48,7 +48,8 @@ fn wait_until_ready(pid: i32, ignores_term: bool) {
 fn start_child(body: &str) -> (Blocker, std::process::Child) {
     let mut command: std::process::Command = std::process::Command::new("sh");
     command.arg("-c").arg(body);
-    let child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("a child starts");
+    // Quiet, because nothing reads this child's output: the sleep it starts gives the run's output pipe back by holding none.
+    let child: std::process::Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a child starts");
     let pid: i32 = i32::try_from(child.id()).expect("a child's number fits");
     let blocker: Blocker = Blocker::read(pid).expect("the new child has a record");
     if body.contains("trap") {
