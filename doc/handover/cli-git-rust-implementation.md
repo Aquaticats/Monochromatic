@@ -1235,6 +1235,47 @@ on the merged tree check, Clippy, `source_guard` 100 and the touched modules pas
 running since about 13:05: `pi-askpass-false-and-commit-push-pass-fixes` (`false` back in `SSH_ASKPASS` with a proxy control, the 20-character mask, the sweep's two lines, two doc lows),
 `pi-root-usage-rollback-floor-and-same-leaf-move` (the root usage's full spelling and "no release installs it yet", the `native:install` floor below alpha.46, the move refusal only for the slot itself),
 and the gate on `main` at `7ed5ec0b34`;
+the owner asked "Can we parallelize better?" at about 13:15: only two rounds ran while plan steps 17 and 18 had every dependency merged,
+so the ready queue below is now refilled whenever a round ends, a start pausing only on a rising stall;
+started: `pi-zfs-step-17-cancel-command-and-cancelled-removal` (2026-11-25T13:19:12-05:00), `pi-zfs-step-18-doctor-removal-lines` (13:21:08), `pi-zfs-settle-worktree-clone-record-command`;
+briefed and waiting only on the stall (prompts in `~/temp/agent/<name>-2026-11-25/prompt.md`):
+`zfs-add-grants-refuse-six-warn-three` (3C), `lock-kill-controls-that-fail-alone-on-this-host`,
+`host-key-next-step-design-after-askpass-false` (C, C2, D after `false`; then a Sonnet read, then the owner's question),
+`zfs-step-17-forced-removal-arm`, `zfs-step-18-doctor-store-snapdir-delegation-and-handler`, `zfs-removal-takes-the-per-slot-claim`,
+`zfs-removal-finish-pass-for-a-gone-head`;
+waiting on code: 2C (the add's text beside a standing plan names the cancel command, the settle command and the finish pass's wait line, so it follows those three rounds);
+guests start under `note-before-you-start-a-guest.md` in the launch folder;
+`MemAvailable` understates free memory on this host by the ZFS ARC above `c_min` (between 2026-11-25T13:19:12-05:00 and 13:21:08: `MemAvailable` 24 GiB, every cgroup 12 GiB of 61, ARC 18.5 GiB), so memory is judged by the stall and by `MemAvailable` plus the ARC above `c_min`;
+on the owner's words "If you think ZFS ARC is the problem, feel free to change ARC config." `zfs_arc_sys_free` is 8 GiB since 13:24:47 (runtime, and `/etc/tmpfiles.d/zfs-arc-sys-free.conf` for boots);
+the swapping went on with the ARC at 2 to 4 GiB and 36 GiB free, so the ARC was not its cause, and the owner kept it with "Keep 8 GiB (Recommended)" as room for a guest start;
+the cause was `kswapd` (4.63 GiB reclaimed in 30 s, direct reclaim 12 pages) with no free 2 MiB block, under CachyOS's hugepage defrag `defer+madvise` and `compaction_proactiveness` 0;
+on "Madvise and compaction" the host runs `defrag` `madvise` and `compaction_proactiveness` 20 since 13:54:07 (`/etc/tmpfiles.d/thp.conf`, `/etc/sysctl.d/90-vm-compaction-proactiveness.conf`), and the first window after it fell from 18.22 GiB swapped out in 120 s to 0.03;
+all of it is in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, with the limit that the windows cannot split the two halves' effects and a longer reading under build load is owed;
+the 20-minute build sample from about 13:33 peaked at 7080 MiB for one scope (then 5048, 2618, 2464), which sizes how many rounds build at once;
+the host-key design round ended and merged as a proposal, `ec0b9e7ea3` (option K, the wrapper keeps Git's child with standard error on a pseudo-terminal, ranked `K > C > C2 > D > A`, every option ending 0 at the proxy case in a capped container), and its Sonnet gate read runs before the owner's question;
+`pi-zfs-removal-takes-the-per-slot-claim`, `pi-zfs-removal-finish-pass-for-a-gone-head`, `pi-zfs-step-17-forced-removal-arm` and (2026-11-25T14:13:49-05:00) `pi-zfs-step-18-doctor-store-snapdir-delegation-and-handler` started, the last brief also fixing `identity_checks.rs`'s "installed ZED event" sentence;
+a start that waits on memory names its test and gets a command that waits for it: stall not rising (`avg10` at or under `avg60`) and `MemFree` plus the ARC above `c_min` at least one build's measured peak (7080 MiB on 2026-11-25), never an unwatched "when memory allows";
+the three answers merged as `ff474f29ee` (the usage prints `<file> monochromatic-git-policy-cli zfs-root <mode>` and "no release installs it yet", byte-identical to the design's block;
+`native:install` below `0.6.1-alpha.46` skips the words check, with a control that fails when the floor and the release list disagree;
+a plain worktree sharing a slot's last name moves, and the slot spelled through a link still refuses), its merged-tree check green;
+queued from that round: the usage's `(no argument)` row still sits under `zfs-root <mode>` though `zfs-root` alone is refused,
+now briefed as `zfs-root-usage-no-argument-row-names-the-zed-start` (the row is the zedlet start, `ZEDLET_START_NAME` handed no argument);
+the per-slot claim round merged as `9179874527` (2026-11-25T14:45:54-05:00; the removal takes the add's `<slot>.claim.<n>` first and releases it last, checks on its merged tree `1bae3c5649` with only `SPEC.md` changed after);
+`strace-controls-fail-unless-the-absence-is-acknowledged` is briefed: every control needing `strace` fails without it unless the run acknowledges the absence,
+the shape of `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` (package `README.md` near line 6835), replacing `CLI_GIT_REQUIRE_STRACE`, which copied the git-lfs shape; the owner answered "Fail unless acknowledged (Recommended)" (`doc/decision/cli-git-strace-controls-fail-unless-the-absence-is-acknowledged.md`);
+at 2026-11-25T14:44 the memory test failed (stall rising, avg10 2.08 over avg60 1.29; `MemFree` plus the ARC above `c_min` 2993 MiB), so the usage round starts from a waiting command on that test and the strace round from one that also waits for the usage round's first 10 minutes;
+the old NVMe shrink runs as root unit `old-nvme-btrfs-shrink-for-swap`: the metadata balance ended 14:50:05 (59 of 1796 chunks; devid 1 then 19.02 GiB unallocated), `resize 1:-66G` started 14:50:05 with 53 GiB of chunks beyond the new end 875207589888 at 14:51:21 (8 data chunks in its first 60 s), task 638;
+on the owner's "we should put the read-only btrfs check after the zram step" a waiter stops the unit at its own `== check` line, then reads devid 1's superblock size and the dev extents beyond the new end, which are the partition shrink's precondition (the check only reads and proves neither);
+`btrfs filesystem show --raw` reads the on-disk superblock, which a shrink updates only at its end, so it is no progress reading (a waiter of 14:40 measured the old size, and matched systemd's "Started" line that quotes the command: match a unit's output by whole line);
+zram0 held 31.41 GiB (11.04 GiB of RAM) at 15:02, so a backing device on zram0 needs a `swapoff` that cannot fit; the plan is a second zram device backed by `p7` at a higher priority than zram0's 100, and `writeback-device=` in the generator for the next boot;
+the check then runs from a waiting command: stall not rising and `MemFree` plus the ARC above `c_min` at least 7080 MiB, its `memory.peak` recorded;
+the shrink ended 2026-11-25T15:06:34-05:00 (`Resize device id 1 (/dev/dm-0) from 881.10GiB to 815.10GiB`, 46 data chunks at about 21 s each), the unit stopped at its check line at 15:06:37, devid 1's superblock `total_bytes 875207589888` and no dev extent beyond it;
+the partition table was written at about 15:10 after both mappings closed (`sfdisk` refuses a disk with an open mapping): `p6` 1713616896 sectors from 2152962048, `p7` 134217728 sectors from 3866578944, PARTUUID `4762E2B4-DD7B-4505-8161-6E989D53E40C`, name `zram-writeback-encrypted-random-key`, type Linux data so nothing swaps on it raw;
+`p6` reopened maps 877355073536 bytes over btrfs's 875207589888, superblock checksum `[match]`; tables before, intended and as written are in `~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`;
+done by 15:20: `p7`'s random-key `crypttab` mapping, `zram1` backed by it at priority 110 (positive control 726722 pages written back), `zram-idle-writeback.timer` hourly at 4 GiB a run, and zram0's `writeback-device` plus `compressed_writeback` for the next boot, with the two `zram-generator` AppArmor refusals that would have left the next boot without zram widened (all in the zram troubleshooting doc, "zram writeback to the old NVMe");
+the check and `resize 1:max` run as root unit `old-nvme-btrfs-check-and-grow`, started 15:19:08 by its waiting command (18122 MiB);
+the usage row merged as `ec2784cbe2` (2026-11-25T15:19:05-05:00); the strace round runs since 15:00:23; the settle round ended and its check on the merged tree waits on the memory test;
+the askpass check on `main` hung in `lfs::lfs_upload`: the test binary was gone, and a leaked `/usr/bin/sleep 3000` (the `git-lfs` stand-in of `lfs_upload_tests.rs` near lines 419 and 669, `HOLD_SECONDS`) held `rg`'s pipe for 45 minutes until ended by PID; that filter printed no result line, so it reruns unfiltered;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor

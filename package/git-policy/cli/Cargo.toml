@@ -33,8 +33,9 @@ name = "git_policy_cli"
 path = "src/native/lib.rs"
 
 # The release holds this one executable (the owner, 2026-11-23: "One program only, ever"), and the ZFS route's root
-# modes are modes of it: one root-owned regular file under the ZED history event's own name is installed for root, and
-# every mode is reached through the words `monochromatic-git-policy-cli zfs-root <mode>`
+# modes are modes of it: plan step 19's setup installs one root-owned regular file under the ZED history event's own
+# name for root, every mode with a word is reached through the words `monochromatic-git-policy-cli zfs-root <mode>`,
+# and ZED's own start of that file's link, with no argument, is the clone-mount sweep
 # (doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md).
 # cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate, and `bin/native-release-bins.unit.test.ts`
 # holds the four lists that count the executables together.

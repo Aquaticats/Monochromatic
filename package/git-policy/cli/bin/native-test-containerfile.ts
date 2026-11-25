@@ -121,6 +121,11 @@ export function testContainerfile({
         // real program fails rather than skipping where `PATH` finds none, so an image built without it is red
         // (`src/native/testing/real_git_lfs_the_run_requires.rs`).
         'CLI_GIT_REQUIRE_REAL_GIT_LFS=1',
+        // The base image installs `strace`, and this says so: a control that traces a command under it fails rather
+        // than skipping where `PATH` finds none, so an image built without it is red
+        // (`src/native/lock/git_stop_lock_tests.rs`, `STRACE_REQUIRED`). The host installs none, and prints the line
+        // that says which controls did not run.
+        'CLI_GIT_REQUIRE_STRACE=1',
         // Adding that program must leave every control able to run: a control that cannot run in this image fails
         // instead of passing without checking (see the four end-to-end carry controls, which hand a push lists made only
         // of their fixture's own folders).

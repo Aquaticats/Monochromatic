@@ -446,6 +446,8 @@ The ZFS ARC was far below its ceiling at 21:00:
 `size` 6123719120 against `c_max` 65146339328 and `c_min` 2069377536.
 Its peak and its reclaim behaviour were not measured,
 so that reading rules out a full cache rather than a cache contribution.
+(Note of 2026-11-25: a later reading measured the ARC giving back 17.6 GB while the kernel swapped;
+see "`zfs_arc_sys_free`, from 2.16 GiB to 8 GiB".)
 
 ### The owner's position, and the measurements beside it
 
@@ -1041,6 +1043,178 @@ This draft waits,
 by the owner's choice to keep 125 for now,
 until the comparison in "The comparison that would verify the change" exists.
 
+### `zfs_arc_sys_free`, from 2.16 GiB to 8 GiB
+
+The owner,
+on 2026-11-25 while many build rounds started at once:
+"If you think ZFS ARC is the problem, feel free to change ARC config."
+
+What the ARC did,
+read on 2026-11-25 with OpenZFS `2.4.4-1` (`/sys/module/zfs/version`),
+46.2 hours after boot (`/proc/uptime` 166272.89):
+
+- Its ceiling is almost all memory:
+  `c_max` 65146327040 with `zfs_arc_max=0`,
+  which the installed `man 4 zfs` defines as
+  "The larger of all_system_memory - 1 GiB and 5/8 × all_system_memory".
+- Its free-memory target was the default,
+  `arc_sys_free` 2316412032 (2.16 GiB).
+  The same page: "The target number of bytes the ARC should leave as free memory on the system."
+- Since boot the kernel had swapped 1508725136 pages out and 1119591931 in (`/proc/vmstat` `pswpout`, `pswpin`),
+  about 5.6 TiB and 4.2 TiB at 4 KiB a page,
+  into the one swap device, `/dev/zram0` (zstd),
+  whose `mm_stat` peak use of memory was 20963995648 bytes.
+- Between two readings at 2026-11-25T13:21-05:00 and 13:23:43-05:00,
+  the ARC fell from `size` 22414649728 to 4753788496
+  while `pswpout` rose by 261970 pages (1.0 GiB):
+  the kernel was compressing process memory into zram
+  while the ARC still held cache it later gave back.
+- Between 2026-11-25T13:19:12-05:00 and 13:21:08-05:00,
+  `MemAvailable` read 24 GiB
+  while every cgroup together held 12 GiB of 61 and the ARC held 18.5 GiB,
+  so `MemAvailable` leaves the ARC out,
+  and a guard that reads `MemAvailable` alone sees less room than there is.
+
+The reading first drawn from these numbers was that the kernel and the ARC both began reclaiming
+only once free memory was under about 2.2 GiB,
+so the kernel's share went to swap while the ARC still held cache.
+That reading was wrong as a cause of the swapping, and the readings after the change disproved it:
+
+- Between 2026-11-25T13:23:43-05:00 and 13:37:01-05:00, `pswpout` rose by 8069492 pages (30.8 GiB)
+  while the ARC was down to 3.1 GiB and `MemFree` read 37.9 GiB.
+- Over 120 seconds from 13:38:08-05:00 (`date +%s` 1795631888 to 1795632008),
+  17.41 GiB went out to swap and 10.64 GiB came back,
+  the ARC held 2.2 to 3.7 GiB,
+  and `memory.events` `max` of `user.slice` did not move (7948604 both times),
+  so no capped cgroup was reclaiming against its own limit either.
+- Over 30 seconds at about 13:42-05:00,
+  `pgsteal_kswapd` rose by 1213853 pages (4.63 GiB) and `pgsteal_direct` by 12,
+  with `MemFree` at 36.5 GiB:
+  the background reclaim thread did nearly all of it.
+
+The Normal zone then held 9196486 free pages against a `high` watermark of 408439,
+and `/proc/buddyinfo` showed no free block of order 9 or 10 (2 MiB and up).
+That points at transparent hugepages instead;
+see "Transparent hugepage defrag and proactive compaction, 2026-11-25".
+The ARC setting stays,
+by the owner's answer "Keep 8 GiB (Recommended)",
+as room for one guest to start from free memory,
+not as a fix for the swapping.
+
+Applied at runtime at 2026-11-25T13:24:47-05:00 and read back:
+
+```sh
+# doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md
+echo 8589934592 | sudo --non-interactive tee /sys/module/zfs/parameters/zfs_arc_sys_free
+cat /sys/module/zfs/parameters/zfs_arc_sys_free
+```
+
+Both printed `8589934592`, and `arc_sys_free` in `/proc/spl/kstat/zfs/arcstats` read the same.
+8 GiB is one `mvm` guest's memory (7.75 GiB),
+so a guest can start from free memory without the kernel reclaiming for it.
+The ARC can still grow into whatever nothing else uses;
+`zfs_arc_max` is unchanged.
+
+For boots,
+`/etc/tmpfiles.d/zfs-arc-sys-free.conf` holds,
+under a comment naming these measurements,
+
+```text
+# /etc/tmpfiles.d/zfs-arc-sys-free.conf
+w- /sys/module/zfs/parameters/zfs_arc_sys_free - - - - 8589934592
+```
+
+and `sudo systemd-tmpfiles --create /etc/tmpfiles.d/zfs-arc-sys-free.conf` exited 0 with the value unchanged.
+The line has no `!`,
+because the installed `man 5 tmpfiles.d` says lines without it "are presumed to be safe to execute at any time",
+and writing this target is;
+the `-` keeps a boot where the module has not loaded from failing the line.
+The ZFS module options in `/etc/modprobe.d/zfs.conf` reach the boot through the initramfs (`mkinitcpio` `modconf` hook),
+so a line there would take effect only after the initramfs is rebuilt;
+the `tmpfiles.d` line needs no rebuild.
+
+What has not been shown:
+whether swap traffic and the memory stall fall under the same load.
+The comparison owed is the one "The comparison that would verify the change" describes,
+with these counters (`pswpout`, `allocstall_*`, `/proc/pressure/memory` `total`, the ARC's `size`)
+read over windows of comparable work before and after 13:24:47.
+To undo it,
+write the old value back (`2316412032`) and remove the `tmpfiles.d` file.
+
+### Transparent hugepage defrag and proactive compaction, 2026-11-25
+
+What the host ran:
+`/sys/kernel/mm/transparent_hugepage/enabled` `[always]`,
+`defrag` `[defer+madvise]` (set by CachyOS's `/usr/lib/tmpfiles.d/thp.conf` line 3,
+under the comment "Improve performance for applications that use tcmalloc"),
+and `vm.compaction_proactiveness` 0, which no file in `/etc/sysctl.d`, `/usr/lib/sysctl.d` or `/etc/sysctl.conf` sets,
+so this kernel boots with it.
+The kernel's own text at v7.3,
+`Documentation/admin-guide/mm/transhuge.rst`:
+`defer+madvise` "will enter direct reclaim and compaction like ``always``, but only for regions that have used
+madvise(MADV_HUGEPAGE); all other regions will wake kswapd in the background to reclaim pages and wake kcompactd to
+compact memory";
+and `Documentation/admin-guide/sysctl/vm.rst`: "Setting it to 0 disables proactive compaction."
+Since boot,
+7685445 of 9661022 hugepage faults had fallen back to small pages (`thp_fault_fallback`, `thp_fault_alloc`),
+and at about 2026-11-25T13:43-05:00 `/proc/buddyinfo` held no free Normal-zone block of order 9 or 10.
+
+The owner chose "Madvise and compaction" (`defrag` `madvise`, `compaction_proactiveness` 20)
+from a question that ranked `madvise` alone first,
+with the condition that it is kept only if the reclaim and swap rates drop.
+Four windows of 120 seconds,
+each after five seconds on its setting,
+alternated the host's setting (A) and the chosen one (B);
+the raw readings are in `~/temp/agent/thp-defrag-and-compaction-measured-2026-11-25/keep/`:
+
+1.  A from 13:45:51-05:00:
+    `pgsteal_kswapd` 23.70 GiB, `pswpout` 18.22 GiB, `pswpin` 12.17 GiB, stall 5.0 s,
+    hugepage faults 7659 allocated and 59520 fallen back, 4448 order-9 blocks free at the end.
+2.  B from 13:47:56-05:00:
+    `pgsteal_kswapd` 0.16 GiB, `pswpout` 0.03 GiB, `pswpin` 1.99 GiB, stall 0.0 s,
+    42681 allocated and 17658 fallen back, 3286 free at the end.
+3.  A from 13:50:02-05:00:
+    `pgsteal_kswapd` 0.00 GiB, `pswpout` 0.00 GiB, `pswpin` 0.73 GiB, stall 0.0 s,
+    68677 allocated and 0 fallen back, 3309 free at the end.
+4.  B from 13:52:07-05:00:
+    `pgsteal_kswapd` 0.47 GiB, `pgsteal_direct` 0.16 GiB, `pswpout` 0.00 GiB, stall 0.4 s,
+    30588 allocated and 16798 fallen back, 683 compaction stalls, 216 free at the end.
+
+What the windows show:
+the reclaim and swap stopped when the setting changed,
+and the third window,
+the host's setting again,
+stayed quiet because writing a nonzero `compaction_proactiveness` "will immediately trigger the proactive compaction"
+(`vm.rst`),
+which had left 2 MiB blocks free,
+so no hugepage fault missed (0 fallen back) and nothing woke kswapd.
+So the churn follows the missing 2 MiB blocks under `defer+madvise`.
+What they do not show:
+which half of the change carries the effect,
+because compaction's result outlasts its window and makes A after B no control;
+and whether the rates stay down as builds fragment memory again over hours.
+
+One longer reading under the chosen setting,
+from 2026-11-25T13:59:11-05:00 to 14:29:11-05:00 (1800 s, eight build rounds running, `keep/long-window.txt`):
+`pgsteal_kswapd` 19.39 GiB, `pgsteal_direct` 3.51 GiB, `pswpout` 9.53 GiB, `pswpin` 3.87 GiB,
+stall 5.3 s, 5987 compaction stalls,
+and 296285 hugepage faults allocated against 588196 fallen back.
+Per 120 seconds that is about 1.29 GiB reclaimed by kswapd and 0.64 GiB swapped out,
+against window 1's 23.70 GiB and 18.22 GiB;
+the load differs between the two readings,
+so this is a reading beside window 1 and not a ratio to a control.
+
+Persisted for boots:
+`/etc/tmpfiles.d/thp.conf`,
+which replaces the distribution's file of the same name,
+holds `w! /sys/kernel/mm/transparent_hugepage/defrag - - - - madvise` under a comment naming these readings,
+and `/etc/sysctl.d/90-vm-compaction-proactiveness.conf` holds `vm.compaction_proactiveness = 20`.
+`sudo systemd-tmpfiles --create --boot /etc/tmpfiles.d/thp.conf` and
+`sudo sysctl --load /etc/sysctl.d/90-vm-compaction-proactiveness.conf` both exited 0,
+and `systemd-tmpfiles --cat-config` lists the `/etc` line for that path.
+To undo it,
+delete both files and write `defer+madvise` and `0` back.
+
 ## What does not work
 
 ### Disk swap today
@@ -1120,13 +1294,91 @@ the record holds no measurement of a lower job count,
 and a lower pressure figure bought by running fewer jobs would answer a different question from the one
 "The comparison that would verify the change" asks.
 
-## What is planned for disk swap when an old drive is released
+## zram writeback to the old NVMe, set up 2026-11-25
 
-From the findings:
-a raw swap partition on the released drive,
+The plan this heading held until 2026-11-25 read:
+"a raw swap partition on the released drive,
 with zram writing its idle pages back to it,
 or zswap in front of it.
-Neither exists today.
+Neither exists today."
+On the owner's answers "Shrink p6 by 64 GiB" and "zram writeback (Recommended)",
+the first of those now exists.
+
+### The partition
+
+The old NVMe (`nvme0n1`, an SPCC M.2 drive at 3% used after 111 TB written and 11,119 power-on hours, `smartctl --attributes`)
+held a two-device btrfs (`bazzite_bazzite`, `p6` and `p2`, both LUKS2) with 7 GiB unallocated.
+From 2026-11-25T14:30:24-05:00, in a root unit with private mounts:
+`btrfs balance start -musage=20` moved 59 of 1796 chunks (devid 1 then 19.02 GiB unallocated, at 14:50:05),
+and `btrfs filesystem resize 1:-66G` moved 46 data chunks at about 21 s each
+and printed `Resize device id 1 (/dev/dm-0) from 881.10GiB to 815.10GiB` at 15:06:34.
+Before the table changed:
+devid 1's superblock read `total_bytes 875207589888`
+and the device tree held no extent at or beyond it.
+`btrfs filesystem show --raw` is no progress reading during a shrink,
+because it reads the on-disk superblock, which the shrink writes only at its end.
+`sfdisk` refuses a disk with any open mapping ("This disk is currently in use"),
+so both mappings were closed before the new table went in:
+`p6` keeps its start (2152962048) with 1713616896 sectors,
+and `p7` is 134217728 sectors (64 GiB) from 3866578944,
+PARTUUID `4762e2b4-dd7b-4505-8161-6e989d53e40c`, type Linux data, so nothing swaps on it raw.
+`p6` reopened maps 877355073536 bytes over btrfs's 875207589888, superblock checksum `[match]`.
+The tables before, intended and as written, and the LUKS2 header area, are in
+`~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`.
+
+### The encrypted writeback device
+
+`/etc/crypttab` maps `p7` as `old-nvme-zram-writeback` in plain mode with a key from `/dev/urandom` at every boot
+(`plain,cipher=aes-xts-plain64,size=512,sector-size=4096,nofail`),
+so nothing written back outlives a power-off.
+`systemctl start 'systemd-cryptsetup@old\x2dnvme\x2dzram\x2dwriteback.service'` set it up from that line at 15:12:30.
+
+### A second zram device now, zram0 itself from the next boot
+
+zram0 held 31.41 GiB of pages in 11.04 GiB of RAM at 15:02,
+and a backing device is set only on an unsized device,
+so giving zram0 one now needs a `swapoff` that pulls all of it back into RAM.
+Instead `zram1` was added (`hot_add`) with `backing_dev` the mapping, `compressed_writeback` on, `zstd`,
+zram0's size, and swap priority 110 over zram0's 100,
+so new swap-outs land where idle pages can leave RAM while zram0 drains as its pages are read.
+A positive control wrote zram1's pages back through the mapping:
+`bd_stat` went from `0 0 0` to `723160 3517 726722` (pages of 4 KiB),
+and the budget left read 321854 of 1048576.
+
+For the next boot,
+`/etc/systemd/zram-generator.conf.d/50-zram0-writeback-to-old-nvme.conf` sets zram0's `writeback-device`,
+and `/etc/systemd/system/systemd-zram-setup@zram0.service.d/50-compressed-writeback.conf` turns on
+`compressed_writeback` before the generator sizes the device
+(the kernel takes it only on an unsized device, `Documentation/admin-guide/blockdev/zram.rst` at v7.3,
+and zram-generator 1.2.1 has no option for it).
+The generator run into a scratch folder makes zram0's setup `BindsTo=` and `After=`
+`dev-mapper-old\x2dnvme\x2dzram\x2dwriteback.device` (`src/generator.rs` `handle_zram_bindings` at v1.2.1),
+so a boot without the old drive's mapping sets up no zram swap at all: that is the cost of this order.
+
+### The hourly writeback and its budget
+
+`zram-idle-writeback.timer` runs `zram-idle-writeback.service` an hour after boot and hourly after,
+on every zram device with a backing device:
+the budget refilled to 1048576 pages (4 GiB),
+`echo 3600 > idle` marking pages untouched for an hour,
+then `echo idle > writeback`.
+At most 96 GiB a day is about 35 TB a year,
+about 1% of this drive's life at the wear rate `smartctl` reads.
+
+### What AppArmor would have stopped
+
+Two refusals in the `zram-generator` profile would each have left the next boot with no zram swap,
+and only a dry run and a probe found them:
+it could not read `/etc/systemd/zram-generator.conf.d/` (`Permission denied (os error 13)` from the generator),
+and the kernel's open of the mapping when `--setup-device` writes `backing_dev` was denied as `open /dev/dm-0 wr`.
+A throwaway `zram2` with a config line only under `/run` showed the second:
+error 13 before the rule, and error 16 (busy, since `zram1` holds the mapping) after it.
+Both rules are the eleventh batch's, in `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`.
+
+### Left
+
+`btrfs check --readonly` of the old filesystem and growing devid 1 into its 2 GiB margin
+run from a waiting command, after this step, on the owner's word.
 
 ## What is not known
 

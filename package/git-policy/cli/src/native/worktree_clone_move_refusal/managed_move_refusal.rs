@@ -19,7 +19,13 @@
 //!  A record that cannot be read refuses too:
 //!  nothing then proves the move would not rename a managed clone's slot,
 //!  and the design's answer to an unreadable record is to act on nothing.
-//!  The refusal reads only the binding record,
+//!  A record filed under the slot's last name for another path refuses only
+//!  when Git's own worktree list names no worktree at the move's source,
+//!  because a plain worktree that happens to share a bound slot's last name is
+//!  a worktree of its own and moving it renames nothing the route binds
+//!  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+//!  "Moving a plain worktree that shares a bound slot's last name").
+//!  The refusal reads only the binding record and Git's registration files,
 //!  so the mounted and unmounted arms are the same code.
 //!
 //! In TS you'd write (pseudocode):
@@ -57,7 +63,8 @@ pub enum ManagedMoveRefusalCause {
         /// Why the record was not read.
         reason: String,
     },
-    /// A record is filed under the slot's name and names another path.
+    /// A record is filed under the slot's name, names another path,
+    /// and Git's own list names no worktree at the move's source.
     NamesAnotherPath {
         /// The slot path the record names.
         recorded: PathBuf,
@@ -123,11 +130,14 @@ fn unreadable_sentence(slot: &str, reason: &str) -> String {
 }
 
 /// What:
-///  The sentence for a record whose slot path is not the move's source.
+///  The sentence for a record whose slot path is not the move's source and
+///  whose source Git's list does not name.
 /// Why:
 ///  A record filed under the same leaf name for another path still leaves two
 ///  statements that disagree,
 ///  and a move cannot be proved safe while they do.
+///  A source Git's list does name is not this sentence's:
+///  that move renames a worktree of its own and is left to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,7 +145,7 @@ fn unreadable_sentence(slot: &str, reason: &str) -> String {
 /// ```
 fn another_path_sentence(slot: &str, source: &Path, recorded: &Path) -> String {
     return format!(
-        "`git worktree move` is refused: the record filed under the slot name `{slot}` names the slot {}, not {}, so the record and this path disagree and nothing proves this move would not rename a managed clone's slot. Nothing was moved. Read the record and run the move again once the record and the path agree.",
+        "`git worktree move` is refused: the record filed under the slot name `{slot}` names the slot {}, not {}, and Git's own list for this repository names no worktree at this path, so nothing proves this move would not rename a managed clone's slot. Nothing was moved. Read the record and run the move again once the record and the path agree; a worktree that belongs to another checkout is Git's to answer.",
         recorded.display(),
         source.display()
     );
@@ -150,9 +160,15 @@ fn another_path_sentence(slot: &str, source: &Path, recorded: &Path) -> String {
 ///  name,
 ///  which is what keeps the unmounted arm as covered as the mounted one.
 ///  A source whose last component is no plain slot name cannot hold a record,
-///  so it is left to Git,
-///  and a record that names another path still refuses,
-///  because two disagreeing statements prove nothing.
+///  so it is left to Git.
+///  A record that names another path refuses only when that path is not the
+///  source and Git's own list names no worktree at the source:
+///  the record's key is the slot's last name,
+///  so a plain worktree that shares that name holds the same record without
+///  being the slot, and moving it renames nothing this route binds.
+///  A record that names this very slot through another spelling is that slot's
+///  record, so the two paths are compared by the file they name and not only
+///  by the bytes the record holds.
 ///
 /// # Errors
 /// None:
@@ -174,7 +190,8 @@ pub fn refuse_move_of_a_bound_slot(common_dir: &Path, source: &Path) -> Option<M
         BindingReading::Absent => return None,
         BindingReading::Unreadable { reason } => ManagedMoveRefusalCause::Unreadable { reason },
         BindingReading::Record(record) => match record.slot_path() {
-            Some(recorded) if recorded == source => ManagedMoveRefusalCause::Bound { phase: record.phase, clone_dataset: record.clone_dataset.clone() },
+            Some(recorded) if names_the_recorded_slot(recorded.as_path(), source) => ManagedMoveRefusalCause::Bound { phase: record.phase, clone_dataset: record.clone_dataset.clone() },
+            Some(_recorded) if git_lists_a_worktree_at(common_dir, source) => return None,
             Some(recorded) => ManagedMoveRefusalCause::NamesAnotherPath { recorded },
             None => ManagedMoveRefusalCause::Unreadable { reason: String::from("the record's `slot=` is not a path, so the slot it belongs to is unproved") },
         },
@@ -185,6 +202,52 @@ pub fn refuse_move_of_a_bound_slot(common_dir: &Path, source: &Path) -> Option<M
         ManagedMoveRefusalCause::NamesAnotherPath { recorded } => another_path_sentence(slot.as_str(), source, recorded.as_path()),
     };
     return Some(ManagedMoveRefusal { slot, cause, sentence });
+}
+
+/// What:
+///  Whether a record's slot path and the path a move names are one folder.
+/// Why:
+///  The record is keyed by the slot's last name,
+///  so the record's own slot path is what says which of two worktrees sharing
+///  that name it belongs to,
+///  and a slot reached through a symbolic link or a relative spelling is still
+///  that slot:
+///  reading the spelling as another path would leave the slot's own move
+///  unrefused the moment a person named it the other way.
+///  A path that is not there can be compared only as text,
+///  which is the whole of the question then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = namesTheRecordedSlot(recorded, source);
+/// ```
+fn names_the_recorded_slot(recorded: &Path, source: &Path) -> bool {
+    return recorded == source || crate::real_git_candidate::same_file(recorded, source);
+}
+
+/// What:
+///  Whether Git's own worktree list of this repository names a worktree at
+///  `source`.
+/// Why:
+///  A record filed under the slot's last name belongs to the worktree its own
+///  slot path names,
+///  so the question a move of another path asks is whether Git lists a
+///  worktree of this repository at that path at all:
+///  the registration's `gitdir` back-link and its administrative folder are what
+///  Git's list holds,
+///  and a source no list names is Git's to refuse or to move as it always does.
+///  The typed operand is not asked here again:
+///  `parse_move_source` already resolved it into `source` through the one operand
+///  reading the removal shares,
+///  and Git's suffix match answers nothing for a path spelling, which is exactly
+///  the spelling this allowance exists for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listed = registeredWorktree({ commonDir, target: source }) !== undefined;
+/// ```
+fn git_lists_a_worktree_at(common_dir: &Path, source: &Path) -> bool {
+    return crate::worktree_remove_registry::registered_worktree(common_dir, source).is_ok();
 }
 
 /// Controls stay out of the release executable.

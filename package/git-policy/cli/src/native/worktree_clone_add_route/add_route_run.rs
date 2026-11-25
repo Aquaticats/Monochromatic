@@ -189,7 +189,10 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
 }
 
 /// Take the slot's claim, or refuse with the live owner's process id.
-fn take_the_claim(home: &std::path::Path, slot: &str) -> Result<crate::single_owner_claim::OwnerClaim, StepRefusal> {
+///
+/// Public to the crate so the removal's controls can show an add meeting the claim a
+/// removal holds through this route's own call rather than a copy of its arguments.
+pub(crate) fn take_the_claim(home: &std::path::Path, slot: &str) -> Result<crate::single_owner_claim::OwnerClaim, StepRefusal> {
     return match crate::single_owner_claim::take_claim(home, claim_prefix(slot).as_os_str()) {
         Ok(crate::single_owner_claim::ClaimOutcome::Held(claim)) => Ok(claim),
         Ok(crate::single_owner_claim::ClaimOutcome::Busy(owner)) => Err(StepRefusal::refused(format!(
