@@ -350,7 +350,18 @@ the reads of the process's directory that remain, each its own process's entry o
 (`report-pi-fix-tests-that-change-the-process-directory.md` in `~/temp/agent/fix-tests-that-change-the-process-directory-2026-11-24/keep/`);
 the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
 choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
-and its Sonnet read runs since then (`~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`);
+and its Sonnet read (same vendor, a second pass) ended with no High and seven Mediums
+(`keep/report-sonnet-read-of-the-fifth-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`):
+the shared comment stripper is blind to the end of three real release files after a glob string, so an allow and a read appended there pass every release-wide guard;
+the pins miss the module declaration, the `[[bin]] path` and the command word;
+the printed scan rules fail the crate's `shadow_reuse` deny;
+the printed `main.rs` is stale against `558bd72198`;
+`mount-path-descendant`'s root-ownership clause may refuse the one nested dataset at boot, and it lacks three of `zfs mount`'s refusals;
+choice 9 contradicts itself on option C's window;
+choice 11's printed control lacks the words;
+the read names M4 to M7 as needing a fix before the choices go to the owner, and ranks choice 5 C over A under the repository's ranking rule;
+the sixth revision runs since 2026-11-24T21:50-05:00 (`pi-zfs-root-modes-sixth-revision`, brief `~/temp/agent/zfs-root-modes-sixth-revision-2026-11-24/prompt.md`);
+the fifth read's `work/` and the fourth round's `scratch/` (which the proposal cites) stay until it ends;
 earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
@@ -658,10 +669,9 @@ no pin on `main`'s refusal arm and no binary control of it,
 choice 9 silent on what a restore or the migration's rollback does to the nested dataset's unit,
 and choice 7's deadline variable able to turn a missed deadline into a pass;
 the owner blocks for all ten choices are in that report.
-The fifth revision, briefed to weigh whole-file pins of `main.rs` and the names module against more spelling lists
-and to pose the deadline variable as its own choice, has its brief at `~/temp/agent/zfs-root-modes-fifth-revision-2026-11-24/prompt.md`
-and runs since 2026-11-24T20:21-05:00 (`pi-zfs-root-modes-fifth-revision`; the fourth round's `scratch/` stays until it ends, since the brief points at it);
-a Sonnet read of it follows, then the choices go to the owner.
+The fifth revision chose whole-file pins of `main.rs` and the names module and posed the deadline variable as its own choice;
+its read and the sixth revision are in the ZFS State paragraph;
+a Sonnet read of the sixth follows, then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
