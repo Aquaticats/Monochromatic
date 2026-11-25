@@ -1,6 +1,7 @@
 //! What:
 //!  The install plan's controls:
-//!  which files it holds, in which order,
+//!  which files it holds,
+//! in which order,
 //!  the shape of every text,
 //!  the gate line the propagation pair needs,
 //!  the nested unit's place last,

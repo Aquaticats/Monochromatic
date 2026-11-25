@@ -15,7 +15,8 @@
 //!  `Requires=` on the provider restarts the gate with every attached clone,
 //!  a before-login line holds a login on a hung sweep,
 //!  and a third key line requires a unit no boot installs.
-//!  Each assertion names the section it read, so a line of another section
+//!  Each assertion names the section it read,
+//! so a line of another section
 //!  never satisfies it.
 //!
 //! In TS you'd write (pseudocode):

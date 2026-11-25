@@ -17,7 +17,8 @@
 //!  and a filesystem that reports no attributes says nothing about the flag
 //!  either,
 //!  so each is answered before the flag is.
-//!  The owner is compared last, because the flag is what refuses the account's
+//!  The owner is compared last,
+//! because the flag is what refuses the account's
 //!  rename and removal and an entry owned by another account is a separate
 //!  finding a person repairs.
 //!
@@ -26,7 +27,7 @@
 //! const verdict = verify(facts, account); // { protected: true } | { protected: false, reason } | { unproven }
 //! ```
 
-use crate::checkout_underlay_entry::underlay_entry_read::EntryFacts;
+use crate::checkout_underlay_entry::underlay_entry_read::CoveredEntryFacts;
 
 /// What:
 ///  Why a covered entry is not protected.
@@ -141,7 +142,7 @@ impl UnderlayVerdict {
 
     /// The verdict in words,
     /// naming what was read and what to do next.
-    pub fn message(&self, facts: &EntryFacts) -> String {
+    pub fn message(&self, facts: &CoveredEntryFacts) -> String {
         let read: String = format!(
             "device {} inode {} owner {} mode {:06o} immutable {} attributes-reported {} same-device-as-parent {}",
             facts.device, facts.inode, facts.owner, facts.mode, facts.immutable, facts.attributes_reported, facts.same_device_as_parent
@@ -157,7 +158,7 @@ impl UnderlayVerdict {
 
     /// The one line a boot logs for this reading,
     /// so a journal shows what was compared without the sentence.
-    pub fn line(&self, facts: &EntryFacts) -> String {
+    pub fn line(&self, facts: &CoveredEntryFacts) -> String {
         let answer: &str = match self {
             UnderlayVerdict::Protected => "protected",
             UnderlayVerdict::Unprotected(_) => "unprotected",
@@ -172,7 +173,9 @@ impl UnderlayVerdict {
 
 /// What:
 ///  Judge one reading:
-///  is the covered entry the protected, immutable, account-owned underlay entry
+///  is the covered entry the protected,
+/// immutable,
+/// account-owned underlay entry
 ///  the boot needs before it attaches anything?
 /// Why:
 ///  the checks run in the order that keeps every message true,
@@ -183,7 +186,7 @@ impl UnderlayVerdict {
 /// ```ts
 /// const verdict = verify(facts, account);
 /// ```
-pub fn verify(facts: &EntryFacts, wanted_owner: u32) -> UnderlayVerdict {
+pub fn verify(facts: &CoveredEntryFacts, wanted_owner: u32) -> UnderlayVerdict {
     if !facts.directory {
         return UnderlayVerdict::Unprotected(UnprotectedReason::NotADirectory);
     }

@@ -8,17 +8,21 @@
 //!  mount.
 //!  The project chose "Unit on the checkout's mount":
 //!  a drop-in on the mount unit and one one-shot service that asks the gate to
-//!  reconcile by a reload, taken provisionally until a guest measurement shows
+//!  reconcile by a reload,
+//! taken provisionally until a guest measurement shows
 //!  whether it misses a hand-typed replacement or loops
 //!  (`doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
 //!  "Which triggers the route adds",
 //!  "What the design is accepted").
 //!  The service names the mount unit the checkout path escapes to,
 //!  because a drop-in on a unit systemd learned from the mount table is read
-//!  only there, and the request is a reload because a restart would run the
+//!  only there,
+//! and the request is a reload because a restart would run the
 //!  gate's stop pass and unmount every attached clone.
-//!  Neither file is installed without the gate's `ExecReload=`, and
-//!  `install_plan` builds them together, so the pair cannot be written beside a
+//!  Neither file is installed without the gate's `ExecReload=`,
+//! and
+//!  `install_plan` builds them together,
+//! so the pair cannot be written beside a
 //!  gate that cannot reload.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,7 +42,8 @@ use crate::checkout_boot_units::boot_unit_names::{
 ///  The service that asks the gate to re-verify the checkout's private
 ///  propagation.
 /// Why:
-///  it is bound to the checkout's mount unit, so it stops when that mount goes
+///  it is bound to the checkout's mount unit,
+/// so it stops when that mount goes
 ///  and is armed again when it next activates;
 ///  it stays active after its request because of `RemainAfterExit=`,
 ///  and it carries no `[Install]` section because an enabled copy would run at a
@@ -75,7 +80,8 @@ pub fn propagation_service(facts: &CheckoutBootFacts) -> Result<String, UnitText
 ///  service.
 /// Why:
 ///  `Upholds=` starts the service whenever the mount unit comes up and the
-///  service is not already active, which is the trigger the project chose
+///  service is not already active,
+/// which is the trigger the project chose
 ///  without a timer and without a watcher.
 ///
 /// In TS you'd write (pseudocode):

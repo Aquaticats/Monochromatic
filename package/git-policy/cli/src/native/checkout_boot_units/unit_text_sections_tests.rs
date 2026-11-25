@@ -44,7 +44,8 @@ pub(crate) fn lines_of(text: &str, section: &str) -> Vec<String> {
 ///
 /// Why:
 ///  a line such as `Last=` names an argument a control does not want to
-///  repeat, so the assertion reads the beginning and the rest is the text's.
+///  repeat,
+/// so the assertion reads the beginning and the rest is the text's.
 pub(crate) fn carries(text: &str, section: &str, beginning: &str) -> bool {
     return lines_of(text, section).iter().any(|line| return line.starts_with(beginning));
 }

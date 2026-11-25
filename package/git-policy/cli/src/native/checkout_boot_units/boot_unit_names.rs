@@ -9,9 +9,11 @@
 //!  the provider drop-in asks gate `X` to reconcile,
 //!  a unit carries `ExecReload` and a reader asks `doctor` about gate `Y`,
 //!  and nothing fails until a boot does.
-//!  One constant per name keeps the plan, the texts and the runbook one source
+//!  One constant per name keeps the plan,
+//! the texts and the runbook one source
 //!  (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
-//!  "The units, whole" and "The stop-failure drop-in the unit needs beside it").
+//!  "The units,
+//! whole" and "The stop-failure drop-in the unit needs beside it").
 //!  The mount unit name is derived the way the design derives it,
 //!  by `systemd-escape --suffix=mount`,
 //!  because a drop-in on a unit systemd learned from the mount table is read
@@ -43,23 +45,27 @@ pub const PROVIDER_UNIT_NAME: &str = "zfs-mount.service";
 /// The mode word the gate's `ExecStart` runs.
 pub const BOOT_RECONCILE_MODE_WORD: &str = "boot-reconcile";
 
-/// The mode word the gate's `ExecStartPre` runs, with the failure prefix.
+/// The mode word the gate's `ExecStartPre` runs,
+/// with the failure prefix.
 pub const START_PROBE_MODE_WORD: &str = "start-probe";
 
-/// The mode word the gate's `ExecStopPost` runs, with the failure prefix.
+/// The mode word the gate's `ExecStopPost` runs,
+/// with the failure prefix.
 pub const SHUTDOWN_UNMOUNT_MODE_WORD: &str = "shutdown-unmount";
 
 /// The owner's start bound (V8b),
 /// which plan step 22 replaces with a measured ceiling.
 /// Value:
-///  `5min`, as `doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`
+///  `5min`,
+/// as `doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`
 ///  records it.
 pub const GATE_START_BOUND: &str = "5min";
 
 /// The owner's stop bound (V8b),
 /// which plan step 22 replaces with a measured ceiling.
 /// Value:
-///  `1min`, from the same answer as the start bound.
+///  `1min`,
+/// from the same answer as the start bound.
 pub const GATE_STOP_BOUND: &str = "1min";
 
 /// The result word the stop-failure drop-in sets,
@@ -68,8 +74,10 @@ pub const STOP_FAILURE_MODE_WORD: &str = "terminate";
 
 /// The stop-failure drop-in's file name.
 /// Why:
-///  systemd parses drop-ins in file-name order, and Fedora's own
-///  `service.d/10-timeout-abort.conf` sets the aborting mode, so this name must
+///  systemd parses drop-ins in file-name order,
+/// and Fedora's own
+///  `service.d/10-timeout-abort.conf` sets the aborting mode,
+/// so this name must
 ///  sort after it.
 pub const STOP_FAILURE_DROP_IN_NAME: &str = "zz-checkout-stop-failure-mode.conf";
 
@@ -95,10 +103,12 @@ pub const NESTED_UNIT_NAME_SUFFIX: &str = "-mount.service";
 /// The words every unit line spells before a mode word,
 /// which the root-owned file's dispatch reads.
 /// Value:
-///  `monochromatic-git-policy-cli zfs-root`, from the root-modes record's
+///  `monochromatic-git-policy-cli zfs-root`,
+/// from the root-modes record's
 ///  choice 2.
 /// Why a function:
-///  the group word is that design's constant, so a rename moves every unit text
+///  the group word is that design's constant,
+/// so a rename moves every unit text
 ///  with it.
 pub fn root_words() -> String {
     return crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
@@ -107,7 +117,8 @@ pub fn root_words() -> String {
 /// The path a unit is installed at.
 ///
 /// Why:
-///  every unit of this route lives in the same folder, so only its name is
+///  every unit of this route lives in the same folder,
+/// so only its name is
 ///  spelled beside the text.
 pub fn unit_path(name: &str) -> PathBuf {
     return Path::new(SYSTEM_UNIT_DIRECTORY).join(name);
@@ -116,7 +127,8 @@ pub fn unit_path(name: &str) -> PathBuf {
 /// The path a drop-in of one unit is installed at.
 ///
 /// Why:
-///  a drop-in is read only from `<unit>.d/<name>`, so the folder and the name
+///  a drop-in is read only from `<unit>.d/<name>`,
+/// so the folder and the name
 ///  travel together.
 pub fn drop_in_path(unit: &str, name: &str) -> PathBuf {
     return Path::new(SYSTEM_UNIT_DIRECTORY).join(format!("{unit}.d")).join(name);
@@ -131,7 +143,8 @@ pub fn propagation_service_path() -> PathBuf {
 ///
 /// Why:
 ///  the name carries the dataset's own short word and the suffix a person reads
-///  as a mount unit, and one dataset gets one unit.
+///  as a mount unit,
+/// and one dataset gets one unit.
 pub fn nested_unit_name(slug: &str) -> String {
     return format!("{NESTED_UNIT_NAME_PREFIX}{slug}{NESTED_UNIT_NAME_SUFFIX}");
 }
@@ -141,13 +154,17 @@ pub fn nested_unit_name(slug: &str) -> String {
 ///  as `systemd-escape --suffix=mount --path <path>` prints it.
 /// Why:
 ///  a drop-in on the mount unit is read only under the name systemd gives that
-///  unit, and this host's mount units are learned from the mount table,
+///  unit,
+/// and this host's mount units are learned from the mount table,
 ///  so the spelled name is the only handle:
 ///  `home-user-Monochromatic.mount` for this route's checkout,
 ///  and `srv-zfs\x2dstep\x2d19\x2dfixture-home.mount` in a guest whose path
 ///  carries dashes.
-///  Every byte outside `[A-Za-z0-9:_.]` is escaped as `\xNN`, a `/` becomes
-///  `-`, leading and trailing slashes are dropped, and the root path alone
+///  Every byte outside `[A-Za-z0-9:_.]` is escaped as `\xNN`,
+/// a `/` becomes
+///  `-`,
+/// leading and trailing slashes are dropped,
+/// and the root path alone
 ///  escapes to `-`.
 ///
 /// In TS you'd write (pseudocode):
@@ -194,7 +211,8 @@ pub fn mount_unit_name(path: &Path) -> String {
 /// and `\xNN` otherwise.
 ///
 /// Why:
-///  one byte rule serves every path component, so a second spelling of it cannot
+///  one byte rule serves every path component,
+/// so a second spelling of it cannot
 ///  disagree with the first.
 fn push_one_escaped(escaped: &mut String, byte: u8) {
     match byte {
@@ -211,7 +229,8 @@ fn push_one_escaped(escaped: &mut String, byte: u8) {
 ///  no quote and no backslash.
 /// Why:
 ///  systemd splits a command line on whitespace and honours quotes and a
-///  trailing backslash, so a value carrying one would change what the line runs
+///  trailing backslash,
+/// so a value carrying one would change what the line runs
 ///  rather than what it names.
 ///
 /// In TS you'd write (pseudocode):
@@ -250,8 +269,10 @@ pub fn is_one_unit_name(text: &str) -> bool {
 /// or nothing when its bytes are not UTF-8 or it carries a forbidden character.
 ///
 /// Why:
-///  a unit file is text, and a path the kernel holds can carry bytes text
-///  cannot, so the caller refuses such a path rather than writing a line that
+///  a unit file is text,
+/// and a path the kernel holds can carry bytes text
+///  cannot,
+/// so the caller refuses such a path rather than writing a line that
 ///  names another one.
 pub fn path_as_one_word(path: &Path) -> Option<&str> {
     let text: &str = path.to_str()?;

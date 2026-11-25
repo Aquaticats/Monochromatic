@@ -3,15 +3,19 @@
 //!  in the order it writes them.
 //! Why:
 //!  The gate must carry `ExecReload=` before the propagation pair is installed,
-//!  because without that line the pair's request is a restart, which stops the
-//!  gate, runs its `ExecStopPost=shutdown-unmount` and unmounts every attached
+//!  because without that line the pair's request is a restart,
+//! which stops the
+//!  gate,
+//! runs its `ExecStopPost=shutdown-unmount` and unmounts every attached
 //!  clone
 //!  (`doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
-//!  "What must be applied to the machine, and where that is recorded").
+//!  "What must be applied to the machine,
+//! and where that is recorded").
 //!  Building the list in one place means the pair cannot be written beside a
 //!  gate that cannot reload it,
 //!  and a control writes exactly what a person's setup would write.
-//!  The nested datasets' units come last, because each requires the gate.
+//!  The nested datasets' units come last,
+//! because each requires the gate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

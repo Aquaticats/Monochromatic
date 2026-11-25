@@ -17,7 +17,8 @@
 //!  The parent's device is what tells an unmounted covered entry from a mounted
 //!  checkout:
 //!  a mount at the path gives the entry another filesystem's device,
-//!  and the flag read there belongs to the dataset, not to the underlay the
+//!  and the flag read there belongs to the dataset,
+//! not to the underlay the
 //!  decision protects.
 //!  The read opens nothing that can block and follows no link at the entry:
 //!  `AT_SYMLINK_NOFOLLOW` makes a symlink at the path a file rather than a
@@ -42,10 +43,10 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type EntryFacts = { device, inode, owner, mode, directory, immutable, attributesReported, sameDeviceAsParent };
+/// type CoveredEntryFacts = { device, inode, owner, mode, directory, immutable, attributesReported, sameDeviceAsParent };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EntryFacts {
+pub struct CoveredEntryFacts {
     /// The entry's device number.
     pub device: u64,
     /// The entry's inode number.
@@ -133,7 +134,7 @@ impl EntryReadRefusal {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface EntryReader { read(path): EntryFacts }
+/// interface EntryReader { read(path): CoveredEntryFacts }
 /// ```
 pub trait EntryReader {
     /// The kernel's facts about the entry at this path and about its parent.
@@ -142,18 +143,19 @@ pub trait EntryReader {
     /// The path is not text,
     /// has no parent,
     /// or the kernel refused a read.
-    fn read(&self, path: &Path) -> Result<EntryFacts, EntryReadRefusal>;
+    fn read(&self, path: &Path) -> Result<CoveredEntryFacts, EntryReadRefusal>;
 }
 
 /// The read the release boot makes.
 ///
 /// Why:
-///  it asks the kernel at the moment of the check, so a flag cleared by a
+///  it asks the kernel at the moment of the check,
+/// so a flag cleared by a
 ///  rollback or a mount since the last boot is seen.
 pub struct LiveEntryReader;
 
 impl EntryReader for LiveEntryReader {
-    fn read(&self, path: &Path) -> Result<EntryFacts, EntryReadRefusal> {
+    fn read(&self, path: &Path) -> Result<CoveredEntryFacts, EntryReadRefusal> {
         let parent: &Path = path.parent().filter(|one| return !one.as_os_str().is_empty()).ok_or_else(|| {
             return EntryReadRefusal::NoParent { path: path.to_path_buf() };
         })?;
@@ -165,7 +167,7 @@ impl EntryReader for LiveEntryReader {
         let immutable_bit: u64 = libc::STATX_ATTR_IMMUTABLE as u64;
         let attributes_reported: bool = u64::from(entry.stx_attributes_mask) & immutable_bit != 0;
         let immutable: bool = attributes & immutable_bit != 0;
-        return Ok(EntryFacts {
+        return Ok(CoveredEntryFacts {
             device: device_number(&entry),
             inode: entry.stx_ino,
             owner: entry.stx_uid,
@@ -183,7 +185,8 @@ impl EntryReader for LiveEntryReader {
 ///
 /// Why:
 ///  the pair is what distinguishes a mount at the path from the underlay entry
-///  on the parent's filesystem, and comparing the pair needs no `makedev`.
+///  on the parent's filesystem,
+/// and comparing the pair needs no `makedev`.
 fn device_number(facts: &libc::statx) -> u64 {
     return (u64::from(facts.stx_dev_major) << 32) | u64::from(facts.stx_dev_minor);
 }

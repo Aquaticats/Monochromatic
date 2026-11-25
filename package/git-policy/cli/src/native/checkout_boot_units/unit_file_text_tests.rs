@@ -4,7 +4,8 @@
 //!  no blank tail,
 //!  and a comment that names a file's own path.
 //! Why:
-//!  three texts are built through this helper, so a change to it is a change to
+//!  three texts are built through this helper,
+//! so a change to it is a change to
 //!  every file a setup writes.
 //!
 //! In TS you'd write (pseudocode):

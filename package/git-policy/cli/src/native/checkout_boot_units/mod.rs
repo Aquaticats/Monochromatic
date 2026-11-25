@@ -1,5 +1,6 @@
 //! What:
-//!  The boot and shutdown units of the ZFS route, as the setup writes them:
+//!  The boot and shutdown units of the ZFS route,
+//! as the setup writes them:
 //!  the gate that reconciles clone mounts after the checkout is ready,
 //!  its stop-failure drop-in,
 //!  the provider drop-in that asks the gate to reconcile again,
@@ -7,26 +8,32 @@
 //!  one unit per dataset whose mountpoint lies inside the checkout,
 //!  and the list of files a setup run writes.
 //! Why:
-//!  ZED alone cannot cover boot and shutdown, so the route installs a
+//!  ZED alone cannot cover boot and shutdown,
+//! so the route installs a
 //!  `Type=oneshot` unit whose `ExecStart` reconciles and whose `ExecStopPost`
 //!  unmounts what this boot verified
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
 //!  The owner's answers of 2026-11-24 fix what that unit requires and orders
-//!  after, which drop-ins it needs beside it, and the two time bounds
+//!  after,
+//! which drop-ins it needs beside it,
+//! and the two time bounds
 //!  (`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
 //!  V1 to V9 and V8b);
 //!  the propagation pair comes from the accepted propagation record
 //!  (`doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
 //!  "Which triggers the route adds").
 //!  The texts live in the release code rather than only in a runbook so the
-//!  host can parse and assert every ordering line, which is this step's host
+//!  host can parse and assert every ordering line,
+//! which is this step's host
 //!  half of the plan's split
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 19,
 //!  "The measurements the guest carries and the host keeps").
-//!  Nothing here starts, stops or reads a service manager:
-//!  the module builds text, and a setup run or a guest's own manager acts on it.
+//!  Nothing here starts,
+//! stops or reads a service manager:
+//!  the module builds text,
+//! and a setup run or a guest's own manager acts on it.
 //!
 //! Files in this folder,
 //! each using only the files listed before it:
@@ -49,7 +56,8 @@
 //! - `nested_dataset_unit_text.rs`:
 //!   one nested dataset's mount unit.
 //! - `boot_unit_install_plan.rs`:
-//!   every file the setup writes, in the order it writes them.
+//!   every file the setup writes,
+//!   in the order it writes them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -75,6 +83,16 @@ pub use boot_unit_names::{
 pub use nested_dataset_unit_text::{DATASET_OPTION, MOUNT_PATH_DESCENDANT_MODE_WORD, nested_dataset_unit};
 pub use unit_file_text::{file_text, path_comment};
 pub use propagation_unit_text::{propagation_mount_drop_in, propagation_service};
+
+/// The units' arm in a throwaway guest:
+/// every file written at the path systemd reads,
+/// parsed by `systemd-analyze verify`,
+/// and read back from the manager.
+/// Never part of the release executable,
+/// and it prints `SKIPPED` anywhere but the step 19 guest.
+#[cfg(test)]
+#[path = "boot_unit_guest_tests.rs"]
+mod guest_tests;
 
 /// The reading every unit text's control shares:
 /// the lines of one INI section,

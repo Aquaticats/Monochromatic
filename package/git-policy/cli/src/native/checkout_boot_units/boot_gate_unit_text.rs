@@ -9,16 +9,19 @@
 //!  one `RequiresMountsFor=` (V3),
 //!  no before-login ordering (V8a),
 //!  and the two bounds (V8b).
-//!  The key lines are conditional, because a unit that requires a unit the boot
+//!  The key lines are conditional,
+//! because a unit that requires a unit the boot
 //!  does not install stays `inactive` with `Result=success` and writes no
-//!  journal line at all, which is a gate that silently never runs
+//!  journal line at all,
+//! which is a gate that silently never runs
 //!  (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
 //!  "The boot and shutdown unit",
 //!  "Why each line";
 //!  `doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
 //!  V1 to V8).
 //!  The provider drop-in is what re-runs the gate after a post-key-load checkout
-//!  mount, and it is a reload so a provider restart leaves the gate and every
+//!  mount,
+//! and it is a reload so a provider restart leaves the gate and every
 //!  attached clone alone
 //!  (`doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`,
 //!  "Which trigger runs after the checkout becomes ready").
@@ -43,13 +46,15 @@ use crate::checkout_boot_units::boot_unit_names::{
 pub const FAILURE_IGNORED_PREFIX: char = '-';
 
 /// What:
-///  The gate, whole:
+///  The gate,
+/// whole:
 ///  the unit that reconciles the managed clone mounts at boot,
 ///  reloads on the provider's request,
 ///  and unmounts what this boot verified at shutdown.
 /// Why:
 ///  the plan installs this text and the design's guest measured it booting
-///  green with the same order the owner's answers describe, so the text is
+///  green with the same order the owner's answers describe,
+/// so the text is
 ///  written here and asserted rather than retyped by each setup run.
 ///
 /// In TS you'd write (pseudocode):
@@ -106,7 +111,8 @@ pub fn boot_gate_unit(facts: &CheckoutBootFacts) -> Result<String, UnitTextRefus
 /// Why:
 ///  a machine whose packaging sets `abort` sends SIGABRT to an overrunning stop
 ///  stage and leaves a coredump;
-///  this file's name sorts after Fedora's own `10-timeout-abort.conf`, so the
+///  this file's name sorts after Fedora's own `10-timeout-abort.conf`,
+/// so the
 ///  value it sets is the one in force.
 ///
 /// In TS you'd write (pseudocode):
@@ -120,7 +126,8 @@ pub fn stop_failure_drop_in() -> String {
 
 /// What:
 ///  The provider's drop-in:
-///  after `zfs mount -a` ran, ask the gate to reconcile by a reload.
+///  after `zfs mount -a` ran,
+/// ask the gate to reconcile by a reload.
 /// Why:
 ///  a key-load event can arrive before the checkout is mounted,
 ///  so the trigger that must run afterwards belongs to the provider whose

@@ -8,7 +8,8 @@
 //!  each reason is a different repair,
 //!  so a reading that answered "not protected" without the reason would leave a
 //!  person without the command to run.
-//!  The order is asserted on its own, because a mounted checkout reported as a
+//!  The order is asserted on its own,
+//! because a mounted checkout reported as a
 //!  missing flag would send a person to `chattr` on a dataset they cannot protect
 //!  that way.
 //!
@@ -17,15 +18,17 @@
 //! expect(verify({ ...facts, immutable: false }, 1000)).toEqual({ kind: 'unprotected', reason: 'immutable-clear' });
 //! ```
 
-use crate::checkout_underlay_entry::underlay_entry_read::EntryFacts;
+use crate::checkout_underlay_entry::underlay_entry_read::CoveredEntryFacts;
 use crate::checkout_underlay_entry::underlay_entry_verdict::{UnderlayVerdict, UnprotectedReason, UnprovenReason, verify};
 
 /// The account the route requires the covered entry to belong to.
 const WANTED_OWNER: u32 = 1_000;
 
-/// The reading of an unmounted, immutable, account-owned covered entry.
-fn protected() -> EntryFacts {
-    return EntryFacts {
+/// The reading of an unmounted,
+/// immutable,
+/// account-owned covered entry.
+fn protected() -> CoveredEntryFacts {
+    return CoveredEntryFacts {
         device: 2_097_152,
         inode: 42,
         owner: WANTED_OWNER,
@@ -45,14 +48,14 @@ fn an_unmounted_immutable_entry_of_the_account_is_protected() {
 
 #[test]
 fn a_file_or_a_link_at_the_path_is_no_covered_entry() {
-    let facts: EntryFacts = EntryFacts { directory: false, ..protected() };
+    let facts: CoveredEntryFacts = CoveredEntryFacts { directory: false, ..protected() };
     assert_eq!(verify(&facts, WANTED_OWNER), UnderlayVerdict::Unprotected(UnprotectedReason::NotADirectory));
     assert!(!verify(&facts, WANTED_OWNER).is_protected());
 }
 
 #[test]
 fn a_mount_at_the_path_is_named_before_the_flag_is_read() {
-    let mounted: EntryFacts = EntryFacts { same_device_as_parent: false, immutable: false, ..protected() };
+    let mounted: CoveredEntryFacts = CoveredEntryFacts { same_device_as_parent: false, immutable: false, ..protected() };
     assert_eq!(
         verify(&mounted, WANTED_OWNER),
         UnderlayVerdict::Unprotected(UnprotectedReason::MountedOver),
@@ -66,7 +69,7 @@ fn a_mount_at_the_path_is_named_before_the_flag_is_read() {
 
 #[test]
 fn a_filesystem_that_reports_no_attribute_is_unproven_and_not_unprotected() {
-    let facts: EntryFacts = EntryFacts { attributes_reported: false, immutable: false, ..protected() };
+    let facts: CoveredEntryFacts = CoveredEntryFacts { attributes_reported: false, immutable: false, ..protected() };
     assert_eq!(verify(&facts, WANTED_OWNER), UnderlayVerdict::Unproven(UnprovenReason::AttributesNotReported));
     assert!(!verify(&facts, WANTED_OWNER).is_protected());
     assert!(
@@ -77,7 +80,7 @@ fn a_filesystem_that_reports_no_attribute_is_unproven_and_not_unprotected() {
 
 #[test]
 fn a_clear_flag_is_unprotected_and_names_the_chattr_command() {
-    let facts: EntryFacts = EntryFacts { immutable: false, ..protected() };
+    let facts: CoveredEntryFacts = CoveredEntryFacts { immutable: false, ..protected() };
     let verdict: UnderlayVerdict = verify(&facts, WANTED_OWNER);
     assert_eq!(verdict, UnderlayVerdict::Unprotected(UnprotectedReason::ImmutableClear));
     assert!(verdict.message(&facts).contains("chattr +i"), "the repair is the setup's own step: {}", verdict.message(&facts));
@@ -86,7 +89,7 @@ fn a_clear_flag_is_unprotected_and_names_the_chattr_command() {
 
 #[test]
 fn another_account_s_owner_is_reported_after_the_flag() {
-    let facts: EntryFacts = EntryFacts { owner: 0, ..protected() };
+    let facts: CoveredEntryFacts = CoveredEntryFacts { owner: 0, ..protected() };
     let verdict: UnderlayVerdict = verify(&facts, WANTED_OWNER);
     assert_eq!(verdict, UnderlayVerdict::Unprotected(UnprotectedReason::Owner { found: 0, wanted: WANTED_OWNER }));
     assert!(verdict.message(&facts).contains("chown 1000"), "the repair names the owner to restore: {}", verdict.message(&facts));
@@ -94,7 +97,7 @@ fn another_account_s_owner_is_reported_after_the_flag() {
 
 #[test]
 fn every_verdict_states_the_numbers_it_compared() {
-    let facts: EntryFacts = protected();
+    let facts: CoveredEntryFacts = protected();
     let line: String = UnderlayVerdict::Protected.line(&facts);
     assert!(line.starts_with("UNDERLAY entry=protected"), "the line names its subject: {line}");
     for number in ["device=2097152", "inode=42", "owner=1000", "mode=040755", "immutable=true", "attributes-reported=true", "same-device-as-parent=true"] {
@@ -108,7 +111,7 @@ fn every_verdict_states_the_numbers_it_compared() {
 
 #[test]
 fn the_sentences_say_nothing_was_attached_or_changed() {
-    let facts: EntryFacts = protected();
+    let facts: CoveredEntryFacts = protected();
     for verdict in [
         UnderlayVerdict::Unprotected(UnprotectedReason::NotADirectory),
         UnderlayVerdict::Unprotected(UnprotectedReason::MountedOver),

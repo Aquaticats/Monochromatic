@@ -7,9 +7,12 @@
 //!  and a path that is not text is refused before any call.
 //! Why:
 //!  the verdict is only as good as this read,
-//!  and the three shapes a boot meets (a folder, something else, nothing) each
+//!  and the three shapes a boot meets (a folder,
+//! something else,
+//! nothing) each
 //!  answer a branch a person acts on.
-//!  Every control takes its folder from `fixture`, so two tests share none and
+//!  Every control takes its folder from `fixture`,
+//! so two tests share none and
 //!  each folder goes when its test thread ends.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +20,7 @@
 //! expect(new LiveEntryReader().read(fixture('underlay-entry-live')).directory).toBe(true);
 //! ```
 
-use crate::checkout_underlay_entry::underlay_entry_read::{EntryFacts, EntryReadRefusal, EntryReader, LiveEntryReader};
+use crate::checkout_underlay_entry::underlay_entry_read::{CoveredEntryFacts, EntryReadRefusal, EntryReader, LiveEntryReader};
 use crate::test_support::fixture;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -26,14 +29,14 @@ use std::path::{Path, PathBuf};
 #[test]
 fn a_fixture_folder_reads_as_the_entry_on_its_parent_s_device() {
     let root: PathBuf = fixture("underlay-entry-live-folder");
-    let facts: EntryFacts = LiveEntryReader.read(root.as_path()).expect("the fixture folder reads");
+    let facts: CoveredEntryFacts = LiveEntryReader.read(root.as_path()).expect("the fixture folder reads");
     assert!(facts.directory, "a fixture folder is a directory");
     assert!(facts.same_device_as_parent, "the fixture is not a mount of its own");
     assert_eq!(facts.owner, rustix::process::geteuid().as_raw(), "the test account owns its own fixture");
     assert_eq!(facts.mode & libc::S_IFMT, libc::S_IFDIR, "the mode says directory too");
     assert!(facts.inode != 0, "the kernel reports an inode");
-    assert_eq!(
-        facts.attributes_reported, true,
+    assert!(
+        facts.attributes_reported,
         "the build volume's filesystem reports the immutable attribute, which is the proof this check needs; a filesystem that does not is unproven, which the guest arm covers"
     );
 }
@@ -43,7 +46,7 @@ fn a_file_at_the_path_is_no_directory() {
     let root: PathBuf = fixture("underlay-entry-live-file");
     let file: PathBuf = root.join("a-file");
     std::fs::write(file.as_path(), b"x").expect("the fixture file writes");
-    let facts: EntryFacts = LiveEntryReader.read(file.as_path()).expect("the fixture file reads");
+    let facts: CoveredEntryFacts = LiveEntryReader.read(file.as_path()).expect("the fixture file reads");
     assert!(!facts.directory, "a file is not the covered folder");
 }
 
@@ -52,7 +55,7 @@ fn a_symlink_at_the_path_is_no_directory_either() {
     let root: PathBuf = fixture("underlay-entry-live-link");
     let link: PathBuf = root.join("a-link");
     std::os::unix::fs::symlink(root.as_path(), link.as_path()).expect("the fixture link is made");
-    let facts: EntryFacts = LiveEntryReader.read(link.as_path()).expect("the link itself reads");
+    let facts: CoveredEntryFacts = LiveEntryReader.read(link.as_path()).expect("the link itself reads");
     assert!(!facts.directory, "the read follows no link at the entry");
 }
 

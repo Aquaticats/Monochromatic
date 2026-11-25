@@ -9,7 +9,8 @@
 //!  a checkout path carrying a space is two words on a line whose first word is
 //!  a program,
 //!  and a drop-in folder under a name no unit has is read by nothing.
-//!  The refusal names the input and the way forward, so a setup run fails where
+//!  The refusal names the input and the way forward,
+//! so a setup run fails where
 //!  a person can fix the input rather than at the next boot
 //!  (`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
 //!  V3 and V7).
@@ -104,7 +105,8 @@ impl UnitTextRefusal {
 }
 
 /// What:
-///  The facts the gate, the provider drop-in and the propagation pair are
+///  The facts the gate,
+/// the provider drop-in and the propagation pair are
 ///  built from.
 /// Why:
 ///  the checkout is the path the gate's `RequiresMountsFor=` names and the mount
@@ -152,7 +154,8 @@ impl CheckoutBootFacts {
 ///  which gets a unit of its own ordered after the gate.
 /// Why:
 ///  `zfs mount -a` mounts such a dataset before the checkout or under a shared
-///  one, so V4 sets it `canmount=noauto` and V9 gives it a unit that starts only
+///  one,
+/// so V4 sets it `canmount=noauto` and V9 gives it a unit that starts only
 ///  after the gate proved the checkout
 ///  (`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`,
 ///  V4 and V9).
@@ -231,7 +234,8 @@ pub fn check_path(what: &'static str, path: &Path) -> Result<(), UnitTextRefusal
 /// after proving it is absolute and one word.
 ///
 /// Why:
-///  a caller that must write the path on a line reads it once here, so no
+///  a caller that must write the path on a line reads it once here,
+/// so no
 ///  second check can disagree with the first.
 ///
 /// # Errors

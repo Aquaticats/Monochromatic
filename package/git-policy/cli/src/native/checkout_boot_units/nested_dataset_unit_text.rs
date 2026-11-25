@@ -4,18 +4,24 @@
 //!  and skips itself when the dataset is already mounted.
 //! Why:
 //!  `zfs mount -a` mounts a path descendant before the checkout or under a
-//!  shared checkout, and a later checkout attach hides it while the mount row
+//!  shared checkout,
+//! and a later checkout attach hides it while the mount row
 //!  and any folder it made stay.
 //!  The project's answer sets such a dataset `canmount=noauto` and gives it this
-//!  unit, ordered after the gate, until the wrapper's own
+//!  unit,
+//! ordered after the gate,
+//! until the wrapper's own
 //!  `mount-path-descendant` mode is the thing that mounts it (V4 and V9,
 //!  `doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`).
-//!  The mode exists in this build, so the `ExecStart` line here runs it;
-//!  the design's earlier explicit `zfs mount` shape is what it replaces, and the
+//!  The mode exists in this build,
+//! so the `ExecStart` line here runs it;
+//!  the design's earlier explicit `zfs mount` shape is what it replaces,
+//! and the
 //!  `[Unit]` block is the same under both.
 //!  The condition is load-bearing:
 //!  a re-run of `zfs mount` on a mounted dataset prints `filesystem already
-//!  mounted` and exits one, while a skipped unit counts as success for a
+//!  mounted` and exits one,
+//! while a skipped unit counts as success for a
 //!  consumer that requires it.
 //!
 //! In TS you'd write (pseudocode):

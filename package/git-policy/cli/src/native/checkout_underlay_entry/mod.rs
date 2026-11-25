@@ -7,8 +7,10 @@
 //! Why:
 //!  The account can replace an unmounted checkout path on its own dataset,
 //!  so the route decided an ordinary checkout mountpoint plus an immutable
-//!  covered entry, and the flag must be proved before an automated attach,
-//!  including after a reimport or a rollback, and not merely at installation
+//!  covered entry,
+//! and the flag must be proved before an automated attach,
+//!  including after a reimport or a rollback,
+//! and not merely at installation
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "One-time move and checkout boot protection",
 //!  and "Checkout boot mount protection" under "Project decisions").
@@ -34,7 +36,8 @@
 //!
 //! - `underlay_entry_read.rs`:
 //!   the kernel's facts about the entry and its parent,
-//!   the refusal, and the live read.
+//!   the refusal,
+//!   and the live read.
 //! - `underlay_entry_verdict.rs`:
 //!   the three answers a boot takes,
 //!   the reasons and the line each prints.
@@ -47,5 +50,5 @@
 pub mod underlay_entry_read;
 pub mod underlay_entry_verdict;
 
-pub use underlay_entry_read::{EntryFacts, EntryReadRefusal, EntryReader, LiveEntryReader};
+pub use underlay_entry_read::{CoveredEntryFacts, EntryReadRefusal, EntryReader, LiveEntryReader};
 pub use underlay_entry_verdict::{UnderlayVerdict, UnprotectedReason, UnprovenReason, verify};

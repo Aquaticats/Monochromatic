@@ -21,7 +21,8 @@ use std::path::Path;
 /// ending with exactly one newline.
 ///
 /// Why:
-///  every text in this folder ends the same way, so a control reads the last
+///  every text in this folder ends the same way,
+/// so a control reads the last
 ///  line without a special case per file.
 pub fn file_text(lines: Vec<String>) -> String {
     let mut text: String = lines.join("\n");
@@ -32,7 +33,8 @@ pub fn file_text(lines: Vec<String>) -> String {
 /// The comment line naming the path a file is written to.
 ///
 /// Why:
-///  a file found on a machine names its own place, so a reader compares what it
+///  a file found on a machine names its own place,
+/// so a reader compares what it
 ///  holds with where it is without a second document.
 pub fn path_comment(path: &Path) -> String {
     return format!("# {}", path.display());
