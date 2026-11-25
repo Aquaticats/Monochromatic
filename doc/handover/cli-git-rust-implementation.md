@@ -325,8 +325,11 @@ a removal of a whole clone is refused with the slot's report (no clone removal b
 a `git worktree prune` first writes back a lost underlay pointer and refuses when nothing can be restored,
 and `git worktree repair` prints what the link can and cannot restore;
 its guest arm and VM item 6's pointer arms pass on a file-backed pool, and `source_guard` passed 80 of 80 at its tip;
-running since 2026-11-24T17:40-05:00:
-step 14's lineage proof, inventory, bookmark rule, destruction plan and removal intent built ahead, unwired (`pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead`);
+step 14's lineage proof, inventory, bookmark rule `A: Live or planned`, destruction plan and removal intent are built ahead, unwired,
+in `src/native/worktree_clone_removal_proof_and_plan/` (merged `3271ca042c`, `source_guard` 80 of 80 at its tip);
+its guest arm on a file-backed pool showed the promoted-clone refusal with every protected snapshot surviving, reverse promotion, a stale bookmark refused by name and a replaced clone refused;
+what its wiring needs is in its report (`report-pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead.md` in `~/temp/agent/zfs-step-14-lineage-proof-and-removal-plan-built-ahead-2026-11-24/keep/`):
+the entry `enter_the_removal`, this folder's plan reader as the route's one reader for steps 15 to 18, step 10's `is_canonical_guid_name` to expose, and the `## Lifecycle` section of `SPEC.md`;
 running since 2026-11-24T19:10-05:00:
 step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
 and issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
@@ -336,7 +339,14 @@ running since 2026-11-24T19:25-05:00:
 issue 6322's fix (`pi-fix-removal-keeps-journals-of-gone-worktrees`),
 since a removal keeps the commit service's journal for `rules-repository` or a `claim-watch` naming only the removed worktree,
 which has left 595 journals of removed worktrees among 663 (56 MB) in the service state folder;
-after it merges, `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` clears them on this machine;
+merged as `a4632b1e02` (issue 6322 closed),
+and its build run once on this machine at 2026-11-24T20:20-05:00 removed 594 journals and stopped 76 units of removed worktrees
+(the state folder went from 669 entries to 75; a whole archive of it first is `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/service-state-before-clearing.tar.zst`,
+the command's lines beside it);
+7 instances no record names stay untouched,
+and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
+when the same command clears it;
+the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt;
 the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
