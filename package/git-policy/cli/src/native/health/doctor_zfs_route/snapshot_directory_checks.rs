@@ -173,6 +173,10 @@ const CHECKOUT_SUBJECT: &str = "the checkout dataset, whose `.zfs/snapshot` an a
 /// What the route reads the setting for on the clone container.
 const CONTAINER_SUBJECT: &str = "the clone container, whose value every clone below it inherits, so this one setting is what hides each clone's `.zfs/snapshot` as well";
 
+/// What the route reads the setting for on one clone,
+/// which the step reports only through its container.
+const CLONE_SUBJECT: &str = "a clone below the container, which inherits the container's value unless a setting stands on the clone itself";
+
 /// What:
 ///  The subject a report line names for one dataset's role.
 /// Why:
@@ -185,11 +189,11 @@ const CONTAINER_SUBJECT: &str = "the clone container, whose value every clone be
 /// ```ts
 /// const subject = role === 'container' ? CONTAINER_SUBJECT : CHECKOUT_SUBJECT;
 /// ```
-fn subject_of(role: &DatasetRole) -> Option<&'static str> {
+fn subject_of(role: &DatasetRole) -> &'static str {
     return match role {
-        DatasetRole::Checkout { .. } => Some(CHECKOUT_SUBJECT),
-        DatasetRole::Container => Some(CONTAINER_SUBJECT),
-        DatasetRole::Clone => None,
+        DatasetRole::Checkout { .. } => CHECKOUT_SUBJECT,
+        DatasetRole::Container => CONTAINER_SUBJECT,
+        DatasetRole::Clone => CLONE_SUBJECT,
     };
 }
 
@@ -238,7 +242,7 @@ fn remedy_sentence(dataset: &str) -> String {
 /// ```
 pub fn check_snapdir(facts: &DatasetFacts) -> CheckOutcome {
     let name: &str = facts.name.as_str();
-    let subject: &'static str = subject_of(&facts.role).unwrap_or(CHECKOUT_SUBJECT);
+    let subject: &'static str = subject_of(&facts.role);
     let read = match &facts.reading {
         Reading::Read(read) => read,
         Reading::Missing { why } => return finding("dataset", format!("`{name}` is not in its pool ({why}), so its `{SNAPDIR_PROPERTY}` cannot hold anything")),

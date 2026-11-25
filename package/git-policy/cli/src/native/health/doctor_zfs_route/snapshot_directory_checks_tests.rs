@@ -229,6 +229,19 @@ fn the_role_decides_the_checks_name() {
     assert!(snapdir_report(&clone).is_none());
 }
 
+/// A clone reported directly names the container its value comes from,
+/// so a caller that hands one in reads where the setting belongs rather than a
+/// sentence about the checkout.
+#[test]
+fn a_clone_names_the_container_its_value_comes_from() {
+    let facts: DatasetFacts = dataset(DatasetRole::Clone, with_snapdir(DatasetBuilder::clone().build(), PropertyValue::Absent));
+    let answer: CheckOutcome = check_snapdir(&facts);
+    let CheckOutcome::Finding { detail, .. } = answer else {
+        panic!("a clone at the default is a finding: {answer:?}");
+    };
+    assert!(detail.contains("inherits the container's value"), "{detail}");
+}
+
 /// The healthy route's own datasets carry the decided value,
 /// so the builder and this check agree on what a healthy dataset is.
 #[test]
