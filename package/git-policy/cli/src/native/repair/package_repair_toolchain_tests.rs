@@ -206,6 +206,77 @@ fn a_record_that_is_a_named_pipe_is_left_alone() {
 }
 
 /// What:
+///  A launcher record another command replaces with a named pipe at the moment this release reads it
+///  is left alone,
+///  so the add answers instead of waiting for a writer that never comes.
+/// Why:
+///  Looking at a record's name and opening it are two steps,
+///  so a record swapped for a pipe between the two is opened by the second,
+///  and opening a named pipe for reading waits for a writer with no end.
+///  The add's own face reads the records on the person's thread (`prepare_install_on_a_caller_thread`),
+///  so the command the person ran is the one that never returns,
+///  and nothing of the repair or the add has a bound to end it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record('foreign', source); beforeTheRead(() => rename(pipe, recordPath));
+/// const answered = within(PATIENCE, () => repairToolchain(destination, environment)); assert(answered === undefined);
+/// ```
+#[test]
+fn a_record_replaced_by_a_named_pipe_as_it_is_read_is_left_alone() {
+    let (root, destination, _bin, environment) = scene("toolchain-record-replaced-by-a-pipe");
+    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    let record_path: PathBuf = launchers.join("foreign.launch");
+    let replacing: PathBuf = launchers.join("foreign.launch.replacing");
+    // The other command: make the pipe first, then put it at the record's name in one step, which is what a rename is.
+    make_pipe(replacing.as_path());
+    let answered: Option<Option<Finding>> = crate::test_support::finished_within_at(PATIENCE, move || {
+        crate::package_repair_toolchain::WHEN_THE_RECORD_IS_OPENED.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
+            *cell.borrow_mut() = Some(Box::new(move || std::fs::rename(replacing.as_path(), record_path.as_path()).expect("the pipe takes the record's name")));
+        });
+        return repair_toolchain(destination.as_path(), &environment);
+    });
+    // A thread that did block on the pipe is abandoned with the process, so a control that caught the defect reports it
+    //  at its own deadline rather than waiting for that thread for ever.
+    remove(&root);
+    let Some(answered_with) = answered else {
+        panic!("a launcher record replaced by a named pipe with no writer stopped the add's toolchain repair, and nothing ended the wait")
+    };
+    assert!(answered_with.is_none(), "the pipe is no record this release reads, so the repair has nothing to do: {answered_with:?}");
+}
+
+/// What:
+///  A launcher record larger than the bound this release reads is left alone too.
+/// Why:
+///   A read with no size bound lets the file at a record's name decide how much memory the add reads,
+///   and a record is one JSON object whose paths a kernel bounds;
+///   a file past `LONGEST_RECORD` is therefore no record,
+///   and a record this release cannot read is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeRecord('foreign', source, paddingTo(LONGEST_RECORD + 1));
+/// assert(repairToolchain(destination, environment) === undefined);
+/// ```
+#[test]
+fn a_record_larger_than_the_bound_is_left_alone() {
+    let (root, destination, _bin, environment) = scene("toolchain-record-too-large");
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    std::fs::create_dir_all(launchers.as_path()).expect("launchers");
+    // A record that would be stale if it were read: it names another checkout's lock, and JSON allows the padding.
+    let named: String = format!("{{\"lockFile\":\"{}\"}}", root.join("source/toolchain.lock.json").display());
+    let padding: usize = usize::try_from(LONGEST_RECORD).expect("a bound that fits this host") + 1 - named.len();
+    let too_large: String = format!("{named}{}", " ".repeat(padding));
+    let record_path: PathBuf = launchers.join("foreign.launch");
+    std::fs::write(record_path.as_path(), too_large.as_bytes()).expect("the oversized record");
+    assert_eq!(std::fs::metadata(record_path.as_path()).expect("the record").len(), LONGEST_RECORD + 1, "the fixture is past the bound by one byte");
+    let answered: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    remove(&root);
+    assert!(answered.is_none(), "a record larger than the bound is no record this release reads, so the repair has nothing to do: {answered:?}");
+}
+
+/// What:
 ///  The launcher records are read as a job of the process's blocking pool,
 ///  never on the task that polls the repairs.
 /// Why:

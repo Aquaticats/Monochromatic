@@ -44,6 +44,10 @@ const LOOK_PAUSE: Duration = Duration::from_millis(5);
 /// Why:
 ///   One notice process runs one control,
 ///  and a control that found another's counts would wait for the wrong look.
+/// A control that needs this window and `scratch_step_look_below`'s takes the look window first,
+/// as every control does,
+///  because two orders in one process hold each other for ever in a threaded run
+/// (`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

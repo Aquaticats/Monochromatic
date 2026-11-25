@@ -190,12 +190,16 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 ///  after the first met the holder,
 /// so nothing but the removal that ended the hold woke the wait,
 /// and a wait woken by a file of its own would meet the holder over and over.
-/// Whether the wake was the removal and not the reminder's timer is the watch's own count of the waits it ended
-/// at their timer:
+/// Whether the wake was the removal and not the reminder's timer is the count the watch keeps of the waits it ended
+/// at their timer on this thread:
 /// a wait the timer ended adds one,
 /// and the placement that follows such a wake either meets the holder (caught above) or places the lock after the
 ///  removal and leaves no trace of why it woke,
 /// so the count is what tells the two apart.
+/// The count is this thread's,
+/// not the process's,
+/// because a run of `cargo test` is many tests as threads of one process,
+/// and another test's wait at its timer is no wake of this one.
 /// No clock is read for it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
@@ -217,8 +221,8 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     });
     let letting_go: LetsGoOnEveryPath<'_> = LetsGoOnEveryPath(&looked);
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    // How many waits had ended at their timer when this control's wait began.
-    let timed_out_before: usize = crate::service_index_watch::WAKES_BY_THE_TIMER.load(std::sync::atomic::Ordering::SeqCst);
+    // How many waits on this thread had ended at their timer when this control's wait began.
+    let timed_out_before: usize = crate::service_index_watch::wakes_by_the_timer_on_this_thread();
     // Whether the foreign lock stood at each placement, in the order the placements were made.
     let met: Mutex<Vec<bool>> = Mutex::new(Vec::new());
     let noting = |from: &Path, to: &Path| -> std::io::Result<()> {
@@ -247,7 +251,7 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said nothing at all, so the lock it was to wait for went away first");
     // The wait says which of the two ended it, so no reading of the clock is asked whether the removal was the faster one.
     assert_eq!(
-        crate::service_index_watch::WAKES_BY_THE_TIMER.load(std::sync::atomic::Ordering::SeqCst),
+        crate::service_index_watch::wakes_by_the_timer_on_this_thread(),
         timed_out_before,
         "the wait ended at its timer and not at the removal; placements {placements:?}"
     );

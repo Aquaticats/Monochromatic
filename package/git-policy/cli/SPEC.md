@@ -5665,6 +5665,24 @@ Until then the refusal prints what a removal would prove and lose and changes no
 because an unmounted clone and a plan no command of this release could finish or cancel
 would be worse for a person than today's refusal.
 
+The tail a kill leaves behind a head word of `gone` has a driver of its own,
+`worktree_clone_removal_finish_pass::finish_the_removal_plans`,
+and no command reaches it either.
+It takes the slot's claim under the last path component of the plan's `targetHex`,
+reads the start-time gate before any pool request,
+proves the clone gone by its recorded name and by no child of the pinned parent carrying the
+recorded GUID,
+settles the registration whose directory identity the plan records,
+removes the binding's two inventories and then the binding,
+removes the plan last,
+and gives the claim back.
+A plan whose head is any other word is left without a word,
+a live owner of the slot's claim is left to the removal that holds it,
+and a binding that cannot be read,
+one that names another clone,
+or one whose origin fields disagree with the plan's
+leaves both records standing with one line for a person.
+
 The plan is the route's one reader for version 1:
 `worktree_clone_removal_proof_and_plan::plan_reading::{read_the_plan, read_the_plan_at, read_an_existing_plan}`,
 which reads the file in two stages,
@@ -6601,12 +6619,25 @@ of which the two that rewrite link layouts in place are the service's work whene
   A lock the repair cannot read leaves every record counted,
   which keeps the check as strict as it was before the names were read at all.
   The lock is read the way the record beside it is:
+  the same reader opens each,
   only a plain file is opened,
   without following a link,
   and only `SMALL_FILE_LIMIT` bytes of it are read (1 MiB,
-  sixteen times this repository's 63,625-byte lock),
+  sixteen times this repository's 63,625-byte lock,
+  and `LONGEST_RECORD` for the record),
   so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+  a record's name swapped for a pipe after any look at it is refused at the open rather than waited on,
   and no file decides how much memory a command reads.
+  A record is one JSON object holding a tool's name,
+  its scope and two paths,
+  and a path this kernel accepts is at most 4,096 bytes (`getconf PATH_MAX /`),
+  so the bound lies far past any record a writer can make.
+  A record the bound refuses is left alone,
+  which is what a record this release cannot read already gets:
+  the add answers and goes on,
+  the diagnostic log names the file and what refused it,
+  the next pass asks the record again,
+  and the person sees no line of this repair unless another record asks for work.
   The add writes this tool in the same `relink` record,
   so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
