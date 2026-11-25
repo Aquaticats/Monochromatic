@@ -44,6 +44,7 @@
 
 use super::check_outcome::{CheckOutcome, finding, pass, unknown};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::parse;
+use crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME;
 use crate::worktree_clone_mount_protocol::ReadyState;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -80,7 +81,7 @@ pub const ZEDLET_EVENT_PATH: &str = crate::worktree_clone_mount_handler::handler
 ///  `start-probe` and `adopt-worktree-parent`,
 ///  so a build that lost one of these answers a finding here.
 ///  The empty word is the sweep,
-///  which is the mode the installed ZED event starts with no argument.
+///  which is ZED's own start of the history event link with no argument.
 ///  The all-namespace holder scan,
 ///  the two modes the step 10 and step 19 answers add,
 ///  and the words that reach every mode are checked by the dispatch's own
@@ -243,7 +244,7 @@ pub fn check_handler_installation(facts: &HandlerInstallationFacts) -> CheckOutc
 /// What:
 ///  Whether the one executable answers every root mode this route needs.
 /// Why:
-///  A mode that is not in the build's grammar is a mode the installed file
+///  A mode that is not in the build's grammar is a mode the root-owned file
 ///  cannot run,
 ///  so a build that lost the sweep,
 ///  the boot reconciliation,
@@ -275,7 +276,7 @@ pub fn check_modes(words: &[&str]) -> CheckOutcome {
     for word in words {
         let arguments: Vec<OsString> = mode_arguments(word);
         if parse(arguments.as_slice()).is_err() {
-            missing.push(if word.is_empty() { String::from("the sweep (no argument)") } else { format!("`{word}`") });
+            missing.push(if word.is_empty() { format!("the sweep, which ZED starts under the link name {ZEDLET_START_NAME} with no argument") } else { format!("`{word}`") });
         }
     }
     if !missing.is_empty() {
