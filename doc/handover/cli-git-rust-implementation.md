@@ -387,7 +387,16 @@ fixed and merged as `b7ab8cf80a` (issue 6456 closed): every file listed under it
 the gate runner `bin/native-gate-container.ts` now takes its container limits as its own argument,
 the ZFS package's gate image build carries the shared bound,
 and the ide marker was stale (the file hands the root file through `bin/run-bounded.ts`, probed);
-`.github/workflows/advisory-core.yml`'s fast unit subset now runs `//package/container-limit/core:test:unit` so the ledger cannot fall behind silently;
+`.github/workflows/advisory-core.yml`'s fast unit subset now runs `//package/container-limit/core:test:unit` so the ledger cannot fall behind silently (`3574042c16`);
+a manual dispatch (run 45529509832) showed the step had never reached it:
+`task-run` reads `task.ts` only, `package/upstream-fork/p-map/task.ts` had no `test:unit` since `592d78b143` (2026-10-29),
+so the step stopped there on every admitted run, and `package/container-limit/core` had no `task.ts` at all;
+`144814293a` adds both, each passing locally through `task-run`, and a second dispatch (run 45531170934) checks it;
+push runs of that workflow show green only because its rate window skips the core job,
+and the same dispatch also failed its static, committed-file drift, pnpr config drift and Rust install steps,
+which open issues 1826, 1827, 1828, 3501 and 5462 partly cover;
+the merged GUID follow-up (`b92b6783b8`): with a mount covering the slot, the lock's proof now also compares `cloneGuid=` with the pool's answer for the mounted dataset,
+and its guest arm refuses a clone made again under the same name;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
