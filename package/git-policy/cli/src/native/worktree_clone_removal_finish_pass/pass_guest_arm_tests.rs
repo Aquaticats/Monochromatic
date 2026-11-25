@@ -171,7 +171,10 @@ fn the_removal_finish_pass_guest_arms() {
     assert_eq!(kept.head, crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone, "the plan keeps the head's own proof");
     assert!(fixture.registration().exists(), "the registration stands for the finish pass");
     let home: PathBuf = home_folder(common.as_path());
-    for name in [origin_inventory_name(SLOT), clone_inventory_name(SLOT), binding_name(SLOT)] {
+    // The fixture's add wrote the origin-side inventory and the binding; a clone-side inventory is
+    // written only by an add that reached its snapshot, and the pass removes whichever of the three
+    // stand.
+    for name in [origin_inventory_name(SLOT), binding_name(SLOT)] {
         assert!(home.join(name.as_str()).exists(), "`{name}` stands when the pass starts");
     }
     println!("FINISH left=head-gone registration=standing binding=standing");
