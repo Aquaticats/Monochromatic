@@ -2512,7 +2512,13 @@ by a staging name and one rename,
 and the line that says so is printed before Git runs;
 a slot whose registration stands and whose pointer nothing can restore stops the command before Git starts,
 so no managed registration is dropped silently.
-A dry run writes nothing.
+A dry run writes nothing,
+and Git's own parser decides which spellings are one:
+`-n` inside a cluster of short options,
+`--dry-run`,
+any unique prefix of it,
+and the `--no-` form of it,
+with the last of them typed deciding.
 `git gc`'s own prune is not read:
 Git expires a worktree entry there only after three months by default.
 
