@@ -1216,6 +1216,19 @@ an abbreviated `--dry` prune writes the pointer, the cut's guard bans two names 
 about four percent added to `add`, `remove`, `prune` and `move` (mount-table reads before the record check), and stale step numbers in text;
 the reviewer disclosed that its `worktree_clone_add_route::` module run may have opened this host's `/dev/zfs` and sent read-only object-stats requests for names no pool holds (no write, no mount), against the brief;
 the cut held: `source_guard`'s scan went red when the command path named `enter_the_removal`;
+the commit, push and LFS pass ended (`commit-push-lfs-lock-and-the-rest/keep/review.md`) with one high:
+option J's sentence cannot be started, and OpenSSH's failure path for it kills a `ProxyCommand`, so behind a proxy with an unloaded first key a command ends 255 where `false` ended 0
+(real `sshd` and `ssh` 10.6p2 in a container), plus the sweep's unmapped journals reported on every run, its "none" line beside a kept journal, and lows;
+the owner's four answers are recorded in `doc/decision/cli-git-alpha-46-release-pass-four-answers.md`:
+"Put `false` back (Recommended)", "A: full spelling, not yet (Recommended)", "B: refuse only the slot (Recommended)", "B: skip the check below alpha.46 (Recommended)";
+the next-step delivery at a new host key (C, C2 or D of the host-key proposal) is the owner's next question on that path, after `false` is back;
+merged after the passes: issue 6459's fix `a631f67b69` (the any-name inner half sets `SECBIT_NOROOT` after its mounts;
+the audit log, read across all three rotated files, shows two `git` denials before the fix and none in any window after it)
+and the one-program fixes `88f5fff28c` (M3, M4, L1 to L7);
+the gate on `main` at `df7d464a6c` (step 16 and the 6448 fix) gave `11236 tests run: 11234 passed (6 slow), 2 failed, 45 skipped`, the cause-H pair, with only `umount`'s three `dac_override`;
+a denial read must cover `audit.log.2`, `audit.log.1` and `audit.log` together once the log rotates, and in zsh a window's two times must be passed as two words (`for from to in ...`);
+the ZFS route fixes wait on their merged-tree check; the askpass and commit-push round (brief `~/temp/agent/askpass-false-and-commit-push-pass-fixes-2026-11-25/prompt.md`) waits on a rising memory stall;
+the round for the root-mode usage wording, the rollback floor and the same-leaf move follows the ZFS route merge, whose files it touches;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
