@@ -1,7 +1,9 @@
 /**
- Unit tests for the template's cloud-init user-data: a guest whose SELinux
- policy confines the QEMU guest agent must get the drop-in that starts the
- agent through `/usr/bin/env`, and a guest without such a policy must not.
+ Unit tests for the template's cloud-init user-data: every systemd guest gets
+ the drop-in that keeps an out-of-memory kill of one command from stopping the
+ agent, a guest whose SELinux policy confines the QEMU guest agent also gets the
+ drop-in that starts the agent through `/usr/bin/env`, and a guest without such
+ a policy must not.
  No virtual machine is started.
  
  @module
@@ -14,6 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  GUEST_AGENT_COMMAND_OOM_DROP_IN_PATH,
   GUEST_AGENT_DROP_IN_PATH,
   IMAGES,
   type LinuxImageSpec,
@@ -172,6 +175,36 @@ await describe({
           fn: async () => {
             expect(CONFINED_GUEST.guestAgentIsSelinuxConfined,).toBe(true,);
             expect(UNCONFINED_GUEST.guestAgentIsSelinuxConfined,).toBeUndefined();
+          },
+        },),
+        it({
+          name: 'keeps the agent running when the kernel ends one of its commands',
+          fn: async () => {
+            for (const guest of [CONFINED_GUEST, UNCONFINED_GUEST]) {
+              expect(userDataFor(guest,),).toContain(
+                `  - path: ${GUEST_AGENT_COMMAND_OOM_DROP_IN_PATH}`,
+              );
+              expect(dropInLinesFor(guest,),).toContain('OOMPolicy=continue');
+            }
+          },
+        },),
+        it({
+          name: 'reloads systemd before enabling the unit, with or without another drop-in',
+          fn: async () => {
+            for (const guest of [CONFINED_GUEST, UNCONFINED_GUEST]) {
+              /**
+               User-data under test for this distro.
+               */
+              const userData = userDataFor(guest,);
+              /**
+               Where the reload is asked for.
+               */
+              const reloadAt = userData.indexOf('systemctl daemon-reload',);
+              expect(reloadAt,).toBeGreaterThan(-1,);
+              expect(reloadAt,).toBeLessThan(
+                userData.indexOf('systemctl enable --now qemu-guest-agent',),
+              );
+            }
           },
         },),
       ],

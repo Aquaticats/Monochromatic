@@ -90,12 +90,15 @@ export {
   templateUserData,
 } from './cloud-init.ts';
 /**
- The systemd drop-in path that starts a confined guest agent through `/usr/bin/env`,
- exposed for built-artifact verification.
+ The systemd drop-in paths mvm writes for the guest agent, exposed for
+ built-artifact verification.
 
  @internal
  */
-export { GUEST_AGENT_DROP_IN_PATH, } from './cloud-init-init-systems.ts';
+export {
+  GUEST_AGENT_COMMAND_OOM_DROP_IN_PATH,
+  GUEST_AGENT_DROP_IN_PATH,
+} from './cloud-init-init-systems.ts';
 /**
  The session daemon's unit name and idle limit, exposed for built-artifact
  verification.

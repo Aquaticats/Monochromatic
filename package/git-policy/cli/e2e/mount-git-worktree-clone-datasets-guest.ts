@@ -423,10 +423,13 @@ async function run(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    // The guest is a four-vCPU image with eight gigabytes, and this crate's release test build exhausts them at
-    // Cargo's default parallelism: the kernel then misses the guest agent's status requests and mvm loses the build's
-    // result. One job with a swap file keeps the build inside the guest (fd5e81e1ab), and the build is the same one
-    // either way.
+    // The guest is a four-vCPU image, and this crate's release test build at Cargo's default parallelism fills it:
+    // measured on 2026-11-25 (issue 6458), two jobs peaked the guest agent's own unit at 7.45 GiB of the guest's
+    // 7.75 GiB, and one run ended with the kernel killing a rustc at 5.15 GiB inside that unit. One job with a swap
+    // file keeps the build inside the guest (fd5e81e1ab; this driver's whole run on 2026-11-25 built in 18 minutes
+    // that way), and the build is the same one either way. A kill would show as a failing build with its own error,
+    // because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
+    // (doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md).
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',

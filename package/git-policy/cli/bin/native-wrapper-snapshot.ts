@@ -57,8 +57,9 @@ export const wrapperCrates: readonly string[] = [
  The scanner's `build.rs` and `data` hold the baseline its library compiles in, and the dependency layer's stub builder
  copies every linked crate's `Cargo.lock` beside its manifest.
  A file a test reads at run time is part of this list too, or the control that reads it fails in the image while the
- path is there on a checkout: `README.md` is included by a test, and `SPEC.md` is read by the control that holds the
- longest runtime directory the prose states to the number the function returns.
+ path is there on a checkout: `README.md` is included by a test, `SPEC.md` is read by the control that holds the
+ longest runtime directory the prose states to the number the function returns, and `clippy.toml` is read by the
+ `source_guard` controls that pin the typed ban's disallowed calls.
  */
 const crateEntryNames = {
   'git-policy/cli': [
@@ -66,6 +67,7 @@ const crateEntryNames = {
     'Cargo.lock',
     'README.md',
     'SPEC.md',
+    'clippy.toml',
     'src/native',
   ],
   'jsonc-edit/core-rust': [
