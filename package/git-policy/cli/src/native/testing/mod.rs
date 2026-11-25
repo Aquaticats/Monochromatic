@@ -148,6 +148,13 @@ pub(crate) mod real_git_lfs_the_run_requires_tests;
 #[cfg(unix)]
 pub(crate) mod child_ended_with_its_whole_group;
 
+/// The control that a build made without the `test-only-switches` feature reads none of the crate's test-only
+/// variables;
+/// never part of the release executable.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "no_switch_is_read_without_its_feature_tests.rs"]
+pub(crate) mod no_switch_is_read_without_its_feature_tests;
+
 /// One binding record whose slot, registration and pointer are a fixture's own paths,
 /// and the publication that puts it under a fixture's Git common directory;
 /// never part of the release executable.
