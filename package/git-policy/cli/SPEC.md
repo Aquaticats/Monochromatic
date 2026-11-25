@@ -4902,7 +4902,7 @@ and every step reads the state a kill at the step before it leaves:
   which the restore's proof then names as still untracked,
   and a directory where the index records a file,
   which the removal before the reset cannot unlink.
-  The decline ends when plan step 14's settle lands and a failed restore at a
+  The decline ends when plan step 16's settle lands and a failed restore at a
   slot can be cleaned up after
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
@@ -5208,7 +5208,7 @@ What this release does not yet do:
   which the removal before the reset cannot unlink,
   both make the whole route decline to the ladder (the preflight's own paragraph
   above).
-  That decline is the interim until plan step 14's settle lands:
+  That decline is the interim until plan step 16's settle lands:
   once a failed restore at a slot destroys its claim,
   its locked registration,
   its clone and its origin snapshot and finishes with Git's own checkout,
@@ -5319,19 +5319,27 @@ resolved the way Git resolves it,
 changes nothing,
 and names the one route that moves the work:
 the removal,
-then a new add where the work belongs.
+then a new add where the work belongs,
+which this release has no command for,
+so the clone and its record stay until it has one.
 A record filed under the slot's name that cannot be read refuses too,
 and one that names another path refuses,
 because nothing then proves the move would not rename a managed clone's slot.
 
 `git worktree remove` is refused for a slot whose record proves a whole worktree,
-which is the two states `mounted managed clone` and `known unmounted clone`.
+which is the two states `mounted managed clone` and `known unmounted clone`,
+whatever options the command carries:
+every spelling Git accepts is read for the worktree it names,
+`-f -f` included,
+because that is the spelling Git's own lock message suggests.
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
 nobody.
 The refusal prints the slot's report and says that this release has no removal for a clone,
-which plan steps 14 and 16 build;
+so the clone and its record stay until one does,
+and names the one command of Git's own message that works,
+`git worktree unlock <slot>`;
 what a removal would prove and lose is printed beside it,
 which the section "Removal of a ZFS worktree clone" below describes.
 A pending add's removal is not refused,

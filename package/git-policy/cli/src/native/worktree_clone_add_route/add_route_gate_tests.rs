@@ -108,3 +108,44 @@ fn the_host_reads_reach_the_same_decision() {
         "the control's own checkout is not on ZFS, so the route does not serve it"
     );
 }
+
+/// A mount table no control may read: asking it for one fails the test.
+/// Why:
+///  A destination outside the route's own slot is no add this route serves,
+///  and a table that fails when read proves the gate decided that before it
+///  read the machine.
+struct ATableNoControlReads;
+
+impl MountedDatasets for ATableNoControlReads {
+    fn mounted_datasets(&self) -> Result<Vec<MountedDatasetInstance>, String> {
+        panic!("the gate read the mount table before it compared the destination's shape");
+    }
+
+    fn mount_holding(&self, _path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+        panic!("the gate read the mount at the destination before it compared the destination's shape");
+    }
+}
+
+/// What:
+///  An add whose destination is outside the route's slot answers nothing
+///  without a `statfs` and without reading the mount table.
+/// Why:
+///  Every add at any other path is this case,
+///  and the checkout's filesystem kind costs a syscall that no destination
+///  outside the route can need.
+///  On a fixture root that is no ZFS dataset this control passes without
+///  exercising the order,
+///  because the filesystem kind answers first in that arm;
+///  on this host's ZFS root it fails before the fix.
+#[test]
+fn an_add_outside_the_routes_slot_reads_no_mount_table() {
+    let root: PathBuf = crate::test_support::fixture("route-gate-outside-the-slot");
+    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: root.join(".git"), git_dir: root.join(".git"), worktree_root: root.clone() };
+    let destination: PathBuf = root.join("somewhere").join("topic");
+    assert_eq!(
+        the_routes_add(&identity, destination.as_path(), &ATableNoControlReads).expect("a destination outside the route answers nothing"),
+        None,
+        "an add outside the route's slot is no add of this route"
+    );
+    crate::test_support::remove(root.as_path());
+}

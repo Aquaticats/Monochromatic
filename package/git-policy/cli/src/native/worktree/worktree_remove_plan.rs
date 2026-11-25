@@ -1,13 +1,20 @@
 //! What:
 //!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy:
 //! the one directory it names,
-//!  and whether the person forced it.
+//!  and whether the person forced it;
+//!  and the directory one such command names in every other form,
+//!  which is what the clone route's refusal reads.
 //! Why:
 //!  Only the plain form (one directory,
 //! one optional `-f` or `--force`,
 //! a non-empty name) is served;
 //! every other option changes what Git checks,
 //! so those stay with Git.
+//!  A slot a whole clone is bound to is refused whatever the command's options,
+//!  though,
+//!  so the refusal reads the operand of every spelling Git accepts
+//!  (`parse_removal_target`),
+//!  and both readings take their operands from `worktree_operands`.
 //! The name is read the way Git reads it:
 //!  first as the last components of the registered worktree paths,
 //! then as a path.
@@ -22,6 +29,7 @@
 //! const plan = parseRemovePlan(['worktree', 'remove', '../topic'], 0, cwd, commonDir); // undefined: Git removes it
 //! ```
 
+use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -103,6 +111,53 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
     }
     let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
     return target.is_dir().then_some(RemovePlan { target, operand: operand.clone(), force });
+}
+
+/// What:
+///  The worktree one `git worktree remove` names,
+///  whatever options the command carries,
+///  resolved to a directory that exists.
+/// Why:
+///  A slot a whole managed clone is bound to is refused for every spelling of
+///  the command,
+///  because `SPEC.md`'s sentence exempts none and Git's own hint steers a
+///  person to the double force
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone";
+///  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "refuse instead of falling through to Git's recursive removal").
+///  The plan above serves only the plain form,
+///  so the refusal needs the operand without the force decision,
+///  and it reads the same operands the move refusal does.
+///  A command naming two operands names no one worktree,
+///  and Git answers it with its own usage;
+///  the refusal leaves that form to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseRemovalTarget(args: string[], subcommandIndex: number, start: string, commonDir?: string): string | undefined;
+/// ```
+pub fn parse_removal_target(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<PathBuf> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove" {
+        return None;
+    }
+    let operands: Vec<&OsString> = operands_after_options(&arguments[subcommand_index + 2..]);
+    // Git's removal takes exactly one worktree, and `remove_worktree` answers every other count with its usage.
+    let [typed] = operands.as_slice() else {
+        return None;
+    };
+    let operand: &OsString = typed;
+    if operand.is_empty() {
+        return None;
+    }
+    // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
+    if let Some(common) = common_dir
+        && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+    {
+        return Some(target);
+    }
+    let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
+    return target.is_dir().then_some(target);
 }
 
 /// Removal plan controls stay out of the release executable.

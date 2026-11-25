@@ -16,6 +16,10 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, OWN_SNAPSHOT, POOL, POOL_GUID, RemovalFixture, SANOID_SNAPSHOT, SLOT, ScriptedPool,
     an_object, the_stats,
 };
+use crate::testing::mounted_dataset_table::{ScriptedMountTable, row};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
+use crate::worktree_clone_slot_state::slot_state_live_read::{CloneIntentReads, SlotReadingSources};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_remove_plan::RemovePlan;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
@@ -61,6 +65,7 @@ fn facts_of(bound: &Bound) -> CopyFacts {
         destination: None,
         add_plan: None,
         remove_plan: Some(RemovePlan { target: bound.slot.clone(), operand: OsString::from("one"), force: true }),
+        removal_target: Some(bound.slot.clone()),
         quiet: false,
     };
 }
@@ -73,6 +78,7 @@ fn facts_of_the_fixture(fixture: &RemovalFixture) -> CopyFacts {
         destination: None,
         add_plan: None,
         remove_plan: Some(RemovePlan { target: fixture.slot_path.clone(), operand: OsString::from(SLOT), force: true }),
+        removal_target: Some(fixture.slot_path.clone()),
         quiet: false,
     };
 }
@@ -120,7 +126,69 @@ fn walk(root: &Path, folder: &Path, found: &mut Vec<(String, Option<Vec<u8>>)>) 
 /// The refusal's printed lines,
 /// or the panic that says the command was left to Git.
 fn refusal_of(facts: &CopyFacts, reads: RemovalReads<'_>) -> String {
-    return match refuse_the_removal_with(facts, reads) {
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    return refusal_of_with(facts, reads, &sources);
+}
+
+/// One mount table in which nothing stands at any slot,
+/// so a control decides the slot's state without reading this machine's mounts.
+fn nothing_is_mounted() -> ScriptedMountTable {
+    return ScriptedMountTable::holding(&[row(1, 0, "/", "/", "zfs", "tank/ROOT")]);
+}
+
+/// A mount table no control may read: asking it for one fails the test.
+/// Why:
+///  The refusal answers nothing for a repository with no record folder,
+///  and a table that fails when read proves it never looked.
+struct ATableNoControlReads;
+
+impl MountedDatasets for ATableNoControlReads {
+    fn mounted_datasets(&self) -> Result<Vec<MountedDatasetInstance>, String> {
+        panic!("the refusal read the mount table before it looked for a record");
+    }
+
+    fn mount_holding(&self, _path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+        panic!("the refusal read the mount at the slot before it looked for a record");
+    }
+}
+
+/// The refusal's answer for one slot with nothing mounted and no intent set,
+/// which the states that stay Git's ask for.
+fn refusal_of_or_none(facts: &CopyFacts) -> Option<ForwardedRun> {
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    return refuse_the_removal_with(facts, RemovalReads::Unreadable("this control reads no pool"), &sources);
+}
+
+/// One scripted mount-intent source.
+/// Why:
+///  The clone's intent is a raw ZFS request,
+///  so a host control answers it instead of opening this machine's device.
+struct ScriptedIntent {
+    /// The reading every question is answered with,
+    /// or the refusal the device would have given.
+    answer: Result<IntentReading, String>,
+}
+
+impl CloneIntentReads for ScriptedIntent {
+    fn intent_of(&self, _clone: &str) -> Result<IntentReading, String> {
+        return self.answer.clone();
+    }
+}
+
+/// The intent source a control that says nothing about the intent answers with:
+/// a clone whose property was never set,
+/// which is what the add leaves behind.
+fn no_intent_asked() -> ScriptedIntent {
+    return ScriptedIntent { answer: Ok(IntentReading::Absent) };
+}
+
+/// The refusal's printed lines over the reads and the slot sources a control answers.
+fn refusal_of_with(facts: &CopyFacts, reads: RemovalReads<'_>, sources: &SlotReadingSources<'_>) -> String {
+    return match refuse_the_removal_with(facts, reads, sources) {
         Some(ForwardedRun::Failed { stderr, code }) => {
             assert_eq!(code, REFUSED_EXIT_CODE, "a refusal ends with the wrapper's own status");
             stderr
@@ -162,29 +230,94 @@ fn a_whole_worktree_refuses_its_removal() {
 #[test]
 fn every_other_slot_stays_gits() {
     let unrecorded: Bound = bound_slot("removal-of-an-unrecorded-slot");
-    assert!(refuse_the_removal_with(&facts_of(&unrecorded), RemovalReads::Unreadable("this control reads no pool")).is_none());
+    assert!(refusal_of_or_none(&facts_of(&unrecorded)).is_none());
     let adding: Bound = bound_slot("removal-of-a-pending-add");
     publish_under(adding.common.as_path(), &record_naming(Phase::Snapshotted, adding.slot.as_path(), adding.registration.as_path(), Some(adding.pointer.clone())), "one");
-    assert!(refuse_the_removal_with(&facts_of(&adding), RemovalReads::Unreadable("this control reads no pool")).is_none());
+    assert!(refusal_of_or_none(&facts_of(&adding)).is_none());
     remove(unrecorded.root.as_path());
     remove(adding.root.as_path());
 }
 
 /// What:
-///  A run of the removal without a plan,
+///  A `git worktree remove` that names a bound slot is refused in every
+///  spelling Git accepts,
+///  the double force included,
+///  because `SPEC.md` exempts none and Git's own lock hint names `-f -f`.
+/// Why:
+///  The double force is the spelling Git itself suggests for a locked
+///  registration,
+///  so it is the one a person reaches for,
+///  and letting it through deletes the registration and the underlay pointer
+///  while the clone stands.
+#[test]
+fn every_spelling_of_a_bound_slots_removal_is_refused() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-every-spelling");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mut facts: CopyFacts = facts_of_the_fixture(&fixture);
+    // The double force is no plain form, so the served plan is absent and only the refusal's own reading names the slot.
+    facts.remove_plan = None;
+    let stderr: String = refusal_of(&facts, RemovalReads::Scripted(&pool));
+    assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
+    assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
+    assert!(stderr.contains(&format!("the clone `{CLONE}` (GUID `{CLONE_GUID}`")), "{stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the refusal wrote nothing");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// What:
+///  A repository with no record folder answers nothing without reading the
+///  mount table.
+/// Why:
+///  Every removal in an ordinary repository is this case,
+///  and the mount table is a file read per command that no record can need:
+///  the table this control hands in fails the test if it is asked anything.
+#[test]
+fn a_repository_without_records_reads_no_mount_table() {
+    let bound: Bound = bound_slot("removal-of-no-records");
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &ATableNoControlReads, intents: &intents };
+    assert!(refuse_the_removal_with(&facts_of(&bound), RemovalReads::Unreadable("this control reads no pool"), &sources).is_none());
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A run that names no worktree to remove,
 ///  which is every other command,
 ///  answers nothing.
 /// Why:
 ///  The refusal exists for one removal,
 ///  and a command that names no directory must not read a slot at all.
 #[test]
-fn a_command_without_a_removal_plan_answers_nothing() {
-    let bound: Bound = bound_slot("removal-of-no-plan");
+fn a_command_without_a_removal_target_answers_nothing() {
+    let bound: Bound = bound_slot("removal-of-no-target");
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.registration.as_path(), Some(bound.pointer.clone())), "one");
     let mut facts: CopyFacts = facts_of(&bound);
     facts.remove_plan = None;
-    assert!(refuse_the_removal_with(&facts, RemovalReads::Unreadable("this control reads no pool")).is_none());
+    facts.removal_target = None;
+    assert!(refusal_of_or_none(&facts).is_none());
     remove(bound.root.as_path());
+}
+
+/// What:
+///  The refusal reads the clone's mount intent through the reader it was given,
+///  not through this machine's ZFS device.
+/// Why:
+///  The slot report prints what that reader answered,
+///  so a control that names its own answer proves the command path asks the
+///  seam and a host control opens no device.
+#[test]
+fn the_refusal_asks_the_intent_reader_it_was_given() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-intent-seam");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = ScriptedIntent { answer: Err(String::from("this control reads no intent")) };
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    let stderr: String = refusal_of_with(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool), &sources);
+    assert!(stderr.contains("this control reads no intent"), "the report names the reader's own answer: {stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the refusal wrote nothing");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
 }
 
 /// What:

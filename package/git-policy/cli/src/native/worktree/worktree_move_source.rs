@@ -14,12 +14,15 @@
 //!  here;
 //!  the plan is absent for a form the reading does not know,
 //!  and Git then answers the command as it always does.
+//!  The operands themselves come from `worktree_operands`, so this reading and
+//!  the removal's cannot disagree about which word names the worktree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const source = parseMoveSource(['worktree', 'move', 'topic', '../elsewhere'], 0, cwd, commonDir);
 //! ```
 
+use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -62,23 +65,7 @@ pub fn parse_move_source(arguments: &[OsString], subcommand_index: usize, start:
         return None;
     }
     let rest: &[OsString] = &arguments[subcommand_index + 2..];
-    let mut operands: Vec<&OsString> = Vec::new();
-    let mut options_end: bool = false;
-    for token in rest {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        if !operands.is_empty() {
-            operands.push(token);
-            continue;
-        }
-        if !options_end && bytes == b"--" {
-            options_end = true;
-            continue;
-        }
-        if !options_end && bytes.starts_with(b"-") {
-            continue;
-        }
-        operands.push(token);
-    }
+    let operands: Vec<&OsString> = operands_after_options(rest);
     let [operand, _destination, ..] = operands.as_slice() else {
         return None;
     };

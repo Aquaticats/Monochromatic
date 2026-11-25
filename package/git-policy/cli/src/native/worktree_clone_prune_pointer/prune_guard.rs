@@ -131,9 +131,15 @@ fn bound_slots(common_dir: &Path) -> Vec<String> {
 /// const guard = guardThePrune(commonDir, mounts);
 /// ```
 pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> PruneGuard {
+    let slots: Vec<String> = bound_slots(common_dir);
+    // A repository with no record folder bounds no slot, so the pass is empty and the mount table is never read: this is
+    // every prune in a repository the route has never served.
+    if slots.is_empty() {
+        return PruneGuard::default();
+    }
     let rows: MountRows = read_mount_rows(mounts);
     let mut guard: PruneGuard = PruneGuard::default();
-    for slot in bound_slots(common_dir) {
+    for slot in slots {
         let record = match read_binding(home_folder(common_dir).as_path(), slot.as_str()) {
             Ok(found) => found,
             Err(refusal) => {

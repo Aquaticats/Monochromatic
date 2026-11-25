@@ -193,6 +193,10 @@ pub fn the_routes_add(identity: &WorktreeIdentity, destination: &Path, mounts: &
     let WorktreeIdentity::MainWorktree { worktree_root, .. } = identity else {
         return Ok(None);
     };
+    // The destination's shape decides first, so an add anywhere else pays neither the `statfs` below nor the mount-table read.
+    if !destination_is_the_routes_slot(worktree_root.as_path(), destination) {
+        return Ok(None);
+    }
     // One `statfs` keeps every add on another filesystem off the mount-table read.
     let checkout: CheckoutMount = match filesystem_kind(worktree_root.as_path()) {
         Ok(FilesystemKind::Zfs) => match the_checkout_dataset_at(worktree_root.as_path(), mounts) {

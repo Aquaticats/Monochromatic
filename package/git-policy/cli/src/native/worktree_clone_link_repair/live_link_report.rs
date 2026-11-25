@@ -31,12 +31,12 @@ use crate::worktree_clone_binding_record::registration_home::{home_folder, slot_
 use crate::worktree_clone_link_repair::repair_report::{LinkRepair, LinkRepairReport, class_of, link_report_of};
 use crate::worktree_clone_prune_pointer::link_facts::{LinkFacts, link_facts_of, recorded_link_of};
 use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_live_read::{GatedCloneIntentReads, SlotReadingSources, read_slot};
+use crate::worktree_clone_slot_state::slot_state_live_read::{CloneIntentReads, GatedCloneIntentReads, SlotReadingSources, read_slot};
 use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, clone_mount_of, read_mount_rows, slot_mount_of};
 use crate::worktree_clone_slot_state::slot_state_readings::SlotReadings;
 use crate::worktree_clone_slot_state::slot_state_report::{SlotStateReport, report_of as slot_report_of};
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasets};
 use std::path::Path;
 
 /// What:
@@ -101,11 +101,28 @@ pub fn the_slot_at(common_dir: &Path, slot: &str, slot_path: &Path) -> SlotAtThe
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
-    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    return the_slot_at_with(common_dir, slot, slot_path, &mounts, &intents);
+}
+
+/// What:
+///  One slot's state and reports,
+///  read through the two sources a caller names.
+/// Why:
+///  A control may not open this machine's ZFS device,
+///  and the release path reads the live pair,
+///  so both go through one function and a control proves the command's own
+///  code rather than a copy of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slot = theSlotAtWith(commonDir, slot, slotPath, mounts, intents);
+/// ```
+pub fn the_slot_at_with(common_dir: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, intents: &dyn CloneIntentReads) -> SlotAtTheCommand {
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts, intents };
     let readings: SlotReadings = read_slot(common_dir, slot, slot_path, &sources);
     let state: SlotRouteState = classify_slot(&readings);
     let report: SlotStateReport = slot_report_of(&readings);
-    let link: Option<LinkRepairReport> = the_links_report_of(common_dir, slot, slot_path, &mounts);
+    let link: Option<LinkRepairReport> = the_links_report_of(common_dir, slot, slot_path, mounts);
     return SlotAtTheCommand { state, report, link };
 }
 
@@ -122,8 +139,12 @@ pub fn the_slot_at(common_dir: &Path, slot: &str, slot_path: &Path) -> SlotAtThe
 /// ```ts
 /// const link = theLinksReportOf(commonDir, slot, slotPath, mounts, readings);
 /// ```
-fn the_links_report_of(common_dir: &Path, slot: &str, slot_path: &Path, mounts: &LiveMountedDatasets) -> Option<LinkRepairReport> {
+fn the_links_report_of(common_dir: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets) -> Option<LinkRepairReport> {
     let record = read_binding(home_folder(common_dir).as_path(), slot).ok()?;
+    // The record is keyed by the slot's last name, so a record naming another path is not this worktree's to report on.
+    if !names_the_same_slot(record.slot_path().as_deref()?, slot_path) {
+        return None;
+    }
     let rows: MountRows = read_mount_rows(mounts);
     let mount: CloneMount = clone_mount_of(&rows, &slot_mount_of(mounts, slot_path), record.clone_dataset.as_str(), slot_path);
     let link = recorded_link_of(&record);
@@ -150,11 +171,42 @@ fn the_links_report_of(common_dir: &Path, slot: &str, slot_path: &Path, mounts: 
 pub fn the_links_report(common_dir: &Path, slot_path: &Path, mounts: &dyn crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets) -> Option<LinkRepairReport> {
     let slot: String = slot_of(slot_path).ok()?;
     let record = read_binding(home_folder(common_dir).as_path(), slot.as_str()).ok()?;
+    // The record is keyed by the slot's last name, so a record naming another path is not this worktree's to report on:
+    // a plain worktree that shares the name would otherwise be shown the managed slot's dataset and its repair command.
+    if !names_the_same_slot(record.slot_path().as_deref()?, slot_path) {
+        return None;
+    }
     let rows: MountRows = read_mount_rows(mounts);
     let mount: CloneMount = clone_mount_of(&rows, &slot_mount_of(mounts, slot_path), record.clone_dataset.as_str(), slot_path);
     let link = recorded_link_of(&record);
     let facts: LinkFacts = link_facts_of(slot.as_str(), &link, &mount);
     return Some(link_report_of(&facts));
+}
+
+/// What:
+///  Whether a record's slot path and the path a command named are one
+///  directory.
+/// Why:
+///  The record's key is the slot's last name,
+///  so two worktrees that share it hold one record between them,
+///  and the record's own slot path is what says which of the two it belongs
+///  to.
+///  A path through a symbolic link names the same directory as its target,
+///  and a command may name either form,
+///  so two forms of one path are compared by what they resolve to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = namesTheSameSlot(record.slotPath, operand);
+/// ```
+fn names_the_same_slot(recorded: &Path, operand: &Path) -> bool {
+    if recorded == operand {
+        return true;
+    }
+    return match (std::fs::canonicalize(recorded), std::fs::canonicalize(operand)) {
+        (Ok(one), Ok(other)) => one == other,
+        _ => false,
+    };
 }
 
 /// What:

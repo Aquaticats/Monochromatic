@@ -94,7 +94,7 @@ impl LiveRemovalReads {
         let verdict: Verdict = LiveGate.verdict();
         if let Verdict::Refused(_refusal) = &verdict {
             return Err(format!(
-                "the ZFS compatibility gate refused before any pool request: {}. Ways forward: run `monochromatic-git-policy-cli doctor` on the machine that holds the pool",
+                "the ZFS compatibility gate refused before any pool request: {}. Ways forward: read what the gate refused above, fix it on the machine that holds the pool, and run the command again",
                 verdict_line(&verdict)
             ));
         }

@@ -17,8 +17,8 @@
 //!  step calls it from the command path,
 //!  which reads no report,
 //!  and because the refusal reads only the binding record.
-//!  No path from a wrapper command reaches it yet:
-//!  the step that wires it is the one that owns `worktree move`.
+//!  Every forwarded `git worktree move` reaches it
+//!  (`invocation/entry_zfs_slot_commands.rs`, `move_refusal_of`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

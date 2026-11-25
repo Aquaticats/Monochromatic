@@ -162,3 +162,73 @@ fn a_repository_without_records_gets_nothing() {
     assert!(stderr.is_empty(), "{stderr}");
     remove(root.as_path());
 }
+
+/// What:
+///  A plain registered worktree that shares its last name with a bound slot
+///  gets no report about that slot,
+///  and the move of one is not the other slot's to refuse.
+/// Why:
+///  The record is keyed by the slot's last name,
+///  so a reader that stopped at the key would print the other slot's dataset and
+///  a repair command for a worktree nothing here endangers.
+#[test]
+fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
+    let bound: Slot = slot("command-same-leaf");
+    let registration: PathBuf = bound.common.join("worktrees").join("one");
+    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    let other: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
+    git(bound.root.join("repository").as_path(), &["worktree", "add", "--quiet", "--no-checkout", other.to_str().expect("utf-8"), "HEAD"]);
+    let mut stderr: String = String::new();
+    before_a_repair(&command_of(&["worktree", "repair", other.to_str().expect("utf-8")]), Some(bound.common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
+    assert!(stderr.is_empty(), "a plain worktree's repair printed the other slot's report: {stderr}");
+    remove(bound.root.as_path());
+}
+
+/// The slot's pointer gone, as an account that deleted it leaves it, whatever an earlier arm of a control wrote.
+fn leave_the_pointer_gone(pointer: &Path) {
+    if pointer.exists() {
+        std::fs::remove_file(pointer).expect("the pointer goes");
+    }
+    assert!(!pointer.exists(), "the control starts with no pointer at the slot");
+}
+
+/// What:
+///  Every spelling Git's own parser reads as a dry run writes nothing,
+///  and the spelling that turns the dry run back off writes the pointer.
+/// Why:
+///  A dry run must not write, and Git accepts abbreviations of `--dry-run` and
+///  `--no-dry-run` (its `parse-options.c` matches any unique prefix), so a pass
+///  that read only the exact words wrote the pointer on a command Git pruned
+///  nothing for.
+#[test]
+fn a_prune_git_reads_as_a_dry_run_writes_nothing() {
+    let bound: Slot = slot("command-prune-dry-spellings");
+    let registration: PathBuf = bound.common.join("worktrees").join("one");
+    let pointer: PathBuf = bound.slot.join(".git");
+    for words in [
+        &["worktree", "prune", "-n"][..],
+        &["worktree", "prune", "-nv"][..],
+        &["worktree", "prune", "-vn"][..],
+        &["worktree", "prune", "--dry-run"][..],
+        &["worktree", "prune", "--dry"][..],
+        &["worktree", "prune", "--d"][..],
+        &["worktree", "prune", "--dry-ru"][..],
+    ] {
+        publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+        leave_the_pointer_gone(pointer.as_path());
+        let mut stderr: String = String::new();
+        assert!(before_a_prune(&command_of(words), Some(bound.common.as_path()), &mut stderr).is_none(), "{words:?}");
+        assert!(!pointer.exists(), "a dry run wrote the pointer back for {words:?}: {stderr}");
+        assert!(stderr.is_empty(), "{words:?}: {stderr}");
+    }
+    // The last dry-run word wins, and Git reads `--no-dry-run` and its abbreviations as a real prune.
+    for words in [&["worktree", "prune", "--dry-run", "--no-dry-run"][..], &["worktree", "prune", "-n", "--no-dry"][..], &["worktree", "prune", "-n", "--no-d"][..]] {
+        publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+        leave_the_pointer_gone(pointer.as_path());
+        let mut stderr: String = String::new();
+        assert!(before_a_prune(&command_of(words), Some(bound.common.as_path()), &mut stderr).is_none(), "{words:?}");
+        assert_eq!(std::fs::read(pointer.as_path()).expect("the pointer the pass wrote back"), bound.pointer, "a real prune has its pointer put back for {words:?}: {stderr}");
+    }
+    remove(bound.root.as_path());
+}

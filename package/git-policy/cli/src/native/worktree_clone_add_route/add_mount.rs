@@ -73,7 +73,7 @@ pub fn wait_for_the_mount(slot: &Path, clone: &str) -> Result<MountedHere, Strin
         std::thread::sleep(POLL_INTERVAL.min(MOUNT_WAIT.saturating_sub(started.elapsed())));
     }
     return Err(format!(
-        "the clone {clone} was not mounted at {} within {} milliseconds, so the fill cannot see the clone in this command's namespace; {last}. The durable mount request stays on the clone and a later sweep may still act on it. Ways forward: run `monochromatic-git-policy-cli doctor` and read the handler's journal; do not retry the add until the clone's mount state has been inspected",
+        "the clone {clone} was not mounted at {} within {} milliseconds, so the fill cannot see the clone in this command's namespace; {last}. The durable mount request stays on the clone and a later sweep may still act on it. Ways forward: read the handler's journal (`journalctl -u reconcile-git-worktree-clone-mounts.service`) and inspect the clone's mount state; do not retry the add until it has been inspected",
         slot.display(),
         MOUNT_WAIT.as_millis()
     ));

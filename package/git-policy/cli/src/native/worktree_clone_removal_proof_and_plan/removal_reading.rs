@@ -108,7 +108,7 @@ impl RemovalReading {
         ));
         lines.extend(self.lost.lines());
         lines.push(String::from(
-            "this release does not remove a clone yet: nothing was unmounted, no removal intent was filed and no destruction plan was written, so every snapshot, bookmark, record and registration still stands. Plan step 16 builds the snapshot batch, the head destroy, the origin cleanup and the Git settle, and its wiring is what switches the intent, the unmount and the plan on.",
+            "this release does not remove a clone yet: nothing was unmounted, no removal intent was filed and no destruction plan was written, so every snapshot, bookmark, record and registration still stands.",
         ));
         return lines;
     }

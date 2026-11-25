@@ -229,8 +229,9 @@ pub fn refuse_while_a_plan_names_the_clone(common_dir: &Path, clone_guid: Option
 /// The sentence a plan that names this clone prints.
 fn names_the_clone_sentence(path: &Path) -> String {
     return format!(
-        "a removal's plan at {} names the clone this add would fill, so the add stops before its first mutation and changes nothing. Ways forward: run the removal this plan belongs to, which resumes from the plan and ends it; then run the add again at the slot.",
-        path.display()
+        "a removal's plan at {} names the clone this add would fill, so the add stops before its first mutation and changes nothing. Ways forward: the removal that wrote the plan resumes from it and ends it, and {}, so the add cannot go on until one does.",
+        path.display(),
+        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     );
 }
 

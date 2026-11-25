@@ -427,7 +427,7 @@ pub fn step_mount(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), S
     }
     if record.phase == Phase::Mounted {
         return Err(StepRefusal::refused(format!(
-            "the record says the worktree is mounted, and the slot {} shows no mount of {}; Ways forward: run `monochromatic-git-policy-cli doctor`, unmount and mount the clone again, then run the add again",
+            "the record says the worktree is mounted, and the slot {} shows no mount of {}; Ways forward: unmount and mount the clone again, then run the add again",
             steps.route.destination.display(),
             record.clone_dataset
         )));

@@ -20,6 +20,7 @@
 
 use super::origin_refusal::OriginRefusal;
 use super::origin_refusal_causes::cause;
+use crate::worktree_clone_binding_record::NO_REMOVAL_WORDS;
 use super::origin_refusals::{JudgedObject, RefusalForm};
 use super::removal_history::RemovalHistory;
 
@@ -85,7 +86,8 @@ fn state(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
 /// which the wrapper cannot finish for them.
 fn marked_ways_forward(origin_snapshot: &str) -> String {
     return format!(
-        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, run the removal again once the clone is gone: that run refuses and names the command that finishes what is left, or the reason when none can."
+        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, {}.",
+        NO_REMOVAL_WORDS
     );
 }
 
@@ -115,9 +117,8 @@ fn ways_forward(refusal: &OriginRefusal) -> String {
             "{} shows the fields the plan holds, and the removal reads no expectation from the live pool, so a person reconciles that record before the removal is run again.",
             plan_home.display()
         ),
-        OriginRefusal::CloneGone { .. } => String::from(
-            "a later run settles only after it has proved that clone is gone, and `doctor` names the slot and what this removal recorded.",
-        ),
+        OriginRefusal::CloneGone { .. } => format!(
+            "a later run settles only after it has proved that clone is gone, and {NO_REMOVAL_WORDS}."),
         OriginRefusal::CloneIsNotAFilesystem { planned, .. } | OriginRefusal::CloneIsNotThePlannedOne { planned, .. } | OriginRefusal::CloneHasNoOrigin { planned } | OriginRefusal::CloneOriginDiffers { planned, .. } | OriginRefusal::ReadFailed { planned, .. } => {
             live_objects_ways_forward(&planned.clone_name, &planned.origin_snapshot_name)
         }

@@ -28,7 +28,7 @@ use crate::worktree_identity::{WorktreeIdentity, common_directory};
 use crate::policy_checks::ShippedChecks;
 use crate::repository_facts::{GitFacts, RepositoryFacts};
 use crate::worktree_add_plan::{AddPlan, add_is_quiet, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
-use crate::worktree_remove_plan::{RemovePlan, parse_remove_plan};
+use crate::worktree_remove_plan::{RemovePlan, parse_removal_target, parse_remove_plan};
 use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -136,7 +136,14 @@ pub(crate) fn forward_action(
     } else {
         None
     };
-    let serves_ladder: bool = add_plan.is_some() || remove_plan.is_some();
+    // The refusal of a removal of a bound slot reads the worktree in every spelling Git accepts, the double force included, and
+    // a form it does not serve still has to reach that refusal (`SPEC.md`, "Removal of a ZFS worktree clone").
+    let removal_target: Option<PathBuf> = if command.word() == b"worktree" {
+        plan_removal_target(&command, common_directory(&location.identity), checks.start_directory.path())
+    } else {
+        None
+    };
+    let serves_ladder: bool = add_plan.is_some() || removal_target.is_some();
     let copy: Option<CopyFacts> =
         if !copy_bypassed && copy_applies_with(&location.identity, creates, serves_ladder) {
             Some(CopyFacts {
@@ -145,6 +152,7 @@ pub(crate) fn forward_action(
                 destination,
                 add_plan,
                 remove_plan,
+                removal_target,
                 quiet,
             })
         } else {
@@ -240,6 +248,25 @@ fn plan_copy_destination(command: &ResolvedCommand, current: Option<&Path>) -> O
 fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<RemovePlan> {
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
     return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
+}
+
+/// What:
+///  The worktree a `git worktree remove` names in any form Git accepts,
+/// read from the resolved command and the directory this
+///  command was started in.
+/// Why:
+///   The refusal of a removal of a bound slot reads the command whatever its
+///  options,
+///  and the operand's relation to the directory Git starts in is the same one
+///  the plan reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planRemovalTarget(command, commonDir?, current?): string | undefined;
+/// ```
+fn plan_removal_target(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<PathBuf> {
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
+    return parse_removal_target(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
 }
 
 /// What:

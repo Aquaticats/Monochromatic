@@ -126,7 +126,8 @@ fn a_known_unmounted_clone_reports_its_files_and_each_intent() {
     };
     let parked: String = report_of(&unmounting).next_safe_action;
     assert!(parked.contains("keeps it unmounted"), "{parked}");
-    assert!(parked.contains("run the removal"), "{parked}");
+    assert!(parked.contains("no removal for a clone"), "{parked}");
+    assert!(!parked.contains("run the removal"), "no text names a removal this release has not: {parked}");
 }
 
 /// A mounted managed clone reports the mount and the fixed slot.

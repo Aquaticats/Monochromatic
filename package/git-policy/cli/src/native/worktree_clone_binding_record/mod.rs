@@ -91,7 +91,7 @@ pub mod registration_removals;
 pub mod plan_folder_read;
 pub mod add_state_commands;
 
-pub use add_state_commands::{ClonePresence, NextCommand, PlanHeadWord, StateFacts, command_for};
+pub use add_state_commands::{ClonePresence, NO_REMOVAL_WORDS, NextCommand, PlanHeadWord, StateFacts, command_for};
 pub use binding_bound::{BINDING_MAXIMUM_BYTES, BINDING_MAXIMUM_LINE_BYTES, INVENTORY_ENTRY_LINE_MAXIMUM_BYTES, INVENTORY_FIXED_BYTES};
 pub use binding_encoding::{FolderIdentity, Request, bytes_as_hexadecimal, path_as_hexadecimal};
 pub use binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};

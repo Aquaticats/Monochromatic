@@ -65,6 +65,10 @@ pub struct CopyFacts {
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
     ///  absent for every other command.
     pub remove_plan: Option<RemovePlan>,
+    /// The directory of a `git worktree remove` in any form Git accepts,
+    /// which is what the clone route's refusal reads;
+    ///  absent for every other command, for a form that names no one directory, and for a directory that does not exist.
+    pub removal_target: Option<PathBuf>,
     /// Whether the person asked a `git worktree add` for `--quiet`,
     /// read from the words whether or not the ladder serves the form,
     /// so a plainly run add prints no line a quiet one would suppress.
