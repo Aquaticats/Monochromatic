@@ -606,16 +606,20 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     // before the datasets, or the `zfs create` below meets a dataset that is still there.
     `for slot in ${SWEEP_STALE_CHECKOUT}/.claude/worktrees/*; do umount --force "$slot" 2>/dev/null || true; done`,
     `umount --force ${SWEEP_STALE_CHECKOUT} 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
+    // The guest's OpenZFS 2.4.4 refuses `zfs destroy --recursive --force` with `invalid option '-'` (measured
+    // 2026-11-25: `destroy` takes only `-f -n -p -R -r -v`), so every line below spelled its options long and never
+    // destroyed anything, its refusal going to `/dev/null`. The short flags are the only form this tool has, and the
+    // refusal now stays in the log rather than being discarded.
+    `zfs destroy -r -f ${SWEEP_POOL}/step8 || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-bound || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-encrypted || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-foreign || true`,
     // The stale arm's own checkout carries the design's leaf name too, and the no-configuration shapes that run before
     // it need one instance of that name, so its layout goes before the arm and not only after it.
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-stale 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-stale || true`,
     // The stoppage arm's container and the probe fixture this arm creates live in the same pool.
-    `zfs destroy --recursive --force ${SWEEP_POOL}/account-clones 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/nosnap 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/account-clones || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/nosnap || true`,
     // Another driver's checkout dataset carries the same leaf name and would be a second instance for the arm's
     // no-configuration shapes; it is taken down for the length of the arm and mounted again afterwards.
     'others=$(findmnt --list --noheadings --output SOURCE --type zfs | grep --fixed-strings monochromatic-git-checkout | grep --invert-match "git-policy-cli-store/step8" | sort --unique || true)',
