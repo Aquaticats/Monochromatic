@@ -548,3 +548,24 @@ fn the_survey_counts_a_journal_without_units_apart_from_an_instance_it_could_not
     assert_eq!(found.present, 0, "neither instance maps to a worktree that is there: {found:?}");
     remove(machine.root.as_path());
 }
+
+/// A note that is a named pipe names nobody,
+/// at the bound,
+/// so a sweep of a removed worktree's units ends instead of waiting for a writer (issue 6415).
+#[test]
+fn a_note_that_is_a_named_pipe_names_nobody_at_once() {
+    let machine: Machine = machine("units-note-named-pipe");
+    let instance: &str = "0123456789abcdef";
+    let note: PathBuf = note_path(machine.runtime.as_path(), instance);
+    std::fs::create_dir_all(note.parent().expect("the note's folder")).expect("the notes folder");
+    crate::subvolume_sync_attrs::make_fifo(note.as_path(), 0o600).expect("a named pipe where a note goes");
+    let answered = crate::test_support::finished_within({
+        let runtime: PathBuf = machine.runtime.clone();
+        let state: PathBuf = machine.state.clone();
+        let named: String = String::from(instance);
+        move || return worktree_of(&UnitFolders { runtime_dir: runtime.as_path(), state_dir: Some(state.as_path()) }, named.as_str())
+    });
+    let Some(found) = answered else { panic!("a note that is a named pipe held the sweep") };
+    assert_eq!(found, UnitWorktree::Unmapped, "a pipe names no worktree");
+    remove(machine.root.as_path());
+}

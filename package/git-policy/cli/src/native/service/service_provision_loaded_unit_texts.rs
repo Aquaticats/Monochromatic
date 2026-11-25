@@ -116,7 +116,8 @@ fn digest(texts: &[(&'static str, String)]) -> String {
 /// readFileSync(recordPath(runtimeDir, instance)) === digestOf(texts)
 /// ```
 pub fn remembers(runtime_dir: &Path, instance: &str, texts: &[(&'static str, String)]) -> bool {
-    return match std::fs::read_to_string(record_path(runtime_dir, instance)) {
+    // A record that is a named pipe is no record, and it answers at once rather than waiting for a writer.
+    return match crate::plain_file::read_plain_text(&record_path(runtime_dir, instance)) {
         Ok(record) => record.trim_end() == digest(texts),
         Err(_absent) => false,
     };

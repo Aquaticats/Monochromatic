@@ -116,7 +116,9 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
     // The note holds the bytes of the directory: its text would name another place, or none, for a path that is not text.
     let text: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
     let path: PathBuf = note_path(runtime_dir, instance);
-    if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
+    // A note that is a named pipe is not the note this commit would write, and it answers at once rather than waiting for a
+    // reader; the write below replaces the name.
+    if matches!(crate::plain_file::read_plain_text(&path), Ok(current) if current == text) {
         return Ok(());
     }
     create_private_directory_all(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path())?;

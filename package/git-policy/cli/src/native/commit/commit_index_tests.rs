@@ -970,3 +970,24 @@ fn a_directory_of_a_worktree_the_variables_select_stages_no_untracked_file() {
     assert_eq!(changed(repo.as_path(), &indexes, base.as_str()), vec![b"build/keep.txt".to_vec()], "the tracked file it changed and no untracked file");
     remove(root.as_path());
 }
+
+/// A pathspec file that is a named pipe leaves the selection to Git alone,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// so the additions this step carries would never be asked for (issue 6415).
+#[test]
+fn a_pathspec_file_that_is_a_named_pipe_is_not_waited_for() {
+    let root: PathBuf = fixture("commit-index-pathspec-named-pipe");
+    let pipe: PathBuf = root.join("pathspec.fifo");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    let indexes: CaptureIndexes = CaptureIndexes { captured_index: root.join("captured-index"), commit_index: root.join("commit-index"), object_directory: root.join("objects") };
+    let inside: PathBuf = root.clone();
+    let asked = crate::test_support::finished_within(move || {
+        let pathspecs: [OsString; 0] = [];
+        let choice: IndexSelection = IndexSelection { mode: TransactionMode::ExplicitPath, pathspecs: &pathspecs, pathspec_file: Some(pipe.as_path()), pathspec_file_nul: false, stage_into_index: false, stage_tracked_changes: false, base_revision: "HEAD" };
+        return carry_selected_staged_additions(&git_context(), inside.as_path(), &indexes, &choice).is_ok();
+    });
+    let Some(answered) = asked else { panic!("a pathspec file that is a named pipe held the commit") };
+    assert!(answered, "the step answers nothing to carry rather than waiting or failing");
+    remove(root.as_path());
+}
