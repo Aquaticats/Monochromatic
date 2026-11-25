@@ -13,6 +13,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use super::support::in_a_fixture_root_taking_any_name;
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::net::UnixStream;
@@ -240,6 +241,9 @@ fn fields(fixture: &Fixture, repo: &Path, revision: &str) -> (String, String, St
 /// with no word the person did not get from that route before.
 #[test]
 fn a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway() {
+    if !in_a_fixture_root_taking_any_name("service_commit::a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway") {
+        return;
+    }
     use git_policy_cli::service_protocol::{MAX_CHANGES, P99_CHANGED_PATH_CHARACTERS};
     use std::os::unix::ffi::OsStrExt;
     let fixture: Fixture = fixture("service-line-ceiling");

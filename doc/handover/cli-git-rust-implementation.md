@@ -377,21 +377,44 @@ and the sweep arm failed its stale-flags case:
 `line_about` (`binary_zfs_sweep_guest_tests.rs:268`) finds a clone's line by `contains`,
 so asked about slot `c64` it returned `c643`'s line, a test defect already on `main` that fires when the pool lists a prefix slot last
 (the report's "race" label is not the cause; `binary_zfs_step9_m_arms_tests.rs:204` has the same lookup);
-`pi-sweep-guest-arms-find-a-clone-by-its-whole-name` runs since 2026-11-25T05:16:06-05:00 to fix the lookup and run the arm to its end through the one wrapper,
-since the replaced-mount and rename-swap cases after the failing one have not run through it;
+its fix merged as `7043fe4a5c` (report `keep/report-pi-sweep-guest-arms-find-a-clone-by-its-whole-name.md` in `~/temp/agent/sweep-guest-arms-find-a-clone-by-its-whole-name-2026-11-25/`):
+one whole-name lookup (`printed_line_about`) serves the sweep, step 9 and unmount arms, held by a control red with the old lookup;
+`e2e/mount-git-worktree-clone-datasets-guest.ts all` then passed end to end through the one wrapper in one guest
+(adoption, store fsync, sweep with stale flags, replaced mount and rename swap all refused, holder scan, unmount),
+with its long steps detached from a file and the build at one job with a swap file (18 minutes);
+it also found the driver's cleanup used `zfs destroy --recursive --force`, which the guest's OpenZFS 2.4.4 refuses, so nothing was ever destroyed behind `|| true`;
+the merge of `main` into it conflicted only in that driver's build comment, resolved keeping one job and the swap file under issue 6458's measured explanation;
 two `commit::capture_invocation` controls fail on this host at `capture_invocation_tests.rs:412` (`EILSEQ`), the same on `main` at `0152f18bb7`,
 in a file issue 6448's first round did not reach (the issue is still open);
 `pi-non-utf8-capture-invocation-controls-on-a-utf8only-home` runs since 2026-11-25T05:16:21-05:00 to finish it;
 mvm's guest agent lost the status of the round's long in-guest build four times
 ("the guest agent did not answer a status request"), so it drove a sixth guest by hand;
 the new modes' device-open failure reuses the dataset-read refusal, whose sentence speaks of a dataset (wording the round left);
-the gate on `main` at `b97c09746f` runs since 2026-11-25T05:14:00-05:00 (unit `gate-on-main-at-b97c09746f`);
+the gate on `main` at `b97c09746f` (run `native-VZ4uUM`, 2026-11-25T05:14:00-05:00 to 05:33:19-05:00)
+gave `11157 tests run: 11153 passed (5 slow), 4 failed, 44 skipped`: the cause-H pair,
+and the one-program build's two `source_guard::typed_ban_configuration_tests` controls,
+which read `clippy.toml` beside `Cargo.toml` while the gate snapshot (`bin/native-wrapper-snapshot.ts`, `crateEntryNames`) did not copy it
+("the Clippy configuration: ... No such file or directory");
+fixed as `1e562c82c1` (the snapshot's unit test and `lint:types` pass; the next batch's gate shows it in the image);
+its only AppArmor denials were `umount`'s two `dac_override`;
 the lost guest results are issue 6458 (filed 2026-11-25; mvm's templates give `qemu-guest-agent` no out-of-memory protection, a reading, not a cause),
-and its diagnosis round `pi-mvm-long-guest-command-loses-its-result` (brief `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/prompt.md`)
-runs since the memory stall fell again (avg10 0.14 under avg60 3.49, after a rise to 6.21 over 1.97);
-the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees
-(`5832100ff723f37e05b7e204050d9077`, `860ac88661a0f23f1a31eb7b490f26b8`, `b10ce79fa8d9f51c7935474923718ad1`),
-which the fixed build's `service stop-units-of-removed-worktrees` clears after this batch;
+its round merged as `aa39116642` (issue 6458 closed; report `keep/report-pi-mvm-long-guest-command-loses-its-result.md` in `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/`):
+a build step's kernel out-of-memory kill in the agent's cgroup makes systemd's default `OOMPolicy=stop` stop `qemu-guest-agent.service`,
+which kills the command, and the restarted agent's empty table answers that the PID does not exist;
+the Linux template now writes a drop-in with `OOMPolicy=continue`, so a killed command reports 137 and the agent stays
+(control in a guest red then green; the driver's build peaked at 7.45 GiB of the guest's 7.75 GiB,
+so the guest's size, swap or job count is a separate choice the round left open);
+the troubleshooting doc is `doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`;
+mvm's `dist` in the main checkout was rebuilt at 2026-11-25T06:02-05:00 so new templates carry it,
+and `template-ubuntu.qcow2` and `template-fedora.qcow2` under `~/.local/share/mvm/images/` (both baked before the fix) were deleted at about 06:25 with no guest running,
+so the next `mvm create` of each bakes it again with the drop-in
+(not `mvm update`, which removes every cached image);
+the gate on `main` at `7043fe4a5c` runs since about 06:29 (unit `gate-on-main-at-7043fe4a5c`), holding `1e562c82c1`, the mvm fix and the sweep fix;
+the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees;
+the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-25T05:36:56-05:00 from the gate worktree's `target/debug`,
+removed 21 such journals (those three among them), stopped 18 units of removed worktrees, left the seven unmatched instances untouched,
+and took the state folder from 93 entries to 72
+(archive and log in `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/`, `*-third-*-2026-11-25*`);
 the reads' `work/` folders hold the logs their reports cite, and the fourth round's `scratch/` is cited by the proposal, so those stay;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
@@ -1148,16 +1171,61 @@ fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
 The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
-The one-program build merged as `b97c09746f`, so the next alpha ships one program
-(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it").
-It waits for the gate on `main` at `b97c09746f` and for `pi-sweep-guest-arms-find-a-clone-by-its-whole-name`:
-the sweep is what the ZED hook starts, its guest arm failed in the one-program round,
-and the arm's replaced-mount and rename-swap cases have not yet run through the one wrapper.
+`0.6.1-alpha.46` is released, the first with one program
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it"):
+the gate on `main` at `7043fe4a5c` (run `native-YA8wZH`, 2026-11-25T06:28:29-05:00 to 06:49:28-05:00)
+gave `11158 tests run: 11156 passed (5 slow), 2 failed, 44 skipped`, the cause-H pair alone,
+with `1e562c82c1`'s two typed-ban controls passing;
+its window's AppArmor denials were `umount`'s three `dac_override` and 186 `git` `dac_override` between 06:45:14 and 06:45:20,
+which came from issue 6448's second round running its touched modules on the host (its log ended 06:45:25),
+not from the gate; a later host run of `commit::capture_invocation` gave two more, so the any-name fixture root's inner half is their source
+(issue 6459, its round `pi-any-name-fixture-root-git-dac-override` running since about 07:00);
+the dry run 45608525311 passed, the release run 45608814865 dispatched at 2026-11-25T06:54:52-05:00 from `f6d7215359` (only a handover commit after the gated tip)
+committed the bump as `955051b29f` and its publish job passed
+(note and logs in `~/temp/agent/release-wrapper-alpha-46-2026-11-25/keep/`; `native:release:wait` follows the publish run);
+issue 6448's second round merged as `f65bbdd316` after the dispatch (22 controls moved to the any-name root; issue closed);
+the release passes run as three Sonnet reads over `alpha.45..955051b29f`
+(`~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/`: the one program and its root modes, the ZFS add and removal route, and commit, push, LFS, lock and the rest);
+the one-program pass ended (`one-program-root-modes/keep/review.md`; same vendor, a second pass) with no high, four mediums and seven lows:
+M1 the `--help` text names an installed path no release installs (the design's own sentence, found at alpha.45 too),
+M2 the usage and refusals print `monochromatic-git-policy-cli zfs-root <mode>`, which typed as printed reaches Git as an unknown command,
+M3 `record-checkout --replace <kernel GUID>` also rewrites a differing recorded container while saying it keeps it (shown by a probe test),
+M4 the deadline guard's control never sets the variable, so 209 of 209 tests pass with the gating `cfg` lines deleted;
+the lows are refusal openings, misspelt-word naming, two-program prose left (README line 8485), an earlier release's `native:install` blaming the archive,
+the packaged crate omitting `clippy.toml` and `SPEC.md`, no control on `attach_with_attributes`' attributes, and a guest arm passing the now-ignored deadline variable;
+M1 and M2 rest on the design's wording, so their fix goes to the owner with the other passes' findings;
+the ZFS route pass ended (`zfs-add-and-removal-route/keep/review.md`; same vendor, a second pass), fit to stand for ordinary hosts
+(ordinary-host output of `worktree add`, `remove`, `move`, `prune`, `repair` the same as alpha.45 but one decided decline sentence; cost under 2 ms),
+with one high: the removal refusal plans only `remove`, `remove -f`, `--force` and one-force spellings
+(`worktree/worktree_remove_plan.rs:61` to `:93`), so `git worktree remove -f -f <slot>`, the override Git itself suggests at a locked registration,
+reaches Git and removes the registration and slot folder of a bound clone (host test red; reachable only after step 19's migration);
+`SPEC.md`'s "is refused for a slot whose record proves a whole worktree" settles the fix as refusing every spelling (its option A), so that is not an owner question;
+mediums: texts name `run the removal`, `cancel-worktree-removal` (also `README.md:2458`) and `monochromatic-git-policy-cli doctor` without the management word,
+and the managed lock's words name a command Git refuses at a locked registration;
+lows: a same-leaf plain worktree gets the bound slot's move refusal and repair report (the move refusal is decided text, so its change is the owner's: the reviewer ranks refusing only the slot itself first),
+an abbreviated `--dry` prune writes the pointer, the cut's guard bans two names only, host controls of the removal refusal can open `/dev/zfs`,
+about four percent added to `add`, `remove`, `prune` and `move` (mount-table reads before the record check), and stale step numbers in text;
+the reviewer disclosed that its `worktree_clone_add_route::` module run may have opened this host's `/dev/zfs` and sent read-only object-stats requests for names no pool holds (no write, no mount), against the brief;
+the cut held: `source_guard`'s scan went red when the command path named `enter_the_removal`;
+issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
+but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
+succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
+(correction posted on issue 6459; that round's docs-only branch was dropped);
+`pi-any-name-fixture-root-git-without-capabilities` runs since about 07:39 to make the inner half's `git` hold no refused capability.
 
 Next:
 merge each round when it ends;
 put L4's options to the owner;
-release the next alpha once that gate and that round have ended.
+read the three release passes when they end and brief their fixes.
+
+`0.6.1-alpha.46` is published (cargo-publish run 45608993443; archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
+`native:release:wait` printed `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.46`).
+The session's `git` stays the build of `ee0cf2268b` for now:
+`.cache/monochromatic-git-policy-cli-bin/git` links to `.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`,
+the AppArmor `git` and `gh` local rules name that exact path,
+and `doc/handover/full-system-policy-handover.md` records that "a rebuilt wrapper requires a fresh review",
+so pointing the session at alpha.46 waits for that review of the new binary's path and rules, which is the system policy's to give;
+until then its removals keep journals, which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
