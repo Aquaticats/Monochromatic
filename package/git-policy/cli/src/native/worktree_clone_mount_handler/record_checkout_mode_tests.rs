@@ -198,11 +198,10 @@ impl Fixture {
 
 /// One run over the fixture,
 /// with the mount the checkout is on and the pool's answers.
-fn record(fixture: &Fixture, pool: &ScriptedPool, mounted_at: &Path, container: &str, wanted: &RecordCheckoutRequest, running_as_root: bool) -> Result<String, RecordCheckoutFailure> {
+fn record(fixture: &Fixture, pool: &ScriptedPool, mounted_at: &Path, wanted: &RecordCheckoutRequest, running_as_root: bool) -> Result<String, RecordCheckoutFailure> {
     let mounts: ScriptedMounts = ScriptedMounts { source: String::from(DATASET), filesystem_type: String::from("zfs"), mount_point: mounted_at.to_path_buf() };
     let table: ScriptedTable = ScriptedTable { rows: Vec::new() };
     let places: RecordCheckoutPlaces<'_> = RecordCheckoutPlaces { configuration: fixture.configuration(), record: fixture.record(), mounts: &mounts, mounted: &table, datasets: pool };
-    let _named: &str = container;
     return run_with(&places, wanted, running_as_root, if running_as_root { 0 } else { 1_000 });
 }
 
@@ -213,7 +212,7 @@ fn recorded(fixture: &Fixture, guid: u64, container: &str, wanted: &RecordChecko
     let checkout: String = fixture.checkout().display().to_string();
     let pool: ScriptedPool = ScriptedPool::beside(guid, checkout.as_str(), container);
     let mountpoint: PathBuf = fixture.checkout();
-    return record(fixture, &pool, mountpoint.as_path(), container, wanted, true);
+    return record(fixture, &pool, mountpoint.as_path(), wanted, true);
 }
 
 /// A caller that is not root is refused before anything is read.
@@ -222,7 +221,7 @@ fn a_caller_that_is_not_root_is_refused_first() {
     let fixture: Fixture = Fixture::new("not-root");
     let pool: ScriptedPool = ScriptedPool::beside(GUID, fixture.checkout().display().to_string().as_str(), CONTAINER);
     let mountpoint: PathBuf = fixture.checkout();
-    let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), CONTAINER, &fixture.request(), false).expect_err("an account may not record the checkout");
+    let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), &fixture.request(), false).expect_err("an account may not record the checkout");
     assert_eq!(failure, RecordCheckoutFailure::NotRoot { effective_user: 1_000 });
     assert!(!fixture.record().exists(), "nothing was written");
 }
@@ -232,7 +231,7 @@ fn a_caller_that_is_not_root_is_refused_first() {
 fn a_path_inside_the_mount_is_not_a_mount_point() {
     let fixture: Fixture = Fixture::new("inside");
     let pool: ScriptedPool = ScriptedPool::beside(GUID, fixture.checkout().display().to_string().as_str(), CONTAINER);
-    let failure: RecordCheckoutFailure = record(&fixture, &pool, Path::new("/home/user"), CONTAINER, &fixture.request(), true).expect_err("the mountpoint is elsewhere");
+    let failure: RecordCheckoutFailure = record(&fixture, &pool, Path::new("/home/user"), &fixture.request(), true).expect_err("the mountpoint is elsewhere");
     assert!(matches!(failure, RecordCheckoutFailure::NotAMountPoint { .. }), "{failure:?}");
     assert!(failure.message().contains("checkout-not-a-mount-point"), "{}", failure.message());
 }
@@ -260,7 +259,7 @@ fn a_dataset_whose_mountpoint_property_is_another_path_is_refused() {
     let beside: ScriptedPool = ScriptedPool::beside(GUID, fixture.checkout().display().to_string().as_str(), CONTAINER);
     let pool: ScriptedPool = beside.with_the_property("/home/user/elsewhere");
     let mountpoint: PathBuf = fixture.checkout();
-    let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), CONTAINER, &fixture.request(), true).expect_err("the property names another path");
+    let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), &fixture.request(), true).expect_err("the property names another path");
     assert!(matches!(failure, RecordCheckoutFailure::NotAMountPoint { .. }), "{failure:?}");
     assert!(failure.message().contains("/home/user/elsewhere"), "the refusal names the property: {}", failure.message());
 }
@@ -398,7 +397,7 @@ fn a_configuration_that_refuses_names_the_file() {
     let fixture: Fixture = Fixture::new("configuration");
     std::fs::write(fixture.configuration(), "{\"cloneMounts\": {\"parent\": 7}}\n").expect("the fixture configuration");
     let pool: ScriptedPool = ScriptedPool::beside(GUID, fixture.checkout().display().to_string().as_str(), CONTAINER);
-    let failure: RecordCheckoutFailure = record(&fixture, &pool, fixture.checkout().as_path(), CONTAINER, &fixture.request(), true).expect_err("the file names a number");
+    let failure: RecordCheckoutFailure = record(&fixture, &pool, fixture.checkout().as_path(), &fixture.request(), true).expect_err("the file names a number");
     assert!(matches!(failure, RecordCheckoutFailure::Configuration(_)), "{failure:?}");
     assert!(failure.message().contains("configuration.jsonc"), "{}", failure.message());
 }
