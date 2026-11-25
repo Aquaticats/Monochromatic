@@ -1070,7 +1070,6 @@ mod zfs_adoption_guest;
 /// and the pool's full answer at the clone.
 #[path = "binary_zfs_add_guest_tests.rs"]
 mod zfs_add_guest;
-
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
