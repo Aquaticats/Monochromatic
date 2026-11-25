@@ -2546,6 +2546,23 @@ and deciding between a re-registration at a commit a person names and removing t
 wires its checks;
 this release prints them from the add's and the removal's refusals.
 
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
+and the command that settles it is built and reachable from nothing:
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
+takes the slot's claim,
+reads the record,
+the pool,
+the slot,
+an origin cleanup record and a destruction plan,
+and removes the registration and the three records once the two flags confirm the record,
+or only the records when a checkout has begun there
+(`SPEC.md`,
+"The settling command,
+built and reachable from no command").
+No management grammar admits it yet,
+so the sentences that name it today still send a person to a command this release does not have,
+and the round that switches removal on adds it to the grammar.
+
 ### The Git lock a managed clone's registration holds
 
 A managed clone's Git registration is locked,
