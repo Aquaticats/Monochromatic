@@ -16854,8 +16854,22 @@ worktrees stayed for ever
 (issue 6322).
 An instance whose socket file and note are both gone has no unit the manager could start again,
 so the command asks the manager nothing about it and decides the journal alone.
+An instance that maps to nothing is counted as one that cannot be matched only while its socket file or its note stands:
+those two files are what make a unit possible,
+and without them the journal is all that is left,
+so the command says so with a sentence of its own,
+names the folder the journals are in,
+and says a person can remove one by hand after looking.
+`doctor` says the same in its note,
+in place of a number that no command could lower
+(M1 of the alpha.46 commit, push and LFS release pass:
+seven such journals on one machine were counted on every run).
 The command names every journal it removed with its folder,
-and every journal it kept with the entry that kept it and the command that removes it once that work is over.
+and every journal it kept with the entry that kept it and the command that removes it once that work is over,
+on standard error,
+and on standard output it names the worktree and the folder of each journal it kept as it names a removed one,
+so a run that kept a journal never prints that no unit or journal belongs to a removed worktree
+(M2 of the same pass).
 A batch's copy of the conclusion state it removed (`<batch>.cleanup`,
 `src/native/landing/conclusion_state_copy.rs`)
 is one of them no longer:

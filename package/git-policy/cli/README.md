@@ -2216,7 +2216,11 @@ while an empty one may be a drive that is not mounted yet and proves nothing
 (the proof is the one the pushes waiting for a new try are read by,
 `landing/unreachable_git_dir_proven_gone.rs`),
 says which worktree each stopped instance was,
-and names an instance that maps to nothing without touching it.
+and names an instance that maps to nothing without touching it:
+one whose socket file or note still stands may have a unit running,
+and one whose journal is all that is left has no unit and no command of the wrapper to stop,
+so the command says the folder the journals are in and that a person can remove one by hand after looking,
+and `doctor`'s note says the same.
 A stopped instance's note and socket file are removed,
 because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
@@ -2245,6 +2249,10 @@ the removed worktree's own, to nothing.
 The command reads the journals as well as the note and the socket file,
 and names each journal it removed with its folder,
 so the journals that an earlier removal kept are cleared by a run that finds no unit beside them.
+A journal it keeps is named on standard output as a removed one is,
+with the worktree it belonged to and its folder,
+so a run that kept a journal never says on standard output that no unit or journal belongs to a removed worktree
+while standard error explains the one it kept.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
@@ -2283,7 +2291,10 @@ Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,
 and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
-how many removed worktrees still have units and names this command.
+how many removed worktrees still have units,
+how many journals are all that is left of an instance,
+naming which can be removed by hand after looking,
+and it names this command.
 
 A removal through the wrapper stops the worktree's units and asks the manager whether the service's processes are gone
 before it removes the journal that service writes,

@@ -579,10 +579,14 @@ fn the_sweep_clears_a_journal_of_a_removed_worktree_that_no_note_or_socket_names
 }
 
 /// What:
-///  A journal that no note, no socket file and no record names is reported and left where it is.
+///  A journal that no note, no socket file and no record names is left where it is,
+///  and the survey counts it as a journal with no unit rather than as an instance it could not match.
 /// Why:
 ///   The proof that a journal belongs to a worktree that is gone is a path that hashes to its instance;
 /// without one nothing is stopped or removed on a guess.
+///   No socket file and no note stands beside it, so no unit of its instance can exist,
+///  and the only thing left is a folder a person can look at and remove
+///  (M1 of the alpha.46 commit, push and LFS release pass).
 #[test]
 fn the_sweep_leaves_a_journal_it_cannot_map_to_a_worktree() {
     let machine: Machine = machine("files-journal-unmapped");
@@ -590,7 +594,8 @@ fn the_sweep_leaves_a_journal_it_cannot_map_to_a_worktree() {
     let journal: PathBuf = machine.settled_journal_of(instance);
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
-    assert_eq!(outcome.survey.unmapped, vec![String::from(instance)], "the instance is counted, never touched");
+    assert_eq!(outcome.survey.journals_without_units, vec![String::from(instance)], "the instance is counted, never touched");
+    assert!(outcome.survey.unmapped.is_empty(), "no unit stands beside it, so nothing of it could be matched to one");
     assert!(outcome.journals_removed.is_empty());
     assert!(journal.exists(), "a journal nothing names stays");
     remove(machine.root.as_path());

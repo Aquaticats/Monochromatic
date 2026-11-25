@@ -16,6 +16,11 @@
 //! and a unit whose note is missing is mapped from the `gitdir=` line of its service journal's records,
 //! only when the text hashes to the instance.
 //! A unit that maps to nothing is reported and never stopped.
+//! An instance whose journal is the only thing left of it,
+//! with no socket file and no note beside it,
+//! has no unit that could be running:
+//! the survey counts it apart,
+//! and the command says the folder a person can look at and clear by hand.
 //! The units are stopped through the manager,
 //! never by killing a process by name,
 //! and nothing here starts a unit.
@@ -108,13 +113,19 @@ pub enum UnitWorktree {
 
 /// Which instances have a unit,
 /// whose worktree is gone,
-/// and which cannot be told.
+/// which cannot be told,
+/// and which are a journal with nothing beside it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Survey {
     /// The instances whose worktree's Git directory no longer exists.
     pub gone: Vec<String>,
-    /// The instances that map to nothing.
+    /// The instances that map to nothing and still have a socket file or a note,
+    /// so a unit of theirs could be running.
     pub unmapped: Vec<String>,
+    /// The instances that map to nothing and whose journal is the only thing left of them:
+    /// no socket file and no note stands beside it,
+    /// so no unit of theirs exists and only a person can clear the folder.
+    pub journals_without_units: Vec<String>,
     /// The instances whose worktree is still there.
     pub present: usize,
 }
@@ -368,21 +379,30 @@ pub fn instances_with_units_or_journals(folders: &UnitFolders<'_>) -> Vec<String
 /// What:
 /// Sorts the instances that have a unit or a journal into those whose worktree is gone,
 /// those that map to nothing,
+/// those that map to nothing and have no unit left,
 /// and the count of those whose worktree is still there.
 /// Why:
 ///   The sort reads files only,
 /// so `doctor` can report it without a manager,
 /// and an instance whose journal outlived the note and the socket file that named it is looked at again.
+///   An instance that maps to nothing is only a unit that could not be matched while a socket file or a note
+///  stands beside it:
+///  those two files are what make a unit possible,
+///  and without them the journal is all that is left,
+///  which a person can look at and remove
+///  (M1 of the alpha.46 commit, push and LFS release pass:
+///  seven such journals on one machine were counted on every `doctor` as instances nothing could touch).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { gone, unmapped, present } = survey(folders);
+/// const { gone, unmapped, journalsWithoutUnits, present } = survey(folders);
 /// ```
 pub fn survey(folders: &UnitFolders<'_>) -> Survey {
     let mut found: Survey = Survey::default();
     for instance in instances_with_units_or_journals(folders) {
         match worktree_of(folders, instance.as_str()) {
-            UnitWorktree::Unmapped => found.unmapped.push(instance),
+            UnitWorktree::Unmapped if has_units(folders, instance.as_str()) => found.unmapped.push(instance),
+            UnitWorktree::Unmapped => found.journals_without_units.push(instance),
             UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => found.gone.push(instance),
             UnitWorktree::Known(_present) => found.present += 1,
         }
@@ -569,6 +589,25 @@ pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &
         ),
     }
     return Ok(Some(gone));
+}
+
+/// What:
+///  The folder the service journals of the user's instances sit in,
+/// in words.
+/// Why:
+///   A line that asks a person to look at a journal has to say where the journals are,
+/// and the folder is the state directory's,
+///  which the command may have been given none of.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// journalsFolderInWords(stateDir) // '<state>/monochromatic-git-policy-cli/service'
+/// ```
+pub fn journals_folder_in_words(state_dir: Option<&Path>) -> String {
+    let Some(state) = state_dir else {
+        return String::from("a folder this process was given no state directory for");
+    };
+    return state.join(SERVICE_UNIT.current).join(JOURNAL_FOLDER).display().to_string();
 }
 
 /// The journal folder of an instance in words,

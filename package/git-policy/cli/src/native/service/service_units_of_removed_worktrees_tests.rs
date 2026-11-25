@@ -248,7 +248,7 @@ fn the_survey_names_the_gone_the_unmapped_and_counts_the_present() {
     }
     machine.socket_of(unknown.as_str());
     let found: Survey = survey(&machine.folders());
-    assert_eq!(found, Survey { gone: vec![gone_instance], unmapped: vec![unknown], present: 1 });
+    assert_eq!(found, Survey { gone: vec![gone_instance], unmapped: vec![unknown.clone()], journals_without_units: Vec::new(), present: 1 });
     remove(machine.root.as_path());
 }
 
@@ -278,11 +278,12 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     assert_eq!(outcome.stopped, vec![gone_instance.clone()]);
     assert!(outcome.failed.is_empty(), "{:?}", outcome.failed);
     assert_eq!(outcome.survey.unmapped, vec![unknown.clone()]);
+    assert!(outcome.survey.journals_without_units.is_empty(), "a socket file stands beside this instance, so a unit of it could be running");
     assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(gone_instance.as_str())), format!("stop {}", service_unit_instance(gone_instance.as_str()))]);
     assert!(!note_path(machine.runtime.as_path(), gone_instance.as_str()).exists(), "the stopped instance's note is removed");
     assert!(!socket_path(machine.runtime.as_path(), gone_instance.as_str()).exists(), "the stopped instance's socket file is removed, so it is not counted or stopped again");
     assert!(socket_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's socket file stays");
-    assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown], present: 1 });
+    assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown.clone()], journals_without_units: Vec::new(), present: 1 });
     assert!(note_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's note stays");
     assert!(
         !record_path(machine.runtime.as_path(), gone_instance.as_str()).exists(),
@@ -520,5 +521,26 @@ fn a_refused_stop_is_reported_and_its_note_kept_for_the_next_sweep() {
     assert_eq!(outcome.failed.len(), 1);
     assert_eq!(outcome.failed[0].0, gone_instance);
     assert!(note_path(machine.runtime.as_path(), gone_instance.as_str()).exists());
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  The survey keeps an instance that maps to nothing and still has a socket file apart from a journal that has nothing
+///  beside it.
+/// Why:
+///   A socket file or a note is what makes a unit possible, so an instance that has neither cannot be a unit that could
+///  not be matched: only its journal is left, and only a person can clear it
+///  (M1 of the alpha.46 commit, push and LFS release pass).
+#[test]
+fn the_survey_counts_a_journal_without_units_apart_from_an_instance_it_could_not_match() {
+    let machine: Machine = machine("units-survey-journal-without-units");
+    let with_a_unit: String = String::from("00000000000000000000000000000001");
+    let journal_only: String = String::from("00000000000000000000000000000002");
+    machine.socket_of(with_a_unit.as_str());
+    machine.journal_of(journal_only.as_str());
+    let found: Survey = survey(&machine.folders());
+    assert_eq!(found.unmapped, vec![with_a_unit], "a unit could be running for the instance a socket file stands beside");
+    assert_eq!(found.journals_without_units, vec![journal_only], "no unit of the second can exist");
+    assert_eq!(found.present, 0, "neither instance maps to a worktree that is there: {found:?}");
     remove(machine.root.as_path());
 }

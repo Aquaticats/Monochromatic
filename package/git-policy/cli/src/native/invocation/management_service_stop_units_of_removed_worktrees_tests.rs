@@ -301,15 +301,24 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
     let (code, _stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
     assert_eq!(code, 0, "{stderr}");
     assert!(
-        !stderr.contains("cannot be matched to a worktree"),
-        "no unit stands beside this journal, so nothing is left that could not be matched: {stderr}"
+        !stderr.contains("2 commit service instances cannot be matched"),
+        "the journal with no unit beside it is not counted with the socket file's instance: {stderr}"
     );
     assert!(
-        stderr.contains(instance.as_str()) || stderr.contains("1 commit service journal names no worktree"),
+        stderr.contains("1 commit service instance cannot be matched"),
+        "only the instance a socket file stands beside is counted as unmatchable: {stderr}"
+    );
+    assert!(
+        stderr.contains("1 commit service journal names no worktree"),
         "the line is about the journal that has no unit: {stderr}"
     );
     assert!(stderr.contains("by hand"), "the line says a person can remove it after looking: {stderr}");
-    assert!(stderr.contains(journal.display().to_string().as_str()), "the line says where to look: {stderr}");
+    let journals_folder: String = state
+        .join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current)
+        .join(crate::service_journal_folder_of_an_instance::JOURNAL_FOLDER)
+        .display()
+        .to_string();
+    assert!(stderr.contains(journals_folder.as_str()), "the line says where to look: {stderr}");
     assert!(journal.exists(), "nothing of it is touched");
     // `doctor` says the same about the same journal.
     let home: PathBuf = world.root.join("home");
@@ -320,7 +329,11 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
         (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
     ];
     let note: String = units_note(environment.as_slice());
-    assert!(!note.contains("cannot be matched to a worktree"), "the note does not count it as unmatchable: {note}");
+    assert!(!note.contains("2 commit service instances cannot be matched"), "the note does not count it with the socket file's instance: {note}");
+    assert!(
+        note.contains("1 commit service journal names no worktree and has no unit beside it"),
+        "the note is about the journal that has no unit: {note}"
+    );
     assert!(note.contains("by hand after looking"), "the note says what a person can do: {note}");
     remove(world.root.as_path());
 }
