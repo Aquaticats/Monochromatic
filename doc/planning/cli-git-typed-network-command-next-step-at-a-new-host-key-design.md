@@ -4,8 +4,13 @@
 
 A proposal,
 put to the owner.
-Nothing in it is approved or final,
+Nothing in it is approved or final:
+this revision is unapproved and non-final,
 and only the owner declares anything complete.
+What this round did is seven capped containers and one probe,
+all logged under its round folder;
+what it checked is named with every figure,
+and what it could not check is under "What the probes did not show".
 
 This text is the proposal as revised after the gate review kept at
 `~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`,
@@ -47,7 +52,7 @@ no code was changed,
 and nothing under `doc/decision/` or `doc/handover/` was touched.
 
 Every transcript is labelled,
-because a read of a revision merged as `1f6f120f64` (2026-11-24T09:01:38-05:00)
+because a read of the revision at `1f6f120f64` (2026-11-24T09:01:38-05:00)
 found a round printing text its run had not printed:
 
 - run means a program printed these bytes, and the log holding them is named with it;
@@ -282,6 +287,9 @@ and the reasoning about them is under "What the figures support, and what they d
 ### The ranking, with a reason for every adjacent pair
 
 **K2 > K > C > C2 > D > A.**
+K2 is the recommendation,
+which is what "(Recommended)" would mark in the question tool,
+and the owner is free to pick any of the six.
 
 - K2 over K.
   Both give the same words and keep the progress display at a terminal.
@@ -344,7 +352,7 @@ and the reasoning about them is under "What the figures support, and what they d
   `accept-new` (run,
   `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-1-behaviour.log`,
   arm `f-accept-new-direct-d-precheck`, decision `none`),
-  and the sentence the design merged as `79962f9ccc` printed there belongs to the arm `d-precheck-acceptnew`.
+  and the sentence the design at `79962f9ccc` printed there belongs to the arm `d-precheck-acceptnew`.
 - D over A.
   D speaks for the plain new-key case, measured, and its words arrive before the refusal.
   A never speaks, and at the first contact with every host the person is left with no next step.
@@ -617,7 +625,7 @@ Each family ran the same arms:
 - `c2-check-both`: the same, choosing between the two on what the check found;
 - `d-precheck`: D, `ssh -G` and `ssh-keygen -F` before Git starts,
   printing only when the resolved setting is `ask` and no file holds a key;
-- `d-precheck-acceptnew`: the same shape as the revision merged as `79962f9ccc` had it,
+- `d-precheck-acceptnew`: the same shape as the revision at `79962f9ccc` had it,
   where `accept-new` counts as asking, which is the false positive the review predicted.
 
 ### What the arms are not
@@ -720,7 +728,7 @@ At `accept-new` (run, the log named with family `f-accept-new` under "The case e
 - every arm ends 0 and the clone succeeds;
 - `d-precheck` stays silent, because the setting is not `ask`;
 - `d-precheck-acceptnew` prints the host-key sentence on a clone that then succeeds,
-  which is the false positive the design merged as `79962f9ccc` had with its `ask` or `accept-new` condition.
+  which is the false positive the design at `79962f9ccc` had with its `ask` or `accept-new` condition.
 
 At a changed key, at the default log level:
 
@@ -1155,7 +1163,7 @@ Four shapes, and they are four different options, because a check changes which 
 - and the shape both of those make together, choosing on what the check found.
 
 The shape the ranking means is the second, the one that speaks only when no file holds a key.
-It is not as safe as the revision merged as `79962f9ccc` said, and this round measured both of its failures:
+It is not as safe as the revision at `79962f9ccc` said, and this round measured both of its failures:
 
 - a connection refused ends 128 with no key known, so the shape speaks the host-key sentence for a host it has
   never seen (run, `keep/run-11-the-words-as-revised.log`, arm `w-never-seen-c2-check-unknown`);
@@ -1251,7 +1259,7 @@ The sentence can also be wrong about why a command failed, and this round measur
 - `KnownHostsCommand` supplies the key, so the real clone exits 0 and D speaks
   (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log`).
 
-Two of the three classes the revision merged as `79962f9ccc` listed hold and one does not:
+Two of the three classes the revision at `79962f9ccc` listed hold and one does not:
 `@cert-authority` supplies the key by certificate and `ssh-keygen -F` finds the line, so D stays silent, which is
 right (run, `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-2.log:82`),
 and `VerifyHostKeyDNS=yes` would be a fourth, and is unrun: no DNSSEC setup was available.
@@ -1390,7 +1398,7 @@ Nothing on `main` holds them today:
 `NO_ANSWER_SENTENCE` went with J,
 and `HOST_KEY_NOT_KNOWN_SENTENCE_OPENING` names the older push sentence, not these.
 
-The words of the revision merged as `bda96883d5` (2026-11-25T13:54:27-05:00) are kept under
+The words of the revision at `bda96883d5` (2026-11-25T13:54:27-05:00) are kept under
 "The record of the rounds before this one" as what was argued over;
 the sentences a shipped C, K or K2 prints are the three here,
 printed byte for byte from `keep/sentences/host-key.txt`, `keep/sentences/strict.txt` and
@@ -1445,7 +1453,7 @@ where the sentence's own command then works and the clone ends 0
 monochromatic-git-policy-cli: the key this connection offered was refused or could not be unlocked, and no command the wrapper runs asks a person for a passphrase, so a key no agent holds cannot be used and a key the server does not accept answers the same way. Start an agent with `eval "$(ssh-agent)"` (`eval (ssh-agent -c)` in fish) and load the key with `ssh-add` (`ssh-add -l` lists what the agent holds), or use a key without a passphrase, then run this command again; a key the server still refuses needs the server's account to accept it.
 ```
 
-What changed from the revision merged as `bda96883d5`, and why:
+What changed from the words of the revision at `bda96883d5`, and why:
 
 - the key's path is gone:
   `Permission denied (publickey).` carries no path,
@@ -1469,7 +1477,7 @@ and its text, which carries the offending file and line, reaches only the askpas
 so only B could print it.
 Under C, K or K2 the transcript is the last line alone and the general sentence is printed:
 its way to connect once is right for that case, and it makes no claim about adding a key,
-which the revision merged as `bda96883d5` got wrong.
+which the revision at `bda96883d5` got wrong.
 
 ## Where the host comes from, and what reading it costs
 
@@ -1551,7 +1559,7 @@ Each item says what would go wrong without it, and the measurement or the source
   40 and 120 columns both cut this clone's progress at the same place
   (run, `~/temp/agent/host-key-next-step-design-after-its-gate-review-2026-11-25/keep/run-2-bytes-and-progress.log`,
   the `WIDTH` lines).
-  The claim of the revision merged as `bda96883d5` that the arms used eighty by twenty-four was unsupported;
+  The claim of the revision at `bda96883d5` that the arms used eighty by twenty-four was unsupported;
   the arms' pty had no size, and Git read its `stdout`, which was a file, and fell back to 80.
   A shipped option sets a size for the programs that ask their own standard error's terminal, and nothing more.
   A window change after the start is not forwarded, so those programs keep the size they were given.
@@ -1871,7 +1879,7 @@ Each claim names its control and its own twin's floor.
   with no twin of its own.
 - K against C, paired in the same rounds: `+0.16 ms`, range `-1.68` to `+1.80`, 13 of 24 positive,
   which is not a difference this harness resolves;
-  the "about `0.6 ms`" of the revision merged as `bda96883d5` was the difference of two medians and is withdrawn.
+  the "about `0.6 ms`" of the revision at `bda96883d5` was the difference of two medians and is withdrawn.
   K2 against C is `+0.12 ms`, range `-1.40` to `+1.38`, 14 of 24.
 - `ssh -G` with the configuration D resolves under: `+3.33 ms` over one process start,
   range `+2.40` to `+6.48`, 24 of 24; its twin is `+0.01 ms`.
@@ -1879,7 +1887,7 @@ Each claim names its control and its own twin's floor.
   its twin is `-0.27 ms`.
 - D's whole check, both starts, with the configuration that asks and the file that holds the host:
   `+7.50 ms`, range `+5.23` to `+10.55`, 24 of 24; its twin is `-0.15 ms`.
-  The `+8.62 ms` of the revision merged as `bda96883d5` measured one start, because its fixture short-circuited the
+  The `+8.62 ms` of the revision at `bda96883d5` measured one start, because its fixture short-circuited the
   second.
 - `git remote get-url`, the query that names the host as the person typed it when they named a remote:
   `+0.85 ms`, range `-0.59` to `+1.50`, 23 of 24; its twin is `-0.21 ms`.
@@ -1966,7 +1974,7 @@ and both runs agree on the conclusion.
 The rounds that led here, named by the folder they wrote to and the commit that merged each revision,
 because the questions they turned on are answered and their evidence is still cited in each option's section.
 
-### The revision merged as `1f6f120f64` (2026-11-24T09:01:38-05:00)
+### The revision at `1f6f120f64` (2026-11-24T09:01:38-05:00)
 
 Its findings, with the evidence against the ones that did not hold:
 
@@ -1980,7 +1988,7 @@ Its findings, with the evidence against the ones that did not hold:
    This round keeps the twin and states the positive count instead of requiring every round.
 4.  The `-G` start count was wrong for the baseline.  A named `ssh` is started once, a differently named program
    twice; E's arm was relabelled and split.
-5.  C2's arm did not show what the text said.  The revision merged as `bda96883d5` ran a real check, and this one
+5.  C2's arm did not show what the text said.  The revision at `bda96883d5` ran a real check, and this one
    runs all four shapes of it.
 6.  The coverage sentence in the B over C pair was wrong in both directions.  B covers the differing key; C also
    speaks for `BatchMode=yes` and `StrictHostKeyChecking=yes`.
@@ -2001,7 +2009,7 @@ Its findings, with the evidence against the ones that did not hold:
     It is not this round's, and this round left both it and
     `typed-network-next-step-probe-2026-11-24` alone, because both predate this round.
 
-### The revision merged as `bda96883d5` (2026-11-25T13:54:27-05:00), merged as `ec0b9e7ea3`
+### The revision at `bda96883d5` (2026-11-25T13:54:27-05:00), merged as `ec0b9e7ea3`
 
 That revision retired J and added K.
 Its words are kept here because a gate review found that they could not be printed from what K reads,
@@ -2034,7 +2042,7 @@ Its C2 shape was one option where there are four, its ranked pair reasons compar
 and its D cost arm never ran D's second start.
 All three are answered in the sections named with them.
 
-### The revision merged as `79962f9ccc` (2026-11-25T15:57:22-05:00), merged as `800db64aa1`
+### The revision at `79962f9ccc` (2026-11-25T15:57:22-05:00), merged as `800db64aa1`
 
 The gate review kept at
 `~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`
