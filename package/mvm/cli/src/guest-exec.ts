@@ -290,7 +290,7 @@ async function attributedResult({
       }
       if (outage.sinceMs === ANSWERING) {
         rl.info(
-          `the guest agent in ${domain} did not answer a status request; the command keeps running and is asked about again`,
+          `the guest agent in ${domain} did not answer a status request; whether the command still runs is unknown, and it is asked about again`,
         );
       }
       outage.sinceMs = sinceMs;
