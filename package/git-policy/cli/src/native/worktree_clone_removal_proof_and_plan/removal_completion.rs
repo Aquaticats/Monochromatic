@@ -63,17 +63,6 @@ use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::plan_requests;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{RequestResult, SnapshotDestroyDevice, send_request};
 use std::path::PathBuf;
 
-/// How many passes over one removal's remaining names this run makes.
-/// Why:
-///  A pass settles every name by a fresh read,
-///  adds an own snapshot that appeared since the last write,
-///  and submits what is left.
-///  A sanoid schedule can keep making own snapshots,
-///  so a run that looped until the set was empty would never end;
-///  three passes let one run finish the ordinary case and two amendments,
-///  and a fourth is the next run's, which re-proves everything anyway.
-pub const MAXIMUM_PASSES: usize = 3;
-
 /// What:
 ///  Everything one whole removal drives,
 ///  as named seams so a control answers each without a pool, a namespace or a repository.
@@ -163,40 +152,28 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
     publish_the_origin_record(input, &plan)?;
     let mut requests: Vec<BatchOutcome> = Vec::new();
     let mut residual: usize = 0;
-    for _pass in 0..MAXIMUM_PASSES {
-        let live = the_live_snapshots(input, &plan)?;
-        settle_the_recorded_names(&mut plan, live.as_slice())?;
-        let added = the_new_own_snapshots(&plan, live.as_slice())?;
-        if !added.is_empty() {
-            amend_the_plan(&mut plan, added.as_slice())?;
-            plan.facts.run = input.clock.run()?;
-        }
-        publish_the_plan(&folder, &plan)?;
-        let remaining: Vec<String> = the_names_not_destroyed(&plan);
-        if remaining.is_empty() {
-            break;
-        }
-        let requested = plan_requests(pool.as_str(), remaining.as_slice(), input.budget).map_err(|refusal| {
-            return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
-        })?;
-        for chunk in requested.chunks() {
-            residual = residual.max(refuse_the_holders(input, &plan)?);
-            refuse_a_marked_or_replaced_origin(input.check, &planned, &plan)?;
-            let answer: RequestResult = send_request(input.snapshots, pool.as_str(), chunk.as_slice()).map_err(|refusal| {
-                return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
-            })?;
-            let RequestResult::Answered(outcome) = answer else { continue };
-            record_the_answer(&mut plan, plan_path.as_path(), &outcome)?;
-            publish_the_plan(&folder, &plan)?;
-            requests.push(outcome);
-        }
-        if the_names_not_destroyed(&plan).is_empty() {
-            break;
-        }
-    }
-    let live = the_live_snapshots(input, &plan)?;
+    // One pass settles what the pool holds, amends the plan with own history it does not name, and
+    // sends what remains in one request per chunk. A name the answer leaves is the next run's:
+    // the design retries only after identifying the new own snapshot and reproving the plan,
+    // never on an unexplained refusal.
+    send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
+    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
     settle_the_recorded_names(&mut plan, live.as_slice())?;
+    let added = the_new_own_snapshots(&plan, live.as_slice())?;
+    let amended: bool = !added.is_empty();
+    if amended {
+        amend_the_plan(&mut plan, added.as_slice())?;
+        plan.facts.run = input.clock.run()?;
+    }
     publish_the_plan(&folder, &plan)?;
+    if amended {
+        // The own snapshot appeared after this run's first enumeration, so every check runs again and
+        // the amendment is submitted once. Every name the first request left keeps its line.
+        send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
+        let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
+        settle_the_recorded_names(&mut plan, live.as_slice())?;
+        publish_the_plan(&folder, &plan)?;
+    }
     let remaining: Vec<String> = the_names_not_destroyed(&plan);
     if !remaining.is_empty() {
         return Err(RemovalStop::TheSnapshotsRemain { names: the_states_of(&plan, remaining.as_slice()) });
@@ -221,6 +198,65 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
         plan_path,
         requests,
     });
+}
+
+/// What:
+///  One pass over one removal's remaining names:
+///  settle them by the live inventory,
+///  amend the plan with the clone's own history it does not name,
+///  and send one request per chunk with a fresh holder scan and the deferred-origin check before
+///  each.
+/// Why:
+///  The checks sit immediately before the requests they guard,
+///  and the plan is published after each answer,
+///  so a kill inside a request leaves the record of every answer that preceded it.
+///
+/// # Throws
+/// A settlement, a scan or a check that refused,
+/// or a plan write that refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sendTheRemaining(input, folder, plan, planned, planPath, requests, residual);
+/// ```
+fn send_the_remaining(
+    input: &RemovalCompletion<'_>,
+    folder: &PlanFolder,
+    plan: &mut DestructionPlan,
+    planned: &crate::worktree_removal_deferred_origin_check::planned_origin::PlannedOrigin,
+    plan_path: &std::path::Path,
+    pool: &str,
+    requests: &mut Vec<BatchOutcome>,
+    residual: &mut usize,
+) -> Result<(), RemovalStop> {
+    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, plan)?;
+    settle_the_recorded_names(plan, live.as_slice())?;
+    let added = the_new_own_snapshots(plan, live.as_slice())?;
+    if !added.is_empty() {
+        amend_the_plan(plan, added.as_slice())?;
+        plan.facts.run = input.clock.run()?;
+    }
+    publish_the_plan(folder, plan)?;
+    let remaining: Vec<String> = the_names_not_destroyed(plan);
+    if remaining.is_empty() {
+        return Ok(());
+    }
+    let pool: String = String::from(pool);
+    let requested = plan_requests(pool.as_str(), remaining.as_slice(), input.budget).map_err(|refusal| {
+        return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
+    })?;
+    for chunk in requested.chunks() {
+        *residual = (*residual).max(refuse_the_holders(input, plan)?);
+        refuse_a_marked_or_replaced_origin(input.check, planned, plan)?;
+        let answer: RequestResult = send_request(input.snapshots, pool.as_str(), chunk.as_slice()).map_err(|refusal| {
+            return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
+        })?;
+        let RequestResult::Answered(outcome) = answer else { continue };
+        record_the_answer(plan, plan_path, &outcome)?;
+        publish_the_plan(folder, plan)?;
+        requests.push(outcome);
+    }
+    return Ok(());
 }
 
 /// The head-gone path:
