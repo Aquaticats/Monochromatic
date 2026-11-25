@@ -1141,6 +1141,70 @@ read over windows of comparable work before and after 13:24:47.
 To undo it,
 write the old value back (`2316412032`) and remove the `tmpfiles.d` file.
 
+### Transparent hugepage defrag and proactive compaction, 2026-11-25
+
+What the host ran:
+`/sys/kernel/mm/transparent_hugepage/enabled` `[always]`,
+`defrag` `[defer+madvise]` (set by CachyOS's `/usr/lib/tmpfiles.d/thp.conf` line 3,
+under the comment "Improve performance for applications that use tcmalloc"),
+and `vm.compaction_proactiveness` 0, which no file in `/etc/sysctl.d`, `/usr/lib/sysctl.d` or `/etc/sysctl.conf` sets,
+so this kernel boots with it.
+The kernel's own text at v7.3,
+`Documentation/admin-guide/mm/transhuge.rst`:
+`defer+madvise` "will enter direct reclaim and compaction like ``always``, but only for regions that have used
+madvise(MADV_HUGEPAGE); all other regions will wake kswapd in the background to reclaim pages and wake kcompactd to
+compact memory";
+and `Documentation/admin-guide/sysctl/vm.rst`: "Setting it to 0 disables proactive compaction."
+Since boot,
+7685445 of 9661022 hugepage faults had fallen back to small pages (`thp_fault_fallback`, `thp_fault_alloc`),
+and at about 2026-11-25T13:43-05:00 `/proc/buddyinfo` held no free Normal-zone block of order 9 or 10.
+
+The owner chose "Madvise and compaction" (`defrag` `madvise`, `compaction_proactiveness` 20)
+from a question that ranked `madvise` alone first,
+with the condition that it is kept only if the reclaim and swap rates drop.
+Four windows of 120 seconds,
+each after five seconds on its setting,
+alternated the host's setting (A) and the chosen one (B);
+the raw readings are in `~/temp/agent/thp-defrag-and-compaction-measured-2026-11-25/keep/`:
+
+1.  A from 13:45:51-05:00:
+    `pgsteal_kswapd` 23.70 GiB, `pswpout` 18.22 GiB, `pswpin` 12.17 GiB, stall 5.0 s,
+    hugepage faults 7659 allocated and 59520 fallen back, 4448 order-9 blocks free at the end.
+2.  B from 13:47:56-05:00:
+    `pgsteal_kswapd` 0.16 GiB, `pswpout` 0.03 GiB, `pswpin` 1.99 GiB, stall 0.0 s,
+    42681 allocated and 17658 fallen back, 3286 free at the end.
+3.  A from 13:50:02-05:00:
+    `pgsteal_kswapd` 0.00 GiB, `pswpout` 0.00 GiB, `pswpin` 0.73 GiB, stall 0.0 s,
+    68677 allocated and 0 fallen back, 3309 free at the end.
+4.  B from 13:52:07-05:00:
+    `pgsteal_kswapd` 0.47 GiB, `pgsteal_direct` 0.16 GiB, `pswpout` 0.00 GiB, stall 0.4 s,
+    30588 allocated and 16798 fallen back, 683 compaction stalls, 216 free at the end.
+
+What the windows show:
+the reclaim and swap stopped when the setting changed,
+and the third window,
+the host's setting again,
+stayed quiet because writing a nonzero `compaction_proactiveness` "will immediately trigger the proactive compaction"
+(`vm.rst`),
+which had left 2 MiB blocks free,
+so no hugepage fault missed (0 fallen back) and nothing woke kswapd.
+So the churn follows the missing 2 MiB blocks under `defer+madvise`.
+What they do not show:
+which half of the change carries the effect,
+because compaction's result outlasts its window and makes A after B no control;
+and whether the rates stay down as builds fragment memory again over hours.
+
+Persisted for boots:
+`/etc/tmpfiles.d/thp.conf`,
+which replaces the distribution's file of the same name,
+holds `w! /sys/kernel/mm/transparent_hugepage/defrag - - - - madvise` under a comment naming these readings,
+and `/etc/sysctl.d/90-vm-compaction-proactiveness.conf` holds `vm.compaction_proactiveness = 20`.
+`sudo systemd-tmpfiles --create --boot /etc/tmpfiles.d/thp.conf` and
+`sudo sysctl --load /etc/sysctl.d/90-vm-compaction-proactiveness.conf` both exited 0,
+and `systemd-tmpfiles --cat-config` lists the `/etc` line for that path.
+To undo it,
+delete both files and write `defer+madvise` and `0` back.
+
 ## What does not work
 
 ### Disk swap today
