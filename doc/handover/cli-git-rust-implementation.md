@@ -1227,8 +1227,33 @@ the audit log, read across all three rotated files, shows two `git` denials befo
 and the one-program fixes `88f5fff28c` (M3, M4, L1 to L7);
 the gate on `main` at `df7d464a6c` (step 16 and the 6448 fix) gave `11236 tests run: 11234 passed (6 slow), 2 failed, 45 skipped`, the cause-H pair, with only `umount`'s three `dac_override`;
 a denial read must cover `audit.log.2`, `audit.log.1` and `audit.log` together once the log rotates, and in zsh a window's two times must be passed as two words (`for from to in ...`);
-the ZFS route fixes wait on their merged-tree check; the askpass and commit-push round (brief `~/temp/agent/askpass-false-and-commit-push-pass-fixes-2026-11-25/prompt.md`) waits on a rising memory stall;
-the round for the root-mode usage wording, the rollback floor and the same-leaf move follows the ZFS route merge, whose files it touches;
+the ZFS route fixes merged as `7ed5ec0b34` (every spelling of a bound slot's `git worktree remove` refused, `-f -f` included, naming `git worktree unlock <slot>` as the one working step;
+texts name only commands this release has; the repair report ignores a same-leaf plain worktree; a prune is a dry run by Git's own option parser;
+the cut's guard bans six names; the removal refusal's host controls take a scripted intent reader, so they no longer open `/dev/zfs`;
+the reads that need no record are gone, proven by controls whose mount table fails if read; its one deliberate red run sent one read-only stats request to `/dev/zfs`);
+on the merged tree check, Clippy, `source_guard` 100 and the touched modules passed;
+running since about 13:05: `pi-askpass-false-and-commit-push-pass-fixes` (`false` back in `SSH_ASKPASS` with a proxy control, the 20-character mask, the sweep's two lines, two doc lows),
+`pi-root-usage-rollback-floor-and-same-leaf-move` (the root usage's full spelling and "no release installs it yet", the `native:install` floor below alpha.46, the move refusal only for the slot itself),
+and the gate on `main` at `7ed5ec0b34`;
+the owner asked "Can we parallelize better?" at about 13:15: only two rounds ran while plan steps 17 and 18 had every dependency merged,
+so the ready queue below is now refilled whenever a round ends, a start pausing only on a rising stall;
+started: `pi-zfs-step-17-cancel-command-and-cancelled-removal` (2026-11-25T13:19:12-05:00), `pi-zfs-step-18-doctor-removal-lines` (13:21:08), `pi-zfs-settle-worktree-clone-record-command`;
+briefed and waiting only on the stall (prompts in `~/temp/agent/<name>-2026-11-25/prompt.md`):
+`zfs-add-grants-refuse-six-warn-three` (3C), `lock-kill-controls-that-fail-alone-on-this-host`,
+`host-key-next-step-design-after-askpass-false` (C, C2, D after `false`; then a Sonnet read, then the owner's question),
+`zfs-step-17-forced-removal-arm`, `zfs-step-18-doctor-store-snapdir-delegation-and-handler`, `zfs-removal-takes-the-per-slot-claim`,
+`zfs-removal-finish-pass-for-a-gone-head`;
+waiting on code: 2C (the add's text beside a standing plan names the cancel command, the settle command and the finish pass's wait line, so it follows those three rounds);
+guests start under `note-before-you-start-a-guest.md` in the launch folder;
+`MemAvailable` understates free memory on this host by the ZFS ARC above `c_min` (between 2026-11-25T13:19:12-05:00 and 13:21:08: `MemAvailable` 24 GiB, every cgroup 12 GiB of 61, ARC 18.5 GiB), so memory is judged by the stall and by `MemAvailable` plus the ARC above `c_min`;
+on the owner's words "If you think ZFS ARC is the problem, feel free to change ARC config." `zfs_arc_sys_free` is 8 GiB since 13:24:47 (runtime, and `/etc/tmpfiles.d/zfs-arc-sys-free.conf` for boots);
+the swapping went on with the ARC at 2 to 4 GiB and 36 GiB free, so the ARC was not its cause, and the owner kept it with "Keep 8 GiB (Recommended)" as room for a guest start;
+the cause was `kswapd` (4.63 GiB reclaimed in 30 s, direct reclaim 12 pages) with no free 2 MiB block, under CachyOS's hugepage defrag `defer+madvise` and `compaction_proactiveness` 0;
+on "Madvise and compaction" the host runs `defrag` `madvise` and `compaction_proactiveness` 20 since 13:54:07 (`/etc/tmpfiles.d/thp.conf`, `/etc/sysctl.d/90-vm-compaction-proactiveness.conf`), and the first window after it fell from 18.22 GiB swapped out in 120 s to 0.03;
+all of it is in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, with the limit that the windows cannot split the two halves' effects and a longer reading under build load is owed;
+the 20-minute build sample from about 13:33 peaked at 7080 MiB for one scope (then 5048, 2618, 2464), which sizes how many rounds build at once;
+the host-key design round ended and merged as a proposal, `ec0b9e7ea3` (option K, the wrapper keeps Git's child with standard error on a pseudo-terminal, ranked `K > C > C2 > D > A`, every option ending 0 at the proxy case in a capped container), and its Sonnet gate read runs before the owner's question;
+`pi-zfs-removal-takes-the-per-slot-claim` started; the finish pass, the forced arm and the `doctor` store lines wait on the stall and on memory;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
