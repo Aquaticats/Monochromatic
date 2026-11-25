@@ -5,8 +5,9 @@ unapproved.**
 It proposes;
 it changes no code and no `mvm` default,
 and the owner chooses.
-Measurements are added arm by arm as they land,
-and a section heading's stamp is the commit time of the commit that landed that section.
+Every reading below was taken on 2026-11-25 on this host,
+and the logs,
+samples and scripts behind them are in the round folder's `keep/`.
 
 ## The question
 
@@ -163,7 +164,8 @@ started only through `mvm`,
 and destroyed through `mvm` as soon as its readings are saved.
 One guest runs at a time,
 and no guest starts unless the round note's test holds:
-`MemAvailable` plus the ARC's `size` minus its `c_min` is at least 16 GiB and memory pressure's `avg10` is not above `avg60`.
+`MemAvailable` plus the ARC's `size` minus its `c_min` is at least 16 GiB
+and memory pressure's `avg10` is not above `avg60`.
 Each create's gate reading is in `keep/memory-gate-log.txt` in the round folder.
 
 For each guest the round reads,
@@ -423,10 +425,186 @@ reading:
   so this route asks every one of them to change where their files live.
 - `mvm create` took 13 seconds and `mvm destroy` 10 seconds.
 
+### A smaller guest whose arms compile nothing
+
+Guest `mem-d` was created with the probe patch's `memory4g,reporting`:
+4,194,304 KiB instead of 8,192 MiB,
+and free page reporting on.
+Its QEMU command line read `-m size=4194304k` and
+`"free-page-reporting":true`.
+It ran no build and no preparation for one:
+the guest's image already had Git 2.43.0,
+and the arm ran the wrapper **the host built**:
+`package/git-policy/cli/target/release/monochromatic-git-policy-cli`,
+27,971,352 bytes,
+built on this host at 2026-11-25T16:00,
+pushed into the guest in 3 seconds (about 9 MB/s through virtiofs).
+
+- `mvm create`:
+  16 seconds.
+- 68 seconds after create:
+  0.68 GiB charged.
+- The arm:
+  the wrapper printed `monochromatic-git-policy-cli 0.6.1-alpha.44, shadowing git at /usr/bin/git`,
+  the guest made a 200-file repository and a commit,
+  the wrapper read its log,
+  and a detached worktree was added and removed through the wrapper.
+  It took 3 seconds and the charge peaked at **0.76 GiB**:
+  0.56 GiB resident and 0.10 GiB in swap.
+- A second pass had Git read and stage every file of the wrapper snapshot;
+  it went as far as the staging step and stopped at a later one
+  (Git's ownership check refused the root-extracted tree,
+  and the round did not chase that,
+  because the file reading was the load).
+- `mvm destroy`:
+  3 seconds.
+
+So a 4 GiB guest that compiles nothing stood at **0.66 to 0.76 GiB**,
+against 7.98 GiB for the default guest after one build.
+What it costs is the whole point of the option:
+the guest cannot compile the wrapper at all.
+One in-guest build peaks at 7.45 GiB of a 7.75 GiB guest
+(`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`),
+so the build has to happen somewhere else once,
+and the binary has to reach the guest (3 seconds for 28 MB here).
+Every round whose subject *is* the in-guest build loses its arm.
+
+### Destroying a guest between a round's arms
+
+A guest returns everything when it is destroyed,
+and this round measured both halves of that:
+
+- `mvm destroy` took 9,
+  8,
+  10 and 3 seconds across the four guests,
+  the charge went to zero each time,
+  and for `mem-a` the swap device's free space rose by 7.12 GiB as its pages were released.
+- `mvm create` from the baked template took 11,
+  17,
+  13 and 16 seconds.
+
+What it costs is what the guest was keeping:
+preparing it for a build took 74 to 100 seconds,
+and one in-guest build took 34 minutes 13 seconds and 33 minutes 32 seconds in the two guests that ran one.
+So destroying between arms is cheap only for arms that compile nothing
+(the condition of the smaller guest above),
+and it returns nothing at all *during* an arm:
+the saving is proportional to the share of a round spent between arms,
+and a round whose arms run back to back returns almost nothing.
+
 ## Ranking
 
-(None yet:
-it follows the measurements.)
+Ranked by the memory each returns while rounds still get their guest arms,
+with effort stated as a cost rather than a reason to rank lower.
+The figures are the host's charge to one guest
+(`smaps_rollup` `Rss` + `Swap` of its RAM mapping),
+measured above;
+"at rest" means after the load,
+with the guest idle.
+
+1. **A 4 GiB guest on a binary the host built,
+   with reporting on**:
+   0.66 to 0.76 GiB charged at every point measured,
+   against 7.98 GiB for the default guest at rest.
+   Cost:
+   every arm must stop compiling in the guest,
+   the wrapper has to be built once per commit
+   somewhere else,
+   and 28 MB has to reach each guest (3 seconds through virtiofs).
+2. **Reporting on,
+   and the guest dropping its page cache after an arm**:
+   3.24 GiB charged at rest,
+   of which 0.17 GiB resident,
+   against the default guest's 7.98 GiB.
+   The drop is what turns 2.46 GiB into 4.74 GiB returned:
+   reporting alone got the guest to 5.52 GiB.
+   Cost:
+   one domain attribute,
+   one command per arm,
+   and the arm after it starts with a cold page cache.
+3. **Reporting on alone**:
+   5.52 GiB charged at rest,
+   2.46 GiB returned,
+   and 0.69 GiB returned during preparation alone.
+   Cost:
+   one domain attribute and nothing else;
+   no round's arms change,
+   no `mvm` command is added,
+   and the guest's own readings are identical to the default guest's.
+4. **Destroying a guest between a round's arms**:
+   all 7.98 GiB returned,
+   but only in the gaps:
+   during an arm the guest holds everything it holds today,
+   and each gap costs a create (11 to 17 seconds) plus the guest's preparation (74 to 100 seconds)
+   and,
+   for arms that compile,
+   the whole build again (33 to 34 minutes here).
+5. **A guest without the share,
+   for KSM**:
+   nothing measured and nothing returned yet.
+   Its memory is private and carries the mergeable flag,
+   but KSM was off and turning it on needs a write to a root-owned host file that no agent round may make.
+   It also costs the file route:
+   11 seconds for 12.6 MB where virtiofs took 3,
+   and no `/mnt/shared` for the rounds' arm drivers.
+
+Why each pair is ordered the way it is:
+
+- 1 above 2:
+  0.76 GiB against 3.24 GiB,
+  a quarter of what reporting and the drop leave behind,
+  and it is the only option that returns memory while an arm is *working*;
+  reporting cannot touch a build's live pages,
+  so its saving appears at rest and in the gaps.
+- 2 above 3:
+  3.24 GiB against 5.52 GiB,
+  because the guest's page cache is most of what a build leaves behind and the guest has to be told
+  to drop it before reporting can return it;
+  the drop alone,
+  in the default guest,
+  returned nothing at all.
+- 3 above 4:
+  both cost little to add,
+  but 4 returns nothing while an arm runs
+  and it charges a create and a rebuild for every gap,
+  while 3 lowers the standing charge of any guest that exists.
+- 4 above 5:
+  4 is measured and returns everything;
+  5 returns nothing yet,
+  and its own return depends on a host
+  change outside any round's reach.
+
+Options 1,
+2 and 3 compose:
+reporting on a 4 GiB guest that also drops its cache would be the smallest standing charge of all,
+and the measurements here cover every pair except the drop on the 4 GiB guest.
+
+## What is not measured, and is owed
+
+- **What KSM would return.**
+  Turning it on is a write to `/sys/kernel/mm/ksm/run`,
+  owned by the host's root account.
+  Until the owner turns it on,
+  no round can measure the merging,
+  and neither can a round measure it honestly with one guest at a time:
+  the saving is between two guests of one template,
+  and the round note allows one guest.
+- **The 6 GiB middle.**
+  This round measured 8 GiB and 4 GiB.
+  A guest just large enough to build in (7.45 GiB peak) and just small enough to return memory was not
+  measured.
+- **What reporting costs the guest in time.**
+  The two builds took 34 minutes 13 seconds (reporting off) and 33 minutes 32 seconds (reporting on)
+  under different host pressure,
+  so this round has no speed reading.
+  Each reported page is a page the guest must fault back in,
+  and the round did not measure that cost.
+- **Windows guests.**
+  `mvm`'s Windows guests install the VirtIO balloon driver
+  (`package/mvm/cli/TROUBLESHOOTING.virtiofs-windows.md`),
+  but this round measured Linux guests only.
+- **Two guests and KSM at once.**
+  The one-guest rule is why.
 
 ## Options considered and not measured
 
