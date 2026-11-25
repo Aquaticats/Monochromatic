@@ -666,7 +666,7 @@ What it costs:
   but the add does not consult it,
   and a container changed after the last `doctor` run would give every clone an ordinary mountpoint
   until someone ran it again.
-  `## Choice 2: where C's check runs` asks which placement to give it;
+  `### Choice 2: where C's check runs` asks which placement to give it;
 - the check itself is cheap.
   The kernel's reply for one dataset carries every property with its value and its source,
   in the same object as its GUID
@@ -1239,7 +1239,7 @@ and each answer is in this document.
   and its cost stated wrongly":
   the new-`ZFS_IOC_GET_PROP` claim is deleted.
   C's cost is now one reader call on replies the add already gets
-  (`## Choice 2: where C's check runs` and `### C`).
+  (`### Choice 2: where C's check runs` and `### C`).
   The fork inside C is its own flagged choice,
   with three placements and a recommendation.
 - "The accepted design already says C,
