@@ -119,6 +119,21 @@ fn a_lock_the_clean_removed_is_put_back_as_checked_out() {
     remove(root.as_path());
 }
 
+/// The names left in the directory a lock's displaced bytes are kept in.
+/// Why:
+///  A control tells the copy the repair kept from the staging name the exchange never reached,
+///  and both live in that one directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = readdirSync(copiesDirectory(gitDir, lock));
+/// ```
+fn names_beside_the_lock(git_dir: &Path, lock: &Path) -> Vec<PathBuf> {
+    let copies: PathBuf = copies_directory(git_dir, lock);
+    let Ok(entries) = std::fs::read_dir(copies.as_path()) else { return Vec::new() };
+    return entries.filter_map(|listed| return listed.ok().map(|entry| return entry.path())).collect();
+}
+
 /// What:
 ///  A lock whose displaced directory is on another filesystem than the worktree is
 ///  written over with the checked-out bytes,
@@ -150,8 +165,7 @@ fn a_lock_whose_displaced_directory_is_on_another_filesystem_is_written_over() {
     assert!(words.contains("back as checked out"), "{words}");
     let kept: PathBuf = the_kept_copy(git_dir.as_path(), lock.as_path());
     assert_eq!(std::fs::read(kept.as_path()).expect("the kept bytes"), ANOTHER_COMMAND, "the bytes that stood there are kept whole");
-    let left: Vec<PathBuf> = std::fs::read_dir(copies_directory(git_dir.as_path(), lock.as_path()).as_path()).map(|entries| return entries.filter_map(|entry| return entry.ok().map(|entry| return entry.path())).collect()).unwrap_or_default();
-    for path in left.iter() {
+    for path in names_beside_the_lock(git_dir.as_path(), lock.as_path()).iter() {
         let name: String = path.file_name().map(|name| return name.to_string_lossy().into_owned()).unwrap_or_default();
         assert!(!name.contains(STAGING_SUFFIX), "the copy staged for the exchange is taken away, and only the kept bytes stay: {}", path.display());
     }
