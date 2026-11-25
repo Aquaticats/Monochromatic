@@ -42,7 +42,12 @@ Never write a fixed path outside the fixture root (no `/tmp`, no shared name und
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:
-hold it in a value whose `Drop` ends it and waits for it, so a failing assertion cannot leave it running.
+start it with `test_support::spawn_owned`, whose child is ended with the test thread's fixtures however the test ends,
+so a failing assertion cannot leave it running.
+A control that needs a signal sent to the wrapper runs the wrapper in such a helper process and signals only `helper.id()`,
+as `process/signal_relay_tests.rs` does:
+`lfs::lfs_upload`'s signal control once sent `libc::kill(libc::getpid(), libc::SIGTERM)`,
+and `getpid()` is the test binary, whose signal handlers are process-wide, so it ended every thread of the run (issue 6463).
 Start a stand-in in a process group of its own, and signal only the process or group the test started and proved,
 never a group or session the test binary belongs to, never by name.
 A child must not keep the test's standard output or error open after the test:
