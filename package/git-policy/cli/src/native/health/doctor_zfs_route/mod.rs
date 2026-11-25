@@ -4,6 +4,8 @@
 //!  the device,
 //!  ABI and dataset facts,
 //!  the checkout mount and its propagation,
+//!  the snapshot directories' visibility on the checkout dataset and the clone
+//!  container,
 //!  the recorded parent and slot identities,
 //!  the slot identity store's folder listing,
 //!  the removal of the two staging forms a killed writer left,
@@ -49,6 +51,9 @@
 //!   the pool,
 //!   the checkout and container datasets,
 //!   their keys and the clones' properties.
+//! - `snapshot_directory_checks.rs`:
+//!   the `snapdir` of the checkout dataset and of the clone container,
+//!   and the command that sets it where it is not `disabled`.
 //! - `mount_checks.rs`:
 //!   the checkout's mount,
 //!   its propagation,
@@ -101,6 +106,9 @@ pub mod check_outcome;
 /// dataset,
 /// key and property checks.
 pub mod zfs_checks;
+
+/// The `snapdir` of the checkout dataset and of the clone container.
+pub mod snapshot_directory_checks;
 
 /// The checkout's mount,
 /// its propagation and the nested mounts' reachability.
@@ -155,6 +163,8 @@ pub use zfs_checks::{
 /// The checkout mount,
 /// its propagation and the nested mounts' reachability.
 pub use mount_checks::{MountCheckFacts, NestedMount, check_checkout_mount, check_checkout_propagation, check_nested_reachability, nested_mounts};
+/// The `snapdir` of the checkout dataset and of the clone container.
+pub use snapshot_directory_checks::{SNAPDIR_DISABLED, SNAPDIR_HIDDEN, SNAPDIR_PROPERTY, SNAPDIR_VISIBLE, SnapdirSetting, check_snapdir, snapdir_report, snapdir_setting, snapdir_word};
 /// The store's folder listing.
 pub use store_listing::{
     ListedEntry, RecordFacts, SlotRecordFacts, StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries, is_foreign_entry, is_unknown_dot_entry, known_staging_entries,
