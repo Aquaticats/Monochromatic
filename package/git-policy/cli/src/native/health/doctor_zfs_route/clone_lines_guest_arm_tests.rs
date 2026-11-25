@@ -478,7 +478,9 @@ fn mounts_the_clone(built: &LivePoolFixture, cache: &Path, slot_path: &Path) -> 
     let guid: DatasetGuid = DatasetGuid::parse(built.identity(clone.as_str()).0.to_string().as_str()).expect("the clone's GUID");
     let folder: PathBuf = staging_folder(cache, guid);
     std::fs::create_dir_all(folder.as_path()).expect("the staging folder");
-    built.run("zfs", &["set", format!("mountpoint={}", folder.display()).as_str(), clone.as_str()]);
+    // `-u` sets the property without mounting: changing a legacy dataset's mountpoint to a path otherwise mounts it at
+    // that path during the same command, and the explicit mount below would then refuse the dataset as already mounted.
+    built.run("zfs", &["set", "-u", format!("mountpoint={}", folder.display()).as_str(), clone.as_str()]);
     built.run("zfs", &["mount", clone.as_str()]);
     let _ = slot_path;
     return clone_facts(built.common().as_path(), built.slot_path().as_path(), cache);
