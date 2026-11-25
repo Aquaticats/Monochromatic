@@ -104,9 +104,20 @@ fn every_other_word_under_the_installed_name_is_refused_before_the_grammar() {
     assert_eq!(decided(&[INSTALLED, "boot-reconcile"]), "refused the word `boot-reconcile`");
     assert_eq!(decided(&[INSTALLED, "start-probe"]), "refused the word `start-probe`");
     assert_eq!(decided(&[INSTALLED, "help"]), "refused the word `help`");
-    assert_eq!(decided(&[INSTALLED, PROGRAM_WORD, "service", "run"]), "refused the word `monochromatic-git-policy-cli`");
     assert_eq!(decided(&[INSTALLED, "--help", "boot-reconcile"]), "refused the word `boot-reconcile`");
     assert_eq!(decided(&[INSTALLED, "--version", "x"]), "refused the word `x`");
+}
+
+/// The word a refusal names is the word the person got wrong,
+/// never the program's own word they typed correctly:
+/// a misspelt group word and the wrapper's `service` words are each named,
+/// and a start that is only the program's own word still names it.
+#[test]
+fn the_programs_own_word_is_not_the_word_a_refusal_names() {
+    assert_eq!(decided(&[INSTALLED, PROGRAM_WORD, "zfs-roots", "boot-reconcile"]), "refused the word `zfs-roots`");
+    assert_eq!(decided(&[INSTALLED, PROGRAM_WORD, "service", "run"]), "refused the word `service`");
+    assert_eq!(decided(&[INSTALLED, PROGRAM_WORD, "boot-reconcile"]), "refused the word `boot-reconcile`");
+    assert_eq!(decided(&[INSTALLED, PROGRAM_WORD]), "refused the word `monochromatic-git-policy-cli`");
 }
 
 /// The two words the modes answer at that path are answered there,
