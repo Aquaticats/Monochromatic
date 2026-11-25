@@ -192,10 +192,11 @@ fn install_layout() {
 /// active pool": the refused destroy is what an earlier arm's killed run left,
 /// and this guest has no dataset worth keeping.
 fn clear_what_a_killed_arm_left() {
+    // `zpool` takes no long options: `-f` is the only spelling of force it has.
     let listed = Command::new("zpool").args([ "list", "-H", "-o", "name" ]).output().expect("zpool lists");
     for name in String::from_utf8_lossy(listed.stdout.as_slice()).split_whitespace() {
         let _ = Command::new("zfs").args([ "unmount", "-a" ]).output();
-        let destroyed = Command::new("zpool").args([ "destroy", "--force", name ]).output().expect("zpool answers");
+        let destroyed = Command::new("zpool").args([ "destroy", "-f", name ]).output().expect("zpool answers");
         assert!(destroyed.status.success(), "the pool {name} could not be destroyed: {}{}", String::from_utf8_lossy(destroyed.stdout.as_slice()), String::from_utf8_lossy(destroyed.stderr.as_slice()));
     }
     let _ = std::fs::remove_dir_all(FIXTURE);

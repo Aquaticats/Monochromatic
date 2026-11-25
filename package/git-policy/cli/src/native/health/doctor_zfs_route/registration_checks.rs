@@ -57,7 +57,9 @@ pub struct RegistrationFacts {
     /// What the filesystem answered at that path.
     pub at_the_path: PathState,
     /// The path the registration's `gitdir` file names,
-    /// when it holds one.
+    /// when it holds one,
+    /// with a relative spelling resolved against the registration's own folder
+    /// by the caller.
     pub gitdir: Option<PathBuf>,
     /// The `.git` file a complete registration of this slot is named by.
     pub slot_git: PathBuf,
@@ -138,28 +140,20 @@ pub fn check_registration(facts: &RegistrationFacts) -> CheckOutcome {
 /// Why:
 ///  The registration's `gitdir` and the slot's `.git` are written by Git from
 ///  the same destination,
-///  so a difference in one trailing separator or a repeated separator is not
-///  the damage this check reports,
+///  so a difference in one dot component or a `..` crossing is not the damage
+///  this check reports,
 ///  and anything deeper needs a filesystem lookup a report of readings does not
 ///  make.
+///  The resolution is the route's own,
+///  so this comparison and the registration finder cross a `..` the same way
+///  (`worktree_clone_managed_lock::lexical_path_resolution`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const same = samePath('/repo/.claude//worktrees/topic/.git', '/repo/.claude/worktrees/topic/.git'); // true
+/// const same = samePath('/repo//.claude/worktrees/topic/.git', '/repo/.claude/worktrees/topic/.git'); // true
 /// ```
 fn same_path(left: &Path, right: &Path) -> bool {
-    let normalized = |path: &Path| -> PathBuf {
-        let mut kept: Vec<std::ffi::OsString> = Vec::new();
-        for component in path.components() {
-            let text: std::ffi::OsString = component.as_os_str().to_os_string();
-            if text.as_os_str() == std::ffi::OsStr::new(".") {
-                continue;
-            }
-            kept.push(text);
-        }
-        return kept.iter().collect();
-    };
-    return normalized(left) == normalized(right);
+    return crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(left) == crate::worktree_clone_managed_lock::lexical_path_resolution::the_lexical_path(right);
 }
 
 /// Controls stay out of the release executable.

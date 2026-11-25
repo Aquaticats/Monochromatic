@@ -169,7 +169,13 @@ fn registration_of(readings: &SlotReadings, slot_path: &Path) -> RegistrationFac
         None => PathState::Absent,
         Some(path) => path_state(path.as_path()),
     };
-    let gitdir: Option<PathBuf> = recorded.as_ref().and_then(|path| return std::fs::read_to_string(path.join("gitdir")).ok()).map(|text| return PathBuf::from(text.trim()));
+    // Git writes an absolute back-link, and a person's hand-written one may be relative to the registration, so the
+    // relative spelling is resolved here, once, rather than judged as damage by the check.
+    let gitdir: Option<PathBuf> = recorded.as_ref().and_then(|path| {
+        let text: String = std::fs::read_to_string(path.join("gitdir")).ok()?;
+        let named: PathBuf = PathBuf::from(text.trim());
+        return Some(if named.is_absolute() { named } else { path.join(named) });
+    });
     return RegistrationFacts { slot: String::from(SLOT), recorded, at_the_path, gitdir, slot_git: slot_path.join(".git") };
 }
 
@@ -431,7 +437,7 @@ fn publishes_a_plan(built: &LivePoolFixture, cache: &Path) -> super::route_check
         origin_snapshot_guid: record.origin_snapshot_guid.clone(),
         origin_snapshot_createtxg: record.origin_snapshot_createtxg,
         registration_id: Vec::from(SLOT.as_bytes()),
-        admin: crate::worktree_clone_binding_record::binding_encoding::FolderIdentity::of_folder(built.registration().as_path()).expect("the registration's identity").encode(),
+        admin: crate::worktree_clone_removal_proof_and_plan::removal_identities::prove_the_adds_registration(common.as_path(), &record).expect("the add's registration proves itself").encode(),
         target: slot_path.clone(),
         unmount_nonce: RequestNonce::parse(NONCE).expect("the arm's nonce"),
         unmount_mount_id: None,
