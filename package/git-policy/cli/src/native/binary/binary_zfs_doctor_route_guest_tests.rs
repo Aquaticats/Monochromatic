@@ -156,8 +156,7 @@ fn path_state(path: &Path) -> PathState {
 /// What the arm needs in place before it reads anything.
 fn install_layout() {
     let pool_name: String = pool();
-    let _ = Command::new("zpool").args([ "destroy", "--force", pool_name.as_str() ]).output();
-    let _ = std::fs::remove_dir_all(FIXTURE);
+    clear_what_a_killed_arm_left();
     std::fs::create_dir_all(FIXTURE).expect("the fixture root");
     let image: String = format!("{FIXTURE}/pool.img");
     run("truncate", &[ "--size", POOL_IMAGE_SIZE, image.as_str() ]);
@@ -183,6 +182,23 @@ fn install_layout() {
     publish_the_records();
     make_the_staging_folder();
     allow_the_decided_grants();
+}
+
+/// Destroy every pool and mount a killed arm left in this throwaway guest,
+/// so a rerun starts from nothing.
+///
+/// A `zpool destroy` that refuses leaves the pool's image belonging to a live
+/// pool, and the next `zpool create` on that image then fails with "part of
+/// active pool": the refused destroy is what an earlier arm's killed run left,
+/// and this guest has no dataset worth keeping.
+fn clear_what_a_killed_arm_left() {
+    let listed = Command::new("zpool").args([ "list", "-H", "-o", "name" ]).output().expect("zpool lists");
+    for name in String::from_utf8_lossy(listed.stdout.as_slice()).split_whitespace() {
+        let _ = Command::new("zfs").args([ "unmount", "-a" ]).output();
+        let destroyed = Command::new("zpool").args([ "destroy", "--force", name ]).output().expect("zpool answers");
+        assert!(destroyed.status.success(), "the pool {name} could not be destroyed: {}{}", String::from_utf8_lossy(destroyed.stdout.as_slice()), String::from_utf8_lossy(destroyed.stderr.as_slice()));
+    }
+    let _ = std::fs::remove_dir_all(FIXTURE);
 }
 
 /// The parent's and the slot's records,

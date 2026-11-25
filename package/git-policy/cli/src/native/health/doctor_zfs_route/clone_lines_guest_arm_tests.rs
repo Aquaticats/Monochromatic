@@ -431,7 +431,7 @@ fn publishes_a_plan(built: &LivePoolFixture, cache: &Path) -> super::route_check
         origin_snapshot_guid: record.origin_snapshot_guid.clone(),
         origin_snapshot_createtxg: record.origin_snapshot_createtxg,
         registration_id: Vec::from(SLOT.as_bytes()),
-        admin: record.registration_identity.encode(),
+        admin: crate::worktree_clone_binding_record::binding_encoding::FolderIdentity::of_folder(built.registration().as_path()).expect("the registration's identity").encode(),
         target: slot_path.clone(),
         unmount_nonce: RequestNonce::parse(NONCE).expect("the arm's nonce"),
         unmount_mount_id: None,
