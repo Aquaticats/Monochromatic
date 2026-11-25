@@ -7406,12 +7406,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   (otherwise the nearest folder above the caller whose `.git` is a folder)
   and `--dry-run` prints the same plan and changes nothing.
   The install also refuses unless `git monochromatic-git-policy-cli zfs-root --version` prints the release's line,
-  and no release published so far answers those words:
-  the ZFS route's root modes are modes of the one executable since this change,
-  so installing any earlier release ends refused after the wrapper is installed and the lock is moved,
-  and nothing is committed under that release's name.
-  The first release built from this tree answers the words,
-  and the refusal then names nothing.
+  from `0.6.1-alpha.46` on, which is the first release whose build answers those words:
+  the ZFS route's root modes are modes of the one executable since that release.
+  A build of a release before it cannot answer the words at all,
+  so an install of one skips that check and keeps the checks that release can answer,
+  and a rollback to `0.6.1-alpha.45` installs, commits the lock under that release's name and prints its line.
+  The floor is `rootModesFirstRelease` in `bin/native-install-steps.ts`,
+  kept beside the release list that names the releases whose builds answer the words,
+  and `bin/native-install.unit.test.ts` fails when the floor and that list disagree.
+  A release at or after the floor that answers nothing has lost the dispatch, or the wrapper on `PATH` is another
+  release, and the refusal says so.
 
 ### Lint
 
