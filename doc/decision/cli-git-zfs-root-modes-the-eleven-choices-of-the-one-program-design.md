@@ -24,7 +24,8 @@ The proposal designed how,
 through six revisions,
 each read by a Claude Sonnet second pass.
 The sixth read,
-`read-of-the-sixth-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`,
+`read-of-the-sixth-one-program-revision.md`
+in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`,
 found no high finding and judged the choices ready after five text repairs that change no command,
 no ranking order and no boot behaviour;
 the questions carried its corrected blocks:
