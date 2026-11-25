@@ -189,6 +189,35 @@ fn a_live_claim_refuses_naming_its_process() {
     assert!(binding_path(&made).exists(), "nothing was removed");
 }
 
+/// A pointer naming another registration refuses,
+/// and every record stays.
+#[test]
+fn a_pointer_naming_another_registration_changes_nothing() {
+    let (made, reads) = ready("settling-command-foreign-pointer");
+    std::fs::write(made.slot_path.join(".git"), b"gitdir: /elsewhere/.git/worktrees/other\n").expect("the pointer writes");
+    let refused = settle_the_records_of_a_slot(made.common.as_path(), &ask(), &reads.borrowed()).expect_err("a foreign pointer refuses");
+    assert!(matches!(refused, SettlingStop::ThePointerNamesAnother { .. }), "{refused:?}");
+    assert!(binding_path(&made).exists(), "nothing was removed");
+    assert!(made.registration.exists(), "the registration stands");
+}
+
+/// A registration of another identity refuses,
+/// and every record stays.
+#[test]
+fn a_registration_of_another_identity_changes_nothing() {
+    let made: TheFixture = the_fixture("settling-command-foreign-registration");
+    let mut record = crate::worktree_clone_record_settling::settling_fixtures::the_record(&made, Phase::Filled);
+    record.registration_identity = Some(crate::worktree_clone_binding_record::binding_encoding::FolderIdentity::decode("131074:1763750400:123456789").expect("a decodable identity"));
+    let home: std::fs::File = crate::worktree_clone_binding_record::registration_home::open_or_create_home(made.common.as_path()).expect("the home opens");
+    crate::worktree_clone_binding_record::record_publication::write_binding(&home, "topic", &record).expect("the record writes");
+    write_the_pointer(&made);
+    let reads: TheReads = TheReads { probe: ScriptedProbe::empty(), table: ScriptedMountTable::holding(&[]) };
+    let refused = settle_the_records_of_a_slot(made.common.as_path(), &ask(), &reads.borrowed()).expect_err("another identity refuses");
+    assert!(matches!(refused, SettlingStop::TheRegistrationIsAnother { .. }), "{refused:?}");
+    assert!(binding_path(&made).exists(), "nothing was removed");
+    assert!(made.registration.exists(), "the registration stands");
+}
+
 /// A record that holds no clone GUID names the add again and removes nothing.
 #[test]
 fn a_record_without_a_clone_names_the_add_again() {

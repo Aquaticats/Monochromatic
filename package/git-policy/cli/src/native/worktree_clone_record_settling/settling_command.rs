@@ -39,7 +39,7 @@ use crate::worktree_clone_record_settling::settling_record::{TheRecord, confirm_
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_record_settling::settling_removals::{RemovalsGone, RemovalsToMake, make_the_removals, the_claim_prefix};
 use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
-use crate::worktree_clone_record_settling::settling_slot::{TheSlot, read_the_slot};
+use crate::worktree_clone_record_settling::settling_slot::{ThePointer, TheRegistration, TheSlot, read_the_slot};
 use crate::worktree_clone_record_settling::settling_standing_records::{a_standing_origin_cleanup, a_standing_plan};
 use crate::worktree_clone_record_settling::settling_steps::{SettlingStep, TheOrderFacts, the_steps};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
@@ -123,6 +123,36 @@ fn take_the_slots_claim(common_dir: &Path, slot: &str) -> Result<OwnerClaim, Set
         Ok(ClaimOutcome::Held(claim)) => Ok(claim),
         Ok(ClaimOutcome::Busy(owner)) => Err(SettlingStop::TheClaimIsHeld { slot: String::from(slot), pid: owner.pid }),
         Err(error) => Err(SettlingStop::TheClaimCannotBeTaken { slot: String::from(slot), said: format!("{error:?}") }),
+    };
+}
+
+/// What:
+///  The slot's own pointer and registration,
+///  refused when either names a folder this record did not make.
+/// Why:
+///  The recipe removes only a pointer whose bytes name this registration,
+///  and a registration of another identity is another folder's,
+///  so both stop the run before the plan,
+///  the inventories or the binding are touched
+///  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+///  "The settling command",
+///  "What it refuses, changing nothing").
+///
+/// # Throws
+/// A pointer naming another registration,
+/// or a registration of another identity.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseASlotOfAnotherRegistration(slot, record);
+/// ```
+fn refuse_a_slot_of_another_registration(slot: &TheSlot, record: &TheRecord) -> Result<(), SettlingStop> {
+    if let ThePointer::NamesAnother { found } = &slot.pointer {
+        return Err(SettlingStop::ThePointerNamesAnother { found: found.clone() });
+    }
+    return match &slot.registration {
+        TheRegistration::Differs { live } => Err(SettlingStop::TheRegistrationIsAnother { recorded: record.recorded.registration_identity.encode(), live: live.encode() }),
+        TheRegistration::Gone | TheRegistration::Stands { .. } => Ok(()),
     };
 }
 
@@ -215,6 +245,7 @@ pub fn settle_the_records_of_a_slot(common_dir: &Path, request: &SettlingRequest
     }
     let registration: PathBuf = registration_path(common_dir, &record);
     let slot: TheSlot = read_the_slot(record.recorded.slot_path.as_path(), registration.as_path(), record.recorded.registration_identity, reads.mounts)?;
+    refuse_a_slot_of_another_registration(&slot, &record)?;
     let cleanup: Option<OriginCleanupRecord> = a_standing_origin_cleanup(common_dir, &record.recorded)?;
     let plan: Option<DestructionPlan> = a_standing_plan(common_dir, &record.recorded)?;
     let facts: TheOrderFacts = TheOrderFacts { checkout_begun: slot.a_checkout_has_begun(), plan_stands: plan.is_some() };
