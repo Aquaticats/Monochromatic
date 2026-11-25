@@ -102,6 +102,11 @@ pub mod worktree_clean_content_attributes;
 #[cfg(target_os = "linux")]
 pub mod worktree_clean_content_attribute_sources;
 
+/// The operands of one `git worktree` subcommand,
+/// read the way Git's own option parser leaves them.
+#[cfg(unix)]
+pub mod worktree_operands;
+
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]
 pub mod worktree_remove_plan;

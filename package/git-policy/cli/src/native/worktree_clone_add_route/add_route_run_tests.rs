@@ -47,7 +47,7 @@ fn a_fixture(name: &str) -> (PathBuf, CopyFacts) {
     let destination: PathBuf = root.join(".claude").join("worktrees").join("topic");
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: root.join(".git"), git_dir: root.join(".git"), worktree_root: root.clone() };
     let plan: AddPlan = AddPlan { destination: destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
-    let facts: CopyFacts = CopyFacts { identity, creates: true, destination: Some(destination), add_plan: Some(plan), remove_plan: None, quiet: false };
+    let facts: CopyFacts = CopyFacts { identity, creates: true, destination: Some(destination), add_plan: Some(plan), remove_plan: None, removal_target: None, quiet: false };
     return (root, facts);
 }
 

@@ -17,6 +17,13 @@
 //!  Only the two states that prove a whole worktree refuse:
 //!  a pending add's removal is the add's own way forward,
 //!  and a slot nothing proves stays Git's.
+//!  Every spelling of `git worktree remove` that names such a slot is refused,
+//!  whatever options stand before the operand:
+//!  `SPEC.md` exempts none,
+//!  and Git's own lock hint steers a person to the double force,
+//!  which would otherwise delete the registration and the underlay pointer
+//!  while the clone stands
+//!  (`worktree_remove_plan::parse_removal_target`).
 //!  A refusal of a whole clone also owes the person what a removal would have
 //!  done,
 //!  so the proof a removal makes runs here and its loss is printed
@@ -102,22 +109,27 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
 ///  and the intent is the second raw ZFS request this refusal makes,
 ///  so every control of this refusal runs through this call and the printed
 ///  report is the command's own.
+///  The target is the directory the planner read from the command's own words,
+///  in every spelling Git accepts,
+///  so the refusal and the reading that fills it cannot disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedIntent);
 /// ```
 pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, intents: &dyn CloneIntentReads) -> Option<ForwardedRun> {
-    let plan = facts.remove_plan.as_ref()?;
+    // The refusal reads the worktree the command names whatever its options, which is the target the planner took from every
+    // spelling Git accepts; the plan above serves only the plain form.
+    let target: &Path = facts.removal_target.as_deref()?;
     let common_dir: &Path = common_directory(&facts.identity)?;
-    let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(plan.target.as_path()).ok()?;
-    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), plan.target.as_path(), &LiveMountedDatasets, intents);
+    let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(target).ok()?;
+    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), target, &LiveMountedDatasets, intents);
     if !matches!(at.state, SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }) {
         return None;
     }
     let mut stderr: String = format!(
-        "the removal of `{}` is refused: a whole managed clone is bound to this slot, and this release has no removal for a clone (plan steps 14 and 16 build it). Nothing was removed, and Git did not run.\n",
-        plan.target.display()
+        "the removal of `{}` is refused: a whole managed clone is bound to this slot, and this release has no removal for a clone, so the clone and its record stay until it does. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
+        target.display()
     );
     for line in at.lines() {
         stderr.push_str(line.as_str());

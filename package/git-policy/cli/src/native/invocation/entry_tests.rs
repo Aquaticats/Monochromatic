@@ -648,6 +648,41 @@ fn the_main_checkout_is_settled_only_for_a_creation() {
     remove(root.as_path());
 }
 
+/// What:
+///  From the main checkout,
+///  a `git worktree remove` that names a worktree is settled in every spelling,
+///  because the refusal of a bound slot reads the command whatever its
+///  options;
+///  a command that names no one worktree keeps its plain forward.
+/// Why:
+///  Git's own lock hint steers a person to the double force,
+///  and the plain form's plan alone would leave every other spelling to Git.
+#[test]
+fn a_removal_that_names_a_worktree_is_settled_in_every_spelling() {
+    let root: PathBuf = fixture("entry-settled-removal");
+    let (repo, _linked): (PathBuf, PathBuf) = repository_with_rules_file(root.as_path());
+    let resolution: ResolutionInputs = inputs(root.as_path());
+    for rest in [
+        vec!["worktree", "remove", "../linked"],
+        vec!["worktree", "remove", "-f", "-f", "../linked"],
+        vec!["worktree", "remove", "--force", "--force", "../linked"],
+    ] {
+        let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), rest.as_slice()).as_slice(), &[], &resolution));
+        assert!(facts.removal_target.is_some(), "the refusal reads the worktree this removal names: {rest:?}");
+        assert_eq!(facts.remove_plan.is_some(), rest.len() == 3, "only the plain form is served by a subvolume destroy: {rest:?}");
+    }
+    for rest in [vec!["worktree", "remove"], vec!["worktree", "remove", "-f"]] {
+        assert!(
+            matches!(
+                plan_invocation(in_directory(repo.as_path(), rest.as_slice()).as_slice(), &[], &resolution),
+                Action::Forward { .. }
+            ),
+            "a removal that names no worktree keeps its plain forward: {rest:?}"
+        );
+    }
+    remove(root.as_path());
+}
+
 /// A main checkout whose configuration names no rules file is settled for a creation too,
 /// because its ignored state is
 ///  copied whole under the main-checkout rule and needs no configuration;

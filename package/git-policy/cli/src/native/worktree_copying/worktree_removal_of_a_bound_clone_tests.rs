@@ -63,6 +63,7 @@ fn facts_of(bound: &Bound) -> CopyFacts {
         destination: None,
         add_plan: None,
         remove_plan: Some(RemovePlan { target: bound.slot.clone(), operand: OsString::from("one"), force: true }),
+        removal_target: Some(bound.slot.clone()),
         quiet: false,
     };
 }
@@ -75,6 +76,7 @@ fn facts_of_the_fixture(fixture: &RemovalFixture) -> CopyFacts {
         destination: None,
         add_plan: None,
         remove_plan: Some(RemovePlan { target: fixture.slot_path.clone(), operand: OsString::from(SLOT), force: true }),
+        removal_target: Some(fixture.slot_path.clone()),
         quiet: false,
     };
 }
@@ -201,18 +203,46 @@ fn every_other_slot_stays_gits() {
 }
 
 /// What:
-///  A run of the removal without a plan,
+///  A `git worktree remove` that names a bound slot is refused in every
+///  spelling Git accepts,
+///  the double force included,
+///  because `SPEC.md` exempts none and Git's own lock hint names `-f -f`.
+/// Why:
+///  The double force is the spelling Git itself suggests for a locked
+///  registration,
+///  so it is the one a person reaches for,
+///  and letting it through deletes the registration and the underlay pointer
+///  while the clone stands.
+#[test]
+fn every_spelling_of_a_bound_slots_removal_is_refused() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-every-spelling");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mut facts: CopyFacts = facts_of_the_fixture(&fixture);
+    // The double force is no plain form, so the served plan is absent and only the refusal's own reading names the slot.
+    facts.remove_plan = None;
+    let stderr: String = refusal_of_with(&facts, RemovalReads::Scripted(&pool), &no_intent_asked());
+    assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
+    assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
+    assert!(stderr.contains(&format!("the clone `{CLONE}` (GUID `{CLONE_GUID}`")), "{stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the refusal wrote nothing");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
+}
+
+/// What:
+///  A run that names no worktree to remove,
 ///  which is every other command,
 ///  answers nothing.
 /// Why:
 ///  The refusal exists for one removal,
 ///  and a command that names no directory must not read a slot at all.
 #[test]
-fn a_command_without_a_removal_plan_answers_nothing() {
-    let bound: Bound = bound_slot("removal-of-no-plan");
+fn a_command_without_a_removal_target_answers_nothing() {
+    let bound: Bound = bound_slot("removal-of-no-target");
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.registration.as_path(), Some(bound.pointer.clone())), "one");
     let mut facts: CopyFacts = facts_of(&bound);
     facts.remove_plan = None;
+    facts.removal_target = None;
     assert!(refuse_the_removal_with(&facts, RemovalReads::Unreadable("this control reads no pool"), &no_intent_asked()).is_none());
     remove(bound.root.as_path());
 }

@@ -126,3 +126,77 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  Every spelling of `git worktree remove` that names one worktree names it in
+///  the refusal's reading too,
+///  whatever options stand before the operand.
+/// Why:
+///  The plan serves only the plain form,
+///  and a slot a whole clone is bound to is refused for every spelling:
+///  Git's own lock hint steers a person to `-f -f`,
+///  and `SPEC.md` exempts none.
+#[test]
+fn every_spelling_that_names_one_worktree_names_it_for_the_refusal() {
+    let root: PathBuf = fixture("removal-target-spellings");
+    std::fs::create_dir(root.join("wt")).expect("directory");
+    let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
+    for values in [
+        vec!["worktree", "remove", "wt"],
+        vec!["worktree", "remove", "-f", "wt"],
+        vec!["worktree", "remove", "-f", "-f", "wt"],
+        vec!["worktree", "remove", "-ff", "wt"],
+        vec!["worktree", "remove", "--force", "wt"],
+        vec!["worktree", "remove", "--force", "--force", "wt"],
+        vec!["worktree", "remove", "--force", "-f", "wt"],
+        vec!["worktree", "remove", "--forc", "wt"],
+        vec!["worktree", "remove", "-f", "-f", "--", "wt"],
+    ] {
+        assert_eq!(
+            parse_removal_target(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None),
+            Some(canonical.clone()),
+            "{values:?}"
+        );
+    }
+    // A command that names two worktrees, one that names none, one that names no directory, and every other subcommand are Git's
+    // own answers, and the refusal reads none of them.
+    for values in [
+        vec!["worktree", "remove", "wt", "extra"],
+        vec!["worktree", "remove"],
+        vec!["worktree", "remove", "-f"],
+        vec!["worktree", "remove", "absent"],
+        vec!["worktree", "remove", ""],
+        vec!["worktree", "add", "wt"],
+        vec!["worktree", "move", "wt", "../elsewhere"],
+        vec!["worktree", "prune"],
+    ] {
+        assert_eq!(parse_removal_target(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A name that ends one registered worktree path names that worktree for the
+///  refusal,
+///  as it does for the plan.
+/// Why:
+///  Git matches the typed word against the registered paths before it reads it
+///  as a path,
+///  so the refusal must name the worktree Git would act on.
+#[test]
+fn a_registered_last_component_names_the_worktree_for_the_refusal() {
+    let root: PathBuf = fixture("removal-target-registered");
+    let repo: PathBuf = root.join("repo");
+    let common: PathBuf = repo.join(".git");
+    let topic: PathBuf = root.join("topic");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("registration");
+    std::fs::create_dir_all(topic.as_path()).expect("worktree");
+    std::fs::write(common.join("worktrees/topic/gitdir"), format!("{}/.git\n", topic.display())).expect("gitdir");
+    let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
+    assert_eq!(
+        parse_removal_target(os_arguments(&["worktree", "remove", "-f", "-f", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        Some(canonical),
+        "the double force of a worktree the registrations picked"
+    );
+    remove(root.as_path());
+}
