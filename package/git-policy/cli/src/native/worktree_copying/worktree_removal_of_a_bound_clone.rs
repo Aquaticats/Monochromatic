@@ -51,8 +51,9 @@ use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, RemovalPoolReads};
+use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
-use crate::worktree_clone_slot_state::slot_state_live_read::{CloneIntentReads, GatedCloneIntentReads};
+use crate::worktree_clone_slot_state::slot_state_live_read::{GatedCloneIntentReads, SlotReadingSources};
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun};
 use crate::worktree_identity::common_directory;
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
@@ -96,34 +97,43 @@ pub enum RemovalReads<'a> {
 /// const ending = refuseTheRemovalOfABoundClone(facts);
 /// ```
 pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<ForwardedRun> {
+    let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
-    return refuse_the_removal_with(facts, RemovalReads::Live, &intents);
+    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    return refuse_the_removal_with(facts, RemovalReads::Live, &sources);
 }
 
 /// What:
-///  The same refusal over the pool reads and the mount-intent reader a control
+///  The same refusal over the pool reads and the slot sources a control
 ///  answers.
 /// Why:
 ///  A host control may not open the machine's ZFS device,
 ///  and the intent is the second raw ZFS request this refusal makes,
 ///  so every control of this refusal runs through this call and the printed
 ///  report is the command's own.
+///  The mount table is a source too,
+///  so a control can prove which read the refusal makes and which it does not.
 ///  The target is the directory the planner read from the command's own words,
 ///  in every spelling Git accepts,
 ///  so the refusal and the reading that fills it cannot disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedIntent);
+/// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedSources);
 /// ```
-pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, intents: &dyn CloneIntentReads) -> Option<ForwardedRun> {
+pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sources: &SlotReadingSources<'_>) -> Option<ForwardedRun> {
     // The refusal reads the worktree the command names whatever its options, which is the target the planner took from every
     // spelling Git accepts; the plan above serves only the plain form.
     let target: &Path = facts.removal_target.as_deref()?;
     let common_dir: &Path = common_directory(&facts.identity)?;
+    // A repository with no record folder holds no bound slot, so the answer is nothing and the mount table is never read:
+    // this is every removal in a repository the route has never served.
+    if !home_folder(common_dir).is_dir() {
+        return None;
+    }
     let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(target).ok()?;
-    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), target, &LiveMountedDatasets, intents);
+    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), target, sources.mounts, sources.intents);
     if !matches!(at.state, SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }) {
         return None;
     }

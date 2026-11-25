@@ -193,3 +193,34 @@ fn a_home_with_no_record_does_nothing() {
     assert!(guard.refused.is_empty());
     remove(root.as_path());
 }
+
+/// A mount table no control may read: asking it for one fails the test.
+/// Why:
+///  A prune in a repository with no record folder has no bound slot to check,
+///  and a table that fails when read proves the pass never looked.
+struct ATableNoControlReads;
+
+impl crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets for ATableNoControlReads {
+    fn mounted_datasets(&self) -> Result<Vec<crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance>, String> {
+        panic!("the prune pass read the mount table before it listed the records");
+    }
+
+    fn mount_holding(&self, _path: &Path) -> Result<Option<crate::zfs_mounted_dataset::mounted_dataset_instance::MountHoldingAPath>, String> {
+        panic!("the prune pass read the mount at a slot before it listed the records");
+    }
+}
+
+/// What:
+///  A repository with no record folder is guarded against nothing without
+///  reading the mount table.
+/// Why:
+///  Every prune in an ordinary repository is this case,
+///  and the mount table is a file read per command that no record can need.
+#[test]
+fn a_repository_without_records_reads_no_mount_table() {
+    let root: PathBuf = fixture("prune-guard-no-records");
+    let common: PathBuf = common_directory_in(root.as_path());
+    let guard: PruneGuard = guard_the_prune(common.as_path(), &ATableNoControlReads);
+    assert_eq!(guard, PruneGuard::default(), "nothing is restored and nothing is refused");
+    remove(root.as_path());
+}
