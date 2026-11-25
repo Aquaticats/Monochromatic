@@ -158,6 +158,8 @@ pub mod removal_resume;
 pub mod removal_settle;
 pub mod removal_records_end;
 pub mod removal_completion;
+pub mod removal_origin_step;
+pub mod removal_settle_step;
 pub mod removal_report;
 
 pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};

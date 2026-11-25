@@ -11,7 +11,8 @@
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery",
 //!  step 5).
-//!  Nothing here opens `/dev/zfs`: the destruction proof is the seam's value.
+//!  Nothing here opens `/dev/zfs`:
+//! the destruction proof is the seam's value.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

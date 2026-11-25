@@ -56,7 +56,8 @@ impl std::fmt::Debug for CleanupFolder {
 
 impl CleanupFolder {
     /// What:
-    ///  The folder, made when it is not there yet and checked when it is.
+    ///  The folder,
+    /// made when it is not there yet and checked when it is.
     /// Why:
     ///  A repository with nothing owed has no folder,
     ///  and the first removal that owes a cleanup makes it once.

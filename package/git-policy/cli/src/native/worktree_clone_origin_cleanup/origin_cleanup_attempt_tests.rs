@@ -117,7 +117,8 @@ impl RemovalPoolReads for MutablePool {
 ///  or the errno a control plants.
 /// Why:
 ///  The absence proof is what settles the record,
-///  so a device that answered success and left the list whole is the "success, still listed" arm.
+///  so a device that answered success and left the list whole is the "success,
+/// still listed" arm.
 struct ScriptedOne {
     /// The pool's own listed flag,
     /// which a successful destroy clears.
@@ -256,7 +257,8 @@ fn an_already_absent_snapshot_finishes_without_a_request() {
 }
 
 /// A device that answers success and destroys nothing,
-/// which is the "success, still listed" arm.
+/// which is the "success,
+/// still listed" arm.
 struct StubbornDevice;
 
 impl SnapshotDestroyDevice for StubbornDevice {

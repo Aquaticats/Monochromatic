@@ -38,7 +38,8 @@ pub fn origin_cleanups_folder(common_dir: &Path) -> PathBuf {
 }
 
 /// Whether one entry's name is a record this reader reads:
-/// the prefix and the add's 32 lowercase hexadecimal digits, and nothing else.
+/// the prefix and the add's 32 lowercase hexadecimal digits,
+/// and nothing else.
 pub fn is_a_record_name(name: &str) -> bool {
     if name.len() != ORIGIN_CLEANUP_NAME_BYTES {
         return false;
@@ -71,7 +72,8 @@ pub fn is_a_staging_name(name: &str) -> bool {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanupListing {
-    /// The record names, sorted.
+    /// The record names,
+    /// sorted.
     pub records: Vec<String>,
     /// The entries that are no record and no staging name.
     pub foreign: Vec<String>,
@@ -229,7 +231,8 @@ pub fn check_the_private_folder(folder: &Path, owner: u32) -> Result<(), Cleanup
 /// Refuse a file that is no regular file this account owns and only it may write.
 ///
 /// # Throws
-/// The kind, the owner or the mode that differs.
+/// The kind,
+/// the owner or the mode that differs.
 pub fn check_the_private_file(path: &Path, owner: u32) -> Result<(), CleanupRefusal> {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string()))?;
     if !metadata.is_file() {

@@ -26,7 +26,8 @@
 //!  never an intention.
 //!  The look destroys a snapshot,
 //!  so it is reached from the removal's own step and from the worktree commands the project
-//!  named, and from nothing else.
+//!  named,
+//! and from nothing else.
 //!
 //! Files in this folder,
 //! each using only the files listed before it:

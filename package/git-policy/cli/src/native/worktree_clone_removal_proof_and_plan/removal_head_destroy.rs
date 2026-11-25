@@ -10,7 +10,8 @@
 //!  never from a missing name alone,
 //!  because a name may be absent and then present again and a reused name holds another object
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-//!  "The absence rule, object by object").
+//!  "The absence rule,
+//! object by object").
 //!  The head is refused by the kernel while the clone holds snapshots of its own,
 //!  so a new own snapshot is submitted only under the amended-plan rule,
 //!  and a snapshot created after the final enumeration is never retried on an unexplained
@@ -220,7 +221,8 @@ pub fn settle_the_recorded_names(plan: &mut DestructionPlan, live: &[LiveObject]
 /// What:
 ///  The live snapshots of the clone the plan does not name,
 ///  as the amended plan's new lines:
-///  the clone's own history, verified by its transaction group.
+///  the clone's own history,
+/// verified by its transaction group.
 /// Why:
 ///  The proposal's amended-plan rule submits a newly created own snapshot by the wrapper and keeps
 ///  every earlier line,

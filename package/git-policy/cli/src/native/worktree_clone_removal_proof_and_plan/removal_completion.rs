@@ -32,15 +32,7 @@
 
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_managed_lock::clone_destruction_proof::{CloneDestructionProof, TheLiveCloneAnswer, prove_the_recorded_clone_is_gone};
-use crate::worktree_clone_managed_lock::recorded_lock_facts::{RecordedClone, read_the_recorded_facts};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_attempt::{CleanupAttempt, CleanupOutcome, attempt_the_cleanup};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_lines::{line_of_a_block, line_of_a_destruction, the_reason_changed};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_publication::CleanupFolder;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{an_existing_cleanup_record, origin_cleanups_folder};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_words::BlockReason;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::{FreshHolderScan, the_holder_lines};
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
@@ -52,9 +44,11 @@ use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
     CloneAbsence, DatasetDestroyDevice, HeadDestroyRequest, HeadDestroyed, amend_the_plan, destroy_the_head, push_a_line, settle_the_recorded_names, the_new_own_snapshots,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::{RecordsGone, remove_the_removal_records};
+use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::{attempt_the_origin_cleanup, publish_the_origin_record};
 use crate::worktree_clone_removal_proof_and_plan::removal_report::{OriginCleanupDone, TheRemovalDone};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_resume::{TheStart, start_the_removal};
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
@@ -65,7 +59,8 @@ use std::path::PathBuf;
 
 /// What:
 ///  Everything one whole removal drives,
-///  as named seams so a control answers each without a pool, a namespace or a repository.
+///  as named seams so a control answers each without a pool,
+/// a namespace or a repository.
 /// Why:
 ///  The batch reads and writes through one device,
 ///  the head through another,
@@ -212,7 +207,8 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
 ///  so a kill inside a request leaves the record of every answer that preceded it.
 ///
 /// # Throws
-/// A settlement, a scan or a check that refused,
+/// A settlement,
+/// a scan or a check that refused,
 /// or a plan write that refused.
 ///
 /// In TS you'd write (pseudocode):
@@ -365,173 +361,6 @@ pub fn the_remaining(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> R
     return the_remaining_snapshots(input.reads, plan);
 }
 
-/// What:
-///  The origin cleanup record,
-///  published once before the removal's first destroy,
-///  and kept when a record for the same snapshot already stands with the same identity.
-/// Why:
-///  The record is what carries the cleanup past the clone,
-///  so a removal whose write fails destroys nothing,
-///  and a rerun that finds the record keeps it when the identities agree and refuses when they
-///  differ.
-///
-/// # Throws
-/// A record that refuses the write,
-/// or one that names another identity for the same snapshot.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const folder = publishTheOriginRecord(input, plan);
-/// ```
-fn publish_the_origin_record(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<CleanupFolder, RemovalStop> {
-    let Some(own_name) = plan.facts.origin_snapshot.rsplit_once('@').map(|pair| return pair.1) else {
-        return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded {
-            path: PathBuf::new(),
-            said: format!("the plan's origin snapshot `{}` names no own name", plan.facts.origin_snapshot),
-        });
-    };
-    let folder: CleanupFolder = CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() };
-    })?;
-    let wanted: OriginCleanupRecord = OriginCleanupRecord::owed(
-        plan.facts.origin_dataset.as_str(),
-        plan.facts.origin_dataset_guid,
-        own_name,
-        plan.facts.origin_snapshot_guid,
-        plan.facts.origin_snapshot_createtxg,
-        plan.facts.clone_dataset.as_str(),
-        plan.facts.clone_guid,
-        plan.facts.target.as_path(),
-        input.now,
-    );
-    match an_existing_cleanup_record(input.entry.common_dir, own_name) {
-        Ok(Some(standing)) if same_identity(&standing, &wanted) => return Ok(folder),
-        Ok(Some(standing)) => {
-            return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded {
-                path: folder.path().join(own_name),
-                said: format!("a record already names `{}` with another identity", standing.full_snapshot_name()),
-            });
-        }
-        Ok(None) => {}
-        Err(refusal) => return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said.clone() }),
-    }
-    folder.publish(&wanted).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() })?;
-    return Ok(folder);
-}
-
-/// The path a record refusal names,
-/// which is the field the refusal already carries.
-fn refusal_field(refusal: &crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal) -> PathBuf {
-    return PathBuf::from(refusal.field.clone());
-}
-
-/// Whether a standing record names the same objects as the one this run wants.
-fn same_identity(standing: &OriginCleanupRecord, wanted: &OriginCleanupRecord) -> bool {
-    return standing.origin_dataset == wanted.origin_dataset
-        && standing.origin_dataset_guid == wanted.origin_dataset_guid
-        && standing.origin_snapshot == wanted.origin_snapshot
-        && standing.origin_snapshot_guid == wanted.origin_snapshot_guid
-        && standing.origin_snapshot_createtxg == wanted.origin_snapshot_createtxg
-        && standing.clone_dataset == wanted.clone_dataset
-        && standing.clone_guid == wanted.clone_guid;
-}
-
-/// What:
-///  The removal's own origin attempt:
-///  the record read,
-///  the seven steps run,
-///  and the record removed on completion or rewritten on a block.
-/// Why:
-///  The removal attempts its cleanup straight after the head goes,
-///  so the ordinary case removes the record before the settle and the registration is settled
-///  whatever the origin did.
-///
-/// # Throws
-/// A record that cannot be read or rewritten.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const origin = attemptTheOriginCleanup(input, folder, plan);
-/// ```
-fn attempt_the_origin_cleanup(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<OriginCleanupDone, RemovalStop> {
-    let Some(own_name) = plan.facts.origin_snapshot.rsplit_once('@').map(|pair| return pair.1) else {
-        return Ok(OriginCleanupDone::NoRecord { said: String::from("the plan's origin snapshot names no own name") });
-    };
-    let record: OriginCleanupRecord = match an_existing_cleanup_record(input.entry.common_dir, own_name) {
-        Ok(Some(read)) => read,
-        Ok(None) => return Ok(OriginCleanupDone::NoRecord { said: String::from("no record stands, so a finished cleanup is the state the pool is read for") }),
-        Err(refusal) => return Ok(OriginCleanupDone::Unreadable { path: origin_cleanups_folder(input.entry.common_dir).join(own_name), said: refusal.said }),
-    };
-    let folder: CleanupFolder = CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() };
-    })?;
-    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt { record: &record, reads: input.reads, device: input.snapshots, attempted_at: input.now });
-    return match outcome {
-        CleanupOutcome::Finished { destroyed } => {
-            folder.remove(own_name).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
-            let line: Option<String> = destroyed.as_ref().map(|name| return line_of_a_destruction(name.as_str()));
-            Ok(OriginCleanupDone::Finished { snapshot: destroyed, line })
-        }
-        CleanupOutcome::Blocked { record: next, detail } => {
-            folder.publish(next.as_ref()).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
-            let reason: BlockReason = next.block.map_or(BlockReason::Unproved, |held| return held.reason);
-            let line: Option<String> = if the_reason_changed(Some(&record), &next) {
-                Some(line_of_a_block(&next, folder.path().join(own_name).as_path(), detail.as_str()))
-            } else {
-                None
-            };
-            Ok(OriginCleanupDone::Blocked { snapshot: next.full_snapshot_name(), reason, detail, line })
-        }
-    };
-}
-
-/// What:
-///  The Git settle,
-///  which runs only with a proof that this slot's clone is gone.
-/// Why:
-///  The settle removes a registration,
-///  a pointer and a folder the next add reuses,
-///  so it is the one removal-side step that may not be retried on a guess twice.
-///
-/// # Throws
-/// A pool that cannot prove the absence,
-/// or the settle's own refusal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const settled = settleTheRegistration(input, plan);
-/// ```
-fn settle_the_registration(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<SettleAnswer, RemovalStop> {
-    match crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::the_clone_absence(input.probe, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)? {
-        CloneAbsence::Gone => {}
-        CloneAbsence::There { name, .. } => {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the clone's absence"), said: format!("`{name}` still answers") });
-        }
-        CloneAbsence::Reused { guid } => {
-            return Err(RemovalStop::TheSettleRefused { step: String::from("the clone's absence"), said: format!("the name answers GUID `{}`", guid.file_name()) });
-        }
-    }
-    let record = read_the_recorded_facts(input.entry.common_dir, input.entry.slot).map_err(|refusal| {
-        return RemovalStop::TheSettleRefused { step: String::from("the binding's lock facts"), said: format!("{refusal:?}") };
-    })?;
-    let Some(_registration) = record.registration.clone() else {
-        return Ok(SettleAnswer { wrote_the_lost_lock: false, released_the_lock: false, removed_the_registration: false, removed_the_underlay: false, lines: Vec::new() });
-    };
-    let clone: RecordedClone = RecordedClone { dataset: plan.facts.clone_dataset.clone(), guid: Some(plan.facts.clone_guid) };
-    let proof: CloneDestructionProof = prove_the_recorded_clone_is_gone(input.entry.slot, &clone, &TheLiveCloneAnswer::Absent)
-        .map_err(|refusal| return RemovalStop::TheSettleRefused { step: String::from("the destruction proof"), said: refusal.words() })?;
-    return input.settle.settle_the_registration(&SettleRequest {
-        common_dir: input.entry.common_dir,
-        slot: input.entry.slot,
-        slot_path: plan.facts.target.as_path(),
-        registration_id: plan.facts.registration_id.as_slice(),
-        admin: plan.facts.admin.as_str(),
-        slot_identity: record.slot_identity,
-        proof: &proof,
-    });
-}
-
-/// One plan write through the folder that publishes it whole.
 fn publish_the_plan(folder: &PlanFolder, plan: &DestructionPlan) -> Result<(), RemovalStop> {
     return match folder.publish(plan) {
         Ok(_path) => Ok(()),

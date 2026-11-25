@@ -1,5 +1,6 @@
 //! What:
-//!  The controls of the record's folder, its name grammar and its read:
+//!  The controls of the record's folder,
+//! its name grammar and its read:
 //!  what a listing classifies,
 //!  what a read refuses about owner and mode,
 //!  and what an absent record answers.

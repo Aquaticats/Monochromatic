@@ -7,7 +7,8 @@
 //!  The reader refuses rather than repairs,
 //!  because a record that does not read is the only evidence of what the cleanup owes
 //!  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-//!  "The lines, the encodings and the order the reader requires").
+//!  "The lines,
+//! the encodings and the order the reader requires").
 //!  A key outside the list,
 //!  a key out of order,
 //!  a repeated key,
@@ -43,7 +44,8 @@ const STATE_KEYS: [&str; 5] = ["attemptedAt", "blockedReason", "blockedErrno", "
 ///  a record missing one of them could name a snapshot without the dataset that proves it.
 ///
 /// # Throws
-/// The key, the line or the state that refused.
+/// The key,
+/// the line or the state that refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

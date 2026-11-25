@@ -1,7 +1,8 @@
 //! What:
 //!  The healthy origin cleanup record and the helpers every control of this folder starts from.
 //! Why:
-//!  The record's bytes, its identity and its own name are needed by the record's controls,
+//!  The record's bytes,
+//! its identity and its own name are needed by the record's controls,
 //!  the parse's,
 //!  the attempt's and the look's,
 //!  and one value means no control reads a record another file spelled differently.

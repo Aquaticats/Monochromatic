@@ -9,7 +9,8 @@
 //!  No control on a person's machine may destroy a dataset,
 //!  read every process's namespace or remove a real registration,
 //!  so each is a value a control scripts and the release answers differently.
-//!  The pool, the check and the snapshot device are the ones the destruction step's controls
+//!  The pool,
+//! the check and the snapshot device are the ones the destruction step's controls
 //!  already script,
 //!  so a whole-removal control differs from them in exactly the seams this file adds.
 //!  Never part of the release executable.

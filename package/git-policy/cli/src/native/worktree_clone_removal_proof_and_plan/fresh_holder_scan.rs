@@ -1,5 +1,6 @@
 //! What:
-//!  One fresh all-namespace holder scan, made immediately before a destroy request,
+//!  One fresh all-namespace holder scan,
+//! made immediately before a destroy request,
 //!  as a seam the removal calls and a control answers.
 //! Why:
 //!  The design requires fresh root all-namespace verification before the first snapshot delete

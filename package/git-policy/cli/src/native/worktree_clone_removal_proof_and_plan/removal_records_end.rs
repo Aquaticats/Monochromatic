@@ -1,5 +1,6 @@
 //! What:
-//!  The removal's own records, removed after the settle proved the clone gone:
+//!  The removal's own records,
+//! removed after the settle proved the clone gone:
 //!  the two inventories first,
 //!  the binding last,
 //!  and the plan only once the binding's files are proved gone.
@@ -7,7 +8,8 @@
 //!  The plan is the last witness of a removal,
 //!  so it is removed only after the binding that names the same clone is proved gone,
 //!  and the binding's own end puts its inventories first so a kill inside that step can never
-//!  leave an inventory without the binding, which would refuse the next add at the slot
+//!  leave an inventory without the binding,
+//! which would refuse the next add at the slot
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  "When it is removed";
 //!  `doc/planning/cli-git-zfs-add-binding-record-design.md`,
@@ -15,7 +17,8 @@
 //!  A binding that names another clone is a new slot's and is left,
 //!  and a binding whose fields disagree with the plan is refused rather than removed:
 //!  the plan's own condition is that the two records name one clone.
-//!  Nothing here removes a registration, a pointer or a directory a person filled;
+//!  Nothing here removes a registration,
+//! a pointer or a directory a person filled;
 //!  those belong to the settle.
 //!
 //! In TS you'd write (pseudocode):

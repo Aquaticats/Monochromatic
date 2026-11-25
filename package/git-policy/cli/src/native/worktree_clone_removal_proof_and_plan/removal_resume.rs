@@ -4,7 +4,8 @@
 //!  an adopted kept plan when one does and the clone still stands,
 //!  and the head-gone path when the clone is proved gone.
 //! Why:
-//!  A removal that was killed, refused or cancelled leaves its plan,
+//!  A removal that was killed,
+//! refused or cancelled leaves its plan,
 //!  and the next removal of that clone reads it,
 //!  proves it,
 //!  adopts it under its own nonce,
@@ -18,7 +19,8 @@
 //!  and a plan whose head is gone is never refused for that reason:
 //!  the intent was a property of the clone and went with it.
 //!  A clone destroyed outside the wrapper while the plan says `present` or `refused` is the
-//!  settling command's case, and a removal refuses it.
+//!  settling command's case,
+//! and a removal refuses it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -47,7 +49,8 @@ use std::path::PathBuf;
 ///  and what the rest of it needs from that start.
 /// Why:
 ///  The two paths take different steps:
-///  the head-present one unmounts, proves and submits,
+///  the head-present one unmounts,
+/// proves and submits,
 ///  and the head-gone one settles and finishes without a clone.
 ///
 /// In TS you'd write (pseudocode):

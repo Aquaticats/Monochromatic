@@ -88,7 +88,8 @@ fn variables() -> PoolVariables {
 }
 
 /// The unmount answer the guest gives,
-/// so the arm judges the destruction, the settle and the resume and never the mount work.
+/// so the arm judges the destruction,
+/// the settle and the resume and never the mount work.
 struct ADoneUnmount {
     clone_guid: DatasetGuid,
 }

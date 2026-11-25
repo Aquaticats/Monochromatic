@@ -10,7 +10,8 @@
 //!  only its state lines are replaced,
 //!  and a blocked record carries the two counts or the errno a person acts on
 //!  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-//!  "The lines, the encodings and the order the reader requires").
+//!  "The lines,
+//! the encodings and the order the reader requires").
 //!  The total is one record with no free-text field:
 //!  a field a person can write into is a field that steers a report.
 //!  This file writes one record;
