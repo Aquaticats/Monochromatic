@@ -34,6 +34,8 @@
 //!   a record's field lines, whatever phase the record stands at, and the refusals they owe.
 //! - `recorded_lock_facts.rs`:
 //!   the facts a lock's proof needs, read from a record whatever its phase or refusal.
+//! - `dataset_guid_reads.rs`:
+//!   the pool read the mounted arm compares a record's `cloneGuid=` with.
 //! - `registration_proof_two_facts.rs`:
 //!   the proof of a registration that needs no pointer.
 //! - `registration_entry_reading.rs`:
@@ -63,6 +65,7 @@ pub mod lexical_path_resolution;
 pub mod lock_and_pointer_readings;
 pub mod binding_record_fields;
 pub mod recorded_lock_facts;
+pub mod dataset_guid_reads;
 pub mod registration_proof_two_facts;
 pub mod registration_entry_reading;
 pub mod registration_finding;
@@ -84,6 +87,7 @@ pub use lock_state_words::{line_of, line_of_an_absent_pointer, the_lines};
 pub use reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
 pub use binding_record_fields::RecordedFactsRefusal;
 pub use recorded_lock_facts::{RecordedClone, RecordedLockFacts, read_the_recorded_facts};
+pub use dataset_guid_reads::DatasetGuidReads;
 pub use registration_entry_reading::read_one_entry;
 pub use registration_finding::{TheRegistration, WhatTheWalkFound, find_the_slot_registration, the_slots_the_home_names};
 pub use registration_proof_two_facts::{GITDIR_FILE_NAME, TwoFactRefusal, prove_the_registration};

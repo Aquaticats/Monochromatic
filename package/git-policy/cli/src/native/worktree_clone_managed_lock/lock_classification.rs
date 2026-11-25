@@ -31,11 +31,13 @@
 //! The mount table is the caller's,
 //! because the slot's identity is compared at the recorded path only while nothing
 //! covers it,
-//! and a mount covering the slot is compared through the clone the record names
+//! and a mount covering the slot is compared through the clone the record names,
+//! by its GUID as the pool answers it
 //! (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //! "What proves ownership",
 //! and measurement `M2`).
 
+use super::dataset_guid_reads::DatasetGuidReads;
 use super::lock_and_pointer_readings::{read_the_lock, read_the_slot_pointer};
 use super::lock_state::{Classification, ManagedLockState, TheWordsCause};
 use super::reading_a_bounded_file::Reading;
@@ -96,6 +98,9 @@ fn state_of_a_refused_proof(registration: &Path, refusal: &TwoFactRefusal) -> Ma
         | TwoFactRefusal::AMountThatIsNotTheRecords { .. }
         | TwoFactRefusal::TheMountTableWasNotRead { .. }
         | TwoFactRefusal::NoRecordedSlotIdentity
+        | TwoFactRefusal::NoRecordedCloneGuid { .. }
+        | TwoFactRefusal::TheClonesGuidWasNotRead { .. }
+        | TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid { .. }
         | TwoFactRefusal::Unreadable { .. } => ManagedLockState::NoBindingExplains { found: refusal.words(registration) },
     };
 }
@@ -108,8 +113,8 @@ fn state_of_a_refused_proof(registration: &Path, refusal: &TwoFactRefusal) -> Ma
 ///  and the proof decides whether it is still this slot's;
 ///  a registration with no `gitdir` file is no complete entry,
 ///  which the finder's rows name better than this path can.
-fn state_of_the_recorded_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets) -> Option<ManagedLockState> {
-    return match prove_the_registration(facts, repository, registration, mounts) {
+fn state_of_the_recorded_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> Option<ManagedLockState> {
+    return match prove_the_registration(facts, repository, registration, mounts, guids) {
         Ok(()) => Some(state_of_a_proved_registration(registration, &facts.nonce)),
         Err(TwoFactRefusal::NoGitdir) => None,
         Err(refusal) => Some(state_of_a_refused_proof(registration, &refusal)),
@@ -123,16 +128,16 @@ fn state_of_the_recorded_registration(facts: &RecordedLockFacts, repository: &Pa
 ///  A complete entry is the add's only when the proof agrees,
 ///  and a half-made one is the state S8 rather than a lock's state,
 ///  because the add's own resume clears it.
-fn state_of_a_found_entry(name: &str, path: &Path, decision: &EntryDecision, facts: &RecordedLockFacts, repository: &Path, mounts: &dyn MountedDatasets) -> ManagedLockState {
+fn state_of_a_found_entry(name: &str, path: &Path, decision: &EntryDecision, facts: &RecordedLockFacts, repository: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> ManagedLockState {
     return match decision {
         EntryDecision::Clear { row } => ManagedLockState::HalfMade { nonce: facts.nonce.clone(), name: String::from(name), row: row.clone() },
-        EntryDecision::Adopt => match prove_the_registration(facts, repository, path, mounts) {
+        EntryDecision::Adopt => match prove_the_registration(facts, repository, path, mounts, guids) {
             Ok(()) => state_of_a_proved_registration(path, &facts.nonce),
             Err(refusal) => state_of_a_refused_proof(path, &refusal),
         },
         // A refusal over an entry with no back-link names the half-made row it is,
         // because the lock's own state cannot be read without one.
-        EntryDecision::Refuse { row, .. } => match prove_the_registration(facts, repository, path, mounts) {
+        EntryDecision::Refuse { row, .. } => match prove_the_registration(facts, repository, path, mounts, guids) {
             Err(TwoFactRefusal::NoGitdir) => ManagedLockState::HalfMade { nonce: facts.nonce.clone(), name: String::from(name), row: row.clone() },
             Ok(()) => state_of_a_proved_registration(path, &facts.nonce),
             Err(refusal) => state_of_a_refused_proof(path, &refusal),
@@ -148,10 +153,10 @@ fn state_of_a_found_entry(name: &str, path: &Path, decision: &EntryDecision, fac
 ///  so its adoption,
 ///  its rows and its two-match refusal read here as they read there,
 ///  and a walk that found nothing is the state S6 with the path the record named.
-fn state_of_the_found_registration(repository: &Path, slot: &str, slot_path: &Path, facts: &RecordedLockFacts, mounts: &dyn MountedDatasets) -> ManagedLockState {
+fn state_of_the_found_registration(repository: &Path, slot: &str, slot_path: &Path, facts: &RecordedLockFacts, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> ManagedLockState {
     let finding = find_the_slot_registration(repository, slot, slot_path, &facts.nonce);
     return match finding.registration {
-        TheRegistration::One { name, path, decision } => state_of_a_found_entry(name.as_str(), path.as_path(), &decision, facts, repository, mounts),
+        TheRegistration::One { name, path, decision } => state_of_a_found_entry(name.as_str(), path.as_path(), &decision, facts, repository, mounts, guids),
         TheRegistration::Two { names } => ManagedLockState::NoBindingExplains {
             found: format!("two entries attribute themselves to this add (`{}`), and only a copy of the lock's sentence could make two", names.join("`, `")),
         },
@@ -168,13 +173,16 @@ fn state_of_the_found_registration(repository: &Path, slot: &str, slot_path: &Pa
 ///  so the two cannot disagree about whether a lock is the wrapper's own.
 ///  The slot's path is the caller's,
 ///  because a record that cannot be read still leaves a slot to look at.
+///  The pool read is the caller's too,
+///  so the add's resume passes the device it opened behind the gate
+///  and a control passes its own scripted GUIDs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const classification = classifyTheManagedLock(commonDir, slot, slotPath, mounts);
+/// const classification = classifyTheManagedLock(commonDir, slot, slotPath, mounts, guids);
 /// ```
-pub fn classify_the_managed_lock(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets) -> Classification {
-    return classify_with_a_known_slot_identity(repository, slot, slot_path, mounts, None);
+pub fn classify_the_managed_lock(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> Classification {
+    return classify_with_a_known_slot_identity(repository, slot, slot_path, mounts, guids, None);
 }
 
 /// What:
@@ -188,7 +196,7 @@ pub fn classify_the_managed_lock(repository: &Path, slot: &str, slot_path: &Path
 ///  the proof compares.
 ///  Every other reader passes nothing,
 ///  and a record with no identity is then refused rather than guessed at.
-pub fn classify_with_a_known_slot_identity(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, known_slot_identity: Option<FolderIdentity>) -> Classification {
+pub fn classify_with_a_known_slot_identity(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads, known_slot_identity: Option<FolderIdentity>) -> Classification {
     let pointer: Reading = read_the_slot_pointer(slot_path);
     let mut facts: RecordedLockFacts = match read_the_recorded_facts(repository, slot) {
         Ok(found) => found,
@@ -202,11 +210,11 @@ pub fn classify_with_a_known_slot_identity(repository: &Path, slot: &str, slot_p
         facts.slot_identity = known_slot_identity;
     }
     let state: ManagedLockState = match facts.registration.as_ref() {
-        Some(recorded) if recorded.is_dir() => match state_of_the_recorded_registration(&facts, repository, recorded.as_path(), mounts) {
+        Some(recorded) if recorded.is_dir() => match state_of_the_recorded_registration(&facts, repository, recorded.as_path(), mounts, guids) {
             Some(answered) => answered,
-            None => state_of_the_found_registration(repository, slot, slot_path, &facts, mounts),
+            None => state_of_the_found_registration(repository, slot, slot_path, &facts, mounts, guids),
         },
-        Some(_) | None => state_of_the_found_registration(repository, slot, slot_path, &facts, mounts),
+        Some(_) | None => state_of_the_found_registration(repository, slot, slot_path, &facts, mounts, guids),
     };
     return Classification { state, pointer };
 }
