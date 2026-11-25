@@ -169,7 +169,10 @@ fn doctor_names_the_inert_index_lock_and_landing_keys() {
 
 /// A start name that used to be a hook entry's name behaves as `git`:
 /// nothing dispatches on the name the wrapper was
-/// started under.
+/// started under,
+/// except the installed ZED history event's own name,
+/// which selects the ZFS route's root modes and nothing a Git command means
+/// (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`).
 #[test]
 fn a_start_name_that_used_to_be_an_entry_behaves_as_git() {
     let fixture: Fixture = fixture("external-other-names");

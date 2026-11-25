@@ -3,9 +3,9 @@
 //! the invariants that the service is a mode of
 //!  the wrapper and not a second program.
 //! Why:
-//!  The release ships two executables,
-//! `monochromatic-git-policy-cli` and `mount-git-worktree-clone-datasets`,
-//! and the commit service is a mode of the wrapper rather than a third program,
+//!  The release ships one executable,
+//! `monochromatic-git-policy-cli`,
+//! and the commit service is a mode of it rather than a program of its own,
 //! so a person's `git monochromatic-git-policy-cli service run` reaches the same code the service manager starts.
 //!  A start with no socket from the manager and no named address must be refused and leave no server and no directory;
 //! a
