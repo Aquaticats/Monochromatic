@@ -340,8 +340,15 @@ so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-pro
 step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
 held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
 and runs the proof read-only inside the refusal;
-running since 2026-11-24T19:10-05:00:
-issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
+a `source_guard` check that fails any `set_current_dir` in the crate,
+and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
+its branch conflicts with `main` in `entry_zfs_slot_commands.rs` (the move refusal's read order),
+so the round resumed at 2026-11-24T20:58-05:00 to merge `main` and resolve it (`pi-fix-tests-that-change-the-process-directory-merge-main`);
+the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
+choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
+and its Sonnet read runs since then (`~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`);
+earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
