@@ -365,7 +365,8 @@ the command's lines beside it);
 7 instances no record names stay untouched,
 and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
 when the same command clears it;
-the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt;
+the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt
+(the 6454 worktree's removal at 2026-11-24T21:04-05:00 kept one; a run of the fixed build's `service stop-units-of-removed-worktrees` after this batch clears them);
 the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
