@@ -337,6 +337,10 @@ since a removal keeps the commit service's journal for `rules-repository` or a `
 which has left 595 journals of removed worktrees among 663 (56 MB) in the service state folder;
 after it merges, `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` clears them on this machine;
 the gate on `main` at `a467773fbf` (`gate-on-main-at-a467773fbf`) runs for step 12's merge;
+its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
+which lifts the machine-wide memory stall that pauses new starts;
+the round that measures the build and sizes its bound waits for that stall to fall,
+with its brief written at `~/temp/agent/size-the-gate-image-build-memory-2026-11-24/prompt.md`;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,

@@ -603,6 +603,40 @@ so nothing here separates them.
 What it shows is that the settings were in force under heavy swap traffic without a reported stall;
 what it does not show is that they prevent a repeat.
 
+### Catalog: a rising stall from one capped container, at 2026-11-24T19:20:00-05:00
+
+The all-task memory stall rose while the host had memory to spare.
+Readings of `/proc/pressure/memory`, `some` line, in order:
+avg10 4.82, avg60 3.91, avg300 2.35;
+then avg10 5.14, avg60 4.84, avg300 2.92;
+then, at 2026-11-24T19:23:08-05:00, avg10 1.21, avg60 2.79, avg300 2.87, falling.
+`free --mebi` gave 27,529 to 30,132 MiB available across those readings,
+and zram held 6.5G of swap.
+
+One cgroup carried the stall.
+Each user cgroup's own `memory.pressure` with a nonzero avg10 was listed:
+the image build container of a whole wrapper gate
+(`crun-buildah-buildah3181108216.scope`, started by `podman build --memory=2g --cpu-quota=400000`)
+read avg10 6.48 and avg60 4.79 at `memory.current` 2,047 MiB against `memory.max` 2,147,483,648 bytes,
+while it compiled the crate's tests (`cargo nextest run --no-run`);
+`app.slice` above it read 3.88 and 2.55 only because it contains that container,
+and the only other nonzero reading was a Pi round's 0.01.
+Running at the time:
+that gate,
+one guest of 7.8 GiB,
+and five Pi rounds.
+
+So the all-task figure rises when one container presses against its own cap,
+with the host far from the 1,966 MiB free of the freeze.
+A start check that reads only the all-task figure pauses for that stall too;
+listing each cgroup's `memory.pressure` names where it comes from.
+One Pi round was started inside this window,
+by a command that read the figure and started the round in the same call,
+so the reading could not stop it.
+The 2 GiB cap of the gate's image build is the repository's shared test-container default
+(`package/container-limit/core`),
+and no measurement of that build's memory is recorded.
+
 ### The comparison that would verify the change
 
 No such comparison has been made.
