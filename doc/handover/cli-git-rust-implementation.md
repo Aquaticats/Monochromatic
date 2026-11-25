@@ -618,7 +618,7 @@ and choice 7's deadline variable able to turn a missed deadline into a pass;
 the owner blocks for all ten choices are in that report.
 The fifth revision, briefed to weigh whole-file pins of `main.rs` and the names module against more spelling lists
 and to pose the deadline variable as its own choice, has its brief at `~/temp/agent/zfs-root-modes-fifth-revision-2026-11-24/prompt.md`
-and starts once the memory stall stops rising;
+and runs since 2026-11-24T20:21-05:00 (`pi-zfs-root-modes-fifth-revision`; the fourth round's `scratch/` stays until it ends, since the brief points at it);
 a Sonnet read of it follows, then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
