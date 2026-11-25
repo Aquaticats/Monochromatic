@@ -15,6 +15,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::process::Command;
@@ -52,6 +53,9 @@ fn awkward_names() -> Vec<OsString> {
 /// clears exactly its own file in a real shell and runs nothing.
 #[test]
 fn quoted_names_name_exactly_their_files_in_a_real_shell() {
+    if !in_a_fixture_root_taking_any_name("lock::stale_ref_lock_message::tests::quoted_names_name_exactly_their_files_in_a_real_shell") {
+        return;
+    }
     let root: PathBuf = fixture("stale-message-quoting");
     for name in awkward_names() {
         let directory: PathBuf = root.join("d");
