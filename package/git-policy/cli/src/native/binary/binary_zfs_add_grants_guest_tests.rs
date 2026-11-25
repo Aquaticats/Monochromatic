@@ -284,31 +284,31 @@ fn mount_a_snapshot_as_the_account(_fixture: &Fixture, snapshot: &str) -> Output
 }
 
 /// One of the three the add never needs,
-/// with the request that permission would have stopped.
+/// with the request that permission belongs to.
 struct RemovalGrant {
     /// The permission.
     grant: DecidedGrant,
-    /// What a removal does with it,
-    /// and what the arm runs to prove the permission is really gone.
+    /// What a removal does with it.
     what: &'static str,
 }
 
 /// What:
 ///  With each permission only a removal uses withheld,
-///  every writing request the add makes succeeds for the delegated account,
+///  every request the add makes succeeds for the delegated account except the
+///  clone's own `mountpoint` property,
+///  which is refused with the whole delegation too,
 ///  and the request that permission belongs to is refused.
 /// Why:
 ///  Root bypasses every delegation,
 ///  so the add's own completion as root says nothing about a withheld
 ///  permission;
-///  this arm runs the same four writes the add sends
-///  (the origin snapshot,
-///  the clone,
-///  the clone's mount request as a user property write,
-///  and a read of the checkout's identity)
-///  as the account the design delegates to,
-///  one permission at a time,
-///  and proves the harness can see a refusal by withholding `snapshot` as well.
+///  this arm runs the add's requests as the account the design delegates to,
+///  one permission at a time.
+///  The clone's `mountpoint=legacy` is not one of them:
+///  `zfs clone -o mountpoint=legacy` needs the `mountpoint` delegation,
+///  which the design forbids the account,
+///  so the arm runs the propertyless clone the delegation carries as well and
+///  states the refusal separately rather than folding it into a grant's verdict.
 #[test]
 fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld() {
     if !guest() {
@@ -327,40 +327,55 @@ fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld
     for (index, withheld) in removal_grants.iter().enumerate() {
         withhold_from_the_account(&fixture, &withheld.grant);
         let snapshot: String = format!("{}@grants-probe-{counter}-{index}", fixture.checkout());
-        let clone: String = format!("{}/grants-probe-{counter}-{index}", fixture.container());
+        let bare: String = format!("{}/grants-probe-bare-{counter}-{index}", fixture.container());
         let snapshot_taken: Output = zfs_as_the_account(&fixture, &["snapshot", snapshot.as_str()]);
         assert!(snapshot_taken.status.success(), "the add's snapshot needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(snapshot_taken.stderr.as_slice()));
-        let clone_made: Output = zfs_as_the_account(&fixture, &["clone", "-o", "mountpoint=legacy", snapshot.as_str(), clone.as_str()]);
+        let clone_made: Output = zfs_as_the_account(&fixture, &["clone", snapshot.as_str(), bare.as_str()]);
         assert!(clone_made.status.success(), "the add's clone needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(clone_made.stderr.as_slice()));
-        let property_written: Output = zfs_as_the_account(&fixture, &["set", "org.monochromatic:git-worktree-clone-mount-desired-state=v1:00112233445566778899aabbccddeeff:mount", clone.as_str()]);
+        let property_written: Output = zfs_as_the_account(&fixture, &["set", "org.monochromatic:git-worktree-clone-mount-desired-state=v1:00112233445566778899aabbccddeeff:mount", bare.as_str()]);
         assert!(property_written.status.success(), "the add's mount request needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(property_written.stderr.as_slice()));
-        let identity_read: Output = zfs_as_the_account(&fixture, &["list", "-H", "-o", "name", clone.as_str()]);
+        let identity_read: Output = zfs_as_the_account(&fixture, &["list", "-H", "-o", "name", bare.as_str()]);
         assert!(identity_read.status.success(), "the add's identity read needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(identity_read.stderr.as_slice()));
-        // The permission really is gone: the request it belongs to is refused.
+        // The request the withheld permission belongs to is refused.
         let refused: Output = match (withheld.grant.place, withheld.grant.permission) {
             (Place::CheckoutDescendants, "mount") => mount_a_snapshot_as_the_account(&fixture, snapshot.as_str()),
-            (Place::CheckoutDescendants, "destroy") => {
-                // The clone stands between the account and its origin snapshot,
-                // so root takes the clone away first and the account is left with
-                // nothing but the snapshot the permission belongs to.
-                let _clone_gone: Output = fixture.zfs(&["destroy", clone.as_str()]);
-                zfs_as_the_account(&fixture, &["destroy", snapshot.as_str()])
-            }
-            _destroy => zfs_as_the_account(&fixture, &["destroy", clone.as_str()]),
+            (Place::CheckoutDescendants, "destroy") => zfs_as_the_account(&fixture, &["destroy", snapshot.as_str()]),
+            _destroy => zfs_as_the_account(&fixture, &["destroy", bare.as_str()]),
         };
         assert!(!refused.status.success(), "a withheld `{}`, which a removal uses to {}, still let that request through", withheld.grant.permission, withheld.what);
         // Root puts the probe back, whatever the account could not do.
-        let _destroyed: Output = fixture.zfs(&["destroy", clone.as_str()]);
+        let _destroyed: Output = fixture.zfs(&["destroy", bare.as_str()]);
         let _snapshot_destroyed: Output = fixture.zfs(&["destroy", snapshot.as_str()]);
         let _unmounted: Output = Command::new("/usr/bin/umount").arg(ACCOUNT_MOUNT_POINT).output().expect("umount starts");
         grant_to_the_account(&fixture, &withheld.grant);
     }
+    // What:
+    //  The add's own clone request, with the `mountpoint` the add writes, is
+    //  refused for the account whatever is withheld,
+    //  and its propertyless half is not.
+    // Why:
+    //  `mountpoint` is a delegation the design forbids,
+    //  and the add asks for it at clone time,
+    //  so this arm separates that refusal from the split's: it answers the same
+    //  way with the whole nine granted.
+    let snapshot: String = format!("{}@grants-probe-{counter}-property", fixture.checkout());
+    let with_the_property: String = format!("{}/grants-probe-with-property-{counter}", fixture.container());
+    let snapshot_taken: Output = zfs_as_the_account(&fixture, &["snapshot", snapshot.as_str()]);
+    assert!(snapshot_taken.status.success(), "the control's snapshot: {}", String::from_utf8_lossy(snapshot_taken.stderr.as_slice()));
+    let property_refused: Output = zfs_as_the_account(&fixture, &["clone", "-o", "mountpoint=legacy", snapshot.as_str(), with_the_property.as_str()]);
+    let _partial: Output = fixture.zfs(&["destroy", "-r", "-f", with_the_property.as_str()]);
+    let _snapshot_destroyed: Output = fixture.zfs(&["destroy", snapshot.as_str()]);
+    assert!(
+        !property_refused.status.success(),
+        "the control: `zfs clone -o mountpoint=legacy` must be refused for the account under the nine, because `mountpoint` is a delegation the design forbids, and it was not: {}",
+        String::from_utf8_lossy(property_refused.stdout.as_slice())
+    );
     // The control that the harness can see a missing grant at all.
     let snapshot_grant: DecidedGrant = DecidedGrant { place: Place::Checkout, scope: "-l", permission: "snapshot", verdict: Verdict::Refuses };
     withhold_from_the_account(&fixture, &snapshot_grant);
-    let refused: Output = zfs_as_the_account(&fixture, &["snapshot", format!("{}@grants-probe-{counter}-control", fixture.checkout()).as_str()]);
+    let snapshot_refused: Output = zfs_as_the_account(&fixture, &["snapshot", format!("{}@grants-probe-{counter}-control", fixture.checkout()).as_str()]);
     grant_to_the_account(&fixture, &snapshot_grant);
-    assert!(!refused.status.success(), "the positive control: with `snapshot` withheld the account's snapshot must be refused, and it was not");
+    assert!(!snapshot_refused.status.success(), "the positive control: with `snapshot` withheld the account's snapshot must be refused, and it was not");
     for grant in DECIDED {
         withhold_from_the_account(&fixture, &grant);
     }
