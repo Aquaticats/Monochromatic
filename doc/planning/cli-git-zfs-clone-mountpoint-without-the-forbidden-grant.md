@@ -8,21 +8,25 @@ and it is unapproved and non-final:
 only the project declares a design complete.
 
 It was written in the worktree
-`.claude/worktrees/zfs-clone-mountpoint-design-second-revision`,
-on branch `docs/planning-zfs-clone-mountpoint-design-second-revision`,
+`.claude/worktrees/zfs-clone-mountpoint-design-third-revision`,
+on branch `docs/planning-zfs-clone-mountpoint-design-third-revision`,
 made from `main`.
-It revises the proposal of 2026-11-25
-after that proposal's gate review,
+It is the third revision of 2026-11-25.
+It answers the second gate review of the second revision,
 which is
-`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-without-the-forbidden-grant-2026-11-25/keep/review.md`.
+`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`,
+and it changes wording only:
+no measurement, option, order or recommendation moved,
+and this revision ran no guest.
 Every High,
-Medium and Low that review raised is answered here,
-by a change in this document or by evidence that the review was wrong;
-`## The gate review's findings, and where each is answered` names each one.
+Medium and Low that second review raised is answered here;
+`## The second gate review's findings, and where each is answered` names each one.
+The first review's findings stay answered in
+`## The first gate review's findings, and where each is answered`.
 
 No code changed.
 Nothing under `doc/decision/` or `doc/handover/` was touched.
-One throwaway `mvm` guest ran the arms,
+The earlier revision's throwaway `mvm` guest ran the arms,
 and `mvm` destroyed it after its logs were saved.
 
 The question is
@@ -39,8 +43,11 @@ sends one property with its clone request:
 `mountpoint=legacy`
 (`package/git-policy/cli/src/native/worktree_clone_add_route/add_zfs.rs:103` to `:112`).
 That property is one the design forbids the managed account,
-so as the account the kernel refuses the whole clone request,
-and the add cannot make a clone at all.
+so as the account the kernel refuses the whole clone request.
+The add's own binary has not been run as the account;
+the measured request is the equivalent `zfs clone -o mountpoint=legacy`,
+sent by the account holding the decided grants,
+and in the measured case the refusal left no clone.
 
 The accepted design says something else:
 clones "must inherit `mountpoint=legacy`"
@@ -69,16 +76,46 @@ so the question is whether to keep the design or to change it.
 
 This section stands alone:
 nothing in it needs the rest of this document.
+The measurements behind its "measured" lines are in `## The guest probe`.
 
-### What the add does, what the design says, and what each answer gives
+### The words this section uses
 
-The ZFS add works as the managed account.
-Today it asks the kernel to create its clone with the property `mountpoint=legacy`,
+- `container`: the ZFS dataset the add creates its clones in, beside the checkout dataset.
+- `legacy`: a `mountpoint` value that forbids the pool to mount the dataset itself.
+  Only root's own `mount` can place such a dataset at a path.
+- decided grants: the nine permissions the accepted design lets the managed account hold,
+  listed in `REQUIRED_GRANTS`
+  (`package/git-policy/cli/src/native/health/doctor_zfs_route/delegation_checks.rs`).
+  `mountpoint` is not one of them.
+- removal proof: the check that a clone about to be removed is the clone the add recorded.
+  It rests on the account holding no permission that could change a dataset's lineage.
+- sweep: the root handler's scan of the container's children,
+  which attaches the clones the add asked for and refuses one whose properties are wrong.
+- `slot`: the account-owned folder the clone mounts at, and the clone's own name under the container.
+- attach: the handler mounting a clone at its slot through a descriptor,
+  a path that never reads `mountpoint`.
+- handler: the root-installed program the design gives clone mount and unmount.
+- root: the machine's superuser, which runs the handler and the boot mount.
+- the account: the managed user the wrapper runs as, which holds the decided grants.
+- plan step 19: the implementation plan's step that installs the boot units and writes the container.
+  It is not built, so today an operator or a fixture makes the container.
+- plan step 14: the implementation plan's removal step.
+  A failed add hands its clone to it, and it settles what the add could not.
+- measured: run in a throwaway virtual machine in the case the sentence names;
+  the actor and the grants in hand are given with that case.
+
+The add works as the account.
+Today it asks the pool to create its clone with the property `mountpoint=legacy`,
 and `mountpoint` is a permission the design forbids that account,
-so the kernel refuses the request and no clone is made.
+so the kernel refuses the request.
+The add's own binary has not been run as the account;
+the measured request is the equivalent `zfs clone -o mountpoint=legacy`,
+and in the measured case it left no clone.
 
 The accepted design says a clone inherits `mountpoint=legacy` from the container,
 and that the account is never granted `mountpoint`.
+C is that sentence:
+the add is the accepted design's one departure, and C brings it back.
 
 Three answers exist.
 C deletes the property from the request and relies on that inheritance.
@@ -88,14 +125,14 @@ A grants the account `mountpoint`,
 so the request goes through.
 
 Ranking:
-C > B > A,
-because C is what the accepted design already says and the add is
-its only departure;
-B keeps the forbidden list intact but makes the root handler write a
-property,
-after the clone exists;
-A buys a local property by handing the account the
-permission that lets it aim root's own mount at any path it chooses.
+C > B > A.
+C outranks B because B turns the sweep's refusal into a repair,
+and the repair lands after the clone exists;
+with the check in the preflight, C refuses the wrong container before any write.
+C outranks A because A is the only answer that deletes a name from the forbidden list,
+which weakens the removal proof,
+and the same permission lets the account choose where root's own boot mount places its clone.
+B outranks A because B keeps that list intact and ends at the value C has from creation.
 
 ### Choice 1: which answer
 
@@ -117,16 +154,20 @@ What it costs:
 the container must be verified rather than assumed,
 because the setup that creates it is plan step 19's and is not built yet;
 today an operator or a fixture makes it.
-Two shipped sentences are also wrong and get corrected:
-`package/git-policy/cli/SPEC.md:5036` to `:5037` and the comment at `add_zfs.rs:103` to `:109`
-both say a clone inherits the origin's mountpoint.
+Three written copies of one sentence are also wrong and get corrected:
+the SPEC's "a clone inherits the origin's mountpoint",
+the comment at `add_zfs.rs:103` to `:109`,
+and the add record design's A9 paragraph.
+A keeps the request sentence and its comment;
+B and C correct them.
 It also leaves a reader to know that an inherited value is a real value,
 where A writes one locally.
 
 Why it ranks first:
-it is the accepted design's own sentence,
-so choosing it changes no accepted record,
-and each of the next two answers pays something for a property that inheritance already gives.
+it keeps the sweep's refusal,
+and each of the next two answers pays something for a value inheritance already gives.
+C is also the accepted design's own sentence,
+so choosing it changes no accepted record.
 
 #### B: the add sends no property, and root sets `mountpoint=legacy` at attach
 
@@ -148,25 +189,41 @@ until the handler's next attach.
 
 Why it ranks second:
 it keeps the forbidden list intact,
-which A does not,
-and everything it delivers C delivers,
-so its whole cost is paid for a value C has from creation.
+which A does not.
+It also delivers one thing C does not:
+it keeps working when the container's own `mountpoint` is not `legacy`.
+That is a state C refuses and the design does not want built,
+so it does not make B the better answer,
+and B's whole cost is paid for the value C has from creation.
 
 #### A: grant the account `mountpoint`, and keep sending the property
 
 Ranked last,
 and it has two shapes.
-The first grants `mountpoint` on the container's descendants (`zfs allow -d -u <account> mountpoint <container>`);
-the second grants it at creation (`zfs allow -c mountpoint <container>`),
+The first grants `mountpoint` on the container's descendants
+(`zfs allow -d -u <account> mountpoint <container>`).
+The second grants it at creation (`zfs allow -c mountpoint <container>`),
 a command that names no account,
-so the kernel copies it onto every dataset created below the container,
+so the kernel copies it onto every dataset created under the container,
 for its creator,
 and the account holds `mountpoint` on its own clone afterwards as well.
+Both deliver the same value and cost the same permission,
+so this question treats them as one answer;
+which shape to use is a later decision and does not change the ranking.
 
 What it gives:
 a property value written locally on the clone,
-which survives a later change of the container's own `mountpoint`,
+which survives a change of the container's own `mountpoint`,
 and a clone request that tolerates a container that is not `legacy`.
+The first is a real gain.
+Under C, a change of the container's `mountpoint` by root reaches every existing clone at once,
+because each holds an inherited value,
+and only `doctor` and the sweep report it, when either next runs.
+No arm measured that change;
+it is read from the inheritance walk the pool uses.
+The pin covers `mountpoint` on that clone;
+`setuid` and `devices` stay inherited under every answer,
+and C's check, in the preflight, answers the same change for the next add only.
 
 What it costs:
 it deletes one entry from the list whose absence is the removal proof's threat boundary,
@@ -174,27 +231,37 @@ and it gives the account the ability to choose the path root's own `zfs mount -a
 Both shapes are measured.
 With the descendant grant the account set its clone's `mountpoint` inside the checkout
 and at an arbitrary path,
-and root's ordinary boot scan mounted it at each
-(`### A with the descendant grant: works, and hands the account an automatic mount (log one)`).
+and root's ordinary boot scan mounted it at each.
 With the creation-time grant the same account set the mountpoint at a path it chose
 and root's scan mounted it there over a root-owned,
-non-empty directory
-(`## The guest probe`,
-`### A's second shape: the creation-time grant, measured this round`).
+non-empty directory.
 
 Why it ranks last:
 it is the only answer that gives up a permission the design forbids,
-and it delivers nothing C lacks except a local value,
-which C's own check covers by refusing a container that is not `legacy`.
+and the value it adds is one property on clones that already exist,
+bought by letting the account aim root's own boot mount.
 
-### Choice 2: where C's check runs
+### Choice 2: where C's check runs, and only if the owner picks C
 
 C needs one check,
 because the container's property is setup state that no shipped code
 reads at add time today.
-Two placements exist,
-and a third option is both.
-In all three the check reads a reply the add already asks for:
+The accepted design already puts this verification in the preflight:
+"Add and Git registration" item 1 says
+"Before a claim, slot, registration, snapshot or clone is written, verify ..."
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Add and Git registration",
+item 1),
+and A0 of the add's binding record has the add judge the grants with `doctor`'s own check
+and refuse "before any write"
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`, A0).
+Neither list names the container's properties,
+but `doctor` checks them,
+so the preflight is the accepted place for this check.
+The question is whether the add also reads the clone after creation.
+
+Four placements exist.
+In all but the last, the check reads a reply the add already asks for:
 the container's properties arrive in the same kernel reply as its GUID
 (`package/zfs/request-to-openzfs-kernel-device/src/kernel_device/listed_object.rs:36` to `:47`),
 and `check_dataset`,
@@ -204,22 +271,36 @@ is public
 re-exported at `mod.rs:163`).
 So no new request type is needed by any placement.
 
+Ranking:
+Both > Preflight only > Read the clone after creation only > No check in the add.
+Both outranks Preflight only because the preflight cannot see a change made in the interval it leaves open,
+between the preflight and the clone request,
+where the claim, the slot, the Git registration and the checkout snapshot are written,
+and the read after creation names the clone's value and its source instead of leaving the mount wait to time out.
+Preflight only outranks the read after creation only because it refuses before any write,
+where the read after creation is detect-only,
+and that refusal is the only case the check exists for.
+The read after creation only outranks no check because it names the wrong property at the add,
+where no check leaves the mount wait to time out.
+
 #### Both: refuse in the preflight, then read the clone after creation
 
 Recommended.
-What it gives:
+Both is the accepted preflight plus the one diagnostic the read after creation adds:
+a container changed inside that interval is reported at the add,
+with the clone's value and its source,
+rather than found by the mount wait timing out.
+What the preflight checks:
 a container that is not `legacy`,
 has `canmount` on,
 or has `setuid` or `devices` on
 is refused before the add writes a claim,
 a slot,
 a registration,
-a snapshot or a clone,
-and a container changed while the add runs is caught after the clone,
-where the refusal names the clone and the container rather than leaving the mount wait to time out.
+a snapshot or a clone.
 Worked example:
 a container repointed at `mountpoint=/srv/x` after the last `doctor` run.
-The preflight refuses and names the container and the command that fixes it.
+The preflight refuses and names the container, the property and the required value.
 If the container is repointed between the preflight and the clone,
 the read after creation reports the clone's value and its source,
 and the add says what it left.
@@ -227,6 +308,9 @@ and the add says what it left.
 What it costs:
 two reads of replies the add already gets,
 and a second refusal sentence to keep true.
+The post-creation half is detect-only, not a refusal:
+the add issues no destroy,
+so a wrong clone stands until plan step 14's settle.
 
 #### Preflight only
 
@@ -243,8 +327,8 @@ and the person learns it from the sweep rather than from the add.
 Why it ranks second:
 it covers the case that exists today (a hand-made container,
 no shipped setup)
-and leaves only the wide window open,
-but it leaves that window with no answer at all.
+and refuses before any write,
+but a container changed in the interval before the clone is left unanswered.
 
 #### Read the clone after creation only
 
@@ -266,23 +350,45 @@ a registration,
 a snapshot and a clone
 before learning the container was wrong.
 
-Why it ranks last:
+Why it ranks third:
 it refuses nothing,
-and the case it fails on is the only case the check exists for.
+but it still names the problem at the add,
+where the last placement does not.
+
+#### No check in the add: `doctor` and the sweep only
+
+What it gives:
+nothing new to build, read or keep true.
+
+What it costs:
+a wrong container is noticed by `doctor` when it is run,
+or by the sweep when the clone next attaches,
+and until then the add reaches the mount wait,
+which times out rather than naming the container's property.
+
+Why it ranks last:
+every other placement tells the person what is wrong while the add runs.
 
 ### What each choice changes in the records
 
 C changes no decision record:
-it corrects `SPEC.md:5036` to `:5037` and the comment at `add_zfs.rs:103` to `:109`,
-and adding the check changes the add's preflight and nothing else.
+it corrects the SPEC's "a clone inherits the origin's mountpoint"
+(`package/git-policy/cli/SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot"),
+the comment at `add_zfs.rs:103` to `:109`,
+and the add record design's A9 paragraph,
+which is a build note written after that design was accepted;
+the implementation plan's "Owned by issue 6462" line goes with them.
+Adding the check changes the add's preflight and nothing else.
 
 B amends the accepted handler record
 (`doc/decision/cli-git-zfs-worktree-design.md:40`),
 which today gives the handler mount and unmount and no property write,
-and it changes what `SPEC.md`'s sweep check is for
+and it changes what the SPEC's sweep check is for
 ("`mountpoint` is `legacy`,
 so neither `zfs mount -a` nor the systemd mount generator mounts it first",
-`:7429`).
+`SPEC.md`,
+"The sweep's checks").
 
 A amends the design's "Scoped delegation" list
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md:349` to `:350`)
@@ -292,11 +398,43 @@ and the reason "Dataset and path layout" gives for it
 and it amends `FORBIDDEN_PERMISSIONS`
 (`package/git-policy/cli/src/native/health/doctor_zfs_route/delegation_checks.rs:90`).
 
+### How to answer
+
+Answer Choice 1 with C, B or A.
+If the answer is C, answer Choice 2 as well,
+with both, preflight only, read the clone after creation only, or no check in the add.
+B and A need no Choice 2 answer:
+Choice 2 is only about where C's check runs,
+and the ranks of B and A stand as they are.
+
+## The question in a form a question dialog can hold
+
+1500 characters at most, for the dialog's question text.
+
+```text
+ZFS add: the clone's mountpoint, and where its check runs.
+
+Today the add asks the pool for `mountpoint=legacy`; the kernel refuses it for the account, so the add cannot clone.
+
+Choice 1, which answer:
+C (recommended): no property; the clone inherits `legacy` from the container. The accepted design's own sentence, no new permission, no root write. Cost: the container must be verified.
+B: no property; root writes `legacy` at attach. Keeps the forbidden list intact. Cost: a property write the handler lacks, and the sweep's refusal becomes a repair after the clone exists.
+A (worst): grant the account `mountpoint`, in two shapes, descendants or at creation. Gives a local pin that survives a container change. Cost: deletes a forbidden permission, lets the account aim root's boot mount, and only the next add is checked.
+
+Choice 2, only if C, where the check runs:
+Both (recommended): refuse in the preflight, then a detect-only read after creation.
+Preflight only: refuses before any write; a container changed during the add is unseen.
+Read after creation only: detect-only; a wrong clone stands until step 14.
+No check: doctor and the sweep only; the mount wait times out.
+
+Answer Choice 1 with C, B or A. If C, answer Choice 2 with both, preflight only, read after creation only, or no check.
+```
+
 ## What the issue found, and what it left open
 
 The issue's probe ran in a guest on OpenZFS 2.4.4 as the account,
 with the nine decided grants.
-Its transcript records this:
+The transcript, with that line put under its own command:
 
 ```text
 $ zfs clone <checkout>@probe <container>/bare
@@ -323,8 +461,11 @@ That is measured,
 and this round's guest re-measures it.
 A clone without the property "inherits the origin's `mountpoint` (the checkout path) and `canmount=on`",
 which is the issue's stated reason the property is needed at creation.
-That sentence is false,
-and the next two sections say why.
+That sentence is false about `mountpoint`,
+and true about `canmount`:
+the clone reads `canmount on default`,
+which is harmless because a legacy dataset is never mounted by itself.
+The next two sections say why the `mountpoint` half is false.
 
 ## How the kernel refuses the property
 
@@ -426,11 +567,20 @@ citing `guest-exact-zfs.log:18` to `:25`):
 .../git-worktree-clone-datasets/registered  canmount    on      default
 ```
 
-Two shipped sentences disagree with all of it.
-`package/git-policy/cli/SPEC.md:5036` to `:5037` says "a clone inherits the origin's mountpoint",
+Three written copies of one sentence disagree with all of it.
+The SPEC says "a clone inherits the origin's mountpoint"
+(`package/git-policy/cli/SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot"),
 and the comment in `clone_the_origin` at `add_zfs.rs:103` to `:109` says the same.
-Both are corrected by every answer here except A,
-whose local property makes the origin's value irrelevant but still not inherited.
+The add record design's A9 paragraph repeats it,
+which is a build note written after that design was accepted
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+A9),
+and the implementation plan's open item that says "Owned by issue 6462"
+points at that issue, whose request this answer removes.
+Every answer here except A corrects the two shipped sentences;
+A keeps them, because its local property makes the origin's value irrelevant,
+though still not inherited.
 
 ## What the design forbids, and why, in the record's words
 
@@ -573,6 +723,9 @@ Where it fails:
   named in `## The `doctor` gap this decision leans on`.
 
 The exposure is a root mount of account-controlled content at an account-chosen path.
+That the content is the account's rests on the design,
+which clones the account's checkout;
+the measured clone was a guest checkout that held no files.
 The exact case the mount study measured is worse than a nuisance:
 the clone lands inside the checkout,
 the checkout's later mount covers it,
@@ -582,7 +735,8 @@ a root-owned,
 non-empty directory at the path the account chose,
 with `overlay=on` on the dataset,
 and root's `zfs mount -a` covering that directory's contents.
-`nosuid,nodev` on the mount do not prevent an executable file inside it.
+`nosuid,nodev` on the mount do not prevent an executable file at that path,
+which the account could put in its own checkout.
 
 `doctor`'s `permission` finding would also have to be taught an exception,
 which is the design change the issue names as crossing the boundary.
@@ -601,7 +755,8 @@ and it works even if the container's own `mountpoint` is not `legacy`.
 Where it fails:
 
 - the handler's sweep already refuses a child whose `mountpoint` is not `legacy` before it attaches
-  (`package/git-policy/cli/SPEC.md:7429`,
+  (`package/git-policy/cli/SPEC.md`,
+  "The sweep's checks",
   and the refusal at
   `src/native/worktree_clone_mount_handler/sweep_clone_check.rs:253`).
   B therefore gives the sweep a write it does not have,
@@ -666,7 +821,14 @@ What it costs:
   but the add does not consult it,
   and a container changed after the last `doctor` run would give every clone an ordinary mountpoint
   until someone ran it again.
-  `### Choice 2: where C's check runs` asks which placement to give it;
+  `### Choice 2: where C's check runs, and only if the owner picks C`
+  asks which placement to give it;
+- a change of the container's `mountpoint` by root reaches every existing clone at once,
+  because each holds an inherited value (read from source,
+  `module/zfs/dsl_prop.c:115`).
+  `doctor` reports it when run and the sweep refuses the clone when it next attaches;
+  nothing refuses before the next boot's scan, and no arm measured the change.
+  A's local pin is the one answer that covers it, at the cost named under `### A`;
 - the check itself is cheap.
   The kernel's reply for one dataset carries every property with its value and its source,
   in the same object as its GUID
@@ -677,37 +839,49 @@ What it costs:
   the clone's read follows the clone request (`add_zfs.rs:205` to `:208`),
   and the sweep reads `mountpoint` out of the same shape
   (`sweep_dataset_facts.rs:236` to `:252`,
-  `value_of` at `:210` to `:230`).
-  `read_identity` throws the properties away today;
-  keeping them is the whole change,
-  and `check_dataset` is public and already takes exactly those facts
+  `value_of` at `:210` to `:224`).
+  `read_identity` returns `ObjectIdentity`, the GUID pair alone,
+  so keeping the properties is not a one-line change:
+  the check needs `facts_of(name, &identity)` from the mount handler's `sweep_dataset_facts.rs`,
+  a module the add does not use today,
+  and a `DatasetFacts { role, name, reading }`;
+  the preflight's `identity_of` also returns the GUID pair only.
+  `check_dataset` is public and already takes exactly those facts
   (`zfs_checks.rs:469`,
-  re-exported at `health/doctor_zfs_route/mod.rs:163`).
-  There is no new request type and no new check logic;
+  re-exported at `health/doctor_zfs_route/mod.rs:163`),
+  so there is no new request type and no new check logic,
+  only that conversion and cross-module use;
 - without any check,
   the wrong container shows up as the mount wait timing out rather than as a refusal naming the container;
-- two shipped sentences become false and must be corrected:
+- two shipped sentences and a design copy become false and must be corrected:
   the SPEC's "a clone inherits the origin's mountpoint"
-  (`:5036` to `:5037`),
-  and the code comment beside the request in `clone_the_origin`
-  (`add_zfs.rs:103` to `:109`);
+  (`SPEC.md`,
+  "The add that registers a ZFS clone before it fills the slot"),
+  the comment beside the request in `clone_the_origin`
+  (`add_zfs.rs:103` to `:109`),
+  and the add record design's A9 paragraph;
 - a clone's property source reads `inherited from <container>` rather than `local`,
   so a reader must understand inheritance to see why it is safe.
   The guest prints both sources.
 
 ### Considered and dropped
 
-- **Root performs the clone.**
-  It would remove the delegated clone step the design's whole route is built on,
-  and it needs a privileged request channel the design does not have.
-- **A channel program sets the property.**
-  `zfs.sync.set_prop` exists in `module/zfs/zcp_synctask.c:505` to `:540`,
-  but `ZFS_IOC_CHANNEL_PROGRAM` is registered with `zfs_secpolicy_config` (`module/zfs/zfs_ioctl.c:7664` to `:7665`),
-  so the account cannot issue one.
-  A root-run fixed program would be a new privileged surface,
-  for one property whose value inheritance already gives.
-- **Set the property after creation with `ZFS_IOC_SET_PROP`.**
-  The same `mountpoint` delegation is checked
+#### Root performs the clone
+
+It would remove the delegated clone step the design's whole route is built on,
+and it needs a privileged request channel the design does not have.
+
+#### A channel program sets the property
+
+`zfs.sync.set_prop` exists in `module/zfs/zcp_synctask.c:505` to `:540`,
+but `ZFS_IOC_CHANNEL_PROGRAM` is registered with `zfs_secpolicy_config` (`module/zfs/zfs_ioctl.c:7664` to `:7665`),
+so the account cannot issue one.
+A root-run fixed program would be a new privileged surface,
+for one property whose value inheritance already gives.
+
+#### Set the property after creation with `ZFS_IOC_SET_PROP`
+
+The same `mountpoint` delegation is checked
   (`zfs_check_settable`,
   `zfs_secpolicy_setprop`),
   so it fails for the same reason as A.
@@ -730,8 +904,13 @@ or when the wrapper or the machine stops between them.
 Unmounted clones are a state the accepted design keeps,
 including across reboots ("Unmounted,
 pruned or moved worktrees").
-In that state the actor is the next boot's `zfs mount -a`,
-which runs before any handler does.
+In that state the actor is the next boot's `zfs mount -a`.
+The design orders the reconcile unit after the checkout provider
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:500` to `:510`),
+which is `zfs-mount.service` where it mounts the checkout or the generated mount unit,
+and the same passage says the existing host service runs `zfs mount -a`;
+it does not say in so many words that the unit orders after `zfs mount -a`
+on the generated-mount route.
 
 - `zfs mount -a` skips a dataset whose mountpoint is `legacy` or `none`,
   silently,
@@ -758,8 +937,10 @@ So under A,
 between creation and attach,
 a clone carries whatever mountpoint the account aimed it at,
 and a boot's `zfs mount -a` mounts it,
-with `overlay` on by default (`module/zcommon/zfs_prop.c:528`,
-`lib/libzfs/libzfs_mount.c:521` to `:528`),
+with `overlay` on by default (`module/zcommon/zfs_prop.c:528`;
+`lib/libzfs/libzfs_mount.c:521` to `:528` sets the mount flag,
+and the emptiness check that flag skips is at `:535` to `:541`,
+whose comment at `:530` to `:534` says why),
 so it mounts over a non-empty directory rather than refusing.
 Under B,
 the clone carries inherited properties until the handler's write.
@@ -811,6 +992,10 @@ both on the same release and the same recipe.
   with `runuser -u ubuntu --` for the account's arms,
   against a 1 GiB file-backed pool `cloneprobe` at `/var/lib/cloneprobe.img`,
   on the same release and kernel the earlier round used.
+  That command list is not a faithful order of what ran:
+  it puts the refused `allow -c -u` attempt before an `unallow -c` that came earlier in the log,
+  and it leaves out one failed `zfs get` whose usage text fills the log.
+  The logs are the record.
 
 ### The setup, before any clone (log one)
 
@@ -885,6 +1070,8 @@ org.monochromatic:desired-state	v1
 
 so the refusals are about `mountpoint`,
 not about the clone being unreadable or the account being wrong.
+This block and the four property rows it follows are each put together
+from two places in the log, a command's exit line and the read-back after it.
 Root's `zfs mount -a` then exited 0 and mounted nothing:
 the container and the clone each read `mounted no`,
 
@@ -900,7 +1087,7 @@ as `setup-and-negative-control-2026-11-25.log`.
 ### The separating control: a container with an ordinary mountpoint (log one)
 
 A second container was created at `mountpoint=/home/cloneprobe-other`,
-and a bare clone made in it as the account:
+and a bare clone made in it, whose actor the log does not record:
 
 ```text
 other-container exit=0
@@ -1053,7 +1240,8 @@ drwxr-xr-x 6 root root 4096 Nov 25 22:26 ..
 
 The directory's `root-owned-file` is not in the mount's listing,
 so `overlay=on` let root's mount cover a non-empty directory rather than refuse it
-(`lib/libzfs/libzfs_mount.c:521` to `:528` skips the emptiness check when overlay is set),
+(`lib/libzfs/libzfs_mount.c:521` to `:528` sets `MS_OVERLAY` from the property,
+and the emptiness check it skips is at `:535` to `:541`, whose comment at `:530` to `:534` says why),
 and the mount's `nosuid,nodev` are the container's inherited properties.
 The transcript is in that round folder's
 `/home/user/temp/agent/zfs-clone-mountpoint-design-second-revision-2026-11-25/keep/guest-logs/`
@@ -1087,53 +1275,54 @@ On the measured inheritance the write is a no-op in value.
 
 ## Ranking
 
-**C > B > A.**
+The ranking is C > B > A.
 
-C ranks first for four reasons.
+C outranks B for two reasons.
 The sweep's check exists to refuse a clone whose property is wrong
-(`SPEC.md:7400` to `:7431`),
-and B turns that refusal into a repair.
-B gives the mount handler a write the accepted record does not
-(`doc/decision/cli-git-zfs-worktree-design.md:40`).
-C's inherited value covers all three properties the sweep checks,
-while A's local `mountpoint` covers one of them and leaves `setuid` and `devices` inherited anyway
-(`SPEC.md:7430` to `:7431`).
-And B's repair arrives after the clone exists,
-so the clone stands wrong through the window the next boot's `zfs mount -a` runs in,
-where C's preflight check refuses before the clone exists at all.
+(`SPEC.md`,
+"The sweep's checks"),
+and B turns that refusal into a repair,
+one that arrives after the clone exists,
+so the clone stands wrong until the handler's next attach.
+C keeps the refusal, and with the preflight it refuses the wrong container before any write.
 
-B ranks second,
-above A and below C,
-because it keeps the forbidden list intact and ends at the same value C has from creation.
-Its costs are real and stated:
-a root-side property write on the attach path,
-and a sweep check whose refusal becomes a repair.
-It also delivers one thing C does not:
-it keeps working when the container's own `mountpoint` is not `legacy`.
-That is not a reason to rank it above C,
-because a container that is not `legacy` is the state C's preflight refuses,
-and a container the setup builds that way is the design's premise rather than a case to tolerate.
-
-A ranks last because it is the only answer that deletes a line of the forbidden list,
-and it delivers what C lacks only as a local value:
-a per-clone pin that survives a later change of the container.
-That pin is bought with a permission that also lets the account aim root's own boot mount
-at any path it chooses,
+C outranks A for two reasons.
+A is the only answer that deletes a line of the forbidden list,
+which is the boundary the removal proof rests on.
+And the permission it buys lets the account aim root's own boot mount at any path it chooses,
 measured twice,
-and no check would notice A's second shape today.
-C answers the same worry by refusing a container that is not `legacy`,
-so the surviving-change case becomes a refused add rather than a wrong clone that still attaches.
+while no check would notice A's second shape today.
+
+B outranks A because it keeps that list intact and ends at the same value C has from creation.
+B also delivers one thing C does not:
+it keeps working when the container's own `mountpoint` is not `legacy`.
+That does not make B the better answer,
+because a container that is not `legacy` is the state C refuses,
+and the setup builds the container `legacy`.
+
+A's pin is a real gain and buys less than it seems.
+It covers `mountpoint` on that clone,
+while `setuid` and `devices` stay inherited under every answer,
+and it survives a change of the container that an inherited value would follow.
+C answers that change for the next add only:
+it refuses a container that is not `legacy`,
+so the change can still reach the clones that already exist,
+and `doctor` and the sweep are what report it then.
 
 ## What changes if the owner picks C
 
-- `package/git-policy/cli/SPEC.md:5036` to `:5037`:
+- `package/git-policy/cli/SPEC.md`:
   the clone is made with no `mountpoint` property,
   because it inherits the container's,
-  and the sentence that says it inherits the origin's is corrected.
+  and the sentence that says it inherits the origin's is corrected
+  (`SPEC.md`,
+  "The add that registers a ZFS clone before it fills the slot").
 - `add_zfs.rs`,
   `clone_the_origin`:
   no property list,
   and the comment says what the pool actually does.
+- The add record design's A9 paragraph loses the same sentence,
+  and the implementation plan's "Owned by issue 6462" line goes with it.
 - The design proposal,
   "Add and Git registration" item 3,
   needs no edit:
@@ -1176,7 +1365,8 @@ which already run C's path in a guest.
   `/home/user/temp/agent/sweep-guest-arms-find-a-clone-by-its-whole-name-2026-11-25/keep/guest-sweep-arm-first-run.log`
   and `guest-sweep-arm-second-run-after-the-cleanup.log`,
   with `STOPPAGE account-clone` at line 1383 of the driver log
-  and `test result: ok. 1 passed; ... finished in 194.76s` at line 1406,
+  and `test result: ok. 1 passed` at line 1406,
+  finished in 194.76s in the first run and 234.51s in the second,
   both after the test file's last change (`c3c9830585`,
   2026-11-25T05:30:59-05:00).
 - `package/zfs/request-to-openzfs-kernel-device/src/kernel_device/live_account_tests.rs:356` to `:392`:
@@ -1226,7 +1416,7 @@ This round's guest measured that the creation-time grant is effective
 (the section `### A's second shape: the creation-time grant, measured this round`),
 so the issue is not hypothetical.
 
-## The gate review's findings, and where each is answered
+## The first gate review's findings, and where each is answered
 
 The review is
 `/home/user/temp/agent/gate-review-zfs-clone-mountpoint-without-the-forbidden-grant-2026-11-25/keep/review.md`.
@@ -1241,12 +1431,12 @@ and each answer is in this document.
   C's cost is now one reader call on replies the add already gets
   (`### Choice 2: where C's check runs` and `### C`).
   The fork inside C is its own flagged choice,
-  with three placements and a recommendation.
+  with four placements and a recommendation.
 - "The accepted design already says C,
   and the edit list misreads it":
   `## The answer in four lines` states it plainly,
   and
-  `## What changes if the owner picks C` keeps only `SPEC.md:5036` to `:5037` and the comment at
+  `## What changes if the owner picks C` keeps only the SPEC sentence and the comment at
   `add_zfs.rs:103` to `:109`.
   The item 3 edit is dropped,
   with the reason the review gave.
@@ -1326,6 +1516,88 @@ and each answer is in this document.
   (`doc/decision/cli-git-zfs-worktree-design.md:40`).
 - Logs named by file name only:
   `## The guest probe` gives both logs' full paths and says where this round's logs sit.
+
+## The second gate review's findings, and where each is answered
+
+The review is
+`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`.
+Each finding is named by its own words.
+It found no High, four Mediums and the Lows this section lists.
+
+### Medium
+
+- "the owner-facing ranking still carries the sentence R1 said was untrue":
+  the owner's "Why it ranks second" now says what is true,
+  that B's one extra is working with a container that is not `legacy`,
+  a state C refuses and the design does not want built.
+  The owner's ranking line rests on capability reasons:
+  the sweep's refusal becoming a repair,
+  that repair landing after the clone exists,
+  and A deleting a forbidden name and aiming root's boot mount.
+  "C is the accepted design's own sentence" stands in the section's opening as a fact,
+  and the handler's write stands as B's cost, not as a ranking reason.
+  The first review's paragraph, which said the two untrue reasons were gone, now holds.
+- "C's own check covers" A's pin is true for the next add, not for the clones that exist:
+  `### C`'s costs and A's gains state the limit, marked read from source:
+  a root change of the container's `mountpoint` reaches every existing clone at once,
+  `doctor` and the sweep report it,
+  and nothing refuses before the next boot's scan.
+  The two passages now cover the next add only.
+- "Choice 2 lacks its ranking line and reasons":
+  Choice 2 opens with the accepted text (design proposal item 1 and A0 of the binding record design),
+  carries a ranking line with a reason for every adjacent pair,
+  gives "Both" its own paragraph,
+  calls the post-creation read detect-only and says a wrong clone stands until plan step 14's settle,
+  replaces "wide" with the interval it names,
+  drops the command from the refusal (the check names the container, property and value),
+  and adds the no-check placement with its reason for last place.
+- "The owner section does not stand alone":
+  a glossary defines container, legacy, the decided grants, removal proof, sweep, slot, attach,
+  plan steps 14 and 19, and measured;
+  the log and heading pointers are gone and each measurement is named by its case;
+  "no clone is made" is replaced by the measured equivalent request;
+  A's two shapes are separated with the shape left for later;
+  the section ends with how to answer;
+  and a compact question of 1302 characters follows it.
+
+### Low
+
+- The third copy of the false inheritance sentence:
+  the add record design's A9 paragraph and the implementation plan's issue-6462 item
+  join the correction lists in `### C`'s costs, in "Where a clone's properties actually come from",
+  and in "What changes if the owner picks C";
+  the owner section says A keeps the request sentence and B and C correct it.
+- "Its transcript records this" showed the corrected arrangement:
+  the block is now introduced as the transcript with that line under its own command.
+- Stale `SPEC.md` sweep line numbers:
+  the four citations name the heading "The sweep's checks".
+  The add step's line numbers are replaced by its heading too,
+  "The add that registers a ZFS clone before it fills the slot".
+- `value_of`'s span is corrected to `:210` to `:224`.
+- "Keeping them is the whole change":
+  the paragraph now names the `ObjectIdentity`-to-`DatasetFacts` conversion,
+  the cross-module use of `sweep_dataset_facts.rs`, and the preflight's GUID-pair return.
+- The `overlay` citations:
+  `:521` to `:528` sets the mount flag, the skipped emptiness check is `:535` to `:541`,
+  and its comment is `:530` to `:534`, in both places.
+- The two sweep-run times: 194.76s in the first run and 234.51s in the second.
+- The control's actor: the bare clone's runner is not recorded, and the section says so.
+- "That sentence is false": now false about `mountpoint`, with the `canmount` half said to be true.
+- "The next boot's `zfs mount -a` runs before any handler":
+  the design proposal's `:500` to `:510` is cited,
+  with the limit that it does not say so in those words for the generated-mount route.
+- Blocks composed from two log places:
+  the property rows and the `userprop` block now say they come from an exit line and a read-back.
+- The kept command list:
+  the guest probe section says it is not in run order and omits one failed `zfs get`.
+- Root mounting account-controlled content:
+  the section says the content is the account's by the design, not by measurement,
+  and that the measured clone held no files.
+- Bold-label bullets and a bold line:
+  "Considered and dropped" now uses four headings,
+  and the ranking opens as a sentence.
+- Issue 6472's body, which is outside this document, is edited to say eight permissions,
+  with `allow` the build's own ninth.
 
 ## Open items
 
