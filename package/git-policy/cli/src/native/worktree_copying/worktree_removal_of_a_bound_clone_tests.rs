@@ -203,6 +203,8 @@ fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
     let pool: ScriptedPool = fixture.healthy_pool();
     let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
     let stderr: String = refusal_of(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool));
+    // The refusal a person reads is this whole block, so a log of one run keeps its shape beside the assertions.
+    println!("{stderr}");
     assert!(stderr.contains("this release has no removal for a clone"), "{stderr}");
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
     assert!(stderr.contains(&format!("the clone `{CLONE}` (GUID `{CLONE_GUID}`")), "{stderr}");
