@@ -83,18 +83,126 @@ two things need measuring on a disposable Garage before the design settles:
   and whether that chain ends;
 - whether two quick saves of one file produce new `.conflictN` copies.
 
-## Adopted unless the owner vetoes
+## Owner answers, round 1 (2026-11-25T17:15:31-05:00)
 
-- A change starts the existing `rclone-bisync-garage.service`,
-  never a second rclone command:
-  the same flags,
-  the same failure alert,
-  and systemd never runs two copies of one unit at once.
-- The hourly timer stays as the safety net for missed events.
+- Machines:
+  every client should eventually start a sync on change,
+  but only this CachyOS PC is in scope for this session.
+  The other clients (macOS, Windows) are later work,
+  so the design prefers parts that also run there.
+- Folders:
+  all of `~/Plain`,
+  every folder and every folder created later.
+- Remote edits:
+  the timer polls every 5 minutes instead of hourly,
+  because Garage cannot push change notices.
+- Trigger:
+  a change starts the existing `rclone-bisync-garage.service`,
+  never a second rclone command,
+  keeping one set of flags,
+  the failure alert,
+  and systemd's one-run-at-a-time guarantee for a unit.
 
-## Open questions, round 1
+## Facts gathered for round 2
 
-- Which machines start a sync on change.
-- Which folders count as relevant.
-- How quickly edits made on other devices must reach this PC,
-  given that only polling can find them.
+- systemd path units do not recurse:
+  `path_spec_watch` in systemd v262 `src/core/path.c:38-98` adds one inotify watch on the configured path
+  and on its parent directories,
+  with no walk into subfolders,
+  so a `PathChanged=` on `~/Plain` sees only entries directly inside it.
+  A path unit cannot meet the round 1 answer "every folder,
+  including folders created later".
+- Repository precedent for the same shape of problem:
+  `doc/planning/kopia-source-watch-package.md` (design plan only, never built)
+  plans one user daemon that watches backup sources recursively with Chokidar,
+  debounces,
+  starts a Kopia snapshot,
+  and keeps a periodic timer as the safety net;
+  it rejects `systemd.path` (not recursive) and a raw `inotifywait` loop (custom debounce and parsing),
+  and lists `watchexec` as an alternative.
+- `package/watch-restart/cli` is a Chokidar-based package that replaced `watchexec` in a dev loop
+  because of a SIGINT hang in `watchexec`'s `-j` filter mode
+  and signals not reaching grandchildren (`doc/troubleshooting/mise-watch.md`);
+  it restarts a long-running child,
+  which is a different job from running a sync to completion.
+- `watchexec` 2.8.0 is locked in `toolchain.lock.json`
+  and installed at `~/.local/share/monochromatic-dev/toolchain/bin/watchexec`,
+  outside this shell's `PATH`.
+- No vet report for a file watcher exists under `doc/audit/`.
+
+## Measured on a throwaway Garage (2026-11-25T17:30:22-05:00)
+
+Garage v2.3.0 and the host's `rclone v1.76.0` ran in a podman pod,
+with the live unit's bisync flags,
+on a small tree bind-mounted from `~/temp/agent` (the same ZFS home dataset as `~/Plain`),
+and `inotifywait --monitor --recursive` recording every event in the tree during each step.
+Logs and per-step summaries:
+`~/temp/agent/garage-bisync-on-change-grilling-2026-11-25/throwaway-garage-test/keep/`.
+The pod was removed afterwards.
+
+- A run that finds no change writes nothing in the tree:
+  only folder open, read and close events.
+- A run that uploads a local edit writes nothing in the tree either.
+- The run after an upload stamps the uploaded file's mtime ("Updated modification time in destination"),
+  which is one `ATTRIB` event;
+  the run after that writes nothing.
+  So a watcher that reports `ATTRIB` starts one extra run per upload,
+  and that run ends the chain.
+- Two saves of `main.kdbx` with one run between them,
+  and no other run before the second save's run,
+  left `main.kdbx.conflict1` on both sides holding the first save's bytes,
+  while `main.kdbx` kept the newer bytes.
+  This reproduces the pile-up the troubleshooting doc predicts,
+  now that `--conflict-resolve newer` keeps the loser under a `.conflictN` name.
+- A second bisync pass right after an uploading run (a "settle pass") prevents it:
+  two save cycles,
+  each followed by a run and a settle pass,
+  added no new `.conflictN` file.
+- A save of `main.kdbx` made while a run was uploading a different file was not seen by that run;
+  the next run uploaded it without a conflict,
+  because `main.kdbx` carried no phantom then.
+  So a change that lands mid-run needs one more run after the current one ends.
+- A download from the bucket writes `<name>.<8 hex digits>.partial`
+  (create, modify, close, attribute change),
+  then renames it to the final name;
+  the next run writes nothing.
+  Downloaded objects get no phantom.
+- A save done as "write a temporary file, rename it over the original" shows a create and writes on the temporary name,
+  then the rename.
+
+Second round on the same pod (2026-11-25T17:34:03-05:00),
+for the cases the settle pass might not cover:
+
+- Deletion,
+  positive control:
+  a new file uploaded by one run,
+  then deleted locally before any other run,
+  came back from the bucket on the next run,
+  as `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` records.
+- Deletion with a settle pass between the upload and the delete:
+  the next run deleted the object,
+  and the file was gone on both sides.
+- A second save of the same file while its upload was running:
+  the next run raised a conflict and left `.conflict1` on both sides;
+  the settle pass after it did not help.
+- A second save between the upload pass and the settle pass (53 ms apart in the log):
+  the settle pass itself raised the conflict and left `.conflict1` on both sides.
+
+So a settle pass narrows the window in which a save makes a conflict copy
+from "until the next run" to the length of the upload pass plus the gap before the settle pass,
+and it closes the deleted-file-comes-back case;
+it does not remove the window.
+The root cause stays the rclone behaviour the troubleshooting doc names:
+after an upload,
+bisync records the source mtime in its baseline but compares the object's `LastModified` next time.
+
+## Owner answers, round 2 (2026-11-25T17:19:41-05:00)
+
+- Portability is a hard requirement:
+  the same watcher must run on Linux,
+  macOS and Windows,
+  so the later clients only add a service wrapper.
+  Linux-only tools (systemd path units, `inotifywait`, `incron`) leave the candidate list.
+- The broad discovery for the watcher vet is delegated to Pi as a subagent
+  (the owner answered with `/pi-as-subagent`).
+  The vet report holds the settled context and frozen query schedule the delegate starts from.
