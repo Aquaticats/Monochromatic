@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:29:56-05:00.
+State recorded 2026-11-25T17:30:26-05:00.
 
 ## Requirement as stated
 
@@ -322,6 +322,25 @@ Its own output showed `cwd-moved`,
 while the native result said session cwd remained `cwd-quick`.
 The next `pwd` confirmed `cwd-quick`.
 This verifies the accepted timing-dependent persistence consequence.
+
+### Main custom agent versus native subagent
+
+A real native-subagent Bash event carried both `agent_id` and `agent_type: custom`.
+The hook left `timeout` and `run_in_background` absent while retaining the output-filter rewrite.
+The command returned normally.
+The main session was itself started with `--agent custom`.
+Its Bash event carried `agent_type: custom` but no `agent_id`,
+so the hook added `timeout: 1000` and retained filtering.
+This proves that `agent_id`,
+not `agent_type`,
+is the correct execution-policy boundary.
+
+### Startup warning
+
+With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and the policy enabled,
+the synchronous `SessionStart:startup` hook returned the expected `systemMessage`
+through the real Claude Code hook stream.
+Resume and policy-disabled probes remain.
 
 ## Verification still owed
 
