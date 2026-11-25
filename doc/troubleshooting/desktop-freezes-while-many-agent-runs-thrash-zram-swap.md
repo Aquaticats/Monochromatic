@@ -1392,6 +1392,24 @@ What would return it is measured by its own round (`pi-mvm-guest-memory-held-for
 free page reporting, dropping the guest's cache after an arm, smaller guests running a host-built binary,
 guests without virtiofs so KSM could merge pages, and destroying guests between arms.
 
+A build's peak is one process.
+Read-only sampling between 2026-11-25T15:44:03-05:00 and 15:56:20-05:00 of builds other sessions ran
+(a same-vendor research pass, not an independent review)
+put the largest `rustc` of a round at the wrapper crate's test harness (`--test --emit=dep-info,link`),
+6147 to 6562 MiB resident;
+the same unit in check mode peaked at 4084 to 4192 MiB, clippy's at 4295 to 4379 MiB,
+the crate without its tests in check mode at 1621 to 1657 MiB,
+and the `forbidden-strings` build script's run at 3756 MiB in every worktree where its output is not fresh.
+From the Cargo, rustc and sccache sources it read, it inferred that `sccache` refuses a test unit (no crate type)
+and that a shared build directory shares nothing for this crate,
+whose unit ids hash its path dependencies outside the workspace by absolute path;
+that fewer jobs can act only on code generation, since the front end is serial;
+and that only compiling less of the crate per round acts on the front end.
+The dev profile already sets `debug = "line-tables-only"` and `incremental = false`, and the linker is already `rust-lld`.
+These effects are inferred, not measured;
+`pi-rust-build-memory-peak-arms` measures them one build at a time against an interleaved control,
+into `package/git-policy/cli/doc/development-profile-measurements.md`.
+
 ### What AppArmor would have stopped
 
 Two refusals in the `zram-generator` profile would each have left the next boot with no zram swap,
