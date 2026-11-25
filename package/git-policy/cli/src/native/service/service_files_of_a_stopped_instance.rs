@@ -427,7 +427,7 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
                             ),
                         )));
                     }
-                    WatchedRepositories::Unexplained { entry, reason } => return Ok(Some(Kept::Work(format!("{name}/{entry}"), reason))),
+                    WatchedRepositories::Unexplained { entry: unreadable, reason } => return Ok(Some(Kept::Work(format!("{name}/{unreadable}"), reason))),
                 }
             }
             return Ok(Some(Kept::Work(name.clone(), String::from(reason_of_a_kept_folder(name.as_str())))));
