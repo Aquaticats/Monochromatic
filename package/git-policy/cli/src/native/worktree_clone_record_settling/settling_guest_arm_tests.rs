@@ -113,8 +113,10 @@ fn the_settling_command_guest_arms() {
     fixture.write_the_adds_records(&checked_out);
     write_the_pointer(&fixture);
     std::fs::write(fixture.slot_path().join("README.md"), b"# the person's file\n").expect("the file writes");
+    // A rebuilt pool makes a new clone, so its GUID is not the first arm's and the confirmation is read again.
+    let rebuilt: SettlingRequest = the_request(&fixture);
     fixture.run("zfs", &["destroy", "-r", fixture.clone().as_str()]);
-    let with_a_checkout: SettlingDone = settle_the_records_of_a_slot(fixture.common().as_path(), &request, &reads).expect("a checkout's records settle");
+    let with_a_checkout: SettlingDone = settle_the_records_of_a_slot(fixture.common().as_path(), &rebuilt, &reads).expect("a checkout's records settle");
     assert!(with_a_checkout.checkout_begun, "a checkout had begun");
     assert_eq!(with_a_checkout.steps, vec![SettlingStep::TheOriginInventory, SettlingStep::TheCloneInventory, SettlingStep::TheBinding, SettlingStep::TheClaim]);
     assert!(fixture.registration().exists(), "the registration stays for git worktree remove");
