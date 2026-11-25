@@ -78,7 +78,9 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
     !== 'Bash') || (!isBashToolInput(event.tool_input,)))
     return {};
 
-  /** Narrowed Bash input refined from the event by {@link isBashToolInput}. */
+  /**
+   Narrowed Bash input refined from the event by {@link isBashToolInput}.
+   */
   const bashInput = event.tool_input;
 
   /**

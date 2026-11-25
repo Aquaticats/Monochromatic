@@ -59,7 +59,9 @@ const disabledBackgroundTasksWarning: string =
  ```
  */
 function isBlockingTimeoutEnabled(env: Readonly<NodeJS.ProcessEnv>,): boolean {
-  /** Caller-provided policy value, where absence enables the policy. */
+  /**
+   Caller-provided policy value, where absence enables the policy.
+   */
   const value = env[BLOCKING_TIMEOUT_ENABLED_ENV];
   return (value === undefined) || (!DISABLED_VALUES.has(value,));
 }
@@ -72,12 +74,16 @@ function isBlockingTimeoutEnabled(env: Readonly<NodeJS.ProcessEnv>,): boolean {
  @returns whether `text` is digits with an optional single dot
  */
 function isPlainNumber(text: string,): boolean {
-  /** Dot-separated runs; a plain number has one or two. */
+  /**
+   Dot-separated runs; a plain number has one or two.
+   */
   const parts = text.split('.',);
   if (parts.length > 2)
     return false;
 
-  /** Characters left after removing the optional dot; all must be digits. */
+  /**
+   Characters left after removing the optional dot; all must be digits.
+   */
   const digits = parts.join('',);
   if (digits.length === 0)
     return false;
@@ -103,12 +109,16 @@ function isPlainNumber(text: string,): boolean {
  ```
  */
 function isPlainSleep(command: string,): boolean {
-  /** Command text without surrounding whitespace. */
+  /**
+   Command text without surrounding whitespace.
+   */
   const trimmed = command.trim();
   if (!trimmed.startsWith(SLEEP_WORD,))
     return false;
 
-  /** Text after the command word; whitespace here excludes lookalike words. */
+  /**
+   Text after the command word; whitespace here excludes lookalike words.
+   */
   const rest = trimmed.slice(SLEEP_WORD.length,);
   if (rest.trim() === rest)
     return false;
