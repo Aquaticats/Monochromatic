@@ -349,12 +349,21 @@ its guest arm on a file-backed pool showed a mark refused at the look with nothi
 and at the head check with the batch's two snapshots gone and named in the refusal;
 `main`'s merge into it brought two doc files only, so its tip's logs stood for the merged code;
 the gap it leaves is the plan's `requested` line before a request, which is step 16's;
-step 16 runs behind the same cut since 2026-11-25T05:16:02-05:00
-(`pi-zfs-step-16-destruction-and-settle-behind-the-cut`, brief `~/temp/agent/zfs-step-16-destruction-and-settle-behind-the-cut-2026-11-25/prompt.md`):
-the whole step on the writing path (batch, split, head destroy, loss report, resume and adopting a kept plan, origin cleanup, Git settle),
-with the command path left cut, because step 15's refusals name `cancel-worktree-removal`, which is step 17's,
-and a release printing a command it lacks would make a refused removal worse than `main`'s;
-its report lists what the switch waits on, and the switch is a round of its own;
+step 16 merged behind the same cut as `727721cc5a`
+(report `keep/report-pi-zfs-step-16-destruction-and-settle-behind-the-cut.md` in `~/temp/agent/zfs-step-16-destruction-and-settle-behind-the-cut-2026-11-25/`):
+`complete_the_removal` runs the whole order (origin cleanup record first, a fresh scan and check before each chunk, settlement by GUID,
+the head destroy with its own check, the origin attempt under the account's grant, the Git settle, the records, the loss report),
+with the resume and adopting a kept plan, and a new `src/native/worktree_clone_origin_cleanup/` folder for the record;
+the cut's scan now bans three names; eleven guards red then green; its guest completion arm passed
+(mounted clone refused with nothing sent, healthy removal destroying snapshots, head and origin, blocked origin with the registration settled, resume finishing with no request)
+with the unmount scripted; it writes no `requested` line for a snapshot attempt because the accepted record has no such word, and the resume settles by GUID instead;
+the command path stays cut, because step 15's refusals name `cancel-worktree-removal` (step 17's) and step 16's name `settle-worktree-clone-record` and `doctor` lines (step 18's);
+the switch also needs a per-slot claim this path does not take, the finish pass, and the request budget (step 22), all listed in that report;
+on the merged tree check, Clippy, `source_guard` 100 and the removal modules passed;
+that run included `worktree_copying::worktree_removal_of_a_bound_clone`, whose controls the ZFS release pass says can open this host's `/dev/zfs` for read-only object-stats requests,
+as did step 15's merge check; no such module runs on this host again until the fix round below lands;
+two fix rounds follow the release passes: `pi-zfs-route-fixes-after-the-alpha-46-release-pass` (running since about 07:47)
+and the one-program round (brief `~/temp/agent/one-program-fixes-after-the-alpha-46-release-pass-2026-11-25/prompt.md`, waiting on a rising memory stall);
 the root modes' eleven choices are answered (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`),
 and the seventh revision wrote them in, merged as `295759966f` (report `keep/report-pi-zfs-root-modes-seventh-revision.md` in `~/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/`):
 every choice section states its answer, no printed guard holds a lexer, the lint pin compares lint-level anchors with `reason` items skipped,
