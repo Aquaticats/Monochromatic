@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:38:22-05:00.
+State recorded 2026-11-25T17:39:49-05:00.
 
 ## Requirement as stated
 
@@ -219,9 +219,11 @@ The rewrite spreads the complete original Bash input so `description` and unrela
 The output-filter script reads stdin to EOF before emitting filtered text.
 A moved filtered command therefore has no filtered output available mid-run,
 and a filtered command terminated at its foreground timeout can lose output buffered in the filter.
-This consequence was not covered by the earlier user answers and is an open design decision.
-It must not be described as accepted until the user chooses between retaining buffering
-and changing the filter's streaming behavior.
+The user explicitly accepted this limitation in `Q20 A`,
+which was returned with the label `Q28 A` and interpreted as the only open question's option A.
+The filter retains read-to-EOF behavior.
+The interim-output and termination-loss consequences must be documented,
+and no streaming-filter redesign belongs to this change.
 
 Only `agent_id` identifies a native subagent for this boundary.
 A main session started with `--agent` can carry `agent_type` without `agent_id` and remains in scope.
@@ -235,11 +237,7 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-One reopened decision remains:
-
-- `filter-output-buffering`:
-  retain the filter's read-to-EOF behavior with its interim-output and termination-loss consequences,
-  or redesign it to stream filtered lines.
+The design frontier is empty again.
 
 The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
 which production accepts.
