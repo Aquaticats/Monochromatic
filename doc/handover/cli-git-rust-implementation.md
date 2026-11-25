@@ -377,7 +377,9 @@ the command's lines beside it);
 and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
 when the same command clears it;
 the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt
-(the 6454 worktree's removal at 2026-11-24T21:04-05:00 kept one; a run of the fixed build's `service stop-units-of-removed-worktrees` after this batch clears them);
+(the day's removals kept nine; the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-24T22:06-05:00 from the gate worktree's `target/debug`,
+removed those nine, stopped two removed worktrees' units, left the seven instances it cannot match to a worktree untouched, and took the count from 80 to 71;
+backup `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/service-state-before-the-second-clearing.tar.zst`);
 the gate on `main` at `0152f18bb7` (run `native-VeMLmC`, 2026-11-24T21:47:39-05:00 to 22:04:19-05:00, for the batch of 6454, the GUID follow-up, 6455, 6456 and the preflight control)
 gave `11062 tests run: 11060 passed (5 slow), 2 failed, 43 skipped`, the cause-H pair alone, each with cause H's own message,
 and its only AppArmor denials were `umount`'s two `dac_override`;
