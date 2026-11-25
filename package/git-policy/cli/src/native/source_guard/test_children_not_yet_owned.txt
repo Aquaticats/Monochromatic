@@ -188,7 +188,6 @@ testing/smart_http_support.rs | the testing folder is not moved yet; a later rou
 transaction/transaction_git_tests.rs | the transaction folder is not moved yet; a later round takes it folder by folder
 worktree/worktree_clone_conversion_size_read_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
 worktree/worktree_convert_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
-worktree_clone_forced_removal/blocker_end_tests.rs | the worktree_clone_forced_removal folder is not moved yet; a later round takes it folder by folder
 worktree_clone_mount_handler/per_slot_root_claim_tests.rs | the worktree_clone_mount_handler folder is not moved yet; a later round takes it folder by folder
 worktree_clone_unmount/reattach_tests.rs | the worktree_clone_unmount folder is not moved yet; a later round takes it folder by folder
 worktree_clone_unmount/staged_unmount_tests.rs | the worktree_clone_unmount folder is not moved yet; a later round takes it folder by folder
