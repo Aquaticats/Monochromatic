@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:56:46-05:00.
+State recorded 2026-11-25T17:57:43-05:00.
 
 ## Requirement as stated
 
@@ -95,9 +95,11 @@ If it finishes within one second,
 it returns its normal synchronous result.
 If it remains running,
 Claude Code can move it to the background and return the native task ID and output path.
-The configured foreground timeout is `1000` milliseconds,
-but the final review found later result arrival and completion races in the probe logs.
-Whether an approximately two-second native floor is consistent requires controlled timing probes.
+The configured foreground timeout is `1000` milliseconds.
+The user accepted in `Q21 A` that native results can arrive around two seconds
+and that commands finishing between the nominal timeout and native handoff
+can return complete output with a background notice.
+The configured value is not a strict one-second result-delivery guarantee.
 The timeout is not intended as a general execution-lifetime limit.
 A successful `cd` can now persist when the command returns in the foreground.
 A `cd` in a command that returns as a background task does not persist.
@@ -240,14 +242,9 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-One timing question reopened after the final Sonnet review:
-
-- `observed-blocking-floor`:
-  accept and document result arrival beyond the nominal one-second timeout,
-  or treat one second of actual blocking as a hard requirement that needs another mechanism.
-
-Controlled wrapped and unwrapped duration probes in headless and interactive sessions are complete.
-The user can now decide whether the measured native behavior is acceptable.
+The design frontier is empty.
+The user accepted the measured native result timing in `Q21 A`.
+Immediate backgrounding and a custom strict one-second runner were presented and not chosen.
 
 The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
 which production accepts.
@@ -283,8 +280,8 @@ Its new output-buffering and startup-registration findings are folded in.
 A final Claude Sonnet review examined the record and raw probe evidence.
 It returned not ready because nominal `1000` millisecond timeouts did not always produce results at one second.
 Several commands returned full output with a background notice after completion.
-The review had not established a native floor,
-so controlled duration probes are required before the user answers the timing question.
+The controlled duration probes then confirmed that one-second result delivery is not guaranteed.
+The user accepted those measurements and the native behavior in `Q21 A`.
 
 ## Rejected recommendations
 
@@ -463,7 +460,9 @@ The valid measurements are in `duration-interactive-measurements.jsonl`.
 
 ## Verification still owed
 
-A fresh cross-vendor reviewer must read this final record and the probe evidence
+A fresh cross-vendor reviewer must read this final record,
+the timing evidence,
+and the user's `Q21 A` acceptance
 before the user is asked to confirm shared understanding.
 
 After acceptance,
@@ -486,9 +485,7 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Ask the user whether to accept the measured native result timing
-or require a different mechanism with a strict one-second blocking bound.
-After that answer,
-obtain a fresh final review and present the assembled contract for explicit confirmation.
+Obtain a fresh final review of the accepted design and complete evidence,
+then present the assembled contract for explicit shared-understanding confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
