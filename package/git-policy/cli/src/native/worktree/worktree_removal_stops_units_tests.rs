@@ -4,9 +4,9 @@
 //! and a refused removal leaves them alone.
 
 use super::*;
-use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
+use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_of_removed_worktrees::record_worktree;
+use crate::service_units_of_removed_worktrees::{note_path, record_worktree};
 use crate::test_support::{fixture, git, remove, repository};
 
 /// A repository with one linked worktree whose instance has a socket,
@@ -168,6 +168,76 @@ fn a_removal_that_leaves_unresolved_work_keeps_the_journal_and_names_it() {
     assert!(journal.exists(), "the journal of a batch that did not land stays whole");
     assert!(intent.exists(), "the record of the batch that did not land stays");
     assert!(!note_path(fixture.runtime.as_path(), about.instance.as_str()).exists(), "the note goes, because the person is told about the journal");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal whose journal holds the records of landed batches
+///  and the repository the service remembered for its rules warm takes the journal with its units.
+/// Why:
+///   That file names a repository and no record of a commit,
+/// so keeping the folder for it asked a person to look at a journal that holds nothing of theirs at every removal
+/// (issue 6322).
+#[test]
+fn a_removal_takes_the_journal_of_landed_batches_and_the_remembered_repository() {
+    let fixture: Fixture = fixture_with_units("removal-units-remembered");
+    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
+    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let journal: PathBuf = fixture.journal_of(about.instance.as_str());
+    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), fixture.root.display().to_string().as_bytes()).expect("the repository the service remembered");
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let mut recorder: Recorder = Recorder::default();
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
+    assert!(!journal.exists(), "the journal of landed batches and the remembered repository goes with its units");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal whose claim watch names only the worktree being removed takes the journal with its units.
+/// Why:
+///   A look at that note lists the work directory inside the Git directory the removal deletes,
+/// so it leads a service to nothing,
+/// and the only service that read it was the removed worktree's own.
+#[test]
+fn a_removal_takes_the_journal_of_a_claim_watch_that_names_only_that_worktree() {
+    let fixture: Fixture = fixture_with_units("removal-units-watch-gone");
+    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
+    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let journal: PathBuf = fixture.journal_of(about.instance.as_str());
+    crate::service_units_fixture_test_support::write_a_claim_watch_note(journal.as_path(), about.git_dir.as_path());
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let mut recorder: Recorder = Recorder::default();
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
+    assert!(!journal.exists(), "a claim watch of the removed worktree carries no work");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal keeps the journal when it holds a batch that did not land,
+///  however many entries beside it the removal would discard.
+/// Why:
+///   The record of a commit that has not landed is the only place the request and the commit are written together,
+/// so it is what a person is told about and what keeps the folder.
+#[test]
+fn a_removal_keeps_the_journal_of_a_batch_that_did_not_land_beside_what_it_would_discard() {
+    let fixture: Fixture = fixture_with_units("removal-units-unlanded-beside-discards");
+    let about: WorktreeAboutToGo = before_removal(fixture.common.as_path(), &fixture.plan()).expect("registered");
+    record_worktree(fixture.runtime.as_path(), about.instance.as_str(), about.git_dir.as_path()).expect("note");
+    std::fs::write(socket_path(fixture.runtime.as_path(), about.instance.as_str()), b"listening").expect("socket file");
+    let journal: PathBuf = fixture.journal_of(about.instance.as_str());
+    std::fs::write(journal.join("7.intent"), b"seq=7\n").expect("a batch that did not land");
+    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), fixture.root.display().to_string().as_bytes()).expect("the repository the service remembered");
+    crate::service_units_fixture_test_support::write_a_claim_watch_note(journal.as_path(), about.git_dir.as_path());
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    git(fixture.common.as_path(), &["worktree", "remove", "--force", fixture.worktree.to_str().expect("text")]);
+    let mut recorder: Recorder = Recorder::default();
+    assert!(stop_units_after_removal(&about, &fixture.folders(), &mut recorder).expect("stopped"));
+    assert!(journal.join("7.intent").exists(), "the record of the commit that has not landed stays");
+    assert!(journal.exists(), "a journal that holds work is kept whole");
     remove(fixture.root.as_path());
 }
 

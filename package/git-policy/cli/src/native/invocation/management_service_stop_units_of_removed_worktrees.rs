@@ -20,9 +20,14 @@
 //! never for an instance that maps to nothing,
 //! and only through the user manager.
 //! A stopped instance's journal goes with its note and its socket file when it holds nothing but the records of the
-//! batches that landed;
+//! batches that landed,
+//! the repository its service remembered for its rules warm,
+//! and the claim watch notes of repositories whose work directory is gone;
 //! a journal that holds work is kept and named,
 //! never discarded.
+//! It reads the journals as well as the socket files and the notes,
+//! so a journal that a removal kept, and the note of which went with that removal,
+//! is looked at again and cleared once nothing keeps it.
 //! Nothing here starts a unit.
 //!
 //! In TS you'd write (pseudocode):
@@ -73,9 +78,9 @@ fn worktrees(count: usize) -> String {
 
 /// What:
 /// The note `doctor` adds:
-/// how many removed worktrees still have commit service units,
+/// how many removed worktrees still have commit service units or a journal,
 /// how many instances cannot be told,
-/// and the command that stops the first.
+/// and the command that stops the first and clears the second.
 /// Empty when there is nothing to say,
 /// or when no runtime directory is known.
 /// Why:
@@ -101,7 +106,7 @@ fn note_of(gone: usize, unmapped: usize) -> String {
     let mut parts: Vec<String> = Vec::new();
     if gone > 0 {
         parts.push(format!(
-            "the commit service units of {} are still set up; `{COMMAND}` stops them",
+            "the commit service units or journals of {} are still set up; `{COMMAND}` stops the units and removes a journal nothing reads again",
             worktrees(gone)
         ));
     }
@@ -124,8 +129,10 @@ fn refused(reason: &str) -> Action {
 }
 
 /// What:
-/// Stops the units of every removed worktree through `manager`
+/// Stops the units of every removed worktree through `manager`,
+/// clears the journal of each one that holds nothing a person may still want,
 /// and says what was stopped,
+/// what was cleared,
 /// what was refused,
 /// and what could not be matched.
 /// Why:
@@ -155,8 +162,25 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
         }
         stdout.push_str(format!("stopped the commit service units of the removed worktree {path} (instance {instance})\n").as_str());
     }
-    if outcome.stopped.is_empty() && outcome.failed.is_empty() {
-        stdout.push_str("no commit service unit belongs to a removed worktree\n");
+    if outcome.stopped.is_empty() && outcome.failed.is_empty() && outcome.journals_removed.is_empty() {
+        stdout.push_str("no commit service unit or journal belongs to a removed worktree\n");
+    }
+    // A journal that went with its units is named where it was: the person ran this to clear what an earlier
+    //  removal kept, and a line that says what was removed is what tells them the folder is gone.
+    for (instance, journal) in &outcome.journals_removed {
+        let mut path: &str = UNKNOWN_WORKTREE;
+        for (known, known_path) in &named {
+            if known == instance {
+                path = known_path.as_str();
+            }
+        }
+        stdout.push_str(
+            format!(
+                "removed the commit service journal of the removed worktree {path} (instance {instance}) at {}, which held no work a person may still want: the records of its landed batches, the repository its service remembered for its rules warm, and the claim watch notes of repositories that are gone\n",
+                journal.display()
+            )
+            .as_str(),
+        );
     }
     let mut stderr: String = String::new();
     for (instance, reason) in &outcome.failed {
@@ -165,10 +189,10 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
     if !outcome.survey.unmapped.is_empty() {
         stderr.push_str(
             format!(
-                "{COMMAND}: {} commit service {} cannot be matched to a worktree and {} left running\n",
+                "{COMMAND}: {} commit service {} cannot be matched to a worktree, and nothing of {} was touched\n",
                 outcome.survey.unmapped.len(),
                 if outcome.survey.unmapped.len() == 1 { "instance" } else { "instances" },
-                if outcome.survey.unmapped.len() == 1 { "was" } else { "were" }
+                if outcome.survey.unmapped.len() == 1 { "it" } else { "them" }
             )
             .as_str(),
         );
@@ -178,7 +202,7 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
     for (instance, kept) in &outcome.journals_kept {
         stderr.push_str(
             format!(
-                "{COMMAND}: the journal of instance {instance} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted\n",
+                "{COMMAND}: the journal of instance {instance} is kept at {}, because it holds {}, {}; nothing in it was removed: look at it and remove it by hand if nothing in it is wanted, and `{COMMAND}` removes it once it holds nothing a person may still want\n",
                 kept.journal.display(),
                 kept.entry,
                 kept.reason

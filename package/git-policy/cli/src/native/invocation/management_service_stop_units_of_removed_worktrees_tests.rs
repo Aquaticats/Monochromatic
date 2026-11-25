@@ -5,9 +5,10 @@
 //! is never stopped.
 
 use super::*;
+use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_of_removed_worktrees::record_worktree;
+use crate::service_units_of_removed_worktrees::{note_path, record_worktree};
 use crate::systemd_dbus::CallError;
 use crate::test_support::{fixture, remove};
 
@@ -100,6 +101,45 @@ fn a_kept_journal_is_named_on_standard_error_and_is_no_refusal() {
     remove(world.root.as_path());
 }
 
+/// What:
+///  The command clears a journal of a removed worktree that no note or socket file names,
+///  says where it was,
+///  and asks the manager to stop no unit that does not exist.
+/// Why:
+///   A removal that kept a journal took the note and the socket file with it,
+/// so the journals of earlier removals are reachable only through the journal itself;
+/// the person ran the command to clear them and learns from its own line where each one was.
+#[test]
+fn the_command_clears_a_kept_journal_and_names_where_it_was() {
+    let world: World = world("stop-units-journal-only");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal folder");
+    let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
+    std::fs::write(
+        journal.join("1.done"),
+        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+    )
+    .expect("a landed batch that names the Git directory");
+    // The note and the socket file a removal that kept this journal took with it.
+    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
+    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: world.runtime.as_path(), state_dir: Some(state.as_path()) };
+    let mut manager: Recorder = Recorder::default();
+    let (code, stdout, stderr) = exit_parts(stop_units_action(&folders, &mut manager));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(manager.stops().is_empty(), "no unit of that instance exists to stop: {:?}", manager.stops());
+    assert!(
+        stdout.contains("removed the commit service journal of the removed worktree") && stdout.contains(journal.display().to_string().as_str()),
+        "the line names what was removed and where it was: {stdout}"
+    );
+    assert!(stdout.contains(world.gone_instance.as_str()), "the line names the instance: {stdout}");
+    assert!(!journal.exists(), "the journal of a removed worktree that holds no work is cleared");
+    remove(world.root.as_path());
+}
+
 /// A manager that refuses a stop makes status 1 with the instance and the reason,
 /// and the command can be run again.
 #[test]
@@ -122,7 +162,7 @@ fn nothing_to_stop_is_said_and_asks_the_manager_nothing() {
     let mut manager: Recorder = Recorder::default();
     let (code, stdout, _stderr) = exit_parts(stop_units_action(&world.folders(), &mut manager));
     assert_eq!(code, 0);
-    assert!(stdout.contains("no commit service unit belongs to a removed worktree"), "{stdout}");
+    assert!(stdout.contains("no commit service unit or journal belongs to a removed worktree"), "{stdout}");
     assert!(manager.stops().is_empty());
     remove(world.root.as_path());
 }
@@ -149,4 +189,42 @@ fn without_a_runtime_directory_the_note_is_empty_and_the_command_refuses() {
     let (code, _stdout, stderr) = exit_parts(plan_stop_units_of_removed_worktrees(&[]));
     assert_eq!(code, 1);
     assert!(stderr.contains("XDG_RUNTIME_DIR is not set") && stderr.contains(NAMED_COMMAND), "{stderr}");
+}
+
+/// What:
+///  `doctor`'s note counts the journal of a removed worktree that no note and no socket file names,
+///  read from the fixture's own home, runtime and state directories,
+///  and says nothing of this machine's state folder.
+/// Why:
+///   That count is what tells a person the command has something to clear,
+/// and a journal that no unit names was invisible to it before (issue 6322).
+/// The fixture names its own `HOME`, `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
+/// which is what makes the reading touch nothing of this machine.
+#[test]
+fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
+    let world: World = world("stop-units-note-journal-only");
+    let state: PathBuf = world.root.join("state");
+    let wrapper_state: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current);
+    let journal: PathBuf = crate::service_journal_folder_of_an_instance::journal_of(wrapper_state.as_path(), world.gone_instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal folder");
+    let gone_admin: PathBuf = world.root.join("repository/.git/worktrees/gone");
+    std::fs::write(
+        journal.join("1.done"),
+        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone_admin.as_path())),
+    )
+    .expect("a landed batch that names the Git directory");
+    // The note and the socket file a removal that kept this journal took with it.
+    std::fs::remove_file(note_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("note removed");
+    std::fs::remove_file(socket_path(world.runtime.as_path(), world.gone_instance.as_str())).expect("socket removed");
+    let home: PathBuf = world.root.join("home");
+    std::fs::create_dir_all(&home).expect("home directory");
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("HOME"), home.clone().into_os_string()),
+        (OsString::from("XDG_RUNTIME_DIR"), world.runtime.clone().into_os_string()),
+        (OsString::from("XDG_STATE_HOME"), state.clone().into_os_string()),
+    ];
+    let note: String = units_note(environment.as_slice());
+    assert!(note.contains("1 removed worktree are still set up"), "the journal that no unit names is counted: {note}");
+    assert!(note.contains(NAMED_COMMAND), "the note names the command that clears it: {note}");
+    remove(world.root.as_path());
 }

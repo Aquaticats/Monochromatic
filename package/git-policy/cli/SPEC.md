@@ -16460,14 +16460,44 @@ and a socket that could not be stopped is left to `service stop-units-of-removed
 The sweep removes the instance's service journal with the socket and the note when it holds nothing else:
 the records of the batches that landed,
 once no client of the instance can still read them,
-and an empty landing record are the memory of a service that is never served again,
+an empty landing record,
+the repository the service remembered for its rules warm (`rules-repository`,
+and the `rules-repository.new` staging copy a kill left before the rename),
+and a claim watch note whose repository no longer holds the work directory a look reads are the memory of a service
+that is never served again,
 while a batch that did not land,
 a batch whose objects a scratch reference may hold,
 a record that was written and not published,
 a landing or withdrawal record,
-the repositories a service was still to look at and the pushes it was still to try again,
+the pushes a service was still to try again,
+a claim watch note naming a repository that still holds the work directory a look reads,
 and a file or folder this release does not know keep the whole journal and are logged,
 never discarded.
+The remembered repository carries no work because it names a repository and no record of a commit,
+and it is discarded with the finished batches it was written beside.
+A claim watch note is a pointer and not a record:
+a look at it lists the work directory of the repository it names,
+`<Git directory>/monochromatic-git-policy-cli/work/pending`,
+and this journal belongs to one instance,
+the removed worktree's,
+so a note naming that worktree's own Git directory,
+or a repository whose work directory is gone,
+leads a service to nothing and its only reader was the removed worktree's own service.
+A note naming a repository that still holds that work directory keeps the journal and is named with the repository:
+a service of this instance reads the note when its worktree is back at that path.
+The sweep reads the journals as well as the socket files and the notes,
+and it maps an instance to its worktree by the note beside the socket,
+by the Git directory of a record of a batch that landed,
+or by a note of the instance's claim watch,
+each only when the text hashes to the instance:
+a removal that kept a journal took the note and the socket file with it,
+so a survey that read only the note and the socket file never saw the folder again, and the journals of removed
+worktrees stayed for ever
+(issue 6322).
+An instance whose socket file and note are both gone has no unit the manager could start again,
+so the command asks the manager nothing about it and decides the journal alone.
+The command names every journal it removed with its folder,
+and every journal it kept with the entry that kept it and the command that removes it once that work is over.
 A batch's copy of the conclusion state it removed (`<batch>.cleanup`,
 `src/native/landing/conclusion_state_copy.rs`)
 is one of them no longer:
@@ -16787,6 +16817,13 @@ which only a development run is,
 knows no repository until a landing or a wake names one,
 so a record left for a repository it never heard of waits for the next wake that names it or for a start that reads the
 notes again.
+The notes are pointers and nothing else:
+what a look at one reads is the work directory of the repository it names,
+so a note kept in the journal of a worktree that was removed leads the service that reads it,
+which is that worktree's own and never starts again,
+to a directory that went with the worktree
+(`remove_journal_of_a_stopped_instance` in `service/service_files_of_a_stopped_instance.rs` says what such a journal
+keeps and what it discards).
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,

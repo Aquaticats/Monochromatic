@@ -660,3 +660,70 @@ fn a_look_that_cannot_read_the_notes_owes_the_read_and_waits_longer() {
     assert!(watch.pause(FIRST) > once, "the pause grows with each failure: {:?} then {:?}", once, watch.pause(FIRST));
     let _removed = std::fs::remove_dir_all(&root);
 }
+
+/// What:
+///  The folders a journal cleanup reads its claim watch by answer which of their notes lead a service to a record:
+///  nothing when every note names a repository whose work directory is gone,
+///  the first note that names one which still holds it,
+///  and the entry of a name this release cannot read as a note.
+/// Why:
+///   A note is a pointer and a look lists the work directory of the repository it names,
+/// so a note whose repository is gone leads a service to nothing,
+/// and a name the store does not explain is kept rather than discarded on a guess.
+#[test]
+fn the_notes_of_a_claim_watch_say_which_repositories_a_look_would_find() {
+    let root: PathBuf = scratch("watched-repositories");
+    let gone: PathBuf = root.join("gone.git");
+    let there: PathBuf = git_dir_with_work(root.as_path(), "there.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    std::fs::create_dir_all(store.as_path()).expect("the store");
+    assert!(matches!(watched_repositories(store.as_path()), WatchedRepositories::AllGone), "an empty watch leads to nothing");
+    std::fs::write(store.join("aaaaaaaaaaaaaaaa-0.watch"), encode(gone.as_path())).expect("a note of a repository that is gone");
+    assert!(matches!(watched_repositories(store.as_path()), WatchedRepositories::AllGone), "a repository without its work directory leads to nothing");
+    std::fs::write(store.join("bbbbbbbbbbbbbbbb-0.watch"), encode(there.as_path())).expect("a note of a repository that is there");
+    match watched_repositories(store.as_path()) {
+        WatchedRepositories::StillThere { git_dir, note } => {
+            assert_eq!(git_dir, there, "the note names the repository whose work directory a look would list");
+            assert_eq!(note, String::from("bbbbbbbbbbbbbbbb-0.watch"));
+        }
+        other => panic!("a note of a repository that is there is named: {other:?}"),
+    }
+    std::fs::write(store.join("notes-from-a-later-release.txt"), b"what this release does not explain\n").expect("a file this release does not explain");
+    match watched_repositories(store.as_path()) {
+        WatchedRepositories::Unexplained { entry, reason } => {
+            assert_eq!(entry, String::from("notes-from-a-later-release.txt"));
+            assert!(!reason.is_empty(), "the answer says what stands in the way");
+        }
+        other => panic!("a file this release cannot read as a note is named: {other:?}"),
+    }
+    let _removed = std::fs::remove_dir_all(&root);
+}
+
+/// What:
+///  The Git directories the notes name are read back for a worktree the cleanup has to map an instance to,
+///  each once,
+///  and a note that holds no whole path names nothing.
+/// Why:
+///   A removal that kept a journal took the note beside the socket with it,
+/// so the notes of the claim watch are what still names the worktree,
+/// and the sweep maps the instance by a path that hashes to it.
+#[test]
+fn the_notes_of_a_claim_watch_name_the_repositories_they_were_written_for() {
+    let root: PathBuf = scratch("named-repositories");
+    let first: PathBuf = git_dir_with_work(root.as_path(), "first.git");
+    let second: PathBuf = git_dir_with_work(root.as_path(), "second.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    std::fs::create_dir_all(store.as_path()).expect("the store");
+    assert!(named_repositories(store.as_path()).is_empty(), "an empty watch names nothing");
+    std::fs::write(store.join("aaaaaaaaaaaaaaaa-0.watch"), encode(first.as_path())).expect("a note");
+    // Two names of one directory, which is what a store that was retried once leaves.
+    std::fs::write(store.join("aaaaaaaaaaaaaaaa-1.watch"), encode(first.as_path())).expect("the same note under the next name");
+    std::fs::write(store.join("bbbbbbbbbbbbbbbb-0.watch"), encode(second.as_path())).expect("a note");
+    std::fs::write(store.join("cccccccccccccccc-0.watch"), b"claim-watch-1 2f7468").expect("a note that was cut short");
+    let mut named: Vec<PathBuf> = named_repositories(store.as_path());
+    named.sort();
+    let mut expected: Vec<PathBuf> = vec![first, second];
+    expected.sort();
+    assert_eq!(named, expected, "each directory is named once and a note that holds no whole path names nothing");
+    let _removed = std::fs::remove_dir_all(&root);
+}

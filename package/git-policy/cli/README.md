@@ -2200,8 +2200,10 @@ Each commit service setup writes the worktree's Git directory into the folder it
 which the manager reads as no unit,
 and which goes away with the units at logout or shutdown;
 for a unit set up before that,
-the `gitdir=` line of a record in the service's journal names the worktree.
-Either text counts only when it hashes to the instance.
+the `gitdirHex=` line of a record in the service's journal names the worktree,
+and a journal that outlived both is mapped by a note of its claim watch,
+which names a Git directory only for the instance whose journal holds it.
+Every one of those texts counts only when it hashes to the instance.
 The command stops only an instance whose Git directory is missing and whose repository is proven gone:
 the nearest directory above the Git directory that exists proves it deleted when it is the root of a mounted filesystem or holds other entries,
 while an empty one may be a drive that is not mounted yet and proves nothing
@@ -2215,12 +2217,28 @@ and a file that stayed would count the instance again.
 Its journal goes with them when it holds nothing else and no client of the instance can still read it:
 the records of the batches that landed,
 once they are older than the longest a client that lost its answer can look,
-and an empty landing record are the memory of a service that will never run again,
+an empty landing record,
+the repository the service remembered for its rules warm (`rules-repository`,
+and the `rules-repository.new` staging copy a kill left before the rename),
+and a claim watch note naming a repository whose work directory is gone are the memory of a service that will never run
+again,
 while a batch that did not land,
 a landing that was in flight,
-the repositories a service was still to look at and the pushes it was still to try again,
+a record that was written and not published,
+the pushes it was still to try again,
+a claim watch note naming a repository that still holds the work directory a look reads,
 and a file or folder this release does not know keep the whole journal,
 and the command names the entry it kept it for.
+The remembered repository names a repository and no record of a commit,
+and a claim watch note points at the work directory of the repository it names
+(`<Git directory>/monochromatic-git-policy-cli/work/pending`),
+so a note naming the removed worktree,
+or one whose repository is gone,
+leads the only service that read it,
+the removed worktree's own, to nothing.
+The command reads the journals as well as the note and the socket file,
+and names each journal it removed with its folder,
+so the journals that an earlier removal kept are cleared by a run that finds no unit beside them.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
