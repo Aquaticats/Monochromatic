@@ -16479,7 +16479,7 @@ A claim watch note is a pointer and not a record:
 a look at it lists the work directory of the repository it names,
 `<Git directory>/monochromatic-git-policy-cli/work/pending`,
 and this journal belongs to one instance,
-the worktree removed,
+the removed worktree's,
 so a note naming that worktree's own Git directory,
 or a repository whose work directory is gone,
 leads a service to nothing and its only reader was the removed worktree's own service.
@@ -16491,8 +16491,8 @@ by the Git directory of a record of a batch that landed,
 or by a note of the instance's claim watch,
 each only when the text hashes to the instance:
 a removal that kept a journal took the note and the socket file with it,
-so a survey that read only those two files never saw the folder again and the journals of removed worktrees stayed
-for ever
+so a survey that read only the note and the socket file never saw the folder again, and the journals of removed
+worktrees stayed for ever
 (issue 6322).
 An instance whose socket file and note are both gone has no unit the manager could start again,
 so the command asks the manager nothing about it and decides the journal alone.
