@@ -220,9 +220,11 @@ which survives a change of the container's own `mountpoint`,
 and a clone request that tolerates a container that is not `legacy`.
 The first is a real gain.
 Under C, a change of the container's `mountpoint` by root reaches every existing clone at once,
-because each holds an inherited value,
-and only `doctor` and the sweep report it, when either next runs.
-No arm measured that change;
+because each holds an inherited value (read from source),
+and the next boot's `zfs mount -a` can mount those clones at the new path.
+`doctor` reports it when run and the sweep refuses at attach;
+neither runs before that scan.
+No arm measured the container change;
 it is read from the inheritance walk the pool uses.
 The pin covers `mountpoint` on that clone;
 `setuid` and `devices` stay inherited under every answer,
@@ -833,8 +835,10 @@ What it costs:
 - a change of the container's `mountpoint` by root reaches every existing clone at once,
   because each holds an inherited value (read from source,
   `module/zfs/dsl_prop.c:115`).
+  The next boot's `zfs mount -a` can mount those clones at the new path,
+  as the measured control shows for an inherited mountpoint.
   `doctor` reports it when run and the sweep refuses the clone when it next attaches;
-  nothing refuses before the next boot's scan, and no arm measured the change.
+  neither runs before that scan, and no arm measured the container change.
   A's local pin is the one answer that covers it, at the cost named under `### A`;
 - the check itself is cheap.
   The kernel's reply for one dataset carries every property with its value and its source,
@@ -1314,8 +1318,9 @@ and it survives a change of the container that an inherited value would follow.
 C answers that change for the next add only,
 and only when Choice 2 puts the check in the preflight:
 the preflight refuses a container that is not `legacy`,
-so the change can still reach the clones that already exist,
-and `doctor` and the sweep are what report it then.
+so the change can still reach the clones that already exist
+and be mounted by the next boot's scan,
+with `doctor` and the sweep reporting it only afterwards.
 
 ## What changes if the owner picks C
 
