@@ -10,11 +10,13 @@
 //!  The mark is the kernel's own field and only a real module answers it,
 //!  so the arm runs inside the throwaway `mvm` guest the package's e2e recipe drives
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  "Measurements owed", M3a to M3d,
+//!  "Measurements owed",
+//! M3a to M3d,
 //!  and the proposal's "The refusal of a removal whose origin is marked for deferred destroy",
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Forced removal and deferred origins").
-//!  The reap itself is the deferred-origin folder's own guest arm, which ran before this one:
+//!  The reap itself is the deferred-origin folder's own guest arm,
+//! which ran before this one:
 //!  a harness that cannot see the loss cannot show that the refusal avoids it (rule `QPC`).
 //!  This arm drives the writing path the library offers,
 //!  because the removal's command path is cut on purpose until plan step 16:

@@ -10,7 +10,8 @@
 //!  a mark that appears between two chunks is caught by the next chunk's check,
 //!  and the message names what the plan already recorded as lost
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  "One check, called at every snapshot request and before the head destroy" and
+//!  "One check,
+//! called at every snapshot request and before the head destroy" and
 //!  "The refusals";
 //!  `doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
 //!  Every control reads the plan back from its file,

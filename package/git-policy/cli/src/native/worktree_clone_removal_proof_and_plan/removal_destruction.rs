@@ -12,19 +12,22 @@
 //!  and refuses otherwise
 //!  (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`;
 //!  `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  "One check, called at every snapshot request and before the head destroy").
+//!  "One check,
+//! called at every snapshot request and before the head destroy").
 //!  The design places one call before every snapshot request,
 //!  each chunk of a split included,
 //!  and one after the batch's fresh enumeration and before the head request
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-//!  "Removal and recovery", steps 3 to 6).
+//!  "Removal and recovery",
+//! steps 3 to 6).
 //!  The look before the unmount is not here:
 //!  it sits inside the lineage proof
 //!  (`worktree_clone_removal_proof_and_plan::lineage_proof`).
 //!  This release sends no head destroy,
 //!  so this file stops after the head check and says so in its value:
 //!  everything plan step 16 adds after that point
-//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 16)
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 16)
 //!  is what makes a removal finish.
 //!  Nothing here is reachable from a release command:
 //!  the removal's command path runs the read-only reading,
@@ -136,8 +139,10 @@ pub struct DestructionUnderway {
 ///  from which call site refused,
 ///  so a refusal at the second chunk names what the first one destroyed
 ///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-///  "The refusals" and "What a refusal leaves, and what the record keeps").
-///  A refusal anywhere here keeps the intent, the plan and the registration,
+///  "The refusals" and "What a refusal leaves,
+/// and what the record keeps").
+///  A refusal anywhere here keeps the intent,
+/// the plan and the registration,
 ///  and leaves the clone unmounted,
 ///  which is what the project decided for the checks
 ///  (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
@@ -169,6 +174,8 @@ pub fn destroy_the_removal(input: &RemovalDestruction<'_>) -> Result<Destruction
             return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
         })?;
         let RequestResult::Answered(outcome) = answer else {
+            // A planned chunk is never empty, and `send_request` skips an empty set itself, so this arm
+            // is the route's own rule rather than a state a caller can reach.
             continue;
         };
         record_the_answer(&mut plan, entered.plan_path.as_path(), &outcome)?;
@@ -188,7 +195,8 @@ pub fn destroy_the_removal(input: &RemovalDestruction<'_>) -> Result<Destruction
 ///  and the plan is that record,
 ///  so a check that read the add's binding instead would judge against a tuple a lineage
 ///  change may have invalidated since
-///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`, veto V2).
+///  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
+/// veto V2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -337,7 +345,8 @@ fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &NameOutcome, pa
 ///  The design enumerates the clone again after the batch and before the head destroy,
 ///  and this is the read that says whether the head could go at all
 ///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-///  "Removal and recovery", step 6).
+///  "Removal and recovery",
+/// step 6).
 ///  A listing this route could not read is a refusal rather than a short history.
 ///
 /// # Throws

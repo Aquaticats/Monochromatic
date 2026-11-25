@@ -5412,11 +5412,16 @@ Design and plan:
 "Removal and recovery",
 "Clone removal identity protection" and "Bookmarks on a clone being removed";
 `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`;
-plan step 14.
+`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`;
+plan steps 14 and 15.
 The proof,
 the bookmark rule,
-the destruction plan and the removal intent are in
+the destruction plan,
+the removal intent,
+the deferred-origin checks and the snapshot batch this route sends are in
 `src/native/worktree_clone_removal_proof_and_plan/`,
+`src/native/worktree_removal_deferred_origin_check/` and
+`src/native/worktree_clone_snapshot_batch/`,
 and the removal's command path is
 `src/native/worktree_copying/worktree_removal_of_a_bound_clone.rs`.
 
@@ -5454,6 +5459,29 @@ and every step of it that decides anything runs before anything is written:
 6. The destruction plan,
    published after the unmount is proved,
    and the printed list of names to be lost.
+7. The deferred-origin check before every snapshot request,
+   each chunk of a split batch included:
+   the clone at the planned name,
+   its kind,
+   its GUID and its live origin;
+   the origin dataset at the planned name,
+   its kind and its GUID;
+   and the origin snapshot at the planned name,
+   its kind,
+   its GUID,
+   its creation transaction group,
+   and its `defer_destroy` value with the two numbers a refusal prints.
+   It reads those three replies in that order and stops at the first disagreement,
+   so the mark is judged only on the object whose own reply proved its identity.
+   A mark that cannot be read refuses rather than reading as absent.
+   The same check runs again before the head destroy,
+   after a fresh enumeration of the clone,
+   and the first one is skipped only in a run that sends no snapshot request at all.
+8. The snapshot batch:
+   the verified set as one `ZFS_IOC_DESTROY_SNAPS` request that carries no `defer` key,
+   split by the largest fitting prefix when it is over the budget,
+   skipped when it is empty,
+   with the kernel's per-name answer recorded line by line in the plan.
 
 Steps 1 to 4 write nothing and unmount nothing,
 and they are what this release's removal command runs.
@@ -5474,22 +5502,26 @@ the plan folder is not created,
 the clone's intent property keeps its value,
 and no record is rewritten.
 
-Steps 5 and 6 and the snapshot batch,
-the head destroy,
+The head destroy,
 the origin cleanup and the Git settle are plan steps 16 and 17's.
 Until step 16 is wired,
 the removal's command path calls the read-only reading
 (`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
-and names no writing entry:
+and names neither the writing entry nor the destruction step:
 the entry that files the intent,
 unmounts the clone and publishes the plan
-(`worktree_clone_removal_proof_and_plan::removal_entry::enter_the_removal`)
-waits for the steps that can finish or cancel what it starts,
+(`worktree_clone_removal_proof_and_plan::removal_entry::enter_the_removal`),
+and the step that checks and then sends the batch
+(`worktree_clone_removal_proof_and_plan::removal_destruction::destroy_the_removal`)
+both wait for the steps that can finish or cancel what they start,
 because an unmounted clone and a plan no command of this release could finish or cancel
 would be worse for a person than today's refusal.
-A `source_guard` scan holds that cut
+A `source_guard` scan holds that cut over both names
 (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
-and step 16's wiring names the entry and removes the scan with it.
+and step 16's wiring names them and removes the scan with it.
+The destruction step stops after the head check:
+it sends no head destroy,
+so no build of this release can destroy the last clone of a marked origin snapshot.
 
 The plan is the route's one reader for version 1:
 `worktree_clone_removal_proof_and_plan::plan_reading::{read_the_plan, read_the_plan_at, read_an_existing_plan}`,
@@ -5502,19 +5534,60 @@ Its file name check is the binding record's own,
 `worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name`,
 so the add's refusal of a standing plan and the removal's reader agree on one grammar.
 
+What a refusal at one of the three points prints,
+and what it leaves,
+is the project's decision of 2026-11-22
+(`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`):
+
+- The look before the unmount,
+  inside the lineage proof,
+  refuses a marked origin with the worktree still where it is and nothing written:
+  its sentence says nothing was taken down,
+  nothing is pending and there is nothing to cancel,
+  and it makes no claim about a mount it never read.
+  It runs on a first removal only,
+  so a retry over a kept plan is refused by the check instead.
+- The check before a snapshot request,
+  and the check before the head destroy,
+  refuse with the clone unmounted and the removal pending:
+  the intent,
+  the plan and the registration stand,
+  the cancel command is named as the way back for a removal that is not forced,
+  and the sentence names what the plan already records as destroyed,
+  so a refusal at a later chunk or on a rerun carries the loss forward and never says "this run".
+- An object that is not the planned one,
+  or a check that could not judge,
+  refuses with a sentence that says the check sent no request and what it could not compare,
+  and names the cancel command as reporting the same mismatch rather than attaching anything.
+- No refusal prints a destructive command,
+  and a refusal writes nothing of its own:
+  the check has no record,
+  so a killed check leaves no staging file.
+
+The destruction step keeps one gap plan step 16 closes.
+The plan's line for a requested destroy is written by step 16 before the request,
+so a kill between the kernel call and this release's own answer line would leave the plan calling a
+snapshot `planned` that is gone.
+That is why the writing path is wired to no command,
+and why the guest arm that shows the checks does not kill a run between the two.
+
 What this release does not do:
 
 - It removes no clone.
   The refusal above is the whole of its removal behaviour,
-  and plan steps 16 and 17 build the batch,
-  the head destroy,
+  and plan steps 16 and 17 build the head destroy,
   the origin cleanup,
   the Git settle and the cancel command.
 - It writes no removal intent,
-  unmounts no clone and writes no destruction plan.
+  unmounts no clone and writes no destruction plan on any command's behalf.
+  The writing entry and the destruction step are built and tested,
+  and no release file outside their own folder names them.
+- It sends no snapshot request and no head destroy from any command.
 - It adopts no plan a person or a killed run left;
   a plan that already stands names itself and stops the reading,
   and resuming one is plan step 16's.
+- It names no `requested` line in the plan before a request,
+  which step 16 writes.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
