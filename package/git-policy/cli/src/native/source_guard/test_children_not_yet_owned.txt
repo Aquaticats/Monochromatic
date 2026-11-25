@@ -151,7 +151,6 @@ process/open_file_of_a_descriptor_tests.rs | the process folder is not moved yet
 process/process_tree_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/signal_relay_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 process/stuck_children_reaped_when_the_kernel_lets_go_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
