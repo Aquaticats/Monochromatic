@@ -55,6 +55,8 @@ pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 /// "Every wait has a
 ///  bound"),
 /// and a control cannot wait the shipped 150 seconds.
+///  A release build holds no read of it,
+///  so only a build made for a control can shorten the window.
 pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";
 
 /// What:
@@ -199,7 +201,10 @@ pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
 /// secondsOf(env.CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS) ?? 150_000
 /// ```
 pub fn connected_window(environment: &[(OsString, OsString)]) -> Duration {
-    return seconds_variable(environment, CONNECTED_WINDOW_VARIABLE).unwrap_or(crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW);
+    // The seconds a control named, from the environment the command was started with; a release build reads neither.
+    let named: Option<Duration> = crate::test_only_switches::value_in(environment, CONNECTED_WINDOW_VARIABLE)
+        .and_then(|value| return positive_seconds(CONNECTED_WINDOW_VARIABLE, value.as_os_str()));
+    return named.unwrap_or(crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW);
 }
 
 /// What:

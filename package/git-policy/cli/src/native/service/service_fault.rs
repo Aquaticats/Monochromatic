@@ -6,12 +6,12 @@
 //!  The kill tests need a deterministic instant,
 //! as the transaction phase markers give the wrapper
 //!  (`transaction_phase.rs`).
-//! The marker is compiled into the release executable,
-//! and only the explicit variable arms it.
+//! The marker is compiled out of the release executable,
+//! so only a build made for a control reads the variable that arms it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (process.env.CLI_GIT_TEST_ONLY_SERVICE_FAULT === point) process.kill(process.pid, 'SIGKILL');
+//! if (testOnly('CLI_GIT_TEST_ONLY_SERVICE_FAULT') === point) process.kill(process.pid, 'SIGKILL');
 //! ```
 
 /// Environment variable arming one fault point.
@@ -96,7 +96,9 @@ pub const LOCK_MARKED_UNSYNCED: &str = "lock-marked-unsynced";
 pub fn reach(point: &str) {
     #[cfg(test)]
     hooks::run(point);
-    if matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
+    // The armed point a control named, which a release build never reads.
+    let armed: Option<String> = crate::test_only_switches::text(FAULT_VARIABLE);
+    if armed.as_deref() == Some(point) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]
         // SAFETY: `kill` takes no pointers; the process ends itself.
@@ -187,7 +189,8 @@ fn file_name_character(character: char) -> char {
 /// if (process.env.CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY) writeFile(join(dir, safe(id)), '')
 /// ```
 pub fn queued(id: &str) {
-    let Some(directory) = std::env::var_os(QUEUED_DIRECTORY_VARIABLE) else { return };
+    // The directory a control reads the queue from, which a release build never reads.
+    let Some(directory) = crate::test_only_switches::value(QUEUED_DIRECTORY_VARIABLE) else { return };
     let name: String = id.chars().map(file_name_character).collect();
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
@@ -215,9 +218,9 @@ pub const FIRST_BATCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH";
 /// const pinned = Number(process.env.CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH) // undefined when unset or not a number
 /// ```
 pub fn pinned_first_batch() -> Option<u64> {
-    return match std::env::var(FIRST_BATCH_VARIABLE) {
-        Ok(text) => text.parse::<u64>().ok(),
-        Err(_unset) => None,
+    return match crate::test_only_switches::text(FIRST_BATCH_VARIABLE) {
+        Some(text) => text.parse::<u64>().ok(),
+        None => None,
     };
 }
 

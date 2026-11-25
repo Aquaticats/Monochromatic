@@ -42,10 +42,10 @@ const TAG: &str = "clientJournal";
 /// const target = process.env.CLI_GIT_TEST_ONLY_JOURNAL_SOCKET ?? (isUnitTest ? undefined : '/run/systemd/journal/socket');
 /// ```
 fn target() -> Option<Target> {
-    return match std::env::var(TEST_SOCKET_VARIABLE) {
-        Ok(text) => Some(Target::parse(text.as_str())),
-        Err(_) if cfg!(test) => None,
-        Err(_) => Some(Target::journal()),
+    return match crate::test_only_switches::text(TEST_SOCKET_VARIABLE) {
+        Some(text) => Some(Target::parse(text.as_str())),
+        None if cfg!(test) => None,
+        None => Some(Target::journal()),
     };
 }
 

@@ -209,9 +209,10 @@ impl Stops {
     /// # Errors
     /// The variable names a step the add does not know.
     pub fn from_environment() -> Result<Stops, String> {
-        let hold_step: Option<String> = std::env::var_os(HOLD_STEP_VARIABLE).and_then(|value| return value.into_string().ok());
-        let hold_until: Option<std::path::PathBuf> = std::env::var_os(HOLD_UNTIL_VARIABLE).map(std::path::PathBuf::from);
-        let Some(value) = std::env::var_os(STOP_AFTER_VARIABLE) else {
+        // The three switches a control of the add arms, which a release build never reads.
+        let hold_step: Option<String> = crate::test_only_switches::value(HOLD_STEP_VARIABLE).and_then(|value| return value.into_string().ok());
+        let hold_until: Option<std::path::PathBuf> = crate::test_only_switches::value(HOLD_UNTIL_VARIABLE).map(std::path::PathBuf::from);
+        let Some(value) = crate::test_only_switches::value(STOP_AFTER_VARIABLE) else {
             return Ok(Stops { step: None, hold_step, hold_until });
         };
         let text: String = value.into_string().map_err(|_raw| return format!("{STOP_AFTER_VARIABLE} is not text"))?;

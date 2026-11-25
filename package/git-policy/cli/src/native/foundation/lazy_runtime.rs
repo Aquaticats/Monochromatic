@@ -140,12 +140,16 @@ fn current_thread() -> std::io::Result<Runtime> {
 ///  the pause stands in for that machine.
 /// It is compiled into the release executable and inert unless the variable names a pause,
 ///  as `CLI_GIT_TEST_ONLY_SERVICE_FAULT` is.
+/// The read is compiled out of any build the release ships,
+/// so only a build made for a control can name a pause.
 pub const SLOW_BUILD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
 
 /// The pause `SLOW_BUILD_VARIABLE` names,
 /// or none.
-fn the_pause_a_control_asks_for() -> Duration {
-    let named: Option<u64> = std::env::var(SLOW_BUILD_VARIABLE).ok().and_then(milliseconds_of);
+/// A control asks this of a build made without the switches, where it answers no pause.
+pub(crate) fn the_pause_a_control_asks_for() -> Duration {
+    // The milliseconds a control named, or nothing in every shipped build.
+    let named: Option<u64> = crate::test_only_switches::text(SLOW_BUILD_VARIABLE).and_then(milliseconds_of);
     return named.map_or(Duration::ZERO, Duration::from_millis);
 }
 
