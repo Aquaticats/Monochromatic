@@ -26,6 +26,12 @@
 //!  A removal that finds a plan already standing for its clone stops and names it,
 //!  because adopting a kept plan,
 //!  re-proving it and carrying its loss forward is the resume the later steps build.
+//!  The first write,
+//!  the intent and the unmount are switched on by plan step 16's wiring:
+//!  this release's removal command runs `removal_reading::read_the_removal` and writes nothing,
+//!  and step 16 replaces that call with this entry once the snapshot batch,
+//!  the head destroy,
+//!  the origin cleanup and the Git settle exist to finish or cancel what it starts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -176,6 +182,46 @@ pub struct EnteredRemoval {
 /// const entered = enterTheRemoval(entry, reads, unmount, clock);
 /// ```
 pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads, unmount: &dyn RemovalUnmount, clock: &dyn RemovalClock) -> Result<EnteredRemoval, RemovalStop> {
+    let prepared: PreparedRemoval = prepare_the_removal(entry, reads)?;
+    let intent: RemovalIntent = RemovalIntent::fresh()?;
+    let answer = unmount.request_the_unmount(&intent.mount_intent())?;
+    let proof: UnmountProof = verify_the_answer(&answer, &ExpectedUnmount { clone_guid: prepared.recorded.clone_guid, nonce: intent.nonce.clone() })?;
+    // The design verifies the clone GUID, the underlay identity and the Git registration again after the unmount, so a
+    // registration swapped during the request stops the plan rather than the destroy. The proof is the same identity
+    // comparison the entry made before the request, so a registration whose inode and birth time changed refuses here.
+    prove_the_adds_registration(entry.common_dir, &prepared.recorded)?;
+    let facts: PlanFacts = facts_of(&prepared.recorded, &prepared.proven, &proof, prepared.registration, clock)?;
+    let plan: DestructionPlan = DestructionPlan::first_write(facts, prepared.proven.own_snapshots.as_slice());
+    let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {
+        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir), refusal };
+    })?;
+    let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| return RemovalStop::PlanUnreadable { path: folder.path().join(prepared.recorded.clone_guid.file_name()), refusal })?;
+    return Ok(EnteredRemoval { plan, plan_path, lost: prepared.lost });
+}
+
+/// What:
+///  Every step of one removal's order that changes nothing:
+///  the add's record,
+///  the registration's own identity,
+///  the origin-side inventory,
+///  a plan that already stands,
+///  the lineage proof,
+///  the bookmark rule,
+///  and the names a removal would lose.
+/// Why:
+///  The read-only reading and the writing entry take these steps in one order,
+///  so a refusal cannot name one check here and another there,
+///  and everything a removal decides before its first write is decided in one place.
+///
+/// # Throws
+/// The check that refused,
+/// with the object it named and the sentence a person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const prepared = prepareTheRemoval(entry, reads);
+/// ```
+pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<PreparedRemoval, RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
@@ -201,20 +247,31 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
         snapshots: proven.own_snapshots.iter().map(|snapshot| return snapshot.name.clone()).collect(),
         bookmarks: proven.inventory.bookmarks().iter().map(|bookmark| return bookmark.full_name()).collect(),
     };
-    let intent: RemovalIntent = RemovalIntent::fresh()?;
-    let answer = unmount.request_the_unmount(&intent.mount_intent())?;
-    let proof: UnmountProof = verify_the_answer(&answer, &ExpectedUnmount { clone_guid: recorded.clone_guid, nonce: intent.nonce.clone() })?;
-    // The design verifies the clone GUID, the underlay identity and the Git registration again after the unmount, so a
-    // registration swapped during the request stops the plan rather than the destroy. The proof is the same identity
-    // comparison the entry made before the request, so a registration whose inode and birth time changed refuses here.
-    prove_the_adds_registration(entry.common_dir, &recorded)?;
-    let facts: PlanFacts = facts_of(&recorded, &proven, &proof, registration, clock)?;
-    let plan: DestructionPlan = DestructionPlan::first_write(facts, proven.own_snapshots.as_slice());
-    let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir), refusal };
-    })?;
-    let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| return RemovalStop::PlanUnreadable { path: folder.path().join(recorded.clone_guid.file_name()), refusal })?;
-    return Ok(EnteredRemoval { plan, plan_path, lost });
+    return Ok(PreparedRemoval { recorded, registration, proven, lost });
+}
+
+/// What:
+///  One removal's proof and loss,
+///  with the identities that stage proved.
+/// Why:
+///  The entry writes its plan from exactly these values and the reading prints them,
+///  so neither can hold a clone of one reading and an origin of another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Prepared = { recorded; registration; proven; lost };
+/// ```
+pub(super) struct PreparedRemoval {
+    /// The add's record as the removal read it.
+    pub(super) recorded: RecordedBinding,
+    /// The registration's live identity,
+    /// which the plan's `admin` field records.
+    pub(super) registration: ObjectId,
+    /// The proof's identities,
+    /// inventory and own snapshots.
+    pub(super) proven: ProvenRemoval,
+    /// The names a removal would lose.
+    pub(super) lost: NamesToBeLost,
 }
 
 /// What:

@@ -94,3 +94,10 @@ pub(crate) mod no_start_at_login_tests;
 #[cfg(test)]
 #[path = "packaged_uses_links_tests.rs"]
 mod packaged_uses_links_tests;
+
+/// The removal's command path runs the removal's read-only reading and no entry that writes:
+/// plan step 16's wiring is the change that names the writing entry,
+/// and it removes this check with it.
+#[cfg(test)]
+#[path = "removal_command_path_writes_nothing_tests.rs"]
+mod removal_command_path_writes_nothing_tests;

@@ -40,9 +40,25 @@ const CLONE_FIELDS: [&str; 2] = ["cloneGuid=", "cloneDataset="];
 ///  and nothing proves such a file does not name this clone.
 pub const PLAN_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree clone destruction plan, version 1";
 
-/// Whether one entry's name is a clone's canonical numeric dataset GUID,
-/// which is the plan's key and file name.
-fn is_canonical_guid_name(name: &str) -> bool {
+/// What:
+///  Whether one entry's name is a clone's canonical numeric dataset GUID,
+///  which is the plan's key and file name.
+/// Why:
+///  The plan's grammar is one grammar across the add,
+///  the removal and the later steps that read a plan,
+///  so this is the route's only GUID-name check:
+///  the name reader in
+///  `worktree_clone_removal_proof_and_plan::plan_name` calls it rather than repeating it
+///  (plan step 10's binding record;
+///  `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "The key,
+///  and why it is the clone's GUID").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isCanonicalGuidName = (name: string) => /^(0|[1-9][0-9]{0,19})$/.test(name);
+/// ```
+pub fn is_canonical_guid_name(name: &str) -> bool {
     if name.is_empty() || name.len() > 20 || (name.len() > 1 && name.starts_with('0')) {
         return false;
     }

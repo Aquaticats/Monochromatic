@@ -4,8 +4,10 @@
 //!  a plan whose name is this clone's GUID stops the add without a read,
 //!  a plan naming this clone's field stops it,
 //!  and a plan under this clone's key that cannot be read stops it too.
+//!  The name check those controls rest on is controlled here,
+//!  because the removal's plan reader calls this one rather than repeating it.
 
-use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
+use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, is_canonical_guid_name, refuse_while_a_plan_names_the_clone};
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::os::unix::fs::PermissionsExt;
@@ -111,4 +113,22 @@ fn a_foreign_entry_is_not_read() {
     std::fs::write(folder.join("foreign-entry"), plan_text(clone_guid().file_name().as_str(), "tank/clones/add-cache-layer").as_bytes()).expect("the foreign entry is written");
     assert_eq!(refuse_while_a_plan_names_the_clone(common_of(folder.as_path()), Some(clone_guid()), "tank/clones/add-cache-layer"), Ok(()));
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A plan's file name is the clone's canonical GUID and nothing else.
+/// Why:
+///  The removal's plan reader calls this check rather than carrying its own copy,
+///  so a name this control passes is a name both readers accept,
+///  and a leading zero or a sign is a second spelling of one GUID.
+#[test]
+fn a_plan_name_is_the_clones_canonical_guid_and_nothing_else() {
+    assert!(is_canonical_guid_name("7828944690444299989"));
+    assert!(is_canonical_guid_name("0"));
+    assert!(is_canonical_guid_name("78289446904442999890"), "a twenty-digit GUID is canonical");
+    for refused in ["", "007", "+1", "7a", ".7828944690444299989", "7828944690444299989\n"] {
+        assert!(!is_canonical_guid_name(refused), "`{refused}` is not a plan name");
+    }
+    let twenty_one_digits: String = format!("1{}", "0".repeat(20));
+    assert!(!is_canonical_guid_name(twenty_one_digits.as_str()), "21 digits are past the bound");
 }

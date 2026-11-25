@@ -24,8 +24,9 @@
  of reporting a green suite.
  */
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
 import {
+  basename,
   join,
   resolve,
 } from 'node:path';
@@ -42,9 +43,21 @@ const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 const ARM_TIMEOUT_MS = 1_200_000;
 /** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
+/** How often the host asks the guest whether a detached script has finished, in milliseconds. */
+const POLL_INTERVAL_MS = 15_000;
+/** The swap file the guest adds, in gibibytes, so one rustc at five gigabytes does not exhaust its memory. */
+const SWAP_GIB = '6G';
 
 /** The environment the arm reads, so it never opens the host's device. */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_LINEAGE_GUEST';
+/** The environment the refusal arm reads, which drives the built wrapper's `git worktree remove`. */
+const REFUSAL_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST';
+/** The pool the refusal arm builds its own datasets in, beside the proof arm's pool. */
+const REFUSAL_POOL = 'removal-refusal';
+/** The folder the refusal arm's file-backed pool image lives in. */
+const REFUSAL_ROOT = '/home/removal-refusal-fixture';
+/** The checkout the refusal arm registers a real worktree in. */
+const REFUSAL_CHECKOUT = '/root/removal-refusal-checkout';
 /** The pool the arm builds and destroys. */
 const POOL = 'zfsstep14';
 /** The folder the pool's image and the fixture repository live under. */
@@ -64,6 +77,14 @@ const EXPECTED_MARKERS = [
   'REMOVAL grants=lineage-changing-absent',
   'REMOVAL replacement=refused',
   'REMOVAL done',
+  'REMOVAL-ARMS healthy=proved wrote=nothing',
+  'REMOVAL-ARMS promoted=refused',
+  'REMOVAL-ARMS inherited-tuple=measured',
+  'REMOVAL-ARMS reverse-promotion=proved',
+  'REMOVAL-ARMS bookmark-live=printed',
+  'REMOVAL-ARMS bookmark-stale=refused',
+  'REMOVAL-ARMS replacement=refused',
+  'REMOVAL-ARMS done',
 ] as const;
 
 /** The step, the guest name, the log directory and whether `all` keeps the guest. */
@@ -151,6 +172,83 @@ function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; re
 }
 
 /**
+ Start one long guest script detached, so it cannot lose its answer, and leave its log in the shared folder.
+
+ The guest's crate build ran for ten minutes and the two compiling jobs of the first runs exhausted the guest's memory,
+ where the agent lost the command's process and the reason with it. The script therefore runs under `setsid nohup`,
+ writes its log where the host can read it, and ends by appending `DONE=<status>` to that log.
+
+ @param chosen - the run's options
+
+ @param script - the shell script
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the script may take inside the guest
+
+ @throws Error when the guest cannot be asked to start it
+ */
+function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): void {
+  const seconds = Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS;
+  // The step and the launcher are files, not one command line: `mvm exec` hands its argument to one shell, and a
+  // detached job written inline nested that shell inside another and the ampersand ended up inside the inner quoting,
+  // so the host waited for the whole build instead of its start.
+  const step = join(chosen.logDir, `${log}.step.sh`);
+  writeFileSync(step, [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`, ''].join('\n'), { mode: 0o600, });
+  const launch = join(chosen.logDir, `${log}.launch.sh`);
+  writeFileSync(launch, [`setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`, 'exit 0', ''].join('\n'), { mode: 0o600, });
+  // `mvm push` lands each file in the guest's shared folder under the destination's own name, which is where the
+  // launcher looks for the step.
+  for (const from of [step, launch,]) {
+    host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, from, `/shared/${basename(from)}`,], log: `guest-push-${log}.log`, });
+  }
+  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'sh', `/mnt/shared/${log}.launch.sh`,], {
+    stdio: 'ignore',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  if (result.error !== undefined)
+    throw result.error;
+}
+
+/**
+ Wait for one detached script's own `DONE=` line, pull its log, and refuse a status other than zero.
+
+ @param chosen - the run's options
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the host waits before giving up
+
+ @returns the pulled log
+
+ @throws Error naming the status the script ended with, or the wait that ended
+ */
+function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; readonly log: string; readonly timeout: number; }): string {
+  const path = `/mnt/shared/${log}`;
+  const deadline = Date.now() + timeout;
+  let finished = false;
+  while (Date.now() < deadline) {
+    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'tail', '--lines=1', path,], {
+      encoding: 'utf8',
+      timeout: HOST_COMMAND_TIMEOUT_MS,
+    });
+    if ((answer.stdout ?? '').trim().startsWith('DONE=')) {
+      finished = true;
+      break;
+    }
+    spawnSync('sleep', [String(POLL_INTERVAL_MS / 1000),], { timeout: POLL_INTERVAL_MS * 2, });
+  }
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, path, join(chosen.logDir, log),], log: `host-pull-${log}`, });
+  const pulled = readFileSync(join(chosen.logDir, log), 'utf8');
+  if (!finished)
+    throw new Error(`${log}: the guest script did not finish inside ${String(timeout)} ms; see ${log}`);
+  const status = /^DONE=(?<status>\d+)$/m.exec(pulled)?.groups?.status;
+  if (status !== '0')
+    throw new Error(`${log}: the guest script ended ${status ?? 'without a status'}; see ${log}`);
+  return pulled;
+}
+
+/**
  Run one step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
 
  @param chosen - the run's options
@@ -203,12 +301,27 @@ async function run(chosen: Options): Promise<void> {
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
+    // The refusal arm's own pool, made from a file so nothing of the guest's root disk is a vdev.
+    `mkdir --parents ${REFUSAL_ROOT}`,
+    `mkdir --parents ${REFUSAL_CHECKOUT}`,
+    `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${REFUSAL_POOL} > /dev/null 2>&1; then`,
+    `  truncate --size 1G ${REFUSAL_ROOT}/pool.img`,
+    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${REFUSAL_POOL} ${REFUSAL_ROOT}/pool.img`,
+    'fi',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/removal-lineage-build.log 2>&1',
-    'tail --lines=3 /root/removal-lineage-build.log',
+    'df --human-readable / /mnt/shared',
+    // `free` with no option, because the guest's procps has no `--mebytes` and `set -e` would end the build there.
+    'free',
+    // One rustc for a crate this size wants more than five gigabytes, and the guest has eight: the first runs compiled
+    // two at a time, both together exhausted the guest's memory, and the kernel killed one of them, which looked like
+    // a compile failure. One job and a swap file are what make the build fit.
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    'free',
+    'cargo build --release --tests --locked --jobs 1',
   ].join('\n');
-  guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  guestStart({ chosen, script: build, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
   const arm = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
@@ -216,11 +329,20 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_POOL=${POOL}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_ROOT=${FIXTURE_ROOT}`,
+    `export ${REFUSAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${REFUSAL_POOL}`,
+    `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${REFUSAL_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all ' +
       '--filterset "test(the_removal_lineage_guest_arms)" > /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=40 /root/removal-lineage-arm.log',
+    // The refusal arms run through the built wrapper's own `git worktree remove`, in the same log.
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      '--filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
+    'tail --lines=60 /root/removal-lineage-arm.log',
     'test "$status" = 0',
+    'test "$refusal" = 0',
     // A returning arm is not a passing arm, which the binding's own live recipe also holds.
     `if grep --quiet '^SKIPPED' /root/removal-lineage-arm.log; then echo 'the arm returned without running'; exit 1; fi`,
     ...EXPECTED_MARKERS.map(function markerLine(marker) {
@@ -231,7 +353,8 @@ async function run(chosen: Options): Promise<void> {
     `zpool destroy -f ${POOL} 2>/dev/null || true`,
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
   ].join('\n');
-  guest({ chosen, script: arm, log: 'guest-removal-lineage.log', timeout: ARM_TIMEOUT_MS, });
+  guestStart({ chosen, script: arm, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/removal-lineage-arm.log', join(chosen.logDir, 'removal-lineage-arm.log'),], log: 'host-pull-arm.log', });
   const pulled = readFileSync(join(chosen.logDir, 'removal-lineage-arm.log'), 'utf8');
   for (const marker of EXPECTED_MARKERS) {
@@ -248,17 +371,38 @@ function destroy(chosen: Options): void {
 }
 
 /**
- Create, prepare, run and destroy, in that order.
+ Create, prepare, run and destroy, in that order, destroying even when a step refused.
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused
+ @throws Error naming the step that refused, after the guest it created is gone
  */
 async function all(chosen: Options): Promise<void> {
-  create(chosen);
-  prepare(chosen);
-  await run(chosen);
-  destroy(chosen);
+  let failure: unknown = null;
+  let created = false;
+  try {
+    create(chosen);
+    created = true;
+    prepare(chosen);
+    await run(chosen);
+  } catch (thrown) {
+    failure = thrown;
+  }
+  if (!created) {
+    console.error(`git-policy removal-lineage guest: no guest was destroyed, because this run did not create '${chosen.name}'`);
+    if (failure !== null)
+      throw failure;
+    return;
+  }
+  try {
+    destroy(chosen);
+  } catch (destruction) {
+    if (failure === null)
+      throw destruction;
+    console.error(`git-policy removal-lineage guest: destroying '${chosen.name}' also failed: ${String(destruction)}`);
+  }
+  if (failure !== null)
+    throw failure;
 }
 
 /** The steps this driver knows, and nothing else. */

@@ -5312,7 +5312,9 @@ which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
 nobody.
 The refusal prints the slot's report and says that this release has no removal for a clone,
-which plan steps 14 and 16 build.
+which plan steps 14 and 16 build;
+what a removal would prove and lose is printed beside it,
+which the section "Removal of a ZFS worktree clone" below describes.
 A pending add's removal is not refused,
 because the add's own refusal names `git worktree remove <slot>` as its way forward;
 a pending removal and a slot nothing proves are left to Git.
@@ -5402,6 +5404,117 @@ What this release does not do:
 - The repair actions were measured on this host with Git `2.56.1`;
   the guest's Git writes the same pointer and the same back-link,
   and the arm below runs there.
+
+### Removal of a ZFS worktree clone
+
+Design and plan:
+`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Removal and recovery",
+"Clone removal identity protection" and "Bookmarks on a clone being removed";
+`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`;
+plan step 14.
+The proof,
+the bookmark rule,
+the destruction plan and the removal intent are in
+`src/native/worktree_clone_removal_proof_and_plan/`,
+and the removal's command path is
+`src/native/worktree_copying/worktree_removal_of_a_bound_clone.rs`.
+
+A removal is one order,
+and every step of it that decides anything runs before anything is written:
+
+1. The add's binding record for the slot,
+   its registration's own identity,
+   and the origin-side inventory the add recorded.
+2. The lineage proof:
+   the pool's GUID,
+   the clone's GUID and creation transaction group,
+   the clone's live origin against the recorded origin snapshot,
+   that snapshot's GUID and group,
+   and the origin dataset's GUID,
+   each compared with what the add recorded.
+3. The clone's whole live inventory:
+   every snapshot and bookmark by kind,
+   name,
+   GUID,
+   owning dataset and creation transaction group,
+   compared with the origin-side inventory,
+   and every snapshot's group against the clone's own,
+   because a snapshot at or below it is history the clone inherited.
+   The origin snapshot's deferred-destroy mark is read here,
+   so a marked origin is refused with the clone still where it is.
+4. The bookmark rule `A: Live or planned`:
+   a bookmark passes when a live passing snapshot of the clone or a line of a standing plan
+   carries its GUID and group,
+   and every other bookmark refuses the whole removal and is named.
+   Nothing in this route destroys a bookmark.
+5. The removal intent,
+   the durable `unmount` property on the clone under a fresh nonce,
+   and the answer verified against the request.
+6. The destruction plan,
+   published after the unmount is proved,
+   and the printed list of names to be lost.
+
+Steps 1 to 4 write nothing and unmount nothing,
+and they are what this release's removal command runs.
+`git worktree remove` of a slot a whole managed clone is bound to refuses,
+prints the slot's report,
+and prints the proof's own answer:
+either what the proof matched with every name a removal would lose,
+or the check that stopped it with the object it named,
+or the reason the pool could not be read.
+Every arm says that this release does not remove a clone yet,
+that nothing was unmounted,
+that no removal intent was filed and no destruction plan was written,
+and that every snapshot,
+bookmark,
+record and registration still stands.
+A refusal changes nothing at all:
+the plan folder is not created,
+the clone's intent property keeps its value,
+and no record is rewritten.
+
+Steps 5 and 6 and the snapshot batch,
+the head destroy,
+the origin cleanup and the Git settle are plan steps 16 and 17's.
+Until step 16 is wired,
+the removal's command path calls the read-only reading
+(`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
+and names no writing entry:
+the entry that files the intent,
+unmounts the clone and publishes the plan
+(`worktree_clone_removal_proof_and_plan::removal_entry::enter_the_removal`)
+waits for the steps that can finish or cancel what it starts,
+because an unmounted clone and a plan no command of this release could finish or cancel
+would be worse for a person than today's refusal.
+A `source_guard` scan holds that cut
+(`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
+and step 16's wiring names the entry and removes the scan with it.
+
+The plan is the route's one reader for version 1:
+`worktree_clone_removal_proof_and_plan::plan_reading::{read_the_plan, read_the_plan_at, read_an_existing_plan}`,
+which reads the file in two stages,
+holds no more than the record's own bytes,
+checks the folder's mode and the record's owner,
+and refuses a record that does not read.
+Plan steps 15 to 18 call it rather than reading the folder again.
+Its file name check is the binding record's own,
+`worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name`,
+so the add's refusal of a standing plan and the removal's reader agree on one grammar.
+
+What this release does not do:
+
+- It removes no clone.
+  The refusal above is the whole of its removal behaviour,
+  and plan steps 16 and 17 build the batch,
+  the head destroy,
+  the origin cleanup,
+  the Git settle and the cancel command.
+- It writes no removal intent,
+  unmounts no clone and writes no destruction plan.
+- It adopts no plan a person or a killed run left;
+  a plan that already stands names itself and stops the reading,
+  and resuming one is plan step 16's.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -18298,6 +18411,51 @@ it never settles it on a guess.
 The note that names an instance's worktree,
 written beside the socket,
 holds the directory the same way.
+
+A removal keeps its own records beside the add's,
+and each is one `key=value` line per fact,
+written once and read whole
+(`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`;
+`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`):
+
+- The removal intent is the clone's own local property
+  `org.monochromatic:git-worktree-clone-mount-desired-state`,
+  carrying `v1:<nonce>:unmount` under a nonce this removal made.
+  It is the one durable request,
+  its answer is a mount receipt for the same nonce,
+  and it is read and answered by the mount handler,
+  not by the removal.
+- The destruction plan is one file in
+  `<common Git directory>/monochromatic-git-policy-cli/clone-destruction-plans/`,
+  named by the clone's canonical numeric GUID and by nothing else,
+  because a slot's name is used again when a worktree is added again at one path.
+  It holds a version line,
+  the identities the proof matched,
+  the registration's name bytes and identity,
+  the slot path as hex bytes,
+  the verified unmount's nonce and mount number,
+  how many attempts follow,
+  and one line per snapshot per attempt with the outcome that attempt reached.
+  A snapshot's current outcome is the one on its highest attempt number,
+  which is the merge rule every reader applies.
+  Its size bound is the header plus one widest line per declared attempt,
+  read in two stages so the reader holds no more than the record's own bytes.
+  The plan is written by a removal and by nothing else:
+  `doctor` and every other pass read it and never create its folder.
+- The origin-side inventory,
+  written once at the add,
+  is the removal's third check:
+  it names the checkout's snapshots at or below the origin snapshot's group and its bookmarks,
+  by kind,
+  GUID,
+  group and name.
+  A removal never rebuilds it and never updates it to match an external change.
+
+A record that does not read or does not match is refused with its file named,
+and nothing is moved,
+rewritten or deleted;
+this release writes neither the intent nor the plan,
+and plan steps 16 and 17 are what write them.
 
 ### Where the service listens
 

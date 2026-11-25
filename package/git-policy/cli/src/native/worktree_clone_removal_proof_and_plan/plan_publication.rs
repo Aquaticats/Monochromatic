@@ -27,8 +27,8 @@
 //! ```
 
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_removal_proof_and_plan::plan_name::is_canonical_plan_name;
 use crate::worktree_clone_removal_proof_and_plan::plan_parse::parse_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::{check_the_folder, split_the_header};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
@@ -105,7 +105,7 @@ impl PlanFolder {
     /// ```
     pub fn publish(&self, plan: &DestructionPlan) -> Result<PathBuf, PlanRefusal> {
         let name: String = plan.facts.clone_guid.file_name();
-        if !is_canonical_plan_name(name.as_str()) {
+        if !is_canonical_guid_name(name.as_str()) {
             return Err(PlanRefusal::at(PlanRefusalCause::ForeignName, "cloneGuid", name));
         }
         let bytes: Vec<u8> = plan.encode()?;

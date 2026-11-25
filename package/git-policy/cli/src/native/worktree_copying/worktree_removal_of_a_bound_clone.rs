@@ -2,7 +2,9 @@
 //!  The refusal of one `git worktree remove` of a slot a whole managed clone is
 //!  bound to,
 //!  mounted or not,
-//!  with the slot's state printed beside it.
+//!  with the slot's state printed beside it,
+//!  and the removal's lineage proof,
+//!  inventory and bookmark rule run read-only inside the refusal.
 //! Why:
 //!  Git's own removal deletes the registration and the slot's underlay folder,
 //!  which is the pointer the add kept for `git worktree prune`,
@@ -15,9 +17,20 @@
 //!  Only the two states that prove a whole worktree refuse:
 //!  a pending add's removal is the add's own way forward,
 //!  and a slot nothing proves stays Git's.
-//!  Nothing here removes,
-//!  unmounts or writes:
-//!  a refusal says what stands and the one next safe command.
+//!  A refusal of a whole clone also owes the person what a removal would have
+//!  done,
+//!  so the proof a removal makes runs here and its loss is printed
+//!  (`worktree_clone_removal_proof_and_plan::removal_reading`,
+//!  plan step 14).
+//!  This release has no snapshot batch,
+//!  head destroy,
+//!  origin cleanup or Git settle,
+//!  so nothing here writes a removal intent,
+//!  unmounts the clone or writes the destruction plan:
+//!  plan step 16's wiring switches those on,
+//!  and until then a clone's removal that got that far would leave an unmounted
+//!  clone and a plan no command of this release could finish or cancel.
+//!  The reading therefore writes nothing and prints what it proved.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,10 +38,36 @@
 //! ```
 
 use crate::subvolume_command::REFUSED_EXIT_CODE;
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
+use crate::worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal;
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, RemovalPoolReads};
 use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun};
 use crate::worktree_identity::common_directory;
 use std::path::Path;
+
+/// What:
+///  How one command's refusal reads the pool.
+/// Why:
+///  The release answer opens the kernel's ZFS device,
+///  and a control answers the same three reads without one,
+///  so the reading a person meets and the reading a control proves are the same
+///  call over one seam.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reads = { kind: 'live' } | { kind: 'scripted'; pool } | { kind: 'unreadable'; reason };
+/// ```
+pub enum RemovalReads<'a> {
+    /// The release answer:
+    /// the device behind the start-time compatibility gate.
+    Live,
+    /// A pool a control scripts.
+    Scripted(&'a dyn RemovalPoolReads),
+    /// A pool that cannot be read,
+    /// with the reason its reader answered.
+    Unreadable(&'a str),
+}
 
 /// What:
 ///  The refusal of a removal of a slot a whole managed clone is bound to,
@@ -44,6 +83,21 @@ use std::path::Path;
 /// const ending = refuseTheRemovalOfABoundClone(facts);
 /// ```
 pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<ForwardedRun> {
+    return refuse_the_removal_with(facts, RemovalReads::Live);
+}
+
+/// What:
+///  The same refusal over the pool reads a control answers.
+/// Why:
+///  A host control may not open the machine's ZFS device,
+///  and every control of this refusal runs through this call,
+///  so the printed report is the command's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ending = refuseTheRemovalWith(facts, scriptedPool);
+/// ```
+pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>) -> Option<ForwardedRun> {
     let plan = facts.remove_plan.as_ref()?;
     let common_dir: &Path = common_directory(&facts.identity)?;
     let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(plan.target.as_path()).ok()?;
@@ -59,7 +113,49 @@ pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<Forwarde
         stderr.push_str(line.as_str());
         stderr.push('\n');
     }
+    stderr.push_str(the_removals_reading(common_dir, slot.as_str(), reads).as_str());
     return Some(ForwardedRun::Failed { stderr, code: REFUSED_EXIT_CODE });
+}
+
+/// What:
+///  The lines one refusal prints about the removal that was not made:
+///  what its proof matched and what it would lose,
+///  or the check that stopped it,
+///  or the pool that could not be read.
+/// Why:
+///  Every arm ends with the same promise,
+///  that nothing was written and nothing was deleted,
+///  and each names the step a person's next command belongs to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = theRemovalsReading(commonDir, slot, reads);
+/// ```
+fn the_removals_reading(common_dir: &Path, slot: &str, reads: RemovalReads<'_>) -> String {
+    let entry: RemovalEntry<'_> = RemovalEntry { common_dir, slot };
+    let reading = match reads {
+        RemovalReads::Scripted(pool) => read_the_removal(&entry, pool).map_err(|stop| return stop.message()),
+        RemovalReads::Unreadable(reason) => return unreadable_pool(reason),
+        RemovalReads::Live => match LiveRemovalReads::open() {
+            Ok(live) => read_the_removal(&entry, &live).map_err(|stop| return stop.message()),
+            Err(reason) => return unreadable_pool(reason.as_str()),
+        },
+    };
+    return match reading {
+        Ok(proved) => {
+            let mut lines: Vec<String> = proved.lines();
+            lines.push(String::new());
+            format!("{}\n", lines.join("\n"))
+        }
+        Err(sentence) => format!("the removal's own checks stopped it before anything was written:\n{sentence}\n"),
+    };
+}
+
+/// The lines one refusal prints when the pool raised no proof at all.
+fn unreadable_pool(reason: &str) -> String {
+    return format!(
+        "the removal's lineage proof could not run, because {reason}\nNothing was unmounted and nothing was written, so every snapshot, bookmark, record and registration still stands.\n"
+    );
 }
 
 /// Controls stay out of the release executable.

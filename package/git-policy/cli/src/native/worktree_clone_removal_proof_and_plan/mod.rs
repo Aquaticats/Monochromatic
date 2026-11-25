@@ -91,7 +91,12 @@
 //! - `removal_entry.rs`:
 //!   the one order a removal's proof,
 //!   intent,
-//!   unmount and plan take.
+//!   unmount and plan take,
+//!   and every step of it that changes nothing.
+//! - `removal_reading.rs`:
+//!   the removal's read-only reading:
+//!   what a removal would prove and lose,
+//!   and the lines a command prints instead of writing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -121,13 +126,14 @@ pub mod bookmark_rule;
 pub mod loss_names;
 pub mod unmount_request;
 pub mod removal_entry;
+pub mod removal_reading;
 
 pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
 pub use plan_bounds::{
     ATTEMPT_COUNT_MAXIMUM_DIGITS, ATTEMPT_LINE_MAXIMUM_BYTES, ERRNO_MAXIMUM_DIGITS, NUMBER_MAXIMUM_DIGITS, PLAN_HEADER_MAXIMUM_BYTES, SLOT_PATH_MAXIMUM_BYTES, ZFS_NAME_MAXIMUM_BYTES, header_field_maximum_bytes, line_bytes,
     plan_maximum_bytes, widest_attempt_line_bytes, widest_header_bytes,
 };
-pub use plan_name::{is_a_snapshot_of, is_canonical_plan_name, is_dataset_name, is_snapshot_name};
+pub use plan_name::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
 pub use plan_parse::{PlanHeader, parse_plan, parse_plan_header};
 pub use plan_publication::PlanFolder;
 pub use plan_reading::{HEADER_LINE_COUNT, check_the_folder, check_the_record_owner, is_a_plan_entry, read_an_existing_plan, read_the_plan, read_the_plan_at, split_the_header};
@@ -144,6 +150,7 @@ pub use bookmark_rule::{Explanations, explanations_of, refuse_the_unexplained_bo
 pub use loss_names::NamesToBeLost;
 pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, RemovalUnmount, UnmountAnswer, UnmountProof, verify_the_answer};
 pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
+pub use removal_reading::{RemovalReading, read_the_removal};
 
 /// The plan every control of this folder starts from.
 /// Never part of the release executable.
