@@ -2486,7 +2486,8 @@ on one writing path no command reaches
   removes the matching registration and the slot's pointer and the empty underlay folder,
   and is proved by the clone's absence;
 - the removal's own records,
-  removed last, and the report that names what was destroyed,
+  removed last,
+  and the report that names what was destroyed,
   what went with the head and what a person still has to do.
 
 All of that waits for one thing a person needs:
