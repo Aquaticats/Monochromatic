@@ -360,12 +360,17 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${REFUSAL_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all ' +
-      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms)" > /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
-    'tail --lines=40 /root/removal-lineage-arm.log',
+    // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
+    // and the failure's own output is printed rather than the last forty lines of a passing run.
+    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
+      '--failure-output=final --filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms)" ' +
+      '> /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
+    'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
+    'tail --lines=120 /root/removal-lineage-arm.log',
     // The refusal arms run through the built wrapper's own `git worktree remove`, in the same log.
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
-      '--filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level fail ' +
+      '--failure-output=final --filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
+    'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=60 /root/removal-lineage-arm.log',
     'test "$status" = 0',
     'test "$refusal" = 0',

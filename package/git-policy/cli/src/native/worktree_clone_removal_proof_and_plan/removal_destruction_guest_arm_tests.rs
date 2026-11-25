@@ -189,13 +189,16 @@ fn the_removal_destruction_guest_arms() {
     println!("DESTRUCTION guest={} pool={}", fixture.guest, fixture.pool);
     let reader: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest has /dev/zfs");
     let live: ZfsDevice = the_live_device();
+    println!("DESTRUCTION step=fixture-open");
 
     // Arm 1: the healthy removal destroys both own snapshots, records each answer, and stops before the head.
+    println!("DESTRUCTION step=arm-1-build");
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let healthy_recorded: RecordedBinding = fixture.recorded();
     fixture.write_the_adds_records(&healthy_recorded);
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
     let healthy_run: Run<'_> = Run::over(&fixture, &reads);
+    println!("DESTRUCTION step=arm-1-enter");
     let underway: DestructionUnderway = healthy_run.destroy(&reader, &live).expect("the healthy removal destroys its own snapshots");
     assert_eq!(underway.requests.len(), 1, "the whole set fits one request");
     for snapshot in underway.plan.named_snapshots() {
@@ -212,6 +215,7 @@ fn the_removal_destruction_guest_arms() {
     println!("DESTRUCTION healthy=destroyed snapshots=2 remaining=0 head=present");
 
     // Arm 2: the mark is already there, so the look inside the entry refuses before anything is taken down.
+    println!("DESTRUCTION step=arm-2-build");
     fixture.teardown();
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let look_recorded: RecordedBinding = fixture.recorded();
@@ -223,6 +227,7 @@ fn the_removal_destruction_guest_arms() {
         "the mark reads {MARK_ON} with one clone and no hold"
     );
     let look_run: Run<'_> = Run::over(&fixture, &reads);
+    println!("DESTRUCTION step=arm-2-enter");
     let look_stop: RemovalStop = look_run.destroy(&reader, &live).expect_err("a marked origin refuses at the look");
     let look_cause: OriginRefusal = cause_of(&look_stop);
     assert_eq!(look_cause.cause_name(), "origin-marked-before-the-unmount", "the look is what refused, and the mark was there before the run");
@@ -234,6 +239,7 @@ fn the_removal_destruction_guest_arms() {
     println!("DESTRUCTION look=refused cause={} pending=none plan=none", look_cause.cause_name());
 
     // Arm 3: the mark appears after the look and before the first check, which refuses with nothing sent.
+    println!("DESTRUCTION step=arm-3-build");
     fixture.teardown();
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let first_recorded: RecordedBinding = fixture.recorded();
@@ -242,6 +248,7 @@ fn the_removal_destruction_guest_arms() {
     let origin: String = fixture.origin();
     let marking: MarkingReader<'_> = MarkingReader { live: &reader, fixture: &fixture, origin: origin.as_str(), reads: Cell::new(0) };
     let quiet_device: RecordingDevice = RecordingDevice::new();
+    println!("DESTRUCTION step=arm-3-enter");
     let first_stop: RemovalStop = first_run.destroy(&marking, &quiet_device).expect_err("the first check refuses the mark that appeared after the look");
     let first_cause: OriginRefusal = cause_of(&first_stop);
     assert_eq!(first_cause.cause_name(), "origin-marked-for-deferred-destroy", "the first check is what refused");
@@ -256,6 +263,7 @@ fn the_removal_destruction_guest_arms() {
     println!("DESTRUCTION first-check=refused cause={} sent=0 lost=nothing", first_cause.cause_name());
 
     // Arm 4: the owed measurement's second half: the mark appears after the batch and before the head check.
+    println!("DESTRUCTION step=arm-4-build");
     fixture.teardown();
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let head_recorded: RecordedBinding = fixture.recorded();
@@ -268,6 +276,7 @@ fn the_removal_destruction_guest_arms() {
         }),
         calls: Cell::new(0),
     };
+    println!("DESTRUCTION step=arm-4-enter");
     let head_stop: RemovalStop = head_run.destroy(&reader, &marking_device).expect_err("the head check refuses the mark the batch's own request made");
     let head_cause: OriginRefusal = cause_of(&head_stop);
     assert_eq!(head_cause.cause_name(), "origin-marked-for-deferred-destroy", "the head check is what refused");
@@ -289,6 +298,7 @@ fn the_removal_destruction_guest_arms() {
     println!("DESTRUCTION head-check=refused cause={} plan=kept registration=kept", head_cause.cause_name());
 
     // Arm 5: a replacement clone whose different origin is marked, in place before the run.
+    println!("DESTRUCTION step=arm-5-build");
     fixture.teardown();
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let replacement_recorded: RecordedBinding = fixture.recorded();
@@ -302,6 +312,7 @@ fn the_removal_destruction_guest_arms() {
     fixture.run("zfs", &["clone", format!("{checkout}@{OTHER_ORIGIN}").as_str(), fixture.clone().as_str()]);
     fixture.run("zfs", &["destroy", "-d", format!("{checkout}@{OTHER_ORIGIN}").as_str()]);
     let replacement_device: RecordingDevice = RecordingDevice::new();
+    println!("DESTRUCTION step=arm-5-enter");
     let replacement_stop: RemovalStop = replacement_run.destroy(&reader, &replacement_device).expect_err("a replacement clone is not the planned one");
     let replacement_message: String = replacement_stop.message();
     match &replacement_stop {
