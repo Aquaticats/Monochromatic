@@ -212,7 +212,7 @@ the runner sends `{ "type": "bash", "command": "printf poked" }`.
 The control arm is the same bundle with only `deliverAs:\`steer\`` rewritten to `followUp`.
 Harness files,
 kept outside the repository with the run outputs:
-`~/temp/agent/bash-poke-steer-delivery-check-2026-11-25/scratch/run-busy-agent-arm.ts`
+`~/temp/agent/bash-poke-steer-delivery-check-2026-11-25/keep/harness/run-busy-agent-arm.ts`
 and `busy-agent-fixture.ts` beside it.
 
 Results on 2026-11-25:
