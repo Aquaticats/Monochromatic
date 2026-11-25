@@ -1113,6 +1113,11 @@ mod zfs_holder_scan_guest;
 #[path = "binary_zfs_doctor_route_guest_tests.rs"]
 mod zfs_doctor_route_guest;
 
+/// Plan step 20's Sanoid coverage, exclusions, prune and guard scope in the throwaway guest:
+/// Sanoid 2.3.0 with the Ubuntu package's 2.2.0 beside it.
+#[path = "binary_zfs_sanoid_coverage_guest_tests.rs"]
+mod zfs_sanoid_coverage_guest;
+
 /// Plan step 12's slot classes and `git worktree move` refusal in the throwaway guest.
 #[path = "binary_zfs_slot_state_guest_fixture.rs"]
 mod zfs_slot_state_guest_fixture;
