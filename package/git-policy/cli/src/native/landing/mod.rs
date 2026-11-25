@@ -64,6 +64,21 @@ pub mod claim_time;
 /// The repositories the service looks at again when a claim another instance holds may have run out.
 pub mod service_retry;
 
+/// The bytes of one note the claim watch keeps:
+/// the format words,
+/// the bound on its length,
+/// and the spelling of a path in hexadecimal.
+pub mod service_claim_watch_note_format;
+
+/// What the notes of one claim watch say about the repositories they name,
+/// read without keeping anything.
+pub mod service_claim_watch_watched_repositories;
+
+/// Writing a note:
+/// the landing's own write,
+/// and the store's write under the first free name.
+pub mod service_claim_watch_writing_a_note;
+
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
@@ -460,6 +475,16 @@ pub mod service_work_common_directory;
 /// acceptance rules,
 /// settling and replanning of the service's work.
 pub mod service_work_handlers_replanning_and_acceptance;
+
+/// The bodies a wave of one kind asks of its handler,
+/// and the line one answer that is done writes.
+pub mod service_work_drain_waves_of_one_kind;
+
+/// The push step of one round:
+/// the pushes grouped by branch,
+/// the branches run beside each other,
+/// and each settled as its own answer comes.
+pub mod service_work_drain_pushes_of_each_branch;
 
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
