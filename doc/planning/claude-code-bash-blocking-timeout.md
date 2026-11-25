@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:31:28-05:00.
+State recorded 2026-11-25T17:38:22-05:00.
 
 ## Requirement as stated
 
@@ -219,8 +219,9 @@ The rewrite spreads the complete original Bash input so `description` and unrela
 The output-filter script reads stdin to EOF before emitting filtered text.
 A moved filtered command therefore has no filtered output available mid-run,
 and a filtered command terminated at its foreground timeout can lose output buffered in the filter.
-This is an accepted limitation of retaining the existing filter under the chosen timeout policy,
-not a reason to invent a streaming-filter redesign in this change.
+This consequence was not covered by the earlier user answers and is an open design decision.
+It must not be described as accepted until the user chooses between retaining buffering
+and changing the filter's streaming behavior.
 
 Only `agent_id` identifies a native subagent for this boundary.
 A main session started with `--agent` can carry `agent_type` without `agent_id` and remains in scope.
@@ -234,10 +235,20 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-The design frontier is empty.
-No behavior remains silently assumed from the answered branches.
+One reopened decision remains:
 
-A fresh cross-vendor review of the final record and probe evidence remains required
+- `filter-output-buffering`:
+  retain the filter's read-to-EOF behavior with its interim-output and termination-loss consequences,
+  or redesign it to stream filtered lines.
+
+The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
+which production accepts.
+The tested `sleep 3` evidence remains valid,
+but implementation tests must use the production predicate and include those differential cases.
+The scratch wrapper probes exercise the real filter executable,
+not production allowlist and denylist composition.
+
+A fresh substantive cross-vendor review of the final record and probe evidence remains required
 before the user is asked to confirm shared understanding.
 Implementation stays unauthorized until that confirmation.
 
