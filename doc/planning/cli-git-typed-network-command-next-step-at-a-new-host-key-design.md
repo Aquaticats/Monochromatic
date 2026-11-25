@@ -528,14 +528,14 @@ and the owner is free to pick any of the six.
 - A: nothing changes, and a person at a new host key or with a key no agent holds still reads OpenSSH's line and
   Git's `fatal:` with no next step.
 
-Every sentence here offers `plain ssh <host>` as the way forward.
+The host-key sentences offer an `ssh` command as the way forward.
 That works when the person's options are in the configuration plain `ssh` reads; when they come from
 `GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH`, the advised `ssh` reads other settings, adds the key to another
-file, and the typed command is refused again: measured this round, plain `ssh -F <the person's config> target`
-accepted the key into the default `known_hosts` (one line) while the typed clone, whose known-hosts file was named
-by `GIT_SSH_COMMAND`, still ended 128 (`o-advice-gsc-ssh` and `o-advice-gsc-clone-after`); the same `ssh` with the
-person's own `-o UserKnownHostsFile=<their file>` accepted the key there and the clone then ended 0
-(`o-advice-gsc-ssh-with-option` and `o-advice-gsc-clone-after-option`).
+file, and the typed command is refused again: measured this round, with `-F` standing in for the person's
+`~/.ssh/config`, the advised `ssh` accepted the key into the default `known_hosts` (one line) while the typed clone,
+whose known-hosts file was named by `GIT_SSH_COMMAND`, still ended 128 (`o-advice-gsc-ssh` and
+`o-advice-gsc-clone-after`); the same `ssh` with the person's own `-o UserKnownHostsFile=<their file>` accepted the
+key there and the clone then ended 0 (`o-advice-gsc-ssh-with-option` and `o-advice-gsc-clone-after-option`).
 
 ### The second question: does the wrapper read the remote first
 
@@ -1293,6 +1293,8 @@ clears the terminal's output processing writes exactly plain Git's bytes then (m
 Cons: the four effects listed under "The measurements" on every captured stream, of which one is removable by the
 wrapper (the doubled carriage return) and the display by a flag the person types, while the escape in front of a
 relayed line and the terminal answer for every descendant are the price of the terminal;
+a captured stream also gains Git's colour, one `\033[K` and four colour sequences on each rejected-ref and `error:`
+line of a failed push, which C's pipe never carries;
 the wrapper owns the pty's life and the child's wait, as C owns the pipe's;
 and a `ssh -q` transcript still yields nothing.
 
@@ -1645,10 +1647,10 @@ at `LogLevel=FATAL` a plain `ssh` prints `Host key verification failed.` alone, 
 does not hold there;
 with `BatchMode` in the configuration plain `ssh` reads, that `ssh` cannot ask either;
 and when the person's options come from `GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH`, the advised `ssh target`
-reads other settings: measured this round, it accepted the key into the default `known_hosts` while the typed
-command, whose known-hosts file the variable named, was refused again (`o-advice-gsc-ssh` and
-`o-advice-gsc-clone-after`); the advice works when the person passes the same option to it
-(`o-advice-gsc-ssh-with-option` then `o-advice-gsc-clone-after-option` ends 0).
+reads other settings: measured this round, with `-F` standing in for the person's `~/.ssh/config`, the advised
+`ssh` accepted the key into the default `known_hosts` while the typed command, whose known-hosts file the variable
+named, was refused again (`o-advice-gsc-ssh` and `o-advice-gsc-clone-after`); the advice works when the person
+passes the same option to it (`o-advice-gsc-ssh-with-option` then `o-advice-gsc-clone-after-option` ends 0).
 
 ### The same refusal when the person's own setting refuses to ask
 
