@@ -16,12 +16,19 @@
 //!  "What proves ownership").
 //!  While a mount covers the slot,
 //!  the recorded underlay identity cannot be read at that path,
-//!  so the comparison refuses there rather than calling the clone's own root another folder;
-//!  what the mounted case compares is measurement `M2`'s and the wiring step's.
+//!  so the proof compares the mount the kernel shows there instead:
+//!  a mount of the clone the record names is this slot's,
+//!  and any other mount,
+//!  or a mount table that cannot be read,
+//!  refuses rather than calling the clone's own root another folder
+//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+//!  "What proves ownership",
+//!  measurement `M2`,
+//!  and `doc/decisions`' record of the second gate review's `N5`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const proof = proveTheRegistration(facts, repository, registration); // throws the fact that differed
+//! const proof = proveTheRegistration(facts, repository, registration, mounts); // throws the fact that differed
 //! ```
 
 use super::lexical_path_resolution::the_lexical_path;
@@ -30,6 +37,8 @@ use super::recorded_lock_facts::RecordedLockFacts;
 use crate::hooks_path_values::without_trailing_newlines;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_mount::clone_slot_git_pointer::POINTER_BOUND;
+use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, clone_mount_of, read_mount_rows, slot_mount_of};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
@@ -74,11 +83,26 @@ pub enum TwoFactRefusal {
         repository: PathBuf,
     },
     /// The folder at the recorded slot path is not the folder the record names.
+    /// This is the unmounted case,
+    /// where no mount covers the slot.
     TheSlotIsNotTheRecordedFolder {
         /// The identity the record holds.
         recorded: FolderIdentity,
         /// The identity the folder answers now.
         found: FolderIdentity,
+    },
+    /// A mount stands at the recorded slot path and it is not a mount of the clone the record names.
+    AMountThatIsNotTheRecords {
+        /// What the mount table says stands there.
+        found: String,
+        /// The clone the record names.
+        recorded: String,
+    },
+    /// The mount table could not be read,
+    /// so nothing says whether a mount covers the slot.
+    TheMountTableWasNotRead {
+        /// What the read answered.
+        reason: String,
     },
     /// The record holds no slot identity to compare,
     /// which every phase after `claimed` writes.
@@ -107,6 +131,12 @@ impl TwoFactRefusal {
             }
             TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found } => {
                 format!("the folder at the recorded slot path answers the identity `{}` and the record holds `{}`", found.encode(), recorded.encode())
+            }
+            TwoFactRefusal::AMountThatIsNotTheRecords { found, recorded } => {
+                format!("a mount stands at the recorded slot path and it is not the clone `{recorded}` this slot's record names ({found})")
+            }
+            TwoFactRefusal::TheMountTableWasNotRead { reason } => {
+                format!("the mount table could not be read ({reason}), so nothing says whether a mount covers the slot and the record's own folder is not compared through one")
             }
             TwoFactRefusal::NoRecordedSlotIdentity => String::from("the record holds no slot identity, which every phase after the claim writes"),
             TwoFactRefusal::Unreadable { what, cause } => format!("{what} could not be read ({})", cause.words()),
@@ -147,6 +177,11 @@ fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<P
 ///  the `gitdir` back-link,
 ///  and the `commondir` name the registration,
 ///  and a folder whose identity differs is not the folder the add recorded.
+///  While a mount covers the slot that folder is the clone's root and not the underlay
+///  the record identified,
+///  so a record whose clone the mount table shows at the slot is proved through the
+///  clone's name instead,
+///  and any other mount there is refused rather than compared.
 ///
 /// # Errors
 /// The fact that differed,
@@ -154,9 +189,9 @@ fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<P
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// proveTheRegistration(facts, repository, registration);
+/// proveTheRegistration(facts, repository, registration, mounts);
 /// ```
-pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path) -> Result<(), TwoFactRefusal> {
+pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets) -> Result<(), TwoFactRefusal> {
     let gitdir: Reading = record_bytes(registration, GITDIR_FILE_NAME)?;
     if let Reading::Refused(cause) = gitdir {
         return Err(TwoFactRefusal::Unreadable { what: format!("`{}`", registration.join(GITDIR_FILE_NAME).display()), cause });
@@ -179,13 +214,43 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
         return Err(TwoFactRefusal::CommondirNamesAnotherRepository { found: common, repository: repository.to_path_buf() });
     }
     let recorded: FolderIdentity = facts.slot_identity.ok_or(TwoFactRefusal::NoRecordedSlotIdentity)?;
-    let found: FolderIdentity = FolderIdentity::of_folder(facts.slot.as_path()).map_err(|error| {
-        return TwoFactRefusal::Unreadable { what: format!("the slot `{}`", facts.slot.display()), cause: ARefusedReading::Unreadable { reason: error.to_string() } };
-    })?;
-    if found != recorded {
-        return Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found });
-    }
-    return Ok(());
+    return match the_cover_at(facts, mounts) {
+        // A mount of the record's clone stands at the slot, so the folder there is the clone's root
+        // and not the underlay the add identified: the mount's own source is what names this slot.
+        CloneMount::AtItsSlot => Ok(()),
+        // Anything else standing at the slot is not this record's clone, and a table nothing read
+        // proves neither the mounted fact nor the unmounted one.
+        CloneMount::SomethingElseAtTheSlot { described } => Err(TwoFactRefusal::AMountThatIsNotTheRecords { found: described, recorded: facts.clone.dataset.clone() }),
+        CloneMount::Unreadable { reason } => Err(TwoFactRefusal::TheMountTableWasNotRead { reason }),
+        // Nothing covers the slot, or the clone is mounted somewhere else, so the recorded
+        // underlay identity is what the folder at this path must answer.
+        CloneMount::Nowhere | CloneMount::Elsewhere { .. } => {
+            let found: FolderIdentity = FolderIdentity::of_folder(facts.slot.as_path()).map_err(|error| {
+                return TwoFactRefusal::Unreadable { what: format!("the slot `{}`", facts.slot.display()), cause: ARefusedReading::Unreadable { reason: error.to_string() } };
+            })?;
+            match found == recorded {
+                true => Ok(()),
+                false => Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found }),
+            }
+        }
+    };
+}
+
+/// What:
+///  Where the record's clone stands,
+///  judged by the caller's mount table.
+/// Why:
+///  A mount of another dataset,
+///  a bind mount of a subtree,
+///  a mount at another path,
+///  and a table nothing read
+///  are four different answers,
+///  and only the clone's own root at the slot makes the recorded underlay identity
+///  unreadable there.
+fn the_cover_at(facts: &RecordedLockFacts, mounts: &dyn MountedDatasets) -> CloneMount {
+    let rows: MountRows = read_mount_rows(mounts);
+    let slot_mount = slot_mount_of(mounts, facts.slot.as_path());
+    return clone_mount_of(&rows, &slot_mount, facts.clone.dataset.as_str(), facts.slot.as_path());
 }
 
 /// Controls stay out of the release executable.

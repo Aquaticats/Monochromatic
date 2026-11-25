@@ -58,6 +58,15 @@ mod no_test_changes_the_process_directory_tests;
 #[path = "blocking_code_off_the_runtime_tests.rs"]
 mod blocking_code_off_the_runtime_tests;
 
+/// The slot glue a forwarded command reaches reads the command's words before it reads the working
+/// directory,
+/// a record or the registry,
+/// and returns between them;
+/// the command's printed answer cannot show that order.
+#[cfg(test)]
+#[path = "slot_command_reads_its_words_first_tests.rs"]
+mod slot_command_reads_its_words_first_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]

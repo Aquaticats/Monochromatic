@@ -325,12 +325,61 @@ a removal of a whole clone is refused with the slot's report (no clone removal b
 a `git worktree prune` first writes back a lost underlay pointer and refuses when nothing can be restored,
 and `git worktree repair` prints what the link can and cannot restore;
 its guest arm and VM item 6's pointer arms pass on a file-backed pool, and `source_guard` passed 80 of 80 at its tip;
-running since 2026-11-24T17:40-05:00:
-step 14's lineage proof, inventory, bookmark rule, destruction plan and removal intent built ahead, unwired (`pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead`);
-running since 2026-11-24T19:10-05:00:
-step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
-issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`),
-and step 12's move refusal reading the working directory for every forwarded command before it checks for `worktree move` (`pi-fix-move-refusal-reads-its-word-first`);
+step 14's lineage proof, inventory, bookmark rule `A: Live or planned`, destruction plan and removal intent are built ahead, unwired,
+in `src/native/worktree_clone_removal_proof_and_plan/` (merged `3271ca042c`, `source_guard` 80 of 80 at its tip);
+its guest arm on a file-backed pool showed the promoted-clone refusal with every protected snapshot surviving, reverse promotion, a stale bookmark refused by name and a replaced clone refused;
+what its wiring needs is in its report (`report-pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead.md` in `~/temp/agent/zfs-step-14-lineage-proof-and-removal-plan-built-ahead-2026-11-24/keep/`):
+the entry `enter_the_removal`, this folder's plan reader as the route's one reader for steps 15 to 18, step 10's `is_canonical_guid_name` to expose, and the `## Lifecycle` section of `SPEC.md`;
+step 13 is wired and merged (`ee44eb6656`, `source_guard` 84 of 84 and `native:check` clean on the combined tip):
+the add's resume, the one command that holds a slot's claim and proves its registration,
+classifies the lock and writes a lost one back with its one line,
+an operator's lock keeps refusing removal and a single `--force` (guest arm),
+and the release stays unreached;
+its mounted proof compares the mount's dataset name where the lock design says `cloneGuid=`,
+so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-proof-compares-the-clone-guid`, since 2026-11-24T20:30-05:00);
+step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
+held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
+and runs the proof read-only inside the refusal;
+issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
+a `source_guard` check that fails any `set_current_dir` in the crate,
+and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
+its branch conflicts with `main` in `entry_zfs_slot_commands.rs` (the move refusal's read order),
+so the round resumed at 2026-11-24T20:58-05:00 to merge `main` and resolve it (`pi-fix-tests-that-change-the-process-directory-merge-main`);
+the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
+choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
+and its Sonnet read runs since then (`~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`);
+earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
+held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
+running since 2026-11-24T19:25-05:00:
+issue 6322's fix (`pi-fix-removal-keeps-journals-of-gone-worktrees`),
+since a removal keeps the commit service's journal for `rules-repository` or a `claim-watch` naming only the removed worktree,
+which has left 595 journals of removed worktrees among 663 (56 MB) in the service state folder;
+merged as `a4632b1e02` (issue 6322 closed),
+and its build run once on this machine at 2026-11-24T20:20-05:00 removed 594 journals and stopped 76 units of removed worktrees
+(the state folder went from 669 entries to 75; a whole archive of it first is `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/service-state-before-clearing.tar.zst`,
+the command's lines beside it);
+7 instances no record names stay untouched,
+and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
+when the same command clears it;
+the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt;
+the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
+the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
+which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
+its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
+its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
+which lifts the machine-wide memory stall that pauses new starts;
+that control now derives the refusal it expects from the device layer, so it holds with and without `/dev/zfs`
+(merged `c12b45dfc4`; red then green in the gate image itself),
+and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
+(added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
+the image build now has its own measured bound, 8 GiB against a measured peak of 5,363.4 MiB uncapped,
+while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` still sets both
+(merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
+that round also found `package/container-limit/core`'s ledger test failing on `main`:
+16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456,
+its round `pi-fix-container-start-sites-ledger` running since 2026-11-24T20:40-05:00);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
@@ -567,9 +616,34 @@ typed Clippy bans on `std::env::args` and `args_os`,
 and the two modes the owner's answers need:
 `record-checkout --checkout <path>` (step 10's option E)
 and `mount-path-descendant --dataset <name>` (step 19's later mounter).
-Running:
-a Sonnet read of it that writes the eight choices for the owner
-(`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/`).
+Its Sonnet read (`report-sonnet-read-of-the-third-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/keep/`)
+found the `mount-path-descendant` rule refusing the one dataset the step 19 record names
+(`zpcachyos/nosnap/vm-builder-output` is not named under the checkout dataset, only mounted under the checkout path),
+no way for `record-checkout` to record a checkout again after a restore gives it a new GUID,
+nine guard variants that pass the printed guards (five change the names module's decisions, two read `argv[0]` in `main`),
+evidence labels naming logs that do not hold the claim,
+statements in choices 1, 4, 5 and 6 that are wrong,
+and a warm-start paragraph that concludes against its own data;
+it asks that the panic hook be its own choice
+and that the nested unit keep `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run.
+The fourth revision folding all of it merged as `4993ad866e`
+(report `report-pi-zfs-root-modes-fourth-revision.md` in `~/temp/agent/zfs-root-modes-fourth-revision-2026-11-24/keep/`):
+the nested rule is mountpoint-only,
+the unit keeps `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run,
+and the choices are ten, with choice 9 how a recorded checkout is replaced (`--replace` first)
+and choice 10 the panic hook in a root mode.
+Its Sonnet read (`report-sonnet-read-of-the-fourth-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/keep/`)
+found the new scan needle `/proc/self/` failing today's tree in 27 release files that read it on purpose,
+the new comment stripper hiding code after a `//` inside a string,
+more guard variants that pass and change decisions,
+no pin on `main`'s refusal arm and no binary control of it,
+choice 9 silent on what a restore or the migration's rollback does to the nested dataset's unit,
+and choice 7's deadline variable able to turn a missed deadline into a pass;
+the owner blocks for all ten choices are in that report.
+The fifth revision, briefed to weigh whole-file pins of `main.rs` and the names module against more spelling lists
+and to pose the deadline variable as its own choice, has its brief at `~/temp/agent/zfs-root-modes-fifth-revision-2026-11-24/prompt.md`
+and runs since 2026-11-24T20:21-05:00 (`pi-zfs-root-modes-fifth-revision`; the fourth round's `scratch/` stays until it ends, since the brief points at it);
+a Sonnet read of it follows, then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).

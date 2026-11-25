@@ -21,7 +21,7 @@
 //! ```
 
 use super::classify_the_managed_lock;
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
+use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec, ScriptedMounts};
 use crate::worktree_clone_managed_lock::{LockOwnership, ManagedLockState, TheWordsCause};
 use crate::worktree_clone_binding_record::EntryRow;
 use std::path::PathBuf;
@@ -59,12 +59,14 @@ fn a_finished_slot(label: &str, lock: Option<Vec<u8>>) -> (Fixture, PathBuf) {
 
 /// The class of one fixture's classification.
 fn ownership_of(fixture: &Fixture) -> LockOwnership {
-    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path()).ownership();
+    let mounts: ScriptedMounts = ScriptedMounts::nothing();
+    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts).ownership();
 }
 
 /// The state of one fixture's classification.
 fn state_of(fixture: &Fixture) -> ManagedLockState {
-    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path()).state;
+    let mounts: ScriptedMounts = ScriptedMounts::nothing();
+    return classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts).state;
 }
 
 /// S1: the sentence the record's nonce recomposes is the wrapper's managed lock,
@@ -158,7 +160,8 @@ fn the_lock_survives_the_lost_pointer() {
     let (fixture, registration): (Fixture, PathBuf) = a_finished_slot("classify-no-pointer", Some(Vec::new()));
     fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
     std::fs::remove_file(fixture.slot_path.join(".git")).expect("the pointer goes, as item 6's arm deletes it");
-    let classification = classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path());
+    let mounts: ScriptedMounts = ScriptedMounts::nothing();
+    let classification = classify_the_managed_lock(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &mounts);
     assert!(matches!(classification.state, ManagedLockState::Managed { .. }), "the lock still reads as the add's: {:?}", classification.state);
     assert!(classification.the_slot_shows_no_pointer());
     assert_eq!(crate::worktree_clone_managed_lock::the_lines(&classification, fixture.slot.as_str()).len(), 2);

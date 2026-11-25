@@ -11,7 +11,7 @@ use crate::service_commit_looking_for_what_landed::{LookForWhatLanded, looking_f
 use crate::service_instance::{instance_of, service_unit_instance};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, Intent, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION, intent_text};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
+use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine, write_a_claim_watch_note};
 use crate::service_units_of_removed_worktrees::{stop_own_socket_of_a_gone_worktree, stop_units_of_gone_worktrees};
 use crate::test_support::{fixture, git_context, remove};
 use std::time::SystemTime;
@@ -384,36 +384,216 @@ fn a_finished_record_of_an_earlier_release_is_judged_by_its_modification_time() 
 ///  A journal that holds the after-commit records of its instance keeps the journal
 ///  and names each of them for what it is.
 /// Why:
-///   Those records are what a service of this worktree reads when it starts again,
+///   The pushes a service kept are what a service of this worktree reads when it starts again,
 /// so they are work a person may want,
 /// and a notice that calls them a folder this release does not know tells them nothing about what they would lose.
+/// The claim watch's own answers are in the controls below.
 #[test]
 fn a_journal_of_after_commit_work_stays_and_is_named_for_what_it_holds() {
-    for (directory, reason) in [
-        (
-            crate::service_claim_watch::WATCH_DIRECTORY,
-            "the repositories this service was still to look at, which a service of this worktree reads when it starts again",
-        ),
-        (
-            crate::push_retry::PLAN_DIRECTORY,
-            "the pushes this service was still to try again, which a service of this worktree reads when it starts again",
-        ),
-    ] {
-        let root: PathBuf = fixture(format!("files-after-commit-{directory}").as_str());
-        let state: PathBuf = root.join("state");
-        let instance: &str = "0000000000000000000000000000000f";
-        let journal: PathBuf = journal_folder(state.as_path(), instance);
-        std::fs::create_dir_all(journal.join(directory)).expect("a folder of the after-commit work");
-        std::fs::write(journal.join(directory).join("a-record"), b"a record of work the service had left").expect("a record in it");
-        let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
-            Some(JournalAfterStop::HoldsWork(kept)) => kept,
-            other => panic!("{directory} keeps the journal and is named: {other:?}"),
-        };
-        assert_eq!(kept.entry, directory);
-        assert_eq!(kept.reason, reason, "{directory} is named for what it is, not as a folder this release does not know");
-        assert!(journal.exists(), "a journal of after-commit work stays");
-        remove(root.as_path());
-    }
+    let root: PathBuf = fixture("files-after-commit");
+    let state: PathBuf = root.join("state");
+    let instance: &str = "0000000000000000000000000000000f";
+    let journal: PathBuf = journal_folder(state.as_path(), instance);
+    std::fs::create_dir_all(journal.join(PLAN_DIRECTORY)).expect("the folder of the pushes to try again");
+    std::fs::write(journal.join(PLAN_DIRECTORY).join("a-record"), b"a push the service had left").expect("a record in it");
+    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+        Some(JournalAfterStop::HoldsWork(kept)) => kept,
+        other => panic!("the pushes keep the journal and are named: {other:?}"),
+    };
+    assert_eq!(kept.entry, PLAN_DIRECTORY);
+    assert_eq!(kept.reason, "the pushes this service was still to try again, which a service of this worktree reads when it starts again");
+    assert!(journal.exists(), "a journal of a pending push stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A file in the claim watch that is not a note this release wrote keeps the journal and is named,
+///  because nothing in it is discarded on a guess.
+/// Why:
+///   A note is the format words and one path's bytes in hexadecimal;
+/// a name that holds anything else is no note this store wrote,
+/// and a person who is told its name can decide about it.
+#[test]
+fn a_claim_watch_file_this_release_does_not_explain_keeps_the_journal() {
+    let root: PathBuf = fixture("files-claim-watch-unexplained");
+    let state: PathBuf = root.join("state");
+    let instance: &str = "0000000000000000000000000000000f";
+    let journal: PathBuf = journal_folder(state.as_path(), instance);
+    std::fs::create_dir_all(journal.join(WATCH_DIRECTORY)).expect("a claim watch");
+    std::fs::write(journal.join(WATCH_DIRECTORY).join("a-record"), b"a record of work the service had left").expect("a record in it");
+    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+        Some(JournalAfterStop::HoldsWork(kept)) => kept,
+        other => panic!("a claim watch file this release does not explain keeps the journal: {other:?}"),
+    };
+    assert_eq!(kept.entry, format!("{WATCH_DIRECTORY}/a-record"));
+    assert_eq!(kept.reason, "a file in the claim watch that this release does not explain");
+    assert!(journal.exists(), "the journal stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A stopped instance whose journal holds the records of the batches that landed
+///  and the repository its service remembered for its rules warm goes with its units.
+/// Why:
+///   The remembered repository names a repository and carries no record of a commit;
+/// nothing in that journal is work a person may still want,
+/// and before this every removal left such a folder behind and asked them to look at it
+/// (issue 6322).
+#[test]
+fn the_journal_of_finished_batches_and_the_remembered_repository_goes_with_the_units() {
+    let machine: Machine = machine("files-remembered-repository");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = machine.settled_journal_of(instance.as_str());
+    let remembered: String = String::from("/nowhere/a-repository\n");
+    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), remembered.as_bytes()).expect("the repository the service remembered");
+    std::fs::write(
+        journal.join(format!("{}{}", crate::service_rules_precompile::REMEMBERED_FILE, crate::service_rules_precompile::REMEMBERED_STAGING_ENDING)),
+        remembered.as_bytes(),
+    )
+    .expect("the staging copy of the repository the service remembered");
+    age_a_journal(journal.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.stopped, vec![instance.clone()]);
+    assert!(outcome.journals_kept.is_empty(), "nothing in it asks a person: {:?}", outcome.journals_kept);
+    assert_eq!(outcome.journals_removed, vec![(instance, journal.clone())], "the command says which journal it removed and where it was");
+    assert!(!journal.exists(), "a journal of landed batches and the remembered repository carries no work");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A stopped instance whose claim watch names only the removed worktree itself goes with its units.
+/// Why:
+///   A look at such a note lists the work directory of the repository it names,
+/// which is inside the Git directory the removal deleted,
+/// so the note leads a service to nothing and its only reader was the service of the worktree that is gone.
+#[test]
+fn the_journal_whose_claim_watch_names_only_the_removed_worktree_goes_with_the_units() {
+    let machine: Machine = machine("files-claim-watch-gone");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = machine.settled_journal_of(instance.as_str());
+    write_a_claim_watch_note(journal.as_path(), gone.as_path());
+    age_a_journal(journal.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.stopped, vec![instance.clone()]);
+    assert!(outcome.journals_kept.is_empty(), "nothing in it asks a person: {:?}", outcome.journals_kept);
+    assert!(!journal.exists(), "a claim watch of the removed worktree leads a service to nothing");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A journal whose claim watch names a repository that still holds its work directory keeps the journal,
+///  and the line names that repository and the note.
+/// Why:
+///   The note's only reader is a service of this instance,
+/// and a service of this instance reads it when its worktree is back at that path (`service_claim_watch.rs`);
+/// what it points at is that repository's own work directory, which is still there,
+/// so leaving the journal costs a folder and discards nothing.
+#[test]
+fn a_journal_whose_claim_watch_names_a_repository_that_is_still_there_is_kept_and_named() {
+    let root: PathBuf = fixture("files-claim-watch-there");
+    let state: PathBuf = root.join("state");
+    let instance: &str = "0000000000000000000000000000000f";
+    let journal: PathBuf = journal_folder(state.as_path(), instance);
+    let alive: PathBuf = root.join("alive/.git");
+    std::fs::create_dir_all(alive.join("monochromatic-git-policy-cli/work")).expect("a repository with the work directory a look reads");
+    write_a_claim_watch_note(journal.as_path(), alive.as_path());
+    age_a_journal(journal.as_path());
+    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+        Some(JournalAfterStop::HoldsWork(kept)) => kept,
+        other => panic!("a note of a repository that is there keeps the journal and is named: {other:?}"),
+    };
+    assert_eq!(kept.entry, format!("{WATCH_DIRECTORY}/0123456789abcdef-0.watch"));
+    assert!(kept.reason.contains(alive.display().to_string().as_str()), "the line names the repository the note names: {}", kept.reason);
+    assert!(journal.exists(), "the journal stays while the repository the note names is there");
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal that holds a batch that did not land keeps the whole journal,
+///  beside a remembered repository,
+///  landed batches and a claim watch of the removed worktree that alone would have gone.
+/// Why:
+///   The record of a commit that has not landed is the only place the request and the commit are written together,
+/// so it decides the journal however many entries beside it are the service's own.
+#[test]
+fn a_journal_of_a_batch_that_did_not_land_keeps_the_entries_the_removal_would_discard() {
+    let machine: Machine = machine("files-unlanded-beside-discards");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = machine.settled_journal_of(instance.as_str());
+    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), b"/nowhere/a-repository\n").expect("the repository the service remembered");
+    write_a_claim_watch_note(journal.as_path(), gone.as_path());
+    let intent: PathBuf = journal.join(format!("7.{OPEN_EXTENSION}"));
+    std::fs::write(intent.as_path(), b"seq=7\n").expect("a batch that did not land");
+    age_a_journal(journal.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.stopped, vec![instance.clone()]);
+    assert!(outcome.journals_removed.is_empty(), "nothing is removed from a journal that holds work: {:?}", outcome.journals_removed);
+    assert_eq!(outcome.journals_kept.len(), 1, "the command is told which journal it kept");
+    assert_eq!(outcome.journals_kept[0].1.entry, format!("7.{OPEN_EXTENSION}"));
+    assert!(intent.exists(), "the record of the commit that has not landed stays");
+    assert!(journal.exists(), "a journal that holds work is kept whole");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A journal that a removal kept, and whose note and socket file that removal forgot,
+///  is found again by the sweep and cleared once nothing in it is work.
+/// Why:
+///   A removal that kept a journal removed the note and the socket file with it,
+/// so a survey that read only those two files never saw the folder again,
+/// and the journals of removed worktrees stayed and were named to a person at every removal (issue 6322).
+/// The record of a landed batch names the Git directory, which is the proof the survey maps the instance by.
+#[test]
+fn the_sweep_clears_a_journal_of_a_removed_worktree_that_no_note_or_socket_names() {
+    let machine: Machine = machine("files-journal-only");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    let journal: PathBuf = machine.journal_of(instance.as_str());
+    std::fs::write(
+        journal.join(format!("1.{DONE_EXTENSION}")),
+        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone.as_path())),
+    )
+    .expect("a landed batch that names the Git directory");
+    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), b"/nowhere/a-repository\n").expect("the repository the service remembered");
+    age_a_journal(journal.as_path());
+    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the removal that kept it took the note");
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert!(outcome.stopped.is_empty(), "no unit is left to stop: {:?}", outcome.stopped);
+    assert!(recorder.stops().is_empty(), "the manager is asked about no instance that has no unit: {:?}", recorder.stops());
+    assert_eq!(outcome.journals_removed, vec![(instance, journal.clone())], "the sweep finds the journal by its own folder and record");
+    assert!(!journal.exists());
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A journal that no note, no socket file and no record names is reported and left where it is.
+/// Why:
+///   The proof that a journal belongs to a worktree that is gone is a path that hashes to its instance;
+/// without one nothing is stopped or removed on a guess.
+#[test]
+fn the_sweep_leaves_a_journal_it_cannot_map_to_a_worktree() {
+    let machine: Machine = machine("files-journal-unmapped");
+    let instance: &str = "0000000000000000000000000000000d";
+    let journal: PathBuf = machine.settled_journal_of(instance);
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.survey.unmapped, vec![String::from(instance)], "the instance is counted, never touched");
+    assert!(outcome.journals_removed.is_empty());
+    assert!(journal.exists(), "a journal nothing names stays");
+    remove(machine.root.as_path());
 }
 
 /// What:

@@ -193,6 +193,7 @@ await describe({
             },),).toEqual({
               limits: defaultContainerLimits,
               rest: [],
+              givenFlags: [],
             },);
           },
         },),
@@ -293,6 +294,7 @@ await describe({
                 memory: '4g',
               },
               rest: ['--list', '--core', '--shard', '1/3'],
+              givenFlags: ['--memory'],
             });
           },
         }),
@@ -305,6 +307,7 @@ await describe({
             })).toEqual({
               limits: defaultContainerLimits,
               rest: ['--core', '--memory', '4g'],
+              givenFlags: [],
             });
           },
         }),
@@ -333,7 +336,32 @@ await describe({
                 '--file',
                 'src/native/lock.rs',
               ],
+              givenFlags: [
+                '--memory',
+                '--cpus',
+                '--pids-limit',
+              ],
             },);
+          },
+        },),
+        it({
+          name: 'reports every limit option it read, in command-line order and one entry per repeat',
+          fn: async () => {
+            expect(parseContainerLimitOptions({
+              options: [
+                '--cpus',
+                '4',
+                '--memory',
+                '3g',
+                '--cpus',
+                '3',
+              ],
+              acceptPidsLimit: false,
+            },).givenFlags,).toEqual([
+              '--cpus',
+              '--memory',
+              '--cpus',
+            ],);
           },
         },),
         it({

@@ -63,7 +63,7 @@ pub struct EntryFacts {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Row = 'bare' | 'lock-only' | 'gitdir-only' | 'pointer-only' | 'commondir' | 'complete' | 'unlocked-complete' | 'foreign-lock' | 'other-slot' | 'other-path' | 'not-a-candidate';
+/// type Row = 'bare' | 'lock-only' | 'gitdir-only' | 'pointer-only' | 'commondir' | 'complete' | 'foreign-lock' | 'other-slot' | 'other-path' | 'not-a-candidate';
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryRow {
@@ -82,10 +82,13 @@ pub enum EntryRow {
     Commondir,
     /// Row 6: a complete registration,
     /// which the add adopts.
+    ///
+    /// What its lock is stands outside this table:
+    /// a complete entry's lock is classified into the states S1 to S4 by
+    /// `worktree_clone_managed_lock`,
+    /// and a missing one is written again by the claim holder there,
+    /// so the same lock never has two readings.
     Complete,
-    /// Row 7: a complete registration with no lock,
-    /// which step 10 has no installer for.
-    UnlockedComplete,
     /// A lock whose words are neither this add's sentence nor a covering prefix of it.
     ForeignLock,
     /// At one of this slot's candidate names,

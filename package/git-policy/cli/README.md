@@ -2200,8 +2200,10 @@ Each commit service setup writes the worktree's Git directory into the folder it
 which the manager reads as no unit,
 and which goes away with the units at logout or shutdown;
 for a unit set up before that,
-the `gitdir=` line of a record in the service's journal names the worktree.
-Either text counts only when it hashes to the instance.
+the `gitdirHex=` line of a record in the service's journal names the worktree,
+and a journal that outlived both is mapped by a note of its claim watch,
+which names a Git directory only for the instance whose journal holds it.
+Every one of those texts counts only when it hashes to the instance.
 The command stops only an instance whose Git directory is missing and whose repository is proven gone:
 the nearest directory above the Git directory that exists proves it deleted when it is the root of a mounted filesystem or holds other entries,
 while an empty one may be a drive that is not mounted yet and proves nothing
@@ -2215,12 +2217,28 @@ and a file that stayed would count the instance again.
 Its journal goes with them when it holds nothing else and no client of the instance can still read it:
 the records of the batches that landed,
 once they are older than the longest a client that lost its answer can look,
-and an empty landing record are the memory of a service that will never run again,
+an empty landing record,
+the repository the service remembered for its rules warm (`rules-repository`,
+and the `rules-repository.new` staging copy a kill left before the rename),
+and a claim watch note naming a repository whose work directory is gone are the memory of a service that will never run
+again,
 while a batch that did not land,
 a landing that was in flight,
-the repositories a service was still to look at and the pushes it was still to try again,
+a record that was written and not published,
+the pushes it was still to try again,
+a claim watch note naming a repository that still holds the work directory a look reads,
 and a file or folder this release does not know keep the whole journal,
 and the command names the entry it kept it for.
+The remembered repository names a repository and no record of a commit,
+and a claim watch note points at the work directory of the repository it names
+(`<Git directory>/monochromatic-git-policy-cli/work/pending`),
+so a note naming the removed worktree,
+or one whose repository is gone,
+leads the only service that read it,
+the removed worktree's own, to nothing.
+The command reads the journals as well as the note and the socket file,
+and names each journal it removed with its folder,
+so the journals that an earlier removal kept are cleared by a run that finds no unit beside them.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
@@ -2438,6 +2456,38 @@ and deciding between a re-registration at a commit a person names and removing t
 `git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
 wires its checks;
 this release prints them from the add's and the removal's refusals.
+
+### The Git lock a managed clone's registration holds
+
+A managed clone's Git registration is locked,
+so `git worktree prune` keeps it while the slot shows no `.git`
+(design:
+`doc/planning/cli-git-zfs-add-time-git-lock-design.md`;
+`SPEC.md`,
+"The add that registers a ZFS clone before it fills the slot").
+The add takes the lock in the same Git call that registers the worktree,
+and the words in it are a pure function of the add's own random nonce,
+so no second copy of them is stored anywhere.
+`git worktree list` shows the worktree as locked,
+and `git worktree move` and `git worktree remove` refuse it,
+which is what the wrapper wants for a slot it binds anyway.
+
+The wrapper tells three things apart by comparing bytes and never by reading the words' meaning:
+the lock its add wrote,
+a lock a person wrote,
+and a lock or registration nothing of this slot's explains.
+If the lock is gone,
+an interrupted add that holds the slot and has just proved its registration writes it again and says so in one line;
+that undoes a deliberate `git worktree unlock`,
+which is the cost the project accepted
+(`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`).
+A lock holding a person's words is never overwritten:
+the add refuses,
+says what stands,
+and names `git worktree unlock <slot>` as the way out.
+The lock is released only by the removal's registration-cleanup step,
+after the clone's destruction is proven,
+and this release does not release it.
 
 ### Converting the checkout to a btrfs subvolume
 
@@ -7701,11 +7751,35 @@ because a release waits on that gate and its suite is what the CPUs shorten
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
   read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+- The image build has a bound of its own,
+  8 GiB from `bin/native-gate-container-limits.ts` (`gateBuildMemory`),
+  because it compiles the crate's three layers at four jobs rather than running the suite.
+  The build's compile of the wrapper's own sources peaked at 5,363.4 MiB under a 10 GiB cap no step of it met,
+  and the shared 2 GiB held that step at its cap in reclaim:
+  `memory.peak` 2,048 MiB,
+  `memory.events` `max` 149,888,
+  its own `memory.pressure` some avg10 22.33,
+  29.8 s of stall over 196 s,
+  and 197.1 s against 87.2 s without the cap.
+  That reclaim is the stall the issue measured at 2026-11-24T19:20-05:00
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`),
+  and `doc/planning/git-policy-cli-cachyos-test-containers.md`
+  ("The image build's own memory bound, measured 2026-11-24") holds the arms,
+  the ratios and the bound's arithmetic.
+  Eight GiB is 1.53 times the measured peak and inside the 20 GiB the gate's own systemd unit allows.
+  The base image's own build keeps the 2 GiB default,
+  because it compiles nothing and no measurement of it exists.
+  A host with less than 8 GiB to spare runs the build from `--memory`,
+  which bounds the build and the suite together,
+  and a gate given more than four CPUs compiles more jobs at once and wants its `--memory` raised the same way.
 
 A bound a person passes after the `--` still wins,
 with one exception:
 the process bound is a floor that follows the test count,
 so a `--pids-limit` below it is raised and the gate prints the line that says so.
+A `--memory` bounds the image build as it bounds the suite's containers,
+so a host with less memory than the build's own 8 GiB is served by lowering that one value;
+the gate prints which bound each container got before it builds.
 Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:
 

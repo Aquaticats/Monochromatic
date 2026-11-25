@@ -9,8 +9,16 @@
 //!  A complete registration is adopted,
 //!  an incomplete one is cleared with the recipe,
 //!  an entry this add did not write is left alone,
-//!  and a complete registration with no lock refuses until step 13's installer lands
-//!  (the design's `V22` and the project's acceptance of it).
+//!  and an incomplete one whose lock holds words this add did not write refuses.
+//!  The lock's own state of a complete registration is not a row here:
+//!  `worktree_clone_managed_lock` classifies it into S1 to S4 and the claim holder
+//!  acts on that answer,
+//!  so the add's resume,
+//!  `doctor` and the removal read one order
+//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+//!  "The states,
+//! the checks and the words",
+//!  and "Where the code goes").
 //!  Two entries that both attribute to this add are a refusal,
 //!  because only a copied sentence could make two.
 //!
@@ -32,15 +40,17 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Decision = { kind: 'adopt'; completeTheLock: boolean } | { kind: 'clear'; row: Row } | { kind: 'refuse'; row: Row; sentence: string } | { kind: 'leave'; row: Row };
+/// type Decision = { kind: 'adopt' } | { kind: 'clear'; row: Row } | { kind: 'refuse'; row: Row; sentence: string } | { kind: 'leave'; row: Row };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryDecision {
     /// Adopt the complete registration and write the recorded fields.
-    Adopt {
-        /// Whether the lock is a covering prefix the holder completes in place.
-        complete_the_lock: bool,
-    },
+    ///
+    /// Why:
+    ///  The five facts prove the registration and nothing else is the finder's to answer:
+    ///  the lock it holds is classified by `worktree_clone_managed_lock`,
+    ///  which the claim holder asks before it writes the record.
+    Adopt,
     /// Clear the incomplete entry with the recipe.
     Clear {
         /// The row the entry answered.
@@ -54,7 +64,8 @@ pub enum EntryDecision {
         /// The sentence a person reads.
         sentence: String,
     },
-    /// Leave the entry, naming why.
+    /// Leave the entry,
+    /// naming why.
     Leave {
         /// The row that left it.
         row: EntryRow,
@@ -105,7 +116,7 @@ fn slot_pointer_path(slot_path: &Path) -> std::path::PathBuf {
 /// Whether one entry attributes itself to this add,
 /// which is what the two-match refusal counts.
 fn attributes_itself(decision: &EntryDecision) -> bool {
-    return matches!(decision, EntryDecision::Adopt { .. } | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
+    return matches!(decision, EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
 }
 
 /// What:
@@ -114,8 +125,8 @@ fn attributes_itself(decision: &EntryDecision) -> bool {
 ///  The order is the finder's whole rule:
 ///  ownership exclusion first,
 ///  then the `gitdir` back-link,
-///  then the lock's words,
-///  then the five facts that make an entry complete.
+///  then the five facts that make an entry complete,
+///  and then the lock's words for an incomplete one.
 ///  An empty or too-short lock attributes nothing,
 ///  so a row whose other names pick it is cleared as that row says.
 ///
@@ -133,14 +144,14 @@ pub fn decide(entry: &EntryFacts, slot: &str, slot_path: &Path, nonce: &RequestN
     if entry.gitdir.as_deref().is_some_and(|gitdir| return gitdir != slot_pointer_path(slot_path)) {
         return EntryDecision::Leave { row: EntryRow::AnotherSlotsRegistration };
     }
-    let standing: Option<LockStanding> = match entry.locked.as_deref() {
-        None => None,
-        Some(bytes) => match lock_standing_of(bytes, nonce) {
-            LockStanding::Foreign if is_a_prefix_of_the_sentence(bytes, nonce) => None,
-            found => Some(found),
-        },
-    };
-    if standing == Some(LockStanding::Foreign) {
+    let pointer_stands: bool = entry.slot_git_pointer.as_deref().is_some_and(|bytes| return !bytes.is_empty());
+    if entry.gitdir.is_some() && entry.commondir && entry.head && pointer_stands {
+        return EntryDecision::Adopt;
+    }
+    let foreign: bool = entry.locked.as_deref().is_some_and(|bytes| {
+        return lock_standing_of(bytes, nonce) == LockStanding::Foreign && !is_a_prefix_of_the_sentence(bytes, nonce);
+    });
+    if foreign {
         let first_line: String = entry
             .locked
             .as_deref()
@@ -151,20 +162,6 @@ pub fn decide(entry: &EntryFacts, slot: &str, slot_path: &Path, nonce: &RequestN
             sentence: format!(
                 "the registration at `worktrees/{}` is this slot's and its lock holds words this add did not write (`{first_line}`), so a person's lock stands on it. Nothing was removed or rewritten. Ways forward: run `git worktree unlock {slot}` if the worktree is to be resumed, or remove it with `git worktree remove {slot}`.", entry.name
             ),
-        };
-    }
-    let pointer_stands: bool = entry.slot_git_pointer.as_deref().is_some_and(|bytes| return !bytes.is_empty());
-    let complete: bool = entry.gitdir.is_some() && entry.commondir && entry.head && pointer_stands;
-    if complete {
-        return match standing {
-            Some(LockStanding::Verified) => EntryDecision::Adopt { complete_the_lock: false },
-            Some(LockStanding::CutShort { .. }) => EntryDecision::Adopt { complete_the_lock: true },
-            _ => EntryDecision::Refuse {
-                row: EntryRow::UnlockedComplete,
-                sentence: format!(
-                    "the registration at `worktrees/{}` is this slot's and holds no lock this add wrote, so `git worktree prune` can remove it. Nothing was removed or rewritten, because this release has no installer for a lost lock until step 13 lands. Ways forward: lock it again with `git worktree lock --reason '<the sentence this release prints>' {slot}`, or remove the worktree with `git worktree remove {slot}` and run the add again.", entry.name
-                ),
-            },
         };
     }
     if entry.gitdir.is_none() && entry.slot_git_pointer.is_none() && entry.slot_other_entries == 0 {

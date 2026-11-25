@@ -32,10 +32,11 @@
 //! ```
 
 use crate::diagnostic_log::{debug, warn};
-use crate::service_instance::{socket_path, try_instance_of};
+use crate::service_instance::try_instance_of;
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{
-    JournalAfterStop, UnitFolders, forget_stopped_instance, note_path, remove_journal_of_a_stopped_instance, stop_units, worktree_is_gone,
+    JournalAfterStop, UnitFolders, forget_stopped_instance, has_units, journal_of_the_instance, remove_journal_of_a_stopped_instance, stop_units,
+    worktree_is_gone,
 };
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
 use crate::worktree_remove_plan::RemovePlan;
@@ -44,6 +45,10 @@ use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalStopsUnits";
+
+/// The command that clears the journals of removed worktrees,
+/// named in every line that keeps one.
+const STOP_UNITS_OF_REMOVED_WORKTREES: &str = "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
 
 /// The worktree a removal is about to remove,
 /// as its units know it.
@@ -91,21 +96,6 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
 }
 
 /// What:
-/// Whether any unit of the worktree could exist:
-/// its socket file or its note is there.
-/// Why:
-///   A worktree that never committed has no unit,
-/// and then the removal need not connect to the manager at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// hasUnits(folders, instance) // socket file or note
-/// ```
-fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
-    return socket_path(folders.runtime_dir, instance).exists() || note_path(folders.runtime_dir, instance).exists();
-}
-
-/// What:
 /// Stops the units of the worktree after a removal,
 /// when its Git directory is gone and it had units,
 /// and removes the note,
@@ -118,6 +108,8 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 /// or for a service the manager does not yet report gone,
 /// keeps the note and the socket file too,
 /// and the next sweep finishes when both are over.
+/// A journal kept for work a person may want is named with what kept it,
+/// and the command that removes it once that work is over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,7 +134,7 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
             warn(
                 TAG,
                 format!(
-                    "the journal of the removed worktree {} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
+                    "the journal of the removed worktree {} is kept at {}, because it holds {}, {}; nothing in it was removed: look at it and remove it by hand if nothing in it is wanted, and `{STOP_UNITS_OF_REMOVED_WORKTREES}` removes it once it holds nothing a person may still want",
                     about.git_dir.display(),
                     kept.journal.display(),
                     kept.entry,
@@ -164,7 +156,22 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
             )
             .as_str(),
         ),
-        Some(JournalAfterStop::Removed) | None => forget_stopped_instance(folders.runtime_dir, about.instance.as_str()),
+        Some(JournalAfterStop::Removed) => {
+            let journal: String = match journal_of_the_instance(folders.state_dir, about.instance.as_str()) {
+                Some(path) => path.display().to_string(),
+                None => String::from("a folder this command was given no state directory for"),
+            };
+            forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
+            debug(
+                TAG,
+                format!(
+                    "removed the service journal of the removed worktree {} at {journal}; it held no work a person may still want, so nothing of it is left to remove",
+                    about.git_dir.display()
+                )
+                .as_str(),
+            );
+        }
+        None => forget_stopped_instance(folders.runtime_dir, about.instance.as_str()),
     }
     return Ok(true);
 }

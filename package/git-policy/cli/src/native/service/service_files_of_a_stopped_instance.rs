@@ -31,9 +31,18 @@
 //! a batch whose objects a scratch reference may hold,
 //! a record that was written and not published,
 //! a landing or withdrawal record,
+//! a claim watch note naming a repository that still holds the work directory a look reads,
 //! and any name this release does not explain keep the whole journal,
 //! which is then named to the person,
 //! because work they may still want is never discarded.
+//! Two kinds of entry that asked for a person at every removal are not work:
+//! the repository the service itself remembered for its rules warm (`rules-repository`,
+//! `service_rules_precompile.rs`),
+//! which names a repository and carries no record of a commit,
+//! and a claim watch note that names the removed worktree's own Git directory,
+//! or one whose work directory is gone:
+//! a look at such a note finds `<Git directory>/monochromatic-git-policy-cli/work/pending`,
+//! which went with the directory it was under (`service_claim_watch.rs`).
 //! A batch's copy of the conclusion state (`<batch>.cleanup`) is not one of them:
 //! it is a copy of what the landing compares,
 //! made for a worktree whose units are stopped and whose files are gone,
@@ -56,13 +65,14 @@ use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
 use crate::push_retry::PLAN_DIRECTORY;
-use crate::service_claim_watch::WATCH_DIRECTORY;
+use crate::service_claim_watch::{WATCH_DIRECTORY, WatchedRepositories, watched_repositories};
 use crate::service_instance::{service_unit_instance, socket_path};
 use crate::service_journal::{CLAIM_EXTENSION, CONCLUSION_COPY_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_journal_record_age::{a_client_may_still_read, a_client_may_still_read_finished_batch, modified_time_of};
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
+use crate::service_rules_precompile::is_the_remembered_repository;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
@@ -190,8 +200,9 @@ pub enum JournalAfterStop {
 
 /// What a kept journal keeps the journal for.
 enum Kept {
-    /// Something a person may still want.
-    Work(String, &'static str),
+    /// Something a person may still want,
+    /// named with the words that say what it is.
+    Work(String, String),
     /// A finished batch a client of the instance may still read.
     Read(String, &'static str),
 }
@@ -263,11 +274,8 @@ fn reason_of_a_kept_folder(name: &str) -> &'static str {
     if name == LANDING_RECORD_DIRECTORY {
         return "a record of a landing or of a withdrawal";
     }
-    // The after-commit work of the instance: a service of this worktree reads both when it starts again,
-    // so a worktree that comes back at the same path finds its pending push and the repositories it was still to look at.
-    if name == WATCH_DIRECTORY {
-        return "the repositories this service was still to look at, which a service of this worktree reads when it starts again";
-    }
+    // The pushes of the instance: a service of this worktree reads them when it starts again,
+    // so a worktree that comes back at the same path finds its pending push.
     if name == PLAN_DIRECTORY {
         return "the pushes this service was still to try again, which a service of this worktree reads when it starts again";
     }
@@ -323,7 +331,7 @@ pub fn journal_of_the_instance(state_dir: Option<&Path>, instance: &str) -> Opti
 pub fn work_a_person_may_want(state_dir: Option<&Path>, instance: &str) -> Option<KeptJournal> {
     let journal: PathBuf = journal_of_the_instance(state_dir, instance)?;
     return match kept_entry_of(journal.as_path(), &ClaimTime::read()) {
-        Ok(Some(Kept::Work(entry, reason))) => Some(KeptJournal { journal, entry, reason: String::from(reason) }),
+        Ok(Some(Kept::Work(entry, reason))) => Some(KeptJournal { journal, entry, reason }),
         Err(reason) => Some(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
         _ => None,
     };
@@ -338,7 +346,11 @@ pub fn work_a_person_may_want(state_dir: Option<&Path>, instance: &str) -> Optio
 /// and a folder the service made and left empty (`busy`,
 /// the landing's record),
 /// are provably of no use once the instance is stopped;
-/// every other name either holds a commit a person may still want
+/// so is the repository the service itself remembered for its rules warm,
+/// which names a repository and no record of a commit,
+/// and so is a claim watch note that names a repository whose work directory is gone,
+/// which is the directory a look would list.
+/// Every other name either holds a commit a person may still want
 /// or is a name this release does not explain,
 /// and guessing about one of those would discard work.
 /// A finish record is no use either,
@@ -396,10 +408,29 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
             if is_a_conclusion_copy(name.as_str()) {
                 continue;
             }
-            if !holds_nothing(path.as_path())? {
-                return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_folder(name.as_str()))));
+            if holds_nothing(path.as_path())? {
+                continue;
             }
-            continue;
+            // A claim watch note is a pointer: a look at it lists the work directory of the repository it names, so a
+            //  note that names this worktree, or any repository whose work directory is gone, leads a service to
+            //  nothing. A note that names a repository which still holds its work directory keeps the journal and is
+            //  named, because a service of this instance reads it when the worktree is back at that path.
+            if name == WATCH_DIRECTORY {
+                match watched_repositories(path.as_path()) {
+                    WatchedRepositories::AllGone => continue,
+                    WatchedRepositories::StillThere { git_dir, note } => {
+                        return Ok(Some(Kept::Work(
+                            format!("{name}/{note}"),
+                            format!(
+                                "a note of the repository {}, which still holds the work directory a look reads, and which a service of this instance reads when its worktree is back at that path",
+                                git_dir.display()
+                            ),
+                        )));
+                    }
+                    WatchedRepositories::Unexplained { entry: unreadable, reason } => return Ok(Some(Kept::Work(format!("{name}/{unreadable}"), reason))),
+                }
+            }
+            return Ok(Some(Kept::Work(name.clone(), String::from(reason_of_a_kept_folder(name.as_str())))));
         }
         if is_finished_memory(name.as_str()) {
             if a_client_may_still_read_finished_batch(path.as_path(), now) {
@@ -407,7 +438,12 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
             }
             continue;
         }
-        return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_file(name.as_str()))));
+        // The repository the service remembered for its rules warm names a repository and carries no record of a
+        //  commit, so nothing in it is work a person may still want, and it goes with the finished batches.
+        if is_the_remembered_repository(name.as_str()) {
+            continue;
+        }
+        return Ok(Some(Kept::Work(name.clone(), String::from(reason_of_a_kept_file(name.as_str())))));
     }
     return Ok(readable);
 }
@@ -454,7 +490,7 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
                 JournalAfterStop::Removed
             }
         }
-        Ok(Some(Kept::Work(entry, reason))) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry, reason: String::from(reason) }),
+        Ok(Some(Kept::Work(entry, reason))) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry, reason }),
         Ok(Some(Kept::Read(entry, reason))) => JournalAfterStop::StillRead(KeptJournal { journal, entry, reason: String::from(reason) }),
         Err(reason) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
     });

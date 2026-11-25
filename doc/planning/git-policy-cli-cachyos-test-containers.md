@@ -681,6 +681,9 @@ Two passing runs say it has not been killed for memory yet,
 and nothing more.
 The first gate that fails Clippy on memory is when to move it,
 and `--memory 4g` is the option that does it.
+That bound is the suite's and Clippy's and stays theirs;
+the image build shared it until 2026-11-24 and now has one of its own,
+measured in "The image build's own memory bound, measured 2026-11-24" below.
 
 The whole gate was then run twice through `bin/test-native-container.ts` with the changes in place,
 tagged `gate-wall-time-after`,
@@ -753,6 +756,106 @@ with the same `CARGO_INCREMENTAL=1` making it pass.
 failed with "no descriptor limit let the commit land" in gates `prewarm-control-incremental` and `630cba63d4` at two
 CPUs,
 so it is not this change either.
+
+### The image build's own memory bound, measured 2026-11-24
+
+The gate's image build ran under the repository's shared 2 GiB container bound until this measurement,
+because that bound was the default and no reading of the build existed.
+At 2026-11-24T19:20-05:00 its compile sat at 2,047 MiB of it,
+its own `memory.pressure` at some avg10 6.48,
+while the host had 27,529 to 30,132 MiB available
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+"Catalog: a rising stall from one capped container, at 2026-11-24T19:20:00-05:00").
+A compile held at its own cap runs in reclaim and swap instead of RAM,
+and that lifts the machine-wide stall figure that decides whether new work may start (issue 6455).
+
+Three arms were built, one build each,
+and they are the round's whole measurement rather than repeated runs:
+each is a `podman build --no-cache` of the gate's own test image
+from the same snapshot, stand-ins, vendored sources and Containerfile text that `bin/test-native-container.ts` writes,
+at the gate's own CPU count (`--cpu-period=100000 --cpu-quota=400000`, so `CARGO_BUILD_JOBS=4`),
+in its own `systemd-run --user --scope` of six CPUs, 12 GiB and 2,000 tasks.
+Every build container's own cgroup was read every 250 ms:
+`memory.peak`, `memory.current`, `memory.max`, `memory.pressure`, `memory.events`, `cpu.stat` and `pids.peak`.
+Podman gives each build container a scope of its own beside the harness's, so a step's peak and its own stall are
+readable per step;
+the harness's copy of the readings is in
+`~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/arms/`,
+and the harness and the summariser that produced them are in that folder's `keep/harness/`.
+
+The arms ran in this order, host load at each start being what the day had:
+
+- Arm a, `--memory=2g` (today's bound, the control),
+  started 2026-11-24T19:51:18-05:00,
+  build 574.1 s,
+  load 19.16.
+  Its build containers were not sampled:
+  the harness then read only a scope's own `cgroup.procs`,
+  and a build container's processes live in the scope's `container` child,
+  so the peaks below are the two later arms' and this arm's own five-second samples of the compile it was held at.
+- Arm b, `--memory=10g` (a cap no step of it met),
+  started 2026-11-24T20:04:12-05:00,
+  build 454.2 s,
+  load 12.34.
+- Arm c, `--memory=2g` (the control again, which bounds the round's run-to-run spread),
+  started 2026-11-24T20:14:18-05:00,
+  build 549.1 s,
+  load 11.45.
+
+At four jobs the image build compiles three layers,
+and each is its own container with its own bound:
+
+- The dependency layer (build step 8) peaked at 1,247.3 MiB under 10 GiB and at 1,302.4 MiB under the 2 GiB,
+  so the shared default never bound it;
+  it took 111.9 s in arm b and 110.6 s in arm c.
+- The path-crate layer (step 15) peaked at 2,876.2 MiB under 10 GiB.
+  Under the 2 GiB it reached 2,048.0 MiB and stayed there:
+  `memory.events` `max` 9,437, some avg10 6.07, 1.1 s of stall,
+  52.2 s against arm b's 54.3 s.
+- The wrapper's own sources (step 17), which recompile the crate and every test target,
+  peaked at 5,363.4 MiB under 10 GiB with 0.1 s of stall in 87.2 s.
+  Under the 2 GiB it reached 2,048.0 MiB and stayed there too:
+  `memory.events` `max` 149,888, some avg10 22.33 at its highest,
+  29.8 s of stall over 196 s of life,
+  and 197.1 s against 87.2 s, which is 2.26 times as long.
+
+Read as ratios to the controls of the same round rather than as absolute times:
+arm b's step 17 was 0.41 of arm a's and 0.44 of arm c's,
+while the two control arms differ from each other by 1.07,
+so the compile is between 2.26 and 2.42 times faster without the cap,
+which is larger than the spread the round itself showed.
+The whole build was 0.79 of arm a and 0.83 of arm c, against a control spread of 1.05,
+so a whole gate build is between 1.21 and 1.26 times faster.
+The other two steps' ratios (0.86 to 1.10) sit inside the control spread of their own steps (1.08 to 1.21),
+so they are the host's noise and not the bound's doing.
+
+So the build is bounded at 8 GiB (`gateBuildMemory` in `bin/native-gate-container-limits.ts`):
+8,192 MiB, 1.53 times the 5,363.4 MiB the wrapper's own compile peaked at,
+which leaves room for a source change that adds work and stays well inside the 20 GiB the gate's own systemd unit allows.
+The suite's and Clippy's 2 GiB is untouched.
+The bound is per container, so it is the largest single step that sizes it, not the sum of a build's steps.
+
+What it costs and how a person lowers it:
+
+- The build may now take 8 GiB of the host's RAM at once instead of being held at 2 GiB.
+  On this host, with 31 to 44 GiB available across the arms, that is memory that would otherwise have been spent on
+  reclaiming and swapping, and the compile of the wrapper's sources is 2.26 to 2.42 times faster for it.
+- A host that cannot spare 8 GiB lowers it with `--memory <size>` after the task name,
+  which bounds the build and the suite together, and the gate prints which bound each container got before it builds.
+  Below what the compile needs, that host pays in reclaim and time exactly as these capped arms did;
+  it does not stall the rest of the host, because the bound is the container's own.
+- A container bounded below the compile can also be killed rather than slowed:
+  another round measured the crate's lib tests in the gate image under `podman run --memory=2g`,
+  where the test `rustc` died with `signal: 9, SIGKILL` at `--cpus=4` and at `--cpus=2` and the same command compiled
+  and ran at `--memory=4g`
+  (that round's comment on issue 6455, 2026-11-24).
+  A build container carries the repository's swap allowance, so the capped arms above spent their time in reclaim instead,
+  which is the slower and non-fatal version of the same bound.
+- The bound is sized at four compile jobs.
+  A gate given more CPUs compiles more jobs at once and wants its `--memory` raised with them;
+  nothing here measured more than four.
+- The base image's own build keeps the shared 2 GiB default:
+  it compiles nothing, and no measurement of it exists.
 
 ### The bound on each check
 

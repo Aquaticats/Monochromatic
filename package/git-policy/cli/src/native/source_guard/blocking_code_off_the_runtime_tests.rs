@@ -171,11 +171,14 @@ enum Scanner {
 ///   braces: [number, number][]
 /// }
 /// ```
-struct ReadCode {
+pub(super) struct ReadCode {
     /// One entry per line of the file:
     /// the line's code,
     /// with a space wherever a comment or a literal put a character.
-    masked: Vec<String>,
+    /// The slot glue's order check in `slot_command_reads_its_words_first_tests.rs` reads a function
+    /// body through it,
+    /// so both scans blank a comment or a literal the same way.
+    pub(super) masked: Vec<String>,
     /// For each line:
     /// the `{` and `}` that are code rather than comment or literal text.
     braces: Vec<(usize, usize)>,
@@ -218,7 +221,9 @@ fn blank(masked: &mut Vec<char>, count: usize) {
 /// ```ts
 /// function readTheCodeOf(text: string): ReadCode  // throws Error
 /// ```
-fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
+///  The slot glue's order check reads a function body through the same reading,
+/// so prose about a read is never taken for a read in either scan.
+pub(super) fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
     let characters: Vec<char> = text.chars().collect();
     let mut masked: Vec<char> = Vec::with_capacity(characters.len());
     let mut counts: Vec<(usize, usize)> = vec![(0, 0)];

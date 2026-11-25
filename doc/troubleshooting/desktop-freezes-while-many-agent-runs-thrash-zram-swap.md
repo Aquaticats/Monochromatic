@@ -603,6 +603,93 @@ so nothing here separates them.
 What it shows is that the settings were in force under heavy swap traffic without a reported stall;
 what it does not show is that they prevent a repeat.
 
+### Catalog: a rising stall from one capped container, at 2026-11-24T19:20:00-05:00
+
+The all-task memory stall rose while the host had memory to spare.
+Readings of `/proc/pressure/memory`, `some` line, in order:
+avg10 4.82, avg60 3.91, avg300 2.35;
+then avg10 5.14, avg60 4.84, avg300 2.92;
+then, at 2026-11-24T19:23:08-05:00, avg10 1.21, avg60 2.79, avg300 2.87, falling.
+`free --mebi` gave 27,529 to 30,132 MiB available across those readings,
+and zram held 6.5G of swap.
+
+One cgroup carried the stall.
+Each user cgroup's own `memory.pressure` with a nonzero avg10 was listed:
+the image build container of a whole wrapper gate
+(`crun-buildah-buildah3181108216.scope`, started by `podman build --memory=2g --cpu-quota=400000`)
+read avg10 6.48 and avg60 4.79 at `memory.current` 2,047 MiB against `memory.max` 2,147,483,648 bytes,
+while it compiled the crate's tests (`cargo nextest run --no-run`);
+`app.slice` above it read 3.88 and 2.55 only because it contains that container,
+and the only other nonzero reading was a Pi round's 0.01.
+Running at the time:
+that gate,
+one guest of 7.8 GiB,
+and five Pi rounds.
+
+So the all-task figure rises when one container presses against its own cap,
+with the host far from the 1,966 MiB free of the freeze.
+A start check that reads only the all-task figure pauses for that stall too;
+listing each cgroup's `memory.pressure` names where it comes from.
+One Pi round was started inside this window,
+by a command that read the figure and started the round in the same call,
+so the reading could not stop it.
+The 2 GiB cap of the gate's image build is the repository's shared test-container default
+(`package/container-limit/core`),
+and no measurement of that build's memory is recorded.
+That measurement now exists,
+and the cap it sized is gone from the build:
+see "The capped build's stall, measured and given its own bound, 2026-11-24T19:51-05:00" below.
+
+### The capped build's stall, measured and given its own bound, 2026-11-24T19:51-05:00
+
+The container the catalogue above names is the gate's image build,
+and its 2 GiB was the repository's shared test-container default rather than a measurement of that build.
+Three arms of the same build, one `podman build --no-cache` each at the gate's four compile jobs,
+with every build container's own cgroup read every 250 ms,
+measured what the steps need:
+
+- Under a 10 GiB cap no step met,
+  the compile of the wrapper's own sources peaked at 5,363.4 MiB with 0.1 s of stall in 87.2 s.
+- Under the shared 2 GiB that same step sat at 2,048 MiB for 196 s:
+  `memory.events` `max` 149,888,
+  some avg10 22.33 at its highest,
+  29.8 s of stall,
+  and 197.1 s to finish.
+
+The build now has a bound of its own, 8 GiB, 1.53 times that measured peak,
+separate from the suite's and Clippy's 2 GiB,
+and `--memory <size>` bounds both for a host that has less to give (issue 6455).
+A second round measured the same 2 GiB killing rather than slowing a test compile it ran in a `podman run`
+container, where the test `rustc` died with `signal: 9, SIGKILL` at `--cpus=4` and at `--cpus=2` and the same command
+compiled and ran at `--memory=4g` (that round's comment on issue 6455, 2026-11-24),
+so the shared default was too small for this compile on either side of the gate.
+`doc/planning/git-policy-cli-cachyos-test-containers.md`,
+"The image build's own memory bound, measured 2026-11-24",
+holds the arms, their ratios and the arithmetic.
+
+### A lib-test recompile under the gate's 2 GiB cap, at 2026-11-24T20:12:35-05:00
+
+The gate's test image `localhost/git-policy-native-test:gate-main-f3b710cbc9`
+was built from `main` at `f3b710cbc9`,
+and a run container of it mounted one worktree's crate sources read-only over the
+image's own,
+so the wrapper's subject layer recompiled there as it does in a gate's image
+build.
+With `--memory=2g`, the `rustc` that compiles the crate's lib test was killed by
+the kernel (`signal: 9, SIGKILL`) before any test ran,
+at `--cpus=4` and again at `--cpus=2`;
+the same command with `--memory=4g --cpus=4` compiled and ran,
+`Summary 8 tests run: 8 passed` under a filter for one module.
+Two arms ran each way, a control before its fix and after it,
+and only the compile failed at the 2 GiB bound, never a test.
+Each run was its own `systemd-run --user` scope with a fixture tmpfs and
+`CLI_GIT_TEST_ROOT`, the gate's own fixture layout.
+The logs are in
+`~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/keep/`.
+What this does not measure is the gate's build itself:
+that container's swap allowance and its own peak were not read here,
+so the numbers bound a recompile in a run container and not the build.
+
 ### The comparison that would verify the change
 
 No such comparison has been made.

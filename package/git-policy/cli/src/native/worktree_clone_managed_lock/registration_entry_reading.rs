@@ -9,9 +9,12 @@
 //!  its `gitdir` target,
 //!  whether `commondir` and `HEAD` stand,
 //!  the slot's pointer bytes,
-//!  and how many entries the slot holds besides `.git`,
-//!  and the entry-reader step 10 builds for the add's resume is not on this branch,
-//!  so this file reads them.
+//!  and how many entries the slot holds besides `.git`.
+//!  This is the one reader of those facts:
+//!  the add's own resume (`worktree_clone_add_route::add_registration`) reads each
+//!  entry through it,
+//!  and so does the classification this route hands `doctor` and the removal,
+//!  so an entry is never read two ways.
 //!  A `locked` the read refuses is reported as an empty one:
 //!  it attributes nothing,
 //!  while `file_exists` still keeps the registration from a prune (`F1`).

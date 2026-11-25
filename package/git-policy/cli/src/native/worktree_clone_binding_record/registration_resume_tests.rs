@@ -1,8 +1,7 @@
 //! Controls for the resume's rows:
 //!  each incomplete shape is cleared,
-//!  a complete one is adopted,
-//!  an unlocked complete one refuses until step 13's installer,
-//!  a person's lock refuses,
+//!  a complete one is adopted whatever its lock,
+//!  an incomplete one holding a person's words refuses,
 //!  another slot's entry is left,
 //!  two attributing entries refuse,
 //!  and the two states no entry holds.
@@ -75,35 +74,40 @@ fn each_incomplete_shape_is_cleared_with_its_row() {
     assert_eq!(decide(&commondir, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::Commondir });
 }
 
-/// A complete locked registration is adopted,
-/// and a cut-short lock is adopted with the completion marked.
+/// A complete registration is adopted whatever its lock holds,
+/// because the lock's own state is the classification's answer and not a row here.
+/// Why:
+///  The claim holder asks `worktree_clone_managed_lock` which of S1 to S4 stands,
+///  and this row must not be a second reading that could disagree with it.
 #[test]
-fn a_complete_locked_registration_is_adopted() {
+fn a_complete_registration_is_adopted_whatever_its_lock() {
     let slot: &str = "add-cache-layer";
     let slot_path_buf: PathBuf = slot_path();
     let path: &Path = slot_path_buf.as_path();
-    assert_eq!(decide(&complete(), slot, path, &nonce(), &[]), EntryDecision::Adopt { complete_the_lock: false });
+    assert_eq!(decide(&complete(), slot, path, &nonce(), &[]), EntryDecision::Adopt);
     let mut cut: EntryFacts = complete();
     let bytes: Vec<u8> = lock_file_bytes(&nonce());
     cut.locked = Some(bytes[..crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_PREFIX.len() + 40].to_vec());
-    assert_eq!(decide(&cut, slot, path, &nonce(), &[]), EntryDecision::Adopt { complete_the_lock: true });
+    assert_eq!(decide(&cut, slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    let mut unlocked: EntryFacts = complete();
+    unlocked.locked = None;
+    assert_eq!(decide(&unlocked, slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    let mut foreign: EntryFacts = complete();
+    foreign.locked = Some(b"held by a person\n".to_vec());
+    assert_eq!(decide(&foreign, slot, path, &nonce(), &[]), EntryDecision::Adopt);
 }
 
-/// A complete registration with no lock refuses until step 13's installer lands,
-/// and a person's lock refuses with its first line.
+/// An incomplete registration holding words this add did not write refuses with its first line,
+/// while an empty or too-short lock attributes nothing and is cleared with its row.
 #[test]
-fn an_unlocked_or_foreign_complete_registration_refuses() {
+fn an_incomplete_registration_holding_a_persons_words_refuses() {
     let slot: &str = "add-cache-layer";
     let slot_path_buf: PathBuf = slot_path();
     let path: &Path = slot_path_buf.as_path();
-    let mut unlocked: EntryFacts = complete();
-    unlocked.locked = None;
-    let refusal: EntryDecision = decide(&unlocked, slot, path, &nonce(), &[]);
-    assert!(matches!(refusal, EntryDecision::Refuse { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::UnlockedComplete, .. }), "{refusal:?}");
-    let mut foreign: EntryFacts = complete();
+    let mut foreign: EntryFacts = entry(slot);
     foreign.locked = Some(b"held by a person\n".to_vec());
-    let foreign_refusal: EntryDecision = decide(&foreign, slot, path, &nonce(), &[]);
-    assert!(matches!(foreign_refusal, EntryDecision::Refuse { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::ForeignLock, .. }), "{foreign_refusal:?}");
+    let refusal: EntryDecision = decide(&foreign, slot, path, &nonce(), &[]);
+    assert!(matches!(refusal, EntryDecision::Refuse { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::ForeignLock, .. }), "{refusal:?}");
 }
 
 /// Another slot's entry and another path's registration are left alone.
