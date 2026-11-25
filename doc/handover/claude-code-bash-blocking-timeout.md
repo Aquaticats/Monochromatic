@@ -1,7 +1,8 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T18:00:40-05:00.
-This work is incomplete and unapproved.
+State recorded 2026-11-25T18:02:17-05:00.
+This work is incomplete.
+The user approved the design and authorized implementation at that timestamp.
 
 ## Current state
 
@@ -33,13 +34,19 @@ An interactive PTY probe confirmed that the startup warning is visible,
 while noninteractive text mode exposes it only through structured hook output.
 The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q20 A`.
 
+## Accepted design
+
+The canonical contract is `doc/decision/claude-code-bash-blocking-timeout.md`.
+Implementation is authorized.
+
 ## Open work
 
-- The user accepted result arrival beyond the nominal one-second timeout in `Q21 A`.
-- The final fresh Claude Sonnet acceptance review returned **READY**.
-  Its missing-measurement-file correction is fixed.
-- Present the final assembled contract for explicit shared-understanding confirmation.
-- Implement only after that confirmation.
+- Replace forced backgrounding with the accepted default-timeout policy and startup warning.
+- Update tests,
+  README decisions and anchors,
+  and the tracked bundle.
+- Run package type and unit checks,
+  then verify the installed plugin in real Claude Code sessions.
 - Record that `mise run lint:monochromatic-lint` could not run because
   `monochromatic-lint: command not found`;
   the locked repository linter must not be compiled ad hoc.
@@ -47,5 +54,5 @@ The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q
 
 ## Next step
 
-Present the assembled contract and request explicit shared-understanding confirmation.
-Implementation remains unauthorized until the user confirms.
+Implement the accepted handler and registration changes,
+then run the package verification sequence.
