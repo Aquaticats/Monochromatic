@@ -10,10 +10,13 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 13",
 //!  and `doc/planning/cli-git-zfs-add-time-git-lock-design.md`).
-//!  The piece is built ahead of the plan's order and unwired:
-//!  no command of the wrapper calls it,
-//!  its own step wires it in,
-//!  and until then only the controls and the guest arm run it.
+//!  Its own step wires it in:
+//!  the add's own resume asks the classification before it adopts a
+//!  registration and writes a lost lock again
+//!  (`worktree_clone_add_route::add_registration`).
+//!  The release stays unreached until plan step 16's registration-cleanup step
+//!  calls it,
+//!  and `doctor`'s own lines are plan step 18's.
 //!  The sentence a lock holds and the comparison that proves one the wrapper's
 //!  landed in step 10 with the write path,
 //!  so this folder reads them and restates none of them.
@@ -81,6 +84,7 @@ pub use lock_state_words::{line_of, line_of_an_absent_pointer, the_lines};
 pub use reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
 pub use binding_record_fields::RecordedFactsRefusal;
 pub use recorded_lock_facts::{RecordedClone, RecordedLockFacts, read_the_recorded_facts};
+pub use registration_entry_reading::read_one_entry;
 pub use registration_finding::{TheRegistration, WhatTheWalkFound, find_the_slot_registration, the_slots_the_home_names};
 pub use registration_proof_two_facts::{GITDIR_FILE_NAME, TwoFactRefusal, prove_the_registration};
 

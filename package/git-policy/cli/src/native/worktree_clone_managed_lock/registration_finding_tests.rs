@@ -37,7 +37,7 @@ fn a_complete_entry_is_adopted() {
     fixture.write_pointer(registration.as_path());
     fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
     let finding = find_the_slot_registration(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &nonce());
-    assert_eq!(finding.registration, TheRegistration::One { name: String::from("locked-slot"), path: registration, decision: EntryDecision::Adopt { complete_the_lock: false } });
+    assert_eq!(finding.registration, TheRegistration::One { name: String::from("locked-slot"), path: registration, decision: EntryDecision::Adopt });
     assert_eq!(finding.names_seen, vec![String::from("locked-slot")]);
 }
 
