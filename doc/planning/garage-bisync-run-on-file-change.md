@@ -188,6 +188,20 @@ for the cases the settle pass might not cover:
 - A second save between the upload pass and the settle pass (53 ms apart in the log):
   the settle pass itself raised the conflict and left `.conflict1` on both sides.
 
+What `systemctl start` does while the unit runs,
+measured on a oneshot unit that sleeps 8 seconds,
+under systemd as PID 1 in the `docker.io/cachyos/cachyos:latest` container:
+
+- a second `systemctl start` sent 2 seconds into the run joined that run:
+  the unit ran once,
+  and both callers returned when it ended,
+  each with exit status 0;
+- a `systemctl start --no-block` sent during the run also joined it;
+- a start sent after the run ended started a new run.
+
+So a start request made while any run is going (the timer's or the watcher's) is absorbed by that run,
+and a change that lands mid-run needs a new start request after the run ends.
+
 So a settle pass narrows the window in which a save makes a conflict copy
 from "until the next run" to the length of the upload pass plus the gap before the settle pass,
 and it closes the deleted-file-comes-back case;
