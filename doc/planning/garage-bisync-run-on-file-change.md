@@ -130,8 +130,13 @@ two things need measuring on a disposable Garage before the design settles:
   outside this shell's `PATH`.
 - No vet report for a file watcher exists under `doc/audit/`.
 
-## Open questions, round 2
+## Owner answers, round 2 (2026-11-25T17:19:41-05:00)
 
-- Whether one watcher must run on Linux, macOS and Windows alike.
-- Who runs the broad discovery for the watcher vet,
-  which `.claude/skills/choosing-technology/SKILL.md` requires before a recommendation.
+- Portability is a hard requirement:
+  the same watcher must run on Linux,
+  macOS and Windows,
+  so the later clients only add a service wrapper.
+  Linux-only tools (systemd path units, `inotifywait`, `incron`) leave the candidate list.
+- The broad discovery for the watcher vet is delegated to Pi as a subagent
+  (the owner answered with `/pi-as-subagent`).
+  The vet report holds the settled context and frozen query schedule the delegate starts from.
