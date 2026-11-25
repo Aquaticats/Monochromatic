@@ -63,7 +63,7 @@ impl Fixture {
 fn a_filesystem_type_the_kernel_does_not_have_is_refused_at_fsopen() {
     let fixture: Fixture = Fixture::new("fsopen");
     let target: std::fs::File = fixture.open();
-    let refusal = attach_with(ABSENT_FILE_SYSTEM, "pool/clone", &target, &mount_id_of).expect_err("a type no module registers cannot be opened");
+    let refusal = attach_with(ABSENT_FILE_SYSTEM, "pool/clone", &target, ATTACH_FSMOUNT_ATTRIBUTES, &mount_id_of).expect_err("a type no module registers cannot be opened");
     assert_eq!(refusal.call, AttachCall::FileSystemContext, "the refusal names fsopen: {refusal:?}");
     assert_eq!(refusal.call.word(), "fsopen");
     assert!(FSOPEN_ERRNOS.contains(&refusal.errno), "the errno is the call's own (EPERM without mount authority, ENODEV for a type no module registers): {refusal:?}");
@@ -109,6 +109,7 @@ fn a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down() {
         "tmpfs",
         "monochromatic-attach-take-down-control",
         &target,
+        ATTACH_FSMOUNT_ATTRIBUTES,
         &|_held: &std::fs::File| -> std::io::Result<u64> { return Err(std::io::Error::from_raw_os_error(libc::EIO)); },
     )
     .expect_err("the control fails the mount-number read on purpose");

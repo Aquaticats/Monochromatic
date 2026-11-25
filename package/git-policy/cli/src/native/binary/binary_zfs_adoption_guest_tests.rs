@@ -115,8 +115,9 @@ fn recorded_parent() -> CloneFolderIdentity {
 
 /// Run the built handler's adoption mode and read the store afterwards.
 fn adopt(checkout: &Path, device: u64, inode: u64) -> Arm {
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let binary: PathBuf = crate::support_installed_name::installed_name("adoption");
     let output: Output = Command::new(binary)
+        .args(crate::support_installed_name::root_mode_words())
         .arg("adopt-worktree-parent")
         .arg("--checkout")
         .arg(checkout)

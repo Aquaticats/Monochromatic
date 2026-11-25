@@ -4,8 +4,10 @@
 //! The commit path must write no hook entry that names the wrapper,
 //! point `core.hooksPath` at a directory of its own
 //! making,
-//! start Git's hook runner,
-//! or dispatch on the name the executable was started under.
+//! or start Git's hook runner,
+//! and the executable reads a start name in one comparison,
+//! of the installed ZED history event's own name,
+//! and nowhere else.
 //! The binary controls (`binary_external_hook_tests.rs`) prove the behavior end to end:
 //! no configured hook runs,
 //! a
@@ -16,9 +18,66 @@
 //! hook runner or `argv[0]` branch fails here
 //! before any repository is built.
 
-/// The executable entry point,
-/// which must hand its arguments to the wrapper without reading its start name.
+/// The pins' reader and the comment rule: a line as written, and comments on their own line only.
+use super::{assert_whole_line_comments_only, pinned_code_lines};
+
+/// The executable entry point, whole.
 const MAIN_SOURCE: &str = include_str!("../main.rs");
+
+/// `main.rs`'s code text, whole and in order: comments cut,
+/// leading and trailing blanks trimmed.
+/// A change to any line here is a change to what `main` may do with the argument vector,
+/// so the pin and the code change in one commit,
+/// and a reviewer reads the two diffs together.
+const MAIN_CODE: [&str; 47] = [
+    "use std::ffi::OsString;",
+    "use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};",
+    "use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;",
+    "#[cfg(target_os = \"linux\")]",
+    "use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};",
+    "fn main() {",
+    "#[allow(clippy::disallowed_methods)]",
+    "let arguments: Vec<OsString> = std::env::args_os().collect();",
+    "#[cfg(target_os = \"linux\")]",
+    "{",
+    "match root_mode_names::root_mode_start(arguments.as_slice()) {",
+    "RootModeStart::Wrapper => {}",
+    "RootModeStart::Arguments(mode_arguments) => {",
+    "git_policy_cli::panic_notice::install_payload_free_panic_hook();",
+    "let code: i32 = git_policy_cli::worktree_clone_mount_handler::run(mode_arguments);",
+    "end_after_the_log(code);",
+    "}",
+    "RootModeStart::Refused(misuse) => {",
+    "git_policy_cli::panic_notice::install_payload_free_panic_hook();",
+    "let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);",
+    "end_after_the_log(code);",
+    "}",
+    "}",
+    "}",
+    "let handed: &[OsString] = arguments.get(1..).unwrap_or_default();",
+    "if git_policy_cli::service_main::is_service_start(handed) {",
+    "let code: i32 = match git_policy_cli::service_main::service_options(handed) {",
+    "Ok(options) => git_policy_cli::service_main::run(options.as_slice()),",
+    "Err(word) => {",
+    "git_policy_cli::service_error!(\"an argument of the service is not text: {}\", word.to_string_lossy());",
+    "git_policy_cli::service_main::EXIT_REFUSED",
+    "}",
+    "};",
+    "end_after_the_log(code);",
+    "}",
+    "git_policy_cli::panic_notice::install_payload_free_panic_hook();",
+    "let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();",
+    "let start_directory: git_policy_cli::start_directory::StartDirectory =",
+    "git_policy_cli::start_directory::StartDirectory::read_from_the_process();",
+    "let code: i32 = git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);",
+    "end_after_the_log(code);",
+    "}",
+    "fn end_after_the_log(code: i32) -> ! {",
+    "let _diagnosed: bool = write_every_diagnostic_line_that_waits(WAIT_BEFORE_AN_EXIT);",
+    "let _written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);",
+    "std::process::exit(code);",
+    "}",
+];
 
 /// Every source of the commit path that decides what Git is started with.
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
@@ -65,21 +124,23 @@ fn code_lines(source: &str) -> Vec<&str> {
         .collect();
 }
 
-/// The executable never reads its start name:
-/// it collects `args_os` once,
-/// skipping the program name,
-/// and calls the
-///  wrapper's entry.
+/// What:
+///  The executable is the reviewed handful of statements, whole.
+/// Why:
+///  `main` is where a start becomes a root mode,
+///  so its code text is pinned line for line:
+///  any line added, removed, reordered, reworded or re-spelled fails here,
+///  and the commit that changes it changes this list in the same diff.
+///  A whole-line comment and a blank line are not code, so an explanation
+///  re-pins nothing.
 #[test]
-fn main_does_not_dispatch_on_its_start_name() {
-    let code: Vec<&str> = code_lines(MAIN_SOURCE);
-    let joined: String = code.join("\n");
-    for forbidden in ["args_os().next()", "start_name", "current_exe", "arg0", "file_name", "hook_dispatch", "hook_entry"] {
-        assert!(!joined.contains(forbidden), "main.rs contains {forbidden}");
+fn main_is_the_reviewed_handful_of_statements() {
+    assert_whole_line_comments_only("main.rs", MAIN_SOURCE);
+    let code: Vec<String> = pinned_code_lines(MAIN_SOURCE, "main.rs").into_iter().filter(|line| { return !line.is_empty(); }).collect();
+    assert_eq!(code.len(), MAIN_CODE.len(), "main.rs has {} code line(s), and the reviewed text has {}: {code:#?}", code.len(), MAIN_CODE.len());
+    for (at, (found, want)) in code.iter().zip(MAIN_CODE.iter()).enumerate() {
+        assert_eq!(found.as_str(), *want, "main.rs's code line {} is not the reviewed one", at + 1);
     }
-    assert_eq!(joined.matches("args_os()").count(), 1, "main.rs reads the arguments once: {joined}");
-    assert!(joined.contains("args_os().skip(1)"), "the program name is skipped, not inspected");
-    assert!(joined.contains("entry::run_process("), "main.rs hands over to the wrapper's entry");
 }
 
 /// No source of the commit path can write an entry,

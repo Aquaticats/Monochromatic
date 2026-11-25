@@ -48,26 +48,27 @@ use crate::worktree_clone_mount_protocol::ReadyState;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-/// PLACEHOLDER: where the one wrapper executable root's modes run from.
-///
+/// What:
+///  The one root-owned file root's modes run from,
+///  read from the handler's own constant.
 /// Why:
-///  The project answered on 2026-11-23 that the route's root modes become
-///  modes of `monochromatic-git-policy-cli`, and the round designing how root
-///  reaches those modes names the real path.
-///  Until that design lands this is the stand-in the checks and their controls
-///  read,
-///  and it is named as a placeholder so no report presents it as decided.
-pub const PLACEHOLDER_EXECUTABLE_PATH: &str = "/usr/libexec/monochromatic-git-policy-cli/monochromatic-git-policy-cli";
+///  The owner answered that the release holds one program,
+///  and the round that designed how root reaches its modes settled on one file
+///  under the ZED history event's name
+///  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+///  choice 3).
+///  A second copy of the path here would let a check and an install drift apart,
+///  so the constant is the handler's and this is only the name the checks read.
+pub const ROOT_MODE_EXECUTABLE_PATH: &str = crate::worktree_clone_mount_handler::handler_install_paths::ROOT_MODE_INSTALL_PATH;
 
-/// PLACEHOLDER: the ZED history event that starts the one executable's sweep
-/// mode.
-///
+/// What:
+///  The ZED history event ZED starts the one file by.
 /// Why:
 ///  ZED starts a `history_event-*` file and no other kind of entry,
-///  and which file starts which mode is part of the design that moves the modes
-///  into the wrapper.
-///  This name is the stand-in until then.
-pub const PLACEHOLDER_ZEDLET_PATH: &str = "/etc/zfs/zed.d/history_event-monochromatic_git_policy_cli";
+///  and the event is a link to the file above,
+///  so both spellings come from the handler's constants rather than a third
+///  copy.
+pub const ZEDLET_EVENT_PATH: &str = crate::worktree_clone_mount_handler::handler_install_paths::ZEDLET_INSTALL_PATH;
 
 /// What:
 ///  The mode words the one executable must answer for this route's root work,
@@ -80,10 +81,11 @@ pub const PLACEHOLDER_ZEDLET_PATH: &str = "/etc/zfs/zed.d/history_event-monochro
 ///  so a build that lost one of these answers a finding here.
 ///  The empty word is the sweep,
 ///  which is the mode the installed ZED event starts with no argument.
-///  The all-namespace holder scan is one more mode the step 9 branch adds and
-///  this tree does not hold,
-///  so it is not required here and the wiring step adds it when that branch
-///  lands.
+///  The all-namespace holder scan,
+///  the two modes the step 10 and step 19 answers add,
+///  and the words that reach every mode are checked by the dispatch's own
+///  controls,
+///  so this list is the four the owner's answer of 2026-11-23 names.
 pub const REQUIRED_ROOT_MODES: [&str; 5] = ["", "adopt-worktree-parent", "boot-reconcile", "shutdown-unmount", "start-probe"];
 
 /// The owner every installed file and folder of the route must have.
@@ -283,6 +285,9 @@ pub fn check_modes(words: &[&str]) -> CheckOutcome {
 }
 
 /// The arguments one required mode word is read as.
+/// The words `monochromatic-git-policy-cli zfs-root` are stripped by the
+/// dispatch before this grammar sees them, so a mode word and its options are
+/// what the grammar is asked for.
 fn mode_arguments(word: &str) -> Vec<OsString> {
     if word != "adopt-worktree-parent" {
         return if word.is_empty() { Vec::new() } else { vec![OsString::from(word)] };

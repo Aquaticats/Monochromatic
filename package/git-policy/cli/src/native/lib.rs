@@ -459,15 +459,16 @@ pub use worktree_clone_link_repair::*;
 #[cfg(target_os = "linux")]
 pub mod zfs_mounted_dataset;
 
-/// The root-run clone-mount handler,
-/// `mount-git-worktree-clone-datasets`:
-///  its mode grammar,
-///  the two installed paths,
+/// The ZFS route's root modes:
+///  the one start name and the group word,
+///  the mode grammar,
+///  the paths one root-owned build serves,
 ///  the modes whose plan steps have not landed,
-///  and the administrator's parent adoption.
-/// It is the crate's second executable,
-///  so it is named through this path rather than a glob re-export:
-///  the program's words (`PROGRAM_NAME`,
+///  the administrator's parent adoption,
+///  the checkout record and the nested dataset placed under it.
+/// They are modes of this one executable,
+///  so they are named through this path rather than a glob re-export:
+///  the modes' words (`root_modes_name`,
 /// `run`,
 /// the install paths) belong to the handler,
 ///  and no old flat path of the wrapper names them.

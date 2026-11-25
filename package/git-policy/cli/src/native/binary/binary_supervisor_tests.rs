@@ -752,6 +752,7 @@ fn unclaimed_exit_probe() {
 #[test]
 fn an_unclaimed_kill_fails_the_process_at_its_exit() {
     // Identification only: the first argument names the test executable this process was started from, to run one test of it again.
+    #[allow(clippy::disallowed_methods, reason = "identification only: the test harness starts this binary by its path, and the probe runs one test of the same binary again")]
     let exe = std::env::args_os().next().expect("the test executable");
     let output = Command::new(exe)
         .args(["--exact", "supervisor_guard::unclaimed_exit_probe", "--nocapture", "--test-threads=1"])

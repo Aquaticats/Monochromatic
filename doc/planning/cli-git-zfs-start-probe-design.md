@@ -1,5 +1,17 @@
 # The start probe for the ZFS worktree route
 
+**Note, 2026-11-25:**
+where a command in this document begins with `mount-git-worktree-clone-datasets`,
+the name at its head is one root-owned regular file root installs,
+`/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
+and the word after it is reached through the words `monochromatic-git-policy-cli zfs-root`,
+as in
+`/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root boot-reconcile`
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`;
+`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+choices 1 to 3).
+The text below keeps the spelling it was written with.
+
 Accepted 2026-11-20 in the question tool,
 under "Accept:
 skip goes ahead,

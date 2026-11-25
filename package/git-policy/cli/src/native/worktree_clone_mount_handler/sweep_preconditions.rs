@@ -192,7 +192,7 @@ impl ProbeRefusal {
             ProbeRefusal::CheckoutNotReady { checkout, state, said } => format!("the checkout {} is `{}` and only a ready checkout admits an attach: {said}", checkout.display(), state.word()),
         };
         return format!(
-            "{cause}. Nothing was enumerated, attached, unmounted or recorded, and every clone's mount intent stands untouched. Ways forward: run `mount-git-worktree-clone-datasets start-probe` and read the record it writes, load the pool's key and mount the checkout, or read {READINESS_DIRECTORY} and the handler's journal; the sweep runs again on a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge."
+            "{cause}. Nothing was enumerated, attached, unmounted or recorded, and every clone's mount intent stands untouched. Ways forward: run `monochromatic-git-policy-cli zfs-root start-probe` as root and read the record it writes, load the pool's key and mount the checkout, or read {READINESS_DIRECTORY} and the handler's journal; the sweep runs again on a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge."
         );
     }
 }

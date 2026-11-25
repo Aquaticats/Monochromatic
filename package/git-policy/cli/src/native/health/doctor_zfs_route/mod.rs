@@ -167,7 +167,7 @@ pub use identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity, S
 pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, GrantPlace, Inheritance, REQUIRED_GRANTS, RequiredGrant, Who, allow_command, check_delegation, grants_of, missing_grants, place_dataset};
 /// The handler's installation and folders.
 pub use handler_checks::{
-    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PLACEHOLDER_EXECUTABLE_PATH, PLACEHOLDER_ZEDLET_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
+    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ROOT_MODE_EXECUTABLE_PATH, ZEDLET_EVENT_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
     check_handler_configuration, check_handler_folders, check_handler_installation, check_modes, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
 };
 /// The staging folder and its bind.

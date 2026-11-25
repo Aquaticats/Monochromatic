@@ -1,5 +1,13 @@
 # The slot identity store's write cost
 
+**Note, 2026-11-25:**
+the program this record measured as `mount-git-worktree-clone-datasets` is a
+mode of `monochromatic-git-policy-cli` now,
+reached as `monochromatic-git-policy-cli zfs-root <mode>` or through one
+root-owned file under the installed ZED history event's name
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
+The text below keeps the spelling of the program it measured.
+
 **Status:
 measurement record by an agent,
 unapproved and non-final.**

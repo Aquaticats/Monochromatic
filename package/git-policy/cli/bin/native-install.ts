@@ -42,8 +42,8 @@ import {
   type InstallStep,
   commitTimingFileName,
   gitCommonDirectory,
-  handlerProgram,
-  handlerVersionLine,
+  rootModesVersionLine,
+  rootModeWords,
   installSteps,
   journalIdentifiers,
   journalSince,
@@ -386,7 +386,7 @@ async function main(): Promise<number> {
     for (const step of plan)
       printLine(`  ${stepNameOf({ step, })}`);
     printLine(`  then refuse unless what ${gitProgram} --version prints holds ${wrapperVersionLine({ version, })}`);
-    printLine(`  and unless what ${handlerProgram} --version prints holds ${handlerVersionLine({ version, })}`);
+    printLine(`  and unless what ${gitProgram} ${rootModeWords.join(' ')} --version prints holds ${rootModesVersionLine({ version, })}`);
     printLine(`  commit ${lockFileName} when it moved, and print the newest line of ${commitTimingFileName} beside the common Git directory`);
     printLine('  and the service journal of the sample commit');
     return 0;
@@ -438,15 +438,19 @@ async function main(): Promise<number> {
     throw new NativeGateError(`${gitProgram} --version does not name ${version}, so the installed wrapper is not the release that was asked for. What it printed: ${reported.trim() || '(nothing)'}. Check that ${wrapperToolName} resolves to ${version} (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}) and that the wrapper's directory comes before any other ${gitProgram} on PATH.`);
   }
   /**
-   What the installed handler says it is.
+   What the installed build says its root modes are.
 
-   One archive carries both executables, so a release that arrived whole answers here as well; an install that found
-   only the wrapper did not install the release, and the root-run handler whose modes later steps add would be missing
-   at the path the boot unit and the ZED event start.
+   The release holds one executable, so this asks the same file the check above asked, with the words that select a
+   root mode on any file: a build that lost the dispatch, or a release whose root modes went to a file of their own
+   again, answers nothing here.
    */
-  const handlerReported = (await runGateCommandOrThrow({
-    program: handlerProgram,
-    args: ['--version',],
+  const modesReported = (await runGateCommandOrThrow({
+    program: gitProgram,
+    args: [
+      rootModeWords[0],
+      rootModeWords[1],
+      '--version',
+    ],
     deadlineMilliseconds: gitDeadlineMilliseconds,
     environment: {
       ...process.env,
@@ -454,9 +458,9 @@ async function main(): Promise<number> {
     },
     workingDirectory: repository,
   })).stdout;
-  printLine(handlerReported.trimEnd());
-  if (!handlerReported.includes(handlerVersionLine({ version, }))) {
-    throw new NativeGateError(`${handlerProgram} --version does not name ${version}, so the release's second executable is not the release that was asked for. What it printed: ${handlerReported.trim() || '(nothing)'}. Check that the archive the lock names carries ${handlerProgram} and that mise installed it beside ${gitProgram} (mise run toolchain:install, or mise which ${handlerProgram}).`);
+  printLine(modesReported.trimEnd());
+  if (!modesReported.includes(rootModesVersionLine({ version, }))) {
+    throw new NativeGateError(`${gitProgram} ${rootModeWords.join(' ')} --version does not name ${version}, so this build does not answer the root modes the release asked for. What it printed: ${modesReported.trim() || '(nothing)'}. Check that the archive the lock names carries the root modes and that the wrapper on PATH is the release asked for (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}).`);
   }
   /**
    The lockfile's text once the tools were installed.

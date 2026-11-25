@@ -91,35 +91,40 @@ export function wrapperVersionLine({ version }: { readonly version: string; }): 
 }
 
 /**
- The program the same release archive installs beside the wrapper: the root-run clone-mount handler.
+ The words every root mode is reached through, spelled after the wrapper's own word.
 
- One archive carries both executables (`Cargo.toml`, its `[[bin]]` tables), so an install that moved the wrapper moved
- this program too, and an install that found only one of them did not install the release.
+ The release holds one executable, and its ZFS route's root modes are modes of it
+ (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`); the words are choice 2's
+ (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`), and the module that decides a
+ start reads the same two constants, so an install asks the build with the spelling the dispatch accepts.
 
  @example
  ```ts
- handlerProgram; // 'mount-git-worktree-clone-datasets'
+ rootModeWords.join(' '); // 'monochromatic-git-policy-cli zfs-root'
  ```
  */
-export const handlerProgram = 'mount-git-worktree-clone-datasets';
+export const rootModeWords = [
+  'monochromatic-git-policy-cli',
+  'zfs-root',
+] as const;
 
 /**
- The text the installed handler's `--version` prints for one release.
+ The text the installed build's `--version` prints for one release.
 
- The handler prints `<program> <version>` (`worktree_clone_mount_handler::handler_mode_arguments::version_line`), so the
- release asked for is named by this text and by nothing else.
+ The root modes print `<the words> <version>` (`worktree_clone_mount_handler::handler_install_paths::version_line`), so
+ the release asked for is named by this text and by nothing else.
 
  @param version - the release an install moves to
 
- @returns the text the installed handler has to print
+ @returns the text the installed build has to print
 
  @example
  ```ts
- handlerVersionLine({ version: '0.6.1-alpha.10' });
+ rootModesVersionLine({ version: '0.6.1-alpha.10' }); // 'monochromatic-git-policy-cli zfs-root 0.6.1-alpha.10'
  ```
  */
-export function handlerVersionLine({ version }: { readonly version: string; }): string {
-  return `${handlerProgram} ${version}`;
+export function rootModesVersionLine({ version }: { readonly version: string; }): string {
+  return `${rootModeWords.join(' ')} ${version}`;
 }
 
 /**

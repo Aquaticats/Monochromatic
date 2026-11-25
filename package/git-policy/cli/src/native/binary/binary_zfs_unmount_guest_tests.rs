@@ -235,9 +235,11 @@ fn zfs_unmount_guest() {
     make_the_staging_folder("/home/ubuntu/.cache", four_guid.as_str());
     ask_to_unmount(sbin.as_str(), three.as_str(), "44444444444444444444444444444444");
     ask_to_unmount(sbin.as_str(), four.as_str(), "55555555555555555555555555555555");
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
-    let first: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(binary).output().expect("the first concurrent handler starts"));
-    let second: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(binary).output().expect("the second concurrent handler starts"));
+    let binary: PathBuf = crate::support_installed_name::installed_name("unmount");
+    let first_link: PathBuf = binary.clone();
+    let second_link: PathBuf = binary.clone();
+    let first: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(first_link).output().expect("the first concurrent handler starts"));
+    let second: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(second_link).output().expect("the second concurrent handler starts"));
     let first_output: std::process::Output = first.join().expect("the first handler ends");
     let second_output: std::process::Output = second.join().expect("the second handler ends");
     let said: String = format!(

@@ -50,7 +50,18 @@ The rule as built:
   whether as a child,
   as a Git hook command or `-c` argument,
   as a shim it writes,
-  or through dispatch on the name it was started as (`argv[0]`).
+  or through dispatch on the name it was started as (`argv[0]`),
+  with one exception the owner answered on 2026-11-24
+  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`):
+  the installed ZED history event's own file name selects the ZFS route's clone-mount sweep and the modes' own
+  `--help` and `--version`,
+  and nothing else,
+  because ZED starts a zedlet by its file name and hands it no argument at all
+  (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+  choice 1).
+  The comparison lives in one module,
+  which the source guard pins line for line
+  (`src/native/source_guard/root_mode_name_tests.rs`).
 - The wrapper never writes shell text:
   no `sh -c`,
   no script file,

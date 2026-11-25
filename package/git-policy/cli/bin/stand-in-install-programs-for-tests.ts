@@ -74,6 +74,14 @@ export const installStandInConcurrentLockVersionVariable = 'INSTALL_STAND_IN_CON
 export const installStandInConcurrentCommitVariable = 'INSTALL_STAND_IN_CONCURRENT_COMMIT';
 
 /**
+ The variable that makes the stand-in `git` answer no root modes, which is a build whose dispatch is gone.
+
+ A fixture that leaves this out proves what an install does when the root modes are missing; one that set it and read
+ nothing would prove the check never ran.
+ */
+export const installStandInWithoutRootModesVariable = 'INSTALL_STAND_IN_WITHOUT_ROOT_MODES';
+
+/**
  The commit identity every fixture commit is made with, so a fixture never depends on this machine's Git configuration.
  */
 const fixtureIdentity: readonly string[] = [
@@ -150,6 +158,14 @@ if (real === undefined) {
 }
 const runReal = (realArgs) => spawnSync(real, realArgs, { stdio: 'inherit' });
 if (args.includes('--version')) {
+  if (args.includes('zfs-root')) {
+    if (process.env.${installStandInWithoutRootModesVariable} === '1') {
+      process.stdout.write('git version 2.56.0\\n');
+      process.exit(0);
+    }
+    process.stdout.write('monochromatic-git-policy-cli zfs-root ' + version + '\\n');
+    process.exit(0);
+  }
   const concurrentLockVersion = process.env.${installStandInConcurrentLockVersionVariable} ?? '';
   if (concurrentLockVersion !== '') {
     fs.writeFileSync(path.join(process.cwd(), 'toolchain.lock.json'), '{"tools":{"cargo:monochromatic-git-policy-cli":"' + concurrentLockVersion + '"}}\\n');
@@ -163,27 +179,6 @@ if (args.includes('--version')) {
 }
 const done = runReal(args);
 process.exit(done.status === null ? 1 : done.status);
-`;
-
-/**
- The stand-in `mount-git-worktree-clone-datasets`: the release's second executable, which answers `--version` with the
- line its own grammar prints and records that it was asked.
-
- One archive carries both executables, so an install that found only the wrapper must fail, and a fixture that answered
- nothing here would prove the check never ran.
- */
-const standInHandler = `#!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
-const directory = process.env.${installStandInDirectoryVariable};
-const version = process.env.${installStandInVersionVariable} ?? '';
-const args = process.argv.slice(2);
-fs.appendFileSync(path.join(directory, 'mount-git-worktree-clone-datasets.jsonl'), JSON.stringify({ args, cwd: process.cwd() }) + '\\n');
-if (!args.includes('--version')) {
-  process.stderr.write('the stand-in mount-git-worktree-clone-datasets answers --version only\\n');
-  process.exit(2);
-}
-process.stdout.write('mount-git-worktree-clone-datasets ' + version + '\\n');
 `;
 
 /**
@@ -241,9 +236,8 @@ export function lockRecordText({ version }: { readonly version: string; }): stri
    install of a release already recorded, `stagedLockVersion` writes that release into the lockfile and stages it before
    the install begins, `concurrentLockVersion` is a release another process writes into the lockfile while the install
    runs, `concurrentCommit` makes another process commit this release's lock first, `failStep` names the step whose
-   stand-in fails, `timingLine` is one recorded timing line to write beside the common Git directory, and `withoutHandler`
-   leaves the release's second executable out of the fixture's `PATH`, which is an archive that carried only the
-   wrapper
+   stand-in fails, `timingLine` is one recorded timing line to write beside the common Git directory, and `withoutRootModes`
+   makes the stand-in `git` answer no root modes, which is a build whose dispatch is gone
 
  @returns the fixture; declare it with `await using`
 
@@ -264,7 +258,7 @@ export async function createInstallFixture({
     readonly concurrentCommit?: boolean;
     readonly failStep?: string;
     readonly timingLine?: string;
-    readonly withoutHandler?: boolean;
+    readonly withoutRootModes?: boolean;
   };
 }): Promise<InstallFixture> {
   await mkdir(
@@ -328,16 +322,6 @@ export async function createInstallFixture({
       standInJournalctl,
       { mode: ownerOnlyMode, },
     ),
-    ...(options.withoutHandler === true ? [] : [
-      writeFile(
-        join(
-          programs,
-          'mount-git-worktree-clone-datasets',
-        ),
-        standInHandler,
-        { mode: ownerOnlyMode, },
-      ),
-    ]),
     writeFile(
       join(
         repository,
@@ -418,6 +402,7 @@ export async function createInstallFixture({
       ...(options.lockUnchanged === true ? { [installStandInLockUnchangedVariable]: '1' } : {}),
       ...(options.concurrentLockVersion === undefined ? {} : { [installStandInConcurrentLockVersionVariable]: options.concurrentLockVersion }),
       ...(options.concurrentCommit === true ? { [installStandInConcurrentCommitVariable]: '1' } : {}),
+      ...(options.withoutRootModes === true ? { [installStandInWithoutRootModesVariable]: '1' } : {}),
     } as Readonly<Record<string, string>>,
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(

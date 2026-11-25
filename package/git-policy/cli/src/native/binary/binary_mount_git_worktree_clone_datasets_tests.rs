@@ -1,17 +1,20 @@
 //! What:
-//!  The release's two executables as a person's machine meets them:
-//!  both start,
-//!  the handler refuses every mode whose step has not landed and every caller
-//!  that is not root,
-//!  and neither links one of OpenZFS's CDDL libraries.
+//!  The release's one executable as a person's machine meets it:
+//!  it starts,
+//!  the root modes answer their version,
+//!  they refuse a caller that is not root,
+//!  and the file links no OpenZFS CDDL library.
 //! Why:
 //!  The wrapper must start even when OpenZFS is absent
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Binding crate and compatibility",
 //!  and the acceptance test "Verify the release wrapper starts without OpenZFS and has no CDDL dependency"),
-//!  and the second executable is the reason the binding joined the release:
+//!  and the binding joined the release for the ZFS route:
 //!  a link to `libzfs` would make the wrapper unstartable on a machine without OpenZFS
 //!  and would put a CDDL library into a release that is not under that licence.
+//!  The root modes are modes of this one file now, so the arms start it under the
+//!  installed ZED history event's name or through the words
+//!  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
 //!  The device-absent arm states its environment before it claims anything:
 //!  on a host whose kernel has `/dev/zfs` it prints that it skipped,
 //!  because a started program there proves nothing about a machine without the device.
@@ -21,7 +24,7 @@
 //! expect(ldd(handler)).not.toMatch(/libzfs|libnvpair|libzpool/); expect(run(handler, ['--version'])).toBe(0);
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// The names of OpenZFS's CDDL libraries,
@@ -99,12 +102,9 @@ fn started(binary: &str, arguments: &[&str]) -> (Option<i32>, String) {
     return (output.status.code(), format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())));
 }
 
-/// The two executables the release archive holds,
-/// named as cargo built them for this test run.
-const RELEASE_BINS: [&str; 2] = [
-    env!("CARGO_BIN_EXE_monochromatic-git-policy-cli"),
-    env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets"),
-];
+/// The one executable the release archive holds,
+/// named as cargo built it for this test run.
+const RELEASE_BINS: [&str; 1] = [env!("CARGO_BIN_EXE_monochromatic-git-policy-cli")];
 
 /// Neither executable names a CDDL library,
 /// and each listing is a real answer:
@@ -132,9 +132,9 @@ fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
     assert_eq!(cddl_libraries(clean), Vec::<String>::new());
 }
 
-/// The handler answers its version,
-/// and on a machine whose kernel has no ZFS device every mode that will make
-/// a request refuses at the start-time gate before the mode is entered.
+/// The root modes answer their version,
+/// and on a machine whose kernel has no ZFS device every mode that will make a
+/// request refuses at the start-time gate before the mode is entered.
 ///
 /// The device is stated absent first:
 /// on a host whose kernel loaded OpenZFS the gate may pass there and the mode
@@ -142,19 +142,22 @@ fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
 /// which the dispatch controls read with a gate that answers without a kernel
 /// (`handler_mode_dispatch_tests`).
 #[test]
-fn the_handler_answers_its_version_and_refuses_its_request_modes_behind_the_gate() {
-    let (version_status, version) = started(RELEASE_BINS[1], &["--version"]);
+fn the_root_modes_answer_their_version_and_refuse_their_request_modes_behind_the_gate() {
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-version");
+    let words: [&str; 2] = crate::support_installed_name::root_mode_words();
+    let (version_status, version) = started(link.display().to_string().as_str(), &["--version"]);
     assert_eq!(version_status, Some(0), "{version}");
-    let (report_status, report) = reported(RELEASE_BINS[1], &["--version"]);
+    let (report_status, report) = reported(link.display().to_string().as_str(), &["--version"]);
     assert_eq!(report_status, Some(0), "{report}");
-    assert_eq!(report, format!("mount-git-worktree-clone-datasets {}\n", env!("CARGO_PKG_VERSION")));
+    assert_eq!(report, format!("{} {} {}\n", words[0], words[1], env!("CARGO_PKG_VERSION")));
     assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
     if Path::new("/dev/zfs").exists() {
         eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here says nothing about a machine without the device; the gate image has none and runs this arm");
         return;
     }
-    for arguments in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
-        let (status, said) = started(RELEASE_BINS[1], arguments.as_slice());
+    for mode in ["boot-reconcile", "shutdown-unmount"] {
+        let arguments: Vec<&str> = vec![words[0], words[1], mode];
+        let (status, said) = started(link.display().to_string().as_str(), arguments.as_slice());
         assert_eq!(status, Some(2), "{arguments:?} must refuse: {said}");
         assert!(said.contains("the start-time ZFS compatibility gate refused"), "{arguments:?} names the gate: {said}");
         assert!(said.contains("reads included"), "{arguments:?} names what stays disabled: {said}");
@@ -181,7 +184,9 @@ fn a_start_probe_that_is_not_root_is_refused_before_any_write() {
         eprintln!("SKIPPED: this run is root, so a caller that is not root cannot be shown here; the dispatch control drives the same refusal in process");
         return;
     }
-    let (status, said) = started(RELEASE_BINS[1], &["start-probe"]);
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-not-root");
+    let words: [&str; 2] = crate::support_installed_name::root_mode_words();
+    let (status, said) = started(link.display().to_string().as_str(), &[words[0], words[1], "start-probe"]);
     assert_eq!(status, Some(2), "a caller that is not root must be refused: {said}");
     assert!(said.contains("the start-probe mode runs as root"), "the refusal names the mode and the rule: {said}");
     assert!(said.contains(&format!("effective user is {effective_user}")), "the refusal names the user the kernel reported: {said}");
@@ -198,19 +203,21 @@ fn the_wrapper_answers_its_own_help() {
     assert!(help.contains("Usage: git monochromatic-git-policy-cli"), "{help}");
 }
 
-/// Both executables start on a machine whose kernel has no ZFS device.
+/// The one executable starts on a machine whose kernel has no ZFS device,
+/// and so do the root modes under the installed name.
 ///
 /// The device is stated absent first:
 /// on a host whose kernel loaded OpenZFS this arm prints that it skipped,
 /// because a start there says nothing about a machine without the device.
 #[test]
-fn both_executables_start_without_the_zfs_device() {
+fn the_executable_starts_without_the_zfs_device() {
     if Path::new("/dev/zfs").exists() {
         eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here does not show a start without the device; the gate image has none and runs this arm");
         return;
     }
     let (wrapper_status, wrapper_said) = started(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
     assert_eq!(wrapper_status, Some(0), "the wrapper starts without OpenZFS: {wrapper_said}");
-    let (handler_status, handler_said) = started(RELEASE_BINS[1], &["--version"]);
-    assert_eq!(handler_status, Some(0), "the handler starts without OpenZFS: {handler_said}");
+    let link: PathBuf = crate::support_installed_name::installed_name("modes-without-device");
+    let (modes_status, modes_said) = started(link.display().to_string().as_str(), &["--version"]);
+    assert_eq!(modes_status, Some(0), "the root modes start without OpenZFS: {modes_said}");
 }

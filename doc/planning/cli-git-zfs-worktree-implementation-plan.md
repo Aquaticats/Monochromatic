@@ -158,7 +158,7 @@ or says which step must pick it.
   Step 7 adds no JSON crate.
 - The wrapper's path dependency on the binding.
   Picked in effect by "Binding crate and compatibility",
-  which has both binaries "use the same binding and compatibility gate".
+  which has the wrapper's modes "use the same binding and compatibility gate".
   It is an internal path dependency with a `=` version,
   per [catalog][],
   and step 5 adds it.
@@ -232,7 +232,11 @@ or says which step must pick it.
   repo rule `WC2` owns it,
   and the new crate's path matches the managed manifest patterns in `file-enforcer.config.jsonc`.
 - A release path that can carry a second executable.
-  Not picked by the design.
+  Not picked by the design,
+  and no longer needed:
+  the owner answered "One program only, ever" on 2026-11-23
+  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
+  Kept as the record of what step 5 weighed.
   The design decided the second binary ("Binding crate and compatibility";
   "Decided defaults"),
   and the release archive today holds one executable,
@@ -926,43 +930,61 @@ Step 2,
 for the guest recipe its VM arms need;
 its host half needs no other step.
 
-### Step 5: The second executable and what the release ships
+### Step 5: The root modes in the one executable, and what the release ships
 
 #### What it builds
 
-The `[[bin]]` `mount-git-worktree-clone-datasets` in `package/git-policy/cli`,
-with mode dispatch for `boot-reconcile`,
-`shutdown-unmount` and `adopt-worktree-parent`;
-the two install paths `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`,
-and `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`;
+The owner answered "One program only, ever" on 2026-11-23, so this step no
+longer adds a second executable:
+the root modes are modes of `monochromatic-git-policy-cli`, and the release
+holds one `[[bin]]`
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`;
+how the modes are reached is
+`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`).
+What it builds:
+the mode dispatch for the default sweep,
+`boot-reconcile`,
+`start-probe`,
+`shutdown-unmount`,
+`holder-scan`,
+`adopt-worktree-parent`,
+`record-checkout` and `mount-path-descendant`;
+one root-owned regular file,
+`/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
+whose ZED entry `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
+is a link to it;
+the words `monochromatic-git-policy-cli zfs-root <mode>` that select a mode on
+any file;
 and the wrapper's path dependency on the binding.
 The default invocation the zedlet makes,
 with no argument,
 runs the sweep;
 the plan's suggestion is in "Where the design is silent".
 Its modes refuse until the step that implements each one lands.
-It also changes what a second executable costs the release:
+The release lists this step changed when it added a second executable are
+undone the same way they were made:
 the source guard's one-executable test,
 `bin/native-release-bins.unit.test.ts`,
 the binstall table in [cli-cargo][],
-the wrapper's `checkBins` and `pinFiles` rows in
+the wrapper's `checkBins` row in
 `package/crate-release/cli/releasable-crates.json`,
-the lock's `bins` row in `toolchain.lock.json`,
-a sidecar lock refresh (`mise run //package/git-policy/cli:lint:sidecar-locks`),
+the lock's `bins` row in `toolchain.lock.json` (through the tool, never by
+hand),
 the install task and the README's install text.
 
 #### Design sections
 
-"Binding crate and compatibility" (the second binary and its shared gate);
+"Binding crate and compatibility" (the one executable and its shared gate);
 "ZED reconciliation and mount safety" (the install paths,
 root ownership and the config path);
 "Decided defaults" (the second binary's cost).
 
 #### SPEC.md passages
 
-`## Single executable and shipped policies` must change,
-because the release no longer holds one executable.
-The plan's suggestion is in "Where the design is silent".
+`## The single executable and shipped policies` says how the release holds one
+executable and how root reaches the modes;
+`#### External hooks` says the one start name the executable reads.
+Both are written.
 
 #### Acceptance tests
 
@@ -997,7 +1019,7 @@ Steps 1 and 4.
 
 #### What it builds
 
-The gate both binaries run before their first ioctl:
+The gate the root modes run before their first ioctl:
 architecture,
 endianness,
 request contract and the kernel/module BTF layout,
@@ -3454,6 +3476,12 @@ the fourth is an accepted cost that `doctor` reports.
   the wrapper manifest's comment says cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate.
   So this is writer work in step 5,
  not an owner question.
+  (Amended 2026-11-25T03:00:00-05:00:
+  the owner answered "One program only, ever" on 2026-11-23
+  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+  so the release holds one executable again and the two executables this entry
+  describes are gone;
+  step 5's undo is what removed them.)
 - What removes a receipt for a clone that no longer exists.
   "Requests,
   results and ordering" and "Decided defaults" say nothing removes it,

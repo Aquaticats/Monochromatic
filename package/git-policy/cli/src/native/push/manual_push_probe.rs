@@ -12,7 +12,7 @@
 //!  No program of ours is started for this,
 //! and no hook or shell text is written:
 //! an earlier version recorded Git's
-//!  update lines with a `#!/bin/sh` hook (`doc/planning/cli-git-no-self-invocation.md`).
+//!  update lines with a shell hook (`doc/planning/cli-git-no-self-invocation.md`).
 //!  Every Git child here is bounded by the query deadline,
 //! so a remote that never answers cannot hold the push.
 //!

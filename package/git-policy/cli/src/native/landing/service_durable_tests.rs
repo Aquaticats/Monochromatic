@@ -238,6 +238,7 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
         return Ok(());
     };
     // The probe is a process of the same program that tries to start one thread under the limit and says what happened.
+    #[allow(clippy::disallowed_methods, reason = "identification only: the test binary is the program this process was started as, and the probe runs one test of it again")]
     let test_binary: std::path::PathBuf = std::path::PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
     let mut probe = std::process::Command::new(test_binary.as_path());
     probe.args(["--exact", "landing::service_durable::tests::thread_probe", "--nocapture", "--test-threads=1"]).env(HELPER_DIRECTORY, "probe").stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null());

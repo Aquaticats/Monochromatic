@@ -301,7 +301,7 @@ pub(crate) fn root_directory(path: &str, mode: u32) -> PathFacts {
 
 /// The handler's two installed halves at the build's own paths.
 pub(crate) fn healthy_installation() -> HandlerInstallationFacts {
-    return HandlerInstallationFacts { executable: root_file(super::handler_checks::PLACEHOLDER_EXECUTABLE_PATH), zedlet: root_file(super::handler_checks::PLACEHOLDER_ZEDLET_PATH) };
+    return HandlerInstallationFacts { executable: root_file(super::handler_checks::ROOT_MODE_EXECUTABLE_PATH), zedlet: root_file(super::handler_checks::ZEDLET_EVENT_PATH) };
 }
 
 /// The handler's configuration at the build's own path.

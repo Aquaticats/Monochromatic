@@ -126,9 +126,45 @@ pub fn deadline_from_words(value: Option<&str>) -> Duration {
     };
 }
 
-/// The bound this process's environment asks for.
+/// What:
+///  The bound this build uses: the shipped one,
+///  or a control's, when this build was made for a control.
+/// Why:
+///   A variable that can raise the bound turns a missed deadline into a pass,
+///  and a unit's `Environment=` line can set one;
+///  a build made for a control says so in its own manifest and cannot be the
+///  build a release ships
+///  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+///  choice 11).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bound = theBound(); // shipped, unless this build was made for a control
+/// ```
+pub fn the_bound() -> Duration {
+    #[cfg(feature = "start-probe-raised-deadline")]
+    if let Some(raised) = raised_by_the_test_variable() {
+        return raised;
+    }
+    return PROBE_DEADLINE;
+}
+
+/// The bound the deadline variable names,
+/// read only by a build made for a control.
+#[cfg(feature = "start-probe-raised-deadline")]
+fn raised_by_the_test_variable() -> Option<Duration> {
+    let word: String = std::env::var(DEADLINE_SWITCH_VARIABLE).ok()?;
+    let milliseconds: u64 = word.parse::<u64>().ok()?;
+    if milliseconds == 0 {
+        return None;
+    }
+    return Some(Duration::from_millis(milliseconds));
+}
+
+/// The bound the deadline variable names,
+/// which only a build made for a control reads.
 pub fn deadline_from_environment() -> Duration {
-    return deadline_from_words(std::env::var(DEADLINE_SWITCH_VARIABLE).ok().as_deref());
+    return the_bound();
 }
 
 /// Controls stay out of the release executable.

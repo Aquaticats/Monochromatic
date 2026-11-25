@@ -3321,7 +3321,10 @@ Choices open to the owner's veto (the coordinator's brief called the mode form a
 - The form `cli-git service run`,
   inside the wrapper's existing `cli-git` namespace and apart from `status`.
   Not `--service`
-  or a name-based dispatch (the self-invocation rules ban dispatch on `argv[0]`).
+  or a name-based dispatch (the self-invocation rules ban dispatch on `argv[0]`,
+  except the installed ZED history event's own name, which the owner answered on
+  2026-11-24 selects the ZFS route's root modes and nothing the service answers:
+  `doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`).
 - The mode words count only first.
   Behind a global option of Git (`git -C x cli-git service run`) they are an unknown
   management command,

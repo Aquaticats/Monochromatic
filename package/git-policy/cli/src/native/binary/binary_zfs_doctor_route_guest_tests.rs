@@ -82,10 +82,10 @@ const POOL_IMAGE_SIZE: &str = "1G";
 const NONCE: &str = "0123456789abcdef0123456789abcdef";
 
 /// The install path the checks name as a placeholder for the one executable.
-const EXECUTABLE_PATH: &str = git_policy_cli::doctor_zfs_route::PLACEHOLDER_EXECUTABLE_PATH;
+const EXECUTABLE_PATH: &str = git_policy_cli::doctor_zfs_route::ROOT_MODE_EXECUTABLE_PATH;
 
 /// The ZED event path the checks name as a placeholder.
-const ZEDLET_PATH: &str = git_policy_cli::doctor_zfs_route::PLACEHOLDER_ZEDLET_PATH;
+const ZEDLET_PATH: &str = git_policy_cli::doctor_zfs_route::ZEDLET_EVENT_PATH;
 
 /// The stale name a readiness record from another boot is built with.
 const OTHER_BOOT: &str = "00000000-0000-0000-0000-000000000000";

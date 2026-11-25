@@ -113,8 +113,8 @@ pub fn staging_claim_path(common: &Path, guid: DatasetGuid) -> PathBuf {
 /// The claim as JSON text.
 impl StagingClaim {
     /// The text the file holds.
-    #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
     pub fn encode(&self) -> String {
+        #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
         let object: serde_json::Value = serde_json::json!({
             "version": CLAIM_VERSION,
             "kind": CLAIM_KIND,

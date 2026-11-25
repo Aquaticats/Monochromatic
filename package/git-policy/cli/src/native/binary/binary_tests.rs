@@ -76,6 +76,11 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The installed ZED history event's name in this control's own folder, and the words the other
+/// root modes are reached through.
+#[path = "binary_support_installed_name.rs"]
+mod support_installed_name;
+
 /// The bound one observed command is given,
 /// who ended it,
 /// and the two pipes its output came through.
@@ -1068,6 +1073,11 @@ mod zfs_add_guest;
 
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
+
+/// The refusal path of the installed name and the words,
+/// and the marker a start that reached the wrapper writes.
+#[path = "binary_root_mode_name_tests.rs"]
+mod root_mode_name;
 
 /// Plan step 9's staging mechanics in the throwaway guest.
 #[path = "binary_zfs_unmount_guest_tests.rs"]

@@ -269,8 +269,7 @@
       "request": "github:Aquaticats/Monochromatic@latest",
       "route": "archive",
       "bins": [
-        "monochromatic-git-policy-cli",
-        "mount-git-worktree-clone-datasets"
+        "monochromatic-git-policy-cli"
       ],
       "os": [
         "linux"

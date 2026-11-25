@@ -1,5 +1,14 @@
 # The holder scan across mount namespaces, measured 2026-11-22
 
+**Note, 2026-11-25:**
+the program this record measured as
+`mount-git-worktree-clone-datasets holder-scan` is a mode of
+`monochromatic-git-policy-cli` now,
+reached as `monochromatic-git-policy-cli zfs-root holder-scan --dataset <name>`
+or through one root-owned file under the installed ZED history event's name
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
+The text below keeps the spelling of the program it measured.
+
 Status:
 written by an agent in one disposable `mvm` `libvirt` guest,
 unapproved and non-final.

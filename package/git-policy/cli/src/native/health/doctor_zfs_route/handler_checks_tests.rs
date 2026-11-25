@@ -17,7 +17,7 @@
 //! ```
 
 use super::{
-    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, PLACEHOLDER_EXECUTABLE_PATH, PLACEHOLDER_ZEDLET_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, RESULTS_DIRECTORY_MODE, ReadinessFacts, RequestFacts,
+    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ROOT_MODE_EXECUTABLE_PATH, ZEDLET_EVENT_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, RESULTS_DIRECTORY_MODE, ReadinessFacts, RequestFacts,
     READINESS_DIRECTORY_MODE, ROOT_OWNER, check_handler_configuration, check_handler_folders, check_handler_installation, check_modes, check_readiness, check_root_modes, check_unresolved_requests, check_zed_wiring,
 };
 use crate::health::doctor_zfs_route::route_test_facts::{healthy_configuration, healthy_folders, healthy_installation, healthy_readiness, healthy_request, healthy_wiring, path_facts, root_file, LIVE_BOOT};
@@ -39,7 +39,7 @@ fn the_installed_halves_at_root_ownership_pass() {
 /// An executable owned by another account is a finding naming the owner.
 #[test]
 fn an_executable_owned_by_another_account_is_a_finding() {
-    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: owned_by(PLACEHOLDER_EXECUTABLE_PATH, 1000, 0o755), zedlet: root_file(PLACEHOLDER_ZEDLET_PATH) };
+    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: owned_by(ROOT_MODE_EXECUTABLE_PATH, 1000, 0o755), zedlet: root_file(ZEDLET_EVENT_PATH) };
     let super::CheckOutcome::Finding { field, detail } = check_handler_installation(&facts) else {
         panic!("another owner is a finding");
     };
@@ -50,7 +50,7 @@ fn an_executable_owned_by_another_account_is_a_finding() {
 /// An installed file without an executable bit is a finding naming the mode.
 #[test]
 fn a_file_without_an_executable_bit_is_a_finding() {
-    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: owned_by(PLACEHOLDER_EXECUTABLE_PATH, ROOT_OWNER, 0o644), zedlet: root_file(PLACEHOLDER_ZEDLET_PATH) };
+    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: owned_by(ROOT_MODE_EXECUTABLE_PATH, ROOT_OWNER, 0o644), zedlet: root_file(ZEDLET_EVENT_PATH) };
     let super::CheckOutcome::Finding { field, .. } = check_handler_installation(&facts) else {
         panic!("a file no one may run is a finding");
     };
@@ -60,12 +60,12 @@ fn a_file_without_an_executable_bit_is_a_finding() {
 /// A missing half is a finding naming the installation.
 #[test]
 fn a_missing_half_is_a_finding_naming_the_installation() {
-    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: root_file(PLACEHOLDER_EXECUTABLE_PATH), zedlet: path_facts(PLACEHOLDER_ZEDLET_PATH, PathState::Absent) };
+    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: root_file(ROOT_MODE_EXECUTABLE_PATH), zedlet: path_facts(ZEDLET_EVENT_PATH, PathState::Absent) };
     let super::CheckOutcome::Finding { field, detail } = check_handler_installation(&facts) else {
         panic!("a missing zedlet is a finding");
     };
     assert_eq!(field, "installation");
-    assert!(detail.contains(PLACEHOLDER_ZEDLET_PATH), "{detail}");
+    assert!(detail.contains(ZEDLET_EVENT_PATH), "{detail}");
 }
 
 /// The one executable answers every root mode the route needs.
@@ -99,7 +99,7 @@ fn the_required_modes_are_the_four_the_tree_holds() {
 /// A look this account was refused leaves the installation unknown.
 #[test]
 fn an_unreadable_installation_is_unknown() {
-    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: path_facts(PLACEHOLDER_EXECUTABLE_PATH, PathState::Unreadable { why: String::from("permission denied") }), zedlet: root_file(PLACEHOLDER_ZEDLET_PATH) };
+    let facts: HandlerInstallationFacts = HandlerInstallationFacts { executable: path_facts(ROOT_MODE_EXECUTABLE_PATH, PathState::Unreadable { why: String::from("permission denied") }), zedlet: root_file(ZEDLET_EVENT_PATH) };
     assert!(matches!(check_handler_installation(&facts), super::CheckOutcome::Unknown { .. }));
 }
 

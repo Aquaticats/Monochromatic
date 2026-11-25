@@ -51,6 +51,7 @@ Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--poli
        git monochromatic-git-policy-cli kept-references [--prune]
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
+       git monochromatic-git-policy-cli zfs-root <mode>   (run as root; --help lists the modes)
        git monochromatic-git-policy-cli --help
 ";
 
@@ -81,6 +82,10 @@ Commands:
            Convert the main checkout into a btrfs subvolume (see `git monochromatic-git-policy-cli migrate-to-subvolume --help`).
   convert-worktree-to-subvolume
            Convert linked worktrees that are ordinary directories into subvolumes (see its `--help`).
+  zfs-root List the ZFS route's root modes: the root-owned file the ZED event and the boot and
+           shutdown units start, and the words every root mode is reached through, as
+           `monochromatic-git-policy-cli zfs-root <mode>`. The modes run as root and read the
+           checkout record root wrote; a read-only question needs no root.
 
 Scope (exactly one):
   --all             The whole repository.

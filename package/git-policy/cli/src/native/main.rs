@@ -6,7 +6,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! process.exit(runProcess(process.argv.slice(2), Object.entries(process.env)));
+//! process.exit(runProcess(process.argv.slice(2), Object.entries(process.env), startDirectory));
 //! ```
 
 /// What:
@@ -24,6 +24,9 @@ use std::ffi::OsString;
 use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};
 /// The wait at the end of this process for the diagnostic lines it handed to their own thread.
 use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;
+/// The one module that decides a root-mode start, in a Linux build only.
+#[cfg(target_os = "linux")]
+use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};
 
 /// What:
 ///  The program entry point:
@@ -38,23 +41,39 @@ use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function main(): never { const code = runProcess(argv, env); writeWhatWaits(WAIT_BEFORE_AN_EXIT); process.exit(code); }
+/// function main(): never { const code = runProcess(argv, env, startDirectory); writeWhatWaits(WAIT_BEFORE_AN_EXIT); process.exit(code); }
 /// ```
 fn main() {
-    // What: `.skip(1)` drops the program name; `.collect()` gathers the rest into an
-    //       owned list. `Vec<OsString>` is that list type.
-    // Why:  Git receives only the caller's arguments, in order.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const args = process.argv.slice(2);
-    // ```
-    let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
-    // The service mode is chosen by the leading words (`monochromatic-git-policy-cli service run`), never by the name this program was started
-    // as, and before anything else of the wrapper runs: the service's process setup is its own, and the wrapper's start
-    // never takes it (doc/planning/cli-git-resident-service.md, "One executable").
-    if git_policy_cli::service_main::is_service_start(arguments.as_slice()) {
-        let code: i32 = match git_policy_cli::service_main::service_options(arguments.as_slice()) {
+    // The one argument-vector read the owner's answer needs; `clippy.toml` bans the call in every
+    // other file, and this allow is the one it names.
+    #[allow(clippy::disallowed_methods)]
+    let arguments: Vec<OsString> = std::env::args_os().collect();
+    // The handler is the crate's Linux-only module, like the mount table it reads, so the root
+    // modes exist only in a Linux build and every other target keeps the wrapper's one mode.
+    #[cfg(target_os = "linux")]
+    {
+        match root_mode_names::root_mode_start(arguments.as_slice()) {
+            RootModeStart::Wrapper => {}
+            RootModeStart::Arguments(mode_arguments) => {
+                git_policy_cli::panic_notice::install_payload_free_panic_hook();
+                let code: i32 = git_policy_cli::worktree_clone_mount_handler::run(mode_arguments);
+                end_after_the_log(code);
+            }
+            RootModeStart::Refused(misuse) => {
+                git_policy_cli::panic_notice::install_payload_free_panic_hook();
+                let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);
+                end_after_the_log(code);
+            }
+        }
+    }
+    // The service check and the wrapper's own entry both read the arguments after the program name,
+    // and the whole vector is what the root-mode decision reads, so the name is dropped once here.
+    let handed: &[OsString] = arguments.get(1..).unwrap_or_default();
+    // The service mode is chosen by the leading words (`monochromatic-git-policy-cli service run`), never by the name
+    // this program was started as, and before anything else of the wrapper runs: the service's process setup is its
+    // own, and the wrapper's start never takes it (doc/planning/cli-git-resident-service.md, "One executable").
+    if git_policy_cli::service_main::is_service_start(handed) {
+        let code: i32 = match git_policy_cli::service_main::service_options(handed) {
             Ok(options) => git_policy_cli::service_main::run(options.as_slice()),
             Err(word) => {
                 git_policy_cli::service_error!("an argument of the service is not text: {}", word.to_string_lossy());
@@ -73,7 +92,7 @@ fn main() {
     let start_directory: git_policy_cli::start_directory::StartDirectory =
         git_policy_cli::start_directory::StartDirectory::read_from_the_process();
     // `i32` is the signed 32-bit type of process exit codes.
-    let code: i32 = git_policy_cli::entry::run_process(arguments.as_slice(), environment.as_slice(), &start_directory);
+    let code: i32 = git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);
     end_after_the_log(code);
 }
 
