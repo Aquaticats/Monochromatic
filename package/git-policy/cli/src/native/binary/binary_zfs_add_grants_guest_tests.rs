@@ -1,40 +1,44 @@
 //! What:
-//!  Plan step 10's grant split as guest arms, run as the delegated account:
+//!  Plan step 10's grant split as guest arms:
 //!  one arm per decided permission withheld,
 //!  refusing before the claim with nothing written for the six the add's own
 //!  steps use,
 //!  and printing the `zfs allow` line and finishing the add for the three only a
 //!  removal uses,
-//!  and one arm on the whole set printing no line at all.
+//!  one arm on the whole set printing no line at all,
+//!  and one arm under the delegated account showing that the pool's own
+//!  answers for the add's requests are the same with each of the three taken
+//!  away.
 //! Why:
-//!  The split's ground is a claim about which requests the add makes,
-//!  and only a run under the account the delegation names can answer it:
-//!  as root every pool request succeeds whatever the delegation says,
-//!  so a root run shows the preflight's sentence and nothing about the
-//!  permissions behind it
+//!  The split's ground is a claim about which requests the add makes
 //!  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
 //!  choice 3C,
 //!  "An arm in the guest,
 //!  with the six granted and one of the three withheld,
 //!  should confirm that the add's own requests never fail for want of the
 //!  withheld one").
-//!  Every arm borrows the fixture the add's root arms use,
-//!  hands the checkout and the nine grants to the account,
-//!  drops the one permission its arm is about,
-//!  and puts both back before the next arm,
-//!  so a failure names one permission rather than the world it left behind.
+//!  The add's own command runs as the fixture's account,
+//!  whose nine grants the pool hands the account that runs it,
+//!  so withholding one asks the preflight the question a person's machine asks.
+//!  The kernel's side is a second arm:
+//!  root bypasses every delegation,
+//!  so only the delegated account can say whether a withheld permission would
+//!  have stopped a request,
+//!  and that arm runs the add's four writing requests as `ubuntu` through the
+//!  `zfs` tool.
 //!  A run without `CLI_GIT_ZFS_ADD_GUEST` prints the skip line its parent
 //!  module's arms print and returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! for (const grant of DECIDED) { const added = await runAddAsTheAccount(grant); expect(added).toEqual(verdictOf(grant)) }
+//! for (const grant of DECIDED) { const added = await runAdd(grant); expect(added).toEqual(verdictOf(grant)) }
+//! for (const grant of A_REMOVALS_GROUP) { expect(await asUbuntu().writes(grant)).toEqual('all succeed') }
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
-use super::{Fixture, POLL, WAIT, WRAPPER, guest};
+use super::{Fixture, guest};
 
 /// The account the design delegates the route to, which the guest's image creates.
 const ACCOUNT_NAME: &str = "ubuntu";
@@ -42,16 +46,6 @@ const ACCOUNT_NAME: &str = "ubuntu";
 /// That account's user id,
 /// which every `zfs allow` and every finding names.
 const ACCOUNT: u32 = 1000;
-
-/// That account's home, where its own links, records and runtime folder live.
-const ACCOUNT_HOME: &str = "/home/ubuntu";
-
-/// The folder the account starts the wrapper from,
-/// which is outside the checkout so the source stays clean.
-const ACCOUNT_BIN: &str = "/home/ubuntu/zfs-add-bin";
-
-/// The session runtime folder the account owns.
-const ACCOUNT_RUNTIME: &str = "/home/ubuntu/zfs-add-runtime";
 
 /// Where the design grants one decided permission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -116,69 +110,24 @@ fn dataset_of(fixture: &Fixture, place: Place) -> String {
 }
 
 /// The slot one arm runs at,
-/// which names the permission so a failure reads at once.
+/// which names the permission and the scope so a failure reads at once.
 fn arm_slot(grant: &DecidedGrant) -> String {
-    return format!("grants-{}-{}", grant.permission, if grant.scope == "-l" { "local" } else { "descendants" });
+    return format!("grants-{}-{}", grant.permission, grant.scope.trim_start_matches('-'));
 }
 
-/// Hand the fixture's checkout to the delegated account,
-/// and put it back when the arm ends.
-/// Why:
-///  The route is the unprivileged lifecycle's:
-///  the preflight compares the slot folder's owner with the account's own uid,
-///  and every step writes into the checkout as the account,
-///  so the arm must run as that account over that account's folder.
-struct Lend<'a> {
-    /// The fixture lent.
-    fixture: &'a Fixture,
-    /// The folder handed over,
-    /// which goes back to root when the arm ends.
-    checkout_root: PathBuf,
+/// The `zfs` arguments that grant one decided permission where the design puts it.
+fn allow_arguments(grant: &DecidedGrant, fixture: &Fixture) -> Vec<String> {
+    return vec![String::from("allow"), String::from(grant.scope), String::from("-u"), ACCOUNT.to_string(), String::from(grant.permission), dataset_of(fixture, grant.place)];
 }
 
-impl<'a> Lend<'a> {
-    /// Grant the nine to the account and hand it the checkout,
-    /// its worktrees folder and a home to run from.
-    fn to_the_account(fixture: &'a Fixture) -> Lend<'a> {
-        for grant in DECIDED {
-            fixture.zfs_ok(&["allow", grant.scope, "-u", ACCOUNT.to_string().as_str(), grant.permission, dataset_of(fixture, grant.place).as_str()]);
-        }
-        let folder: PathBuf = PathBuf::from(ACCOUNT_BIN);
-        std::fs::create_dir_all(folder.as_path()).expect("the account's bin folder");
-        let link: PathBuf = folder.join("git");
-        let _stale: std::io::Result<()> = std::fs::remove_file(link.as_path());
-        std::os::unix::fs::symlink(WRAPPER, link.as_path()).expect("the account's git link");
-        let runtime: PathBuf = PathBuf::from(ACCOUNT_RUNTIME);
-        std::fs::create_dir_all(runtime.as_path()).expect("the account's runtime folder");
-        let children: [&Path; 3] = [folder.as_path(), runtime.as_path(), Path::new(ACCOUNT_HOME)];
-        for child in children {
-            let handed: Output = Command::new("/usr/bin/chown").args(["--recursive", format!("{ACCOUNT_NAME}:{ACCOUNT_NAME}").as_str()]).arg(child).output().expect("chown starts");
-            assert!(handed.status.success(), "{} cannot be handed to {ACCOUNT_NAME}: {}", child.display(), String::from_utf8_lossy(handed.stderr.as_slice()));
-        }
-        let mode: Output = Command::new("/usr/bin/chmod").args(["0700"]).arg(runtime.as_path()).output().expect("chmod starts");
-        assert!(mode.status.success(), "the account's runtime folder takes mode 0700: {}", String::from_utf8_lossy(mode.stderr.as_slice()));
-        let handed: Output = Command::new("/usr/bin/chown").args(["--recursive", format!("{ACCOUNT_NAME}:{ACCOUNT_NAME}").as_str()]).arg(fixture.root.as_path()).output().expect("chown starts");
-        assert!(handed.status.success(), "the checkout cannot be handed to {ACCOUNT_NAME}: {}", String::from_utf8_lossy(handed.stderr.as_slice()));
-        return Lend { fixture, checkout_root: fixture.root.clone() };
-    }
+/// The `zfs` arguments that take that grant away.
+fn unallow_arguments(grant: &DecidedGrant, fixture: &Fixture) -> Vec<String> {
+    return vec![String::from("unallow"), String::from(grant.scope), String::from("-u"), ACCOUNT.to_string(), String::from(grant.permission), dataset_of(fixture, grant.place)];
 }
 
-impl Drop for Lend<'_> {
-    fn drop(&mut self) {
-        // The checkout goes back to root first, so the arm that runs next reads
-        // the world the root arms left, and a `git` root starts there is not
-        // refused as a repository somebody else owns.
-        let handed: Output = Command::new("/usr/bin/chown").args(["--recursive", "root:root"]).arg(self.checkout_root.as_path()).output().expect("chown starts");
-        assert!(handed.status.success(), "the checkout cannot be handed back to root: {}", String::from_utf8_lossy(handed.stderr.as_slice()));
-        for grant in DECIDED {
-            let said: Output = self.fixture.zfs(&["unallow", grant.scope, "-u", ACCOUNT.to_string().as_str(), grant.permission, dataset_of(self.fixture, grant.place).as_str()]);
-            assert!(said.status.success(), "the account's `{}` grant on {} cannot be taken back: {}", grant.permission, dataset_of(self.fixture, grant.place), String::from_utf8_lossy(said.stderr.as_slice()));
-        }
-    }
-}
-
-/// One permission taken away for the length of one arm,
-/// and put back when it ends.
+/// One grant of the decided nine handed to uid 0,
+/// which is the account this guest's add runs as,
+/// and put back when the arm ends.
 struct Withheld<'a> {
     /// The fixture whose delegation is short one permission.
     fixture: &'a Fixture,
@@ -187,9 +136,11 @@ struct Withheld<'a> {
 }
 
 impl<'a> Withheld<'a> {
-    /// Take the one permission away from the account.
-    fn from_the_account(fixture: &'a Fixture, grant: &'a DecidedGrant) -> Withheld<'a> {
-        let said: Output = fixture.zfs(&["unallow", grant.scope, "-u", ACCOUNT.to_string().as_str(), grant.permission, dataset_of(fixture, grant.place).as_str()]);
+    /// Take the one permission away from the account the add runs as.
+    fn from_the_fixture(fixture: &'a Fixture, grant: &'a DecidedGrant) -> Withheld<'a> {
+        let mut taken: Vec<String> = unallow_arguments(grant, fixture);
+        taken[3] = String::from("0");
+        let said: Output = fixture.zfs(taken.iter().map(|argument| return argument.as_str()).collect::<Vec<&str>>().as_slice());
         assert!(said.status.success(), "`{}` cannot be withheld: {}", grant.permission, String::from_utf8_lossy(said.stderr.as_slice()));
         return Withheld { fixture, grant };
     }
@@ -197,47 +148,11 @@ impl<'a> Withheld<'a> {
 
 impl Drop for Withheld<'_> {
     fn drop(&mut self) {
-        let said: Output = self.fixture.zfs(&["allow", self.grant.scope, "-u", ACCOUNT.to_string().as_str(), self.grant.permission, dataset_of(self.fixture, self.grant.place).as_str()]);
+        let mut given: Vec<String> = allow_arguments(self.grant, self.fixture);
+        given[3] = String::from("0");
+        let said: Output = self.fixture.zfs(given.iter().map(|argument| return argument.as_str()).collect::<Vec<&str>>().as_slice());
         assert!(said.status.success(), "`{}` cannot be granted back: {}", self.grant.permission, String::from_utf8_lossy(said.stderr.as_slice()));
     }
-}
-
-/// The add's command, started as the delegated account through `runuser`.
-fn add_command_as_the_account(fixture: &Fixture, name: &str) -> Command {
-    let mut command: Command = Command::new("/usr/sbin/runuser");
-    let slot: String = fixture.slot(name).display().to_string();
-    command
-        .args(["-u", ACCOUNT_NAME, "--", "/usr/bin/env"])
-        .arg(format!("PATH={ACCOUNT_BIN}:/usr/bin:/bin"))
-        .arg(format!("HOME={ACCOUNT_HOME}"))
-        .arg(format!("XDG_RUNTIME_DIR={ACCOUNT_RUNTIME}"))
-        .args(["GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/nonexistent-global-config", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid"])
-        .arg(format!("{ACCOUNT_BIN}/git"))
-        .args(["worktree", "add", slot.as_str()])
-        .current_dir(fixture.root.as_path())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-    return command;
-}
-
-/// Run one add as the account to its end,
-/// mounting the clone at the slot as root when it appears.
-fn run_add_as_the_account(fixture: &Fixture, name: &str) -> Output {
-    let mut child: std::process::Child = add_command_as_the_account(fixture, name).spawn().expect("the account's add starts");
-    let clone: String = fixture.clone(name);
-    let slot: PathBuf = fixture.slot(name);
-    let started: std::time::Instant = std::time::Instant::now();
-    while started.elapsed() < WAIT {
-        if child.try_wait().expect("the add is asked how it is").is_some() {
-            break;
-        }
-        if fixture.dataset_stands(clone.as_str()) && slot.is_dir() && !fixture.mounted_at(slot.as_path()) {
-            let mounted: Output = Command::new("/usr/bin/mount").args(["-t", "zfs", "-o", "nosuid,nodev", clone.as_str(), slot.to_str().expect("a text path")]).output().expect("mount starts");
-            assert!(mounted.status.success(), "the clone {clone} cannot be mounted at {}: {}", slot.display(), String::from_utf8_lossy(mounted.stderr.as_slice()));
-        }
-        std::thread::sleep(POLL);
-    }
-    return child.wait_with_output().expect("the account's add ends");
 }
 
 /// Every snapshot the checkout holds,
@@ -255,9 +170,10 @@ fn snapshots_of_the_checkout(fixture: &Fixture) -> String {
 ///  says the add will finish,
 ///  and finishes.
 /// Why:
-///  This is choice 3C at the boundary a person meets,
-///  with the account the finding names and a withheld permission the pool
-///  really enforces.
+///  This is choice 3C at the boundary a person meets:
+///  the pool enforces the delegation the fixture gives,
+///  the account is the one that runs the add,
+///  and the finding names that account.
 #[test]
 fn every_withheld_permission_refuses_or_warns_as_the_record_says() {
     if !guest() {
@@ -267,19 +183,18 @@ fn every_withheld_permission_refuses_or_warns_as_the_record_says() {
     for grant in &DECIDED {
         let name: String = arm_slot(grant);
         fixture.clear_the_slot(name.as_str());
-        let lend: Lend<'_> = Lend::to_the_account(&fixture);
-        let withheld: Withheld<'_> = Withheld::from_the_account(&fixture, grant);
-        let output: Output = run_add_as_the_account(&fixture, name.as_str());
+        let withheld: Withheld<'_> = Withheld::from_the_fixture(&fixture, grant);
+        let output: Output = fixture.run_add(name.as_str());
         let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
         let dataset: String = dataset_of(&fixture, grant.place);
-        let allow: String = format!("zfs allow {} -u {ACCOUNT} {} {}", grant.scope, grant.permission, dataset);
+        let allow: String = format!("zfs allow {} -u 0 {} {}", grant.scope, grant.permission, dataset);
         match grant.verdict {
             Verdict::Refuses => {
                 assert_eq!(output.status.code(), Some(git_policy_cli::subvolume_command::REFUSED_EXIT_CODE), "a missing `{}` on `{dataset}` must refuse the add: {said}", grant.permission);
                 assert!(said.contains(&format!("`{}`", grant.permission)), "the refusal names the permission: {said}");
                 assert!(said.contains(allow.as_str()), "the refusal names `{allow}`: {said}");
                 assert!(said.contains("the add changed nothing"), "the refusal says it changed nothing: {said}");
-                // Nothing written: no clone, no slot, no registration, no
+                // Nothing written: no clone, no slot, no registration, no origin
                 // snapshot and no record of this slot.
                 assert!(!fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "the refused add made no clone: {said}");
                 assert!(!fixture.slot(name.as_str()).exists(), "the refused add made no slot folder: {said}");
@@ -298,7 +213,6 @@ fn every_withheld_permission_refuses_or_warns_as_the_record_says() {
             }
         }
         drop(withheld);
-        drop(lend);
         fixture.clear_the_slot(name.as_str());
     }
 }
@@ -316,13 +230,140 @@ fn the_whole_delegation_prints_no_line() {
     let fixture: Fixture = Fixture::prepare();
     let name: &str = "grants-all";
     fixture.clear_the_slot(name);
-    let lend: Lend<'_> = Lend::to_the_account(&fixture);
-    let output: Output = run_add_as_the_account(&fixture, name);
+    let output: Output = fixture.run_add(name);
     let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
     assert!(output.status.success(), "the add under the whole delegation failed: {said}");
     assert!(!said.contains("this add will finish"), "a whole delegation earns no warning: {said}");
     assert!(!said.contains("zfs allow"), "a whole delegation earns no command: {said}");
     assert!(said.contains("made the worktree as a ZFS clone"), "the add made the clone: {said}");
-    drop(lend);
     fixture.clear_the_slot(name);
 }
+
+//region The kernel's side, under the delegated account
+
+/// One `zfs` command run as the delegated account,
+/// with the pool's own binary and its own library.
+fn zfs_as_the_account(fixture: &Fixture, arguments: &[&str]) -> Output {
+    let mut command: Command = Command::new("/usr/sbin/runuser");
+    command.args(["-u", ACCOUNT_NAME, "--", "/usr/bin/env"]);
+    command.arg(format!("PATH={}:/usr/bin:/bin", fixture.sbin));
+    command.arg(format!("LD_LIBRARY_PATH={}/lib", fixture.sbin.trim_end_matches("/sbin")));
+    command.arg(format!("{}/zfs", fixture.sbin));
+    command.args(arguments);
+    return command.output().expect("the account's zfs starts");
+}
+
+/// Grant one decided permission to the delegated account.
+fn grant_to_the_account(fixture: &Fixture, grant: &DecidedGrant) {
+    let arguments: Vec<String> = allow_arguments(grant, fixture);
+    let said: Output = fixture.zfs(arguments.iter().map(|argument| return argument.as_str()).collect::<Vec<&str>>().as_slice());
+    assert!(said.status.success(), "`{}` cannot be granted to {ACCOUNT_NAME}: {}", grant.permission, String::from_utf8_lossy(said.stderr.as_slice()));
+}
+
+/// Take one decided permission away from the delegated account.
+fn withhold_from_the_account(fixture: &Fixture, grant: &DecidedGrant) {
+    let arguments: Vec<String> = unallow_arguments(grant, fixture);
+    let said: Output = fixture.zfs(arguments.iter().map(|argument| return argument.as_str()).collect::<Vec<&str>>().as_slice());
+    assert!(said.status.success(), "`{}` cannot be withheld from {ACCOUNT_NAME}: {}", grant.permission, String::from_utf8_lossy(said.stderr.as_slice()));
+}
+
+/// Where the account tries to mount a checkout snapshot,
+/// which a removal's origin cleanup does and no step of the add does.
+const ACCOUNT_MOUNT_POINT: &str = "/home/ubuntu/origin-mount";
+
+/// Mount one checkout snapshot as the delegated account,
+/// which needs `mount` on the checkout's descendants.
+fn mount_a_snapshot_as_the_account(_fixture: &Fixture, snapshot: &str) -> Output {
+    let folder: PathBuf = PathBuf::from(ACCOUNT_MOUNT_POINT);
+    std::fs::create_dir_all(folder.as_path()).expect("the mount point");
+    let handed: Output = Command::new("/usr/bin/chown").args(["--recursive", format!("{ACCOUNT_NAME}:{ACCOUNT_NAME}").as_str()]).arg(folder.as_path()).output().expect("chown starts");
+    assert!(handed.status.success(), "the mount point cannot be handed to {ACCOUNT_NAME}: {}", String::from_utf8_lossy(handed.stderr.as_slice()));
+    let mut command: Command = Command::new("/usr/sbin/runuser");
+    command.args(["-u", ACCOUNT_NAME, "--", "/usr/bin/mount"]).args(["-t", "zfs", snapshot, ACCOUNT_MOUNT_POINT]);
+    return command.output().expect("the account's mount starts");
+}
+
+/// One of the three the add never needs,
+/// with the request that permission would have stopped.
+struct RemovalGrant {
+    /// The permission.
+    grant: DecidedGrant,
+    /// What a removal does with it,
+    /// and what the arm runs to prove the permission is really gone.
+    what: &'static str,
+}
+
+/// What:
+///  With each permission only a removal uses withheld,
+///  every writing request the add makes succeeds for the delegated account,
+///  and the request that permission belongs to is refused.
+/// Why:
+///  Root bypasses every delegation,
+///  so the add's own completion as root says nothing about a withheld
+///  permission;
+///  this arm runs the same four writes the add sends
+///  (the origin snapshot,
+///  the clone,
+///  the clone's mount request as a user property write,
+///  and a read of the checkout's identity)
+///  as the account the design delegates to,
+///  one permission at a time,
+///  and proves the harness can see a refusal by withholding `snapshot` as well.
+#[test]
+fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld() {
+    if !guest() {
+        return;
+    }
+    let fixture: Fixture = Fixture::prepare();
+    for grant in DECIDED {
+        grant_to_the_account(&fixture, &grant);
+    }
+    let removal_grants: [RemovalGrant; 3] = [
+        RemovalGrant { grant: DecidedGrant { place: Place::ContainerDescendants, scope: "-d", permission: "destroy", verdict: Verdict::Warns }, what: "destroy a clone" },
+        RemovalGrant { grant: DecidedGrant { place: Place::CheckoutDescendants, scope: "-d", permission: "mount", verdict: Verdict::Warns }, what: "mount a checkout snapshot for origin cleanup" },
+        RemovalGrant { grant: DecidedGrant { place: Place::CheckoutDescendants, scope: "-d", permission: "destroy", verdict: Verdict::Warns }, what: "destroy an origin snapshot" },
+    ];
+    let counter: u32 = std::process::id();
+    for (index, withheld) in removal_grants.iter().enumerate() {
+        withhold_from_the_account(&fixture, &withheld.grant);
+        let snapshot: String = format!("{}@grants-probe-{counter}-{index}", fixture.checkout());
+        let clone: String = format!("{}/grants-probe-{counter}-{index}", fixture.container());
+        let snapshot_taken: Output = zfs_as_the_account(&fixture, &["snapshot", snapshot.as_str()]);
+        assert!(snapshot_taken.status.success(), "the add's snapshot needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(snapshot_taken.stderr.as_slice()));
+        let clone_made: Output = zfs_as_the_account(&fixture, &["clone", "-o", "mountpoint=legacy", snapshot.as_str(), clone.as_str()]);
+        assert!(clone_made.status.success(), "the add's clone needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(clone_made.stderr.as_slice()));
+        let property_written: Output = zfs_as_the_account(&fixture, &["set", "org.monochromatic:git-worktree-clone-mount-desired-state=v1:00112233445566778899aabbccddeeff:mount", clone.as_str()]);
+        assert!(property_written.status.success(), "the add's mount request needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(property_written.stderr.as_slice()));
+        let identity_read: Output = zfs_as_the_account(&fixture, &["list", "-H", "-o", "name", clone.as_str()]);
+        assert!(identity_read.status.success(), "the add's identity read needs no `{}`: {}", withheld.grant.permission, String::from_utf8_lossy(identity_read.stderr.as_slice()));
+        // The permission really is gone: the request it belongs to is refused.
+        let refused: Output = match (withheld.grant.place, withheld.grant.permission) {
+            (Place::CheckoutDescendants, "mount") => mount_a_snapshot_as_the_account(&fixture, snapshot.as_str()),
+            (Place::CheckoutDescendants, "destroy") => {
+                // The clone stands between the account and its origin snapshot,
+                // so root takes the clone away first and the account is left with
+                // nothing but the snapshot the permission belongs to.
+                let _clone_gone: Output = fixture.zfs(&["destroy", clone.as_str()]);
+                zfs_as_the_account(&fixture, &["destroy", snapshot.as_str()])
+            }
+            _destroy => zfs_as_the_account(&fixture, &["destroy", clone.as_str()]),
+        };
+        assert!(!refused.status.success(), "a withheld `{}`, which a removal uses to {}, still let that request through", withheld.grant.permission, withheld.what);
+        // Root puts the probe back, whatever the account could not do.
+        let _destroyed: Output = fixture.zfs(&["destroy", clone.as_str()]);
+        let _snapshot_destroyed: Output = fixture.zfs(&["destroy", snapshot.as_str()]);
+        let _unmounted: Output = Command::new("/usr/bin/umount").arg(ACCOUNT_MOUNT_POINT).output().expect("umount starts");
+        grant_to_the_account(&fixture, &withheld.grant);
+    }
+    // The control that the harness can see a missing grant at all.
+    let snapshot_grant: DecidedGrant = DecidedGrant { place: Place::Checkout, scope: "-l", permission: "snapshot", verdict: Verdict::Refuses };
+    withhold_from_the_account(&fixture, &snapshot_grant);
+    let refused: Output = zfs_as_the_account(&fixture, &["snapshot", format!("{}@grants-probe-{counter}-control", fixture.checkout()).as_str()]);
+    grant_to_the_account(&fixture, &snapshot_grant);
+    assert!(!refused.status.success(), "the positive control: with `snapshot` withheld the account's snapshot must be refused, and it was not");
+    for grant in DECIDED {
+        withhold_from_the_account(&fixture, &grant);
+    }
+}
+
+//endregion The kernel's side, under the delegated account
