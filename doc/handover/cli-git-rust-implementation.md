@@ -1190,8 +1190,16 @@ the release passes run as three Sonnet reads over `alpha.45..955051b29f`
 Next:
 merge each round when it ends;
 put L4's options to the owner;
-read the three release passes when they end and brief their fixes;
-refresh the session's `git` from alpha.46 once its archives are published.
+read the three release passes when they end and brief their fixes.
+
+`0.6.1-alpha.46` is published (cargo-publish run 45608993443; archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
+`native:release:wait` printed `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.46`).
+The session's `git` stays the build of `ee0cf2268b` for now:
+`.cache/monochromatic-git-policy-cli-bin/git` links to `.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`,
+the AppArmor `git` and `gh` local rules name that exact path,
+and `doc/handover/full-system-policy-handover.md` records that "a rebuilt wrapper requires a fresh review",
+so pointing the session at alpha.46 waits for that review of the new binary's path and rules, which is the system policy's to give;
+until then its removals keep journals, which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
