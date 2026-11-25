@@ -52,6 +52,21 @@ it hands Pi its own environment with every variable whose name holds
 so a dump shows the names a command may read and no value it may not.
 Keep the sentence in every prompt anyway:
 a command can still print a token it finds in a file.
+Tell every agent that writes code which skill and guide to write it by:
+the language's coding skill
+(`.agents/skills/dum-dum-non-ts/SKILL.md` for any language but TypeScript,
+`.agents/skills/testing-practices/SKILL.md` for TypeScript tests),
+and the package's own guide to its code and tests where one exists,
+named by its path on `main`,
+since a worktree made before the guide landed does not hold it
+(for the git wrapper, `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+Pi lists the skills but loads one only when told:
+rounds briefed with only the task and the safety rules on 2026-11-25
+left two tests sharing one fixture folder,
+a stand-in child that outlived its test,
+and a test that signalled its own test binary.
+The owner, on that debt:
+"So pay the debt."
 Name the worktree in the prompt of an agent given one,
 and tell it to run every command and make every edit inside it:
 one agent ran its builds in the main checkout,

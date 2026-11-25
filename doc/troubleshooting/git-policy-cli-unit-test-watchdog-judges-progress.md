@@ -12,6 +12,14 @@ The tests that copy a checkout into btrfs subvolumes spend almost all of their t
 so the wall clock ended tests that were working,
 and which tests it ended followed the host's load.
 
+Note 2026-11-25:
+`cargo-nextest` is absent from these worktrees,
+so this module runs as threads of one `cargo test` process.
+A guard that is process-wide,
+or a test that signals that process,
+then reaches every control of the module;
+the section "A control that signalled the test binary itself" below is the measured case.
+
 ## Symptom
 
 Two host runs of the library suite on 2026-11-08:
@@ -1380,6 +1388,87 @@ so nothing of the run outlives the control.
   Nothing the child itself wrote is lost,
   because a child writes its report before it ends.
 - The 39 findings of the last run are outside this change and are left where they are.
+
+## A control that signalled the test binary itself (2026-11-25T15:39:15-05:00)
+
+### Symptom
+
+`cargo test --locked --offline --lib lfs::lfs_upload` in `package/git-policy/cli` sometimes ends with no `test result`
+line and
+
+```text
+process didn't exit successfully: ... (signal: 15, SIGTERM: termination signal)
+```
+
+after two or three tests had printed `ok`.
+The same module passes when it is run alone.
+A `/usr/bin/sleep 3000` that one control started stayed alive after the run,
+re-parented to the user manager and holding the run's output pipe open,
+so a caller that piped the output waited for a process the run had already lost.
+
+### Root cause
+
+`package/git-policy/cli/src/native/lfs/lfs_upload_tests.rs`'s `a_signal_sent_to_the_wrapper_stops_the_upload` sent
+`libc::kill(libc::getpid(), libc::SIGTERM)`.
+`libc::getpid()` is the test binary.
+The wrapper's guard installs its handlers process-wide,
+and the first `SignalGuard` of a process owns them (`package/git-policy/cli/src/native/process/signal_relay.rs`),
+so the signal reached every control of the threaded run.
+A guard made while another owns the handlers relays nothing,
+and the owner's drop restores the default disposition,
+so wherever no guard was installed at the instant the signal arrived,
+its default action ended every thread of the test binary.
+The control's stand-in, `exec /usr/bin/sleep 3000`,
+was in the same process group and outlived the binary,
+because nothing that survives the process reaps it.
+
+The module was written for one process per test,
+where signalling that process is exactly "the wrapper" the control meant to stop;
+a threaded `cargo test` run has no such process of its own.
+
+### What was measured
+
+- Three threaded runs before the change:
+two ended with `test result: ok. 53 passed`,
+and one ended with `signal: 15, SIGTERM` and no `test result` line after eight tests had printed `ok`.
+That run left a `sleep 3000` whose working directory was its own `native-unit-<pid>-lfs-upload-relay` fixture,
+which names the relay control.
+- One run under `strace -f -e trace=kill,pidfd_send_signal` recorded a thread of the test binary sending the signal to
+that same process (`kill(<binary pid>, SIGTERM)`),
+and the kernel recorded the delivery with `si_code=SI_USER` and `si_pid` equal to the binary's pid.
+Every thread then reported `killed by SIGTERM`,
+and the stand-in was ended only by the scope's own `RuntimeMaxSec` ten minutes later.
+- The only place in the module that signals the process itself is the control named above.
+
+### The control now
+
+The wrapper runs in a helper process started from the test binary with `test_support::spawn_owned`,
+the way `package/git-policy/cli/src/native/process/signal_relay_tests.rs` runs its guard scenarios,
+and the control signals only `helper.id()`.
+`spawn_owned` puts the helper in a process group of its own,
+which the test thread's fixtures kill when the thread ends,
+panic included,
+so the stand-in cannot outlive the test.
+The stall control runs the same way,
+for the same reason.
+
+### Verification
+
+- Three threaded runs after the change each end with `test result: ok. 54 passed; 0 failed`,
+and no `sleep 3000` of this worktree's fixtures is alive afterwards.
+- A planted panic after the stand-in recorded its number fails the control and leaves no stand-in behind,
+so the group kill was shown to work rather than assumed.
+- `native:check`, `native:clippy` and the whole `source_guard` module pass on the changed tree.
+- Issue 6463 records the symptom and the cause.
+
+### What is not claimed
+
+- Five `sleep 3000` processes were already alive on this host when the round started,
+from an earlier round's unit whose runs were still going;
+this round left them alone and did not prove their ownership.
+- A test binary ended by `SIGKILL` still cannot clean up after itself:
+the group kill runs when the test thread ends,
+not after the whole process is gone.
 
 ## Records this changes
 
