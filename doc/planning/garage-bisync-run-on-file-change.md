@@ -144,6 +144,88 @@ two things need measuring on a disposable Garage before the design settles:
   before the owner reads it,
   its reproduction steps run exactly as written on a throwaway Garage.
 
+## Owner answer on the upstream draft (2026-11-25T18:04:35-05:00)
+
+"Make the changes but don't post it."
+The reproduction fix (start from a seed file) is in
+`doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`;
+nothing is posted upstream.
+
+## Repository precedent the owner pointed out (2026-11-25T18:16:16-05:00)
+
+The owner:
+"I believe we have already audited watchexec much earlier and found it unsatisfactory?"
+and "We wrote a custom watchexec replacement too. A whole package!"
+Both are on record:
+`package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507` rates `watchexec` "Fit: rejected"
+and `:718-723` says "We cannot adopt a tool whose async runtime we cannot inspect";
+`package/watch-restart/cli` is the replacement.
+The vet had carried watchexec as a candidate and exited watch-restart as restart-only;
+see the vet report section "Repository precedent missed by discovery".
+
+## Owner answers, round 5 (2026-11-25T18:18:47-05:00)
+
+- Watcher pick:
+  "Vet 3p, no watchexec.
+  Only going back to watch-restart if nothing works,
+  because watch-restart has its own critical problems we'd need to fix if we use it."
+  So watchexec leaves the vet,
+  the third-party vet goes on with Watchman, onchange, modd and directory-watcher,
+  and extending `package/watch-restart/cli` is the fallback only if every one of them fails.
+- Skill fix:
+  tighten source class 4 of `.claude/skills/choosing-technology/SKILL.md`
+  (search every candidate's name across `doc/` and package docs,
+  record every verdict found as counterevidence,
+  and enter a repository package that owns the responsibility as a candidate to extend);
+  the owner sees the diff before it is committed.
+
+## What is on record against the watch-restart fallback (2026-11-25T18:18:47-05:00)
+
+The owner gave no list with "its own critical problems";
+these are the problems the repository records,
+which the fallback would have to clear first:
+
+- open issue #4790:
+  Ctrl+C inside a restart's stop-timeout grace abandons the SIGKILL escalation and can orphan the detached child;
+- open issue #4793:
+  the publish-ready package ships a TypeScript-source bin with no `engines` constraint;
+- open issues #4787, #4788, #4789, #4791, #6038 and #4795:
+  README and doc claims that disagree with the code (missing exports, event names, signals, the oversized-file sentinel);
+- open issue #4796:
+  the `start()` and `restart()` re-entry guards for state `stopping` have no tests;
+- `package/watch-restart/cli/HANDOVER.implementation-state.md`:
+  interactive verification cases 2, 3, 4 and 6 are still pending
+  (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
+  and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
+
+## The Mac client, probed read-only over `ssh m1` (2026-11-25T18:50:01-05:00)
+
+- macOS 27.2 on arm64;
+  `kern.maxfiles: 122880`,
+  `kern.maxfilesperproc: 61440`,
+  `launchctl limit maxfiles` soft 256 and hard unlimited,
+  `ulimit -n` 256.
+  directory-watcher's kqueue backend needs about 11786 descriptors for a tree the size of this PC's `~/Plain`:
+  under the per-process ceiling,
+  far over the default soft limit,
+  so a LaunchAgent for it would have to raise its own soft limit.
+- `~/Plain` exists there,
+  and `launchctl list` shows `cat.aquati.rclone-bisync-garage` loaded with last exit status 7,
+  the status bisync exits with when it aborts.
+  Read at 2026-11-25T18:51:49-05:00 on the owner's go-ahead:
+  every run since the agent's log began (2026-09-14 16:00, 682 runs) aborted
+  with "cannot find prior Path1 or Path2 listings",
+  none succeeded,
+  and `~/Library/Caches/rclone/bisync/` is empty;
+  recorded in `doc/handover/garage-file-sync.md` "Client check (macOS, `ssh m1`)".
+
+## Owner answers, round 6 (2026-11-25T18:51:49-05:00)
+
+- onchange exits: its per-event queue meets the round 3 wording but not its purpose.
+- modd exits on the provenance gate; building it from source was declined.
+- The Mac's failing agent was read, not changed (see the Mac client section).
+- directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),

@@ -1,14 +1,15 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:57:43-05:00.
-This work is incomplete and unapproved.
+State recorded 2026-11-25T18:43:44-05:00.
+Owner acceptance is not recorded.
+The user approved the design and authorized implementation on 2026-11-25T18:02:17-05:00.
 
 ## Current state
 
 The design tree is recorded in
 `doc/planning/claude-code-bash-blocking-timeout.md`.
 Its user-question frontier is empty.
-No implementation is authorized until the user confirms the assembled design after review and probes.
+Implementation and the post-review fixes are committed.
 
 The current checkout has unrelated concurrent edits.
 Do not restore,
@@ -33,17 +34,43 @@ An interactive PTY probe confirmed that the startup warning is visible,
 while noninteractive text mode exposes it only through structured hook output.
 The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q20 A`.
 
+## Accepted design
+
+The canonical contract is `doc/decision/claude-code-bash-blocking-timeout.md`.
+Implementation is authorized.
+
+## Implementation evidence
+
+Implementation and the tracked bundle are committed.
+Source formatting,
+both type checks,
+the full source-package unit suite,
+and real built-plugin consumer probes all pass.
+The unit output includes every new predicate and handler suite by name.
+All five changed Markdown documents rendered to HTML through an isolated `mise` task using `pandoc`.
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
+A read-only DeepSeek second pass found no blocker and verified the tracked bundle over 30 payloads.
+Its earned in-scope findings are fixed.
+The post-review plugin rebuild produced no bundle diff,
+and the changed Markdown rendered successfully again.
+A fresh normal `claude --print` session without `--plugin-dir` applied the live user-level Bash hook:
+a 1.5-second command returned native background task ID `bw23gwxe0`.
+The plugin is not installed through `claude plugin list`.
+
+## Live configuration gap
+
+`/home/user/.claude/settings.json` registers the rebuilt bundle only for `PreToolUse Bash`.
+It has no bash-output-filter `SessionStart` entry,
+so the new disabled-background warning is not wired into normal sessions.
+The existing project `SessionStart` entry runs `ccssh`,
+not this plugin.
+Changing user settings requires explicit owner authorization.
+
 ## Open work
 
-- Measure controlled command durations and result arrival in wrapped and unwrapped,
-  headless and interactive sessions.
-- The user accepted result arrival beyond the nominal one-second timeout in `Q21 A`.
-- Obtain a fresh final review of the accepted design and complete evidence.
-- Present the final assembled contract for explicit shared-understanding confirmation.
-- Implement only after that confirmation.
+- Owner review and acceptance are not recorded.
+- The owner can authorize adding the startup-only bundle invocation to user settings.
 
 ## Next step
 
-Obtain the final review,
-record its verdict,
-then request explicit shared-understanding confirmation.
+The owner can review the committed implementation and decide whether to wire the startup warning into normal sessions.

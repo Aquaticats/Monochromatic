@@ -3,11 +3,13 @@
 Purpose:
 the design tree for replacing forced immediate backgrounding in the Claude Code Bash hook
 with a one-second foreground timeout.
-Grilling is in progress.
-This record is unapproved,
-and no implementation is authorized until the user confirms a shared understanding.
+Grilling is complete.
+The user confirmed shared understanding on 2026-11-25T18:02:17-05:00
+and authorized implementation.
+The accepted contract is recorded in
+`doc/decision/claude-code-bash-blocking-timeout.md`.
 
-State recorded 2026-11-25T17:57:43-05:00.
+State recorded 2026-11-25T18:00:40-05:00.
 
 ## Requirement as stated
 
@@ -147,7 +149,7 @@ A command such as `sleep 30` receives no new default timeout.
 Output filtering remains independent,
 so a filtered sleep can still be wrapped in the pipeline that starts with `set -o pipefail`.
 The exemption therefore must not be described as proof that native Claude Code sees a leading `sleep`.
-Its real wrapped and unwrapped behavior remains a required probe.
+Its real wrapped and unwrapped behavior is recorded under native probe evidence.
 A chained command such as `sleep 2 && make` is eligible when its timeout is absent.
 The user accepted in `Q6 B` that chained sleeps can terminate.
 Because filtering can change the leading command seen by Claude Code,
@@ -253,9 +255,13 @@ but implementation tests must use the production predicate and include those dif
 The scratch wrapper probes exercise the real filter executable,
 not production allowlist and denylist composition.
 
-A fresh substantive cross-vendor review of the final record and probe evidence remains required
-before the user is asked to confirm shared understanding.
-Implementation stays unauthorized until that confirmation.
+The final fresh Claude Sonnet acceptance review returned **READY** on 2026-11-25.
+It found no design blocker,
+missing user decision,
+or critical untested mechanism.
+Its only correction was a missing derived unwrapped measurement file,
+now created from the raw log.
+Implementation stays unauthorized until the user confirms shared understanding.
 
 ## Review record
 
@@ -458,34 +464,58 @@ That separate observation does not change the four completed tool-result measure
 and is not diagnosed as a notification defect.
 The valid measurements are in `duration-interactive-measurements.jsonl`.
 
-## Verification still owed
+### Built plugin consumer verification
 
-A fresh cross-vendor reviewer must read this final record,
-the timing evidence,
-and the user's `Q21 A` acceptance
-before the user is asked to confirm shared understanding.
+The rebuilt tracked bundle passed real `claude --plugin-dir` probes:
 
-After acceptance,
-implementation verification must cover the filter-skipped composition branch,
-both existing `run_in_background` rewrite sites,
-legacy-variable ignoring,
-exact lowercase false-like values,
-case-sensitive non-matches,
-and the actual output-filter bundle.
-The wrapper's share of the one-second budget needs an interleaved unwrapped control;
-absolute wrapper timing alone is not a finding.
+- `printf builtQuick` returned synchronously with `timeout: 1000` injected.
+- A valid slow Node command returned `1500` with a background task ID and later exited 0.
+- `xxd --version` stayed unwrapped,
+  received `timeout: 1000`,
+  and returned successfully.
+- Explicit background preserved `timeout: 500`.
+- Explicit foreground received `timeout: 1000`.
+- Bare `sleep .5` remained exempt.
+- Caller `timeout: 600000` survived.
+- Native subagent output filtering remained with no execution fields added,
+  while the `--agent` main session received the timeout.
+- Startup emitted the full warning when enabled,
+  and the disabled-policy startup and command stayed without the warning or default timeout.
 
-The existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND` sweep currently finds only implementation,
-tests,
-the old README,
-and this planning record outside bundles.
-After acceptance,
-the old owner decision in `package/claude-code-plugin/bash-output-filter/README.md`
-must be superseded in place and all implementation and documentation references updated together.
+An initial slow-fixture quoting error and `xxd --help` exiting 1 were probe-fixture issues,
+not hook failures.
+They were rerun with valid successful commands as described in this section.
+
+## Implementation review
+
+The final fresh Claude Sonnet design reviewer returned **READY**.
+A read-only DeepSeek second pass then reviewed the implementation diff,
+ran the focused checks,
+and executed the tracked bundle over 30 hook payloads.
+It found no blocker and confirmed the accepted eligibility and startup-warning behavior.
+
+The earned in-scope findings are fixed:
+
+- The Codex troubleshooting precedent now describes a foreground timeout instead of forced backgrounding.
+- Handler assertions derive from `BLOCKING_TIMEOUT_MS`.
+- Test helpers use one object parameter and the predicate suites are nested under one empty-name suite.
+- Filter-skipped caller-timeout and explicit-background pass-through cases are locked by tests.
+- Numeric predicate examples and logical source regions are documented.
+- Plugin metadata and the README name the timeout and SessionStart warning.
+
+The unrelated `bash-poke` documentation finding was left to its owning concurrent work.
+Corrective comments were posted on commits `bf59b3e994` and `c25ae3ad59` without amending them.
+The post-review plugin rebuild passed and produced no bundle diff.
+The changed Markdown rendered successfully again through `pandoc`.
+
+## Verification limitation
+
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
+The locked repository linter was not compiled ad hoc.
 
 ## Next action
 
-Obtain a fresh final review of the accepted design and complete evidence,
-then present the assembled contract for explicit shared-understanding confirmation.
+Owner review and acceptance are not recorded.
+No agent-open implementation item remains.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background

@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/claude-code-plugin-bash-output-filter",
-  "description": "Claude Code PreToolUse hook that pipes Bash tool output through a filter to strip git boilerplate, truncate long lines, and collapse repeated diagnostics.",
+  "description": "Claude Code plugin that filters Bash output, applies a one-second foreground timeout to eligible main-agent commands, and warns when native background tasks are disabled.",
   "type": "module",
   "bin": {
     "ccbof": "./bundle/node/index.mjs"

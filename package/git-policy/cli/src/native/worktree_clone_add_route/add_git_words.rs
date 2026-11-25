@@ -25,6 +25,10 @@ use std::os::unix::ffi::OsStrExt as _;
 /// in the order Git reads them.
 pub const ROUTE_OPTIONS: [&str; 2] = ["--no-checkout", "--lock"];
 
+/// The words a person may give that the route's own invocation takes for itself,
+/// as Git spells them before any `=<value>`.
+pub const PERSON_LOCK_WORDS: [&[u8]; 4] = [b"--lock", b"--reason", b"--checkout", b"--no-checkout"];
+
 /// What:
 ///  The person's own words with the route's options inserted after `add`.
 /// Why:
@@ -62,10 +66,9 @@ pub fn the_locked_add_words(arguments: &[OsString], insert_at: usize, nonce: &Re
 ///  A person's `--reason` would replace the sentence the wrapper's proof reads,
 ///  and their `--checkout` would undo `--no-checkout`.
 pub fn person_lock_word(arguments: &[OsString]) -> Option<&OsString> {
-    let blocking: [&[u8]; 4] = [b"--lock", b"--reason", b"--checkout", b"--no-checkout"];
     return arguments.iter().find(|word| {
         let bytes: &[u8] = word.as_bytes();
-        return blocking.iter().any(|wanted| return bytes == *wanted || bytes.strip_prefix(*wanted).is_some_and(|rest| return rest.starts_with(b"=")));
+        return PERSON_LOCK_WORDS.iter().any(|wanted| return bytes == *wanted || bytes.strip_prefix(*wanted).is_some_and(|rest| return rest.starts_with(b"=")));
     });
 }
 

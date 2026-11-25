@@ -304,6 +304,11 @@ Search all applicable classes:
    prior vet reports,
    decision records,
    and hand-rolled alternatives.
+   Search each candidate's name across `doc/` and package docs
+   (handovers, troubleshooting, audits, READMEs, paused packages);
+   every verdict found becomes counterevidence on that candidate.
+   A repository package that already owns the responsibility enters as a candidate to extend,
+   screened on the change it needs rather than on its current behaviour.
 
 Use category-appropriate registries and source hosts.
 Do not treat npm and GitHub as universal sources.
