@@ -329,8 +329,9 @@ running since 2026-11-24T17:40-05:00:
 step 14's lineage proof, inventory, bookmark rule, destruction plan and removal intent built ahead, unwired (`pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead`);
 running since 2026-11-24T19:10-05:00:
 step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
-issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`),
-and step 12's move refusal reading the working directory for every forwarded command before it checks for `worktree move` (`pi-fix-move-refusal-reads-its-word-first`);
+and issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
+held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
 issue 6322's fix (`pi-fix-removal-keeps-journals-of-gone-worktrees`),
 since a removal keeps the commit service's journal for `rules-repository` or a `claim-watch` naming only the removed worktree,
@@ -340,13 +341,11 @@ the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) ga
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
-the round that makes that control hold without `/dev/zfs` has its brief at `~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/prompt.md`
-and waits, with issue 6455's, for the machine-wide memory stall to fall
-(at 2026-11-24T19:45-05:00 it sat in the root cgroup alone, no service's);
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
-the round that measures the build and sizes its bound waits for that stall to fall,
-with its brief written at `~/temp/agent/size-the-gate-image-build-memory-2026-11-24/prompt.md`;
+running since 2026-11-24T19:50-05:00, once that stall was falling:
+the round that makes that control hold without `/dev/zfs` (`pi-fix-preflight-dirty-source-test-without-dev-zfs`)
+and the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
