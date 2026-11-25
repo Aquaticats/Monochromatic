@@ -30,6 +30,9 @@ use crate::worktree_completion::install_added_worktree_files;
 use std::io::Write;
 use std::path::PathBuf;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, print_note, print_summary};
+/// Standard error as a stream whose lines a thread of their own writes,
+/// so a reader that stopped draining holds neither the landing's report nor the command.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 
 /// What:
 ///  The request for a commit that Git built in the shadow,
@@ -186,6 +189,10 @@ pub(crate) fn report_landing(
         }
         print_note(rebuilt_note(lost.as_slice(), abbreviated_name(invocation, native_inputs, commit).as_str()).as_str());
     }
+    // What: The lines of the landing report go to the thread that writes standard error.
+    // Why:  They are lines a person can live without, and a reader that stopped draining must cost
+    //       them and never the command that has already landed.
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
     // The owner: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
     //  The claim is made for a path whose committed blob holds marker lines, read from the blob and the marker size
     //  the attributes give; a path whose blob holds none is resolved, and nothing is said about markers for it.
@@ -193,15 +200,16 @@ pub(crate) fn report_landing(
         let name: String = String::from_utf8_lossy(path.as_slice()).into_owned();
         // Terminal output error: a warning is advisory; a failed write must not fail a commit that landed.
         let _warned = writeln!(
-            std::io::stderr(),
+            notes,
             "monochromatic-git-policy-cli: warning: {name} still has conflict markers, and they were committed. To fix it, remove the \
              markers from {name} and make a follow-up commit: git commit -m \"<message>\" -- {name}"
         );
     }
     // A commit of named paths leaves the merge or cherry-pick open, whether or not markers were committed.
     if let Some(kind) = ready.leaves_open {
-        let _noted = write!(std::io::stderr(), "{}", open_operation_line(kind == Conclusion::Merge));
+        let _noted = write!(notes, "{}", open_operation_line(kind == Conclusion::Merge));
     }
+    let _flushed = notes.flush();
     // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
     install_added_worktree_files(
         invocation.context,

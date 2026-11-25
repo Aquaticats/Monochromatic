@@ -360,6 +360,12 @@ mod merge_carries_edits_moved;
 #[path = "binary_merge_lock_after_the_clear_tests.rs"]
 mod merge_lock_after_the_clear;
 
+/// The branch moving between a merge's preparation and its landing, while another command holds the index:
+/// the merge refuses instead of saving itself,
+/// and the next run lands it on the branch as it is now.
+#[path = "binary_merge_the_branch_moved_before_its_save_tests.rs"]
+mod merge_the_branch_moved_before_its_save;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -643,6 +649,11 @@ mod hooks_off_escape;
 /// and the bound.
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;
+
+/// A commit whose standard error is a full pipe nobody drains:
+/// the command returns and the commit lands.
+#[path = "binary_commit_stalled_standard_error_tests.rs"]
+mod commit_stalled_standard_error;
 
 /// The fault injection and the recovery invariants of the operating conditions in the README.
 #[path = "binary_fault_support.rs"]

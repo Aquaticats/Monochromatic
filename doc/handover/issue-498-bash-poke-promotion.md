@@ -93,6 +93,10 @@ so they are cited by symbol name rather than line number.
   and a falsy one appends or pends without a turn.
 - So `{ triggerTurn: true, deliverAs: "followUp" }` fires immediately when idle
   and queues behind current work while streaming.
+  Amended 2026-11-25:
+  bash-poke now sends `deliverAs: "steer"` (commit `6795da19a6`),
+  because a follow-up waits for the whole agent run;
+  see `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - Correction to the round 2 framing:
    converting a custom message to LLM context yields
   `{ role: "user", content }`,
@@ -283,6 +287,10 @@ so they are cited by symbol name rather than line number.
   `triggerTurn: true`,
   and `deliverAs: "followUp"`,
   subject to the correction to the round 2 framing in "Message delivery".
+  Amended 2026-11-25:
+  bash-poke now sends `deliverAs: "steer"` (commit `6795da19a6`),
+  because a follow-up waits for the whole agent run;
+  see `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - This package owns as much as possible:
   its own spawn,
   output accumulation,
@@ -407,6 +415,10 @@ Runtime behavior:
   elided character count,
   and spool path,
   and options `{ triggerTurn: true, deliverAs: "followUp" }`.
+  Amended 2026-11-25:
+  bash-poke now sends `deliverAs: "steer"` (commit `6795da19a6`),
+  because a follow-up waits for the whole agent run;
+  see `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - A renderer registered for `bash-poke` draws the labelled card from `details` and content.
 - Cancellation comes from a `ctx.ui.onTerminalInput` listener
   that matches a lone Escape as a bare `\x1b` or the Kitty form `\x1b[27u`,

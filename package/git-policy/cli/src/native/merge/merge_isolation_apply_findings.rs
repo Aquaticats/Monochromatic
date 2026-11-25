@@ -214,10 +214,54 @@ pub(crate) fn a_merge_the_branch_moved_under(reference: &str, lock: &Path, bytes
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}), and the branch moved \
          while this merge was prepared, so this merge does not land. Nothing of the merge is in the checkout. {where} The next git \
-         command in this worktree puts your own bytes back once that lock is free, and the merge is yours to run again on the branch as \
-         it is now: `git merge {reference}`. If no program is using this repository, removing that lock lets a command run.\n",
+         command in this worktree puts your own bytes back once that lock is free, and running the merge again is safe: it merges \
+         {reference} onto the branch as it is now. If no program is using this repository, removing that lock lets a command run.\n",
         where = bytes.where_your_bytes_are(),
         lock = lock.display()
+    );
+}
+
+/// What:
+///  The line for a merge whose branch moved while it was prepared, so it cannot be saved for a later command either.
+/// Why:
+///   A save promises that the next command finishes this very merge,
+/// and a merge built on a head the branch no longer names can never be
+///  finished as it was saved,
+/// so saving it would report a merge that never lands (issue 6473);
+/// the command refuses instead,
+/// with nothing of the merge and nothing of the person's changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git merge ${reference}: ${branch} moved while this merge was prepared, ...`
+/// ```
+pub(crate) fn a_merge_the_branch_moved_before_its_save(reference: &str, branch: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: {branch} moved while this merge was prepared, so this merge does not \
+         land and nothing of the merge is in the checkout. Nothing of yours was changed, and running the merge again is safe: it \
+         merges {reference} onto {branch} as it is now.\n"
+    );
+}
+
+/// What:
+///  The same line for a merge whose record a lock kept from being settled,
+/// so the next command still has the person's own bytes to put back.
+/// Why:
+///   The lock that stopped Git's own update stopped the putting back of the person's bytes as well,
+/// so the line must say what
+///  the files hold and where those bytes are,
+/// and must not claim the checkout is as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git merge ${reference}: ${branch} moved while this merge was prepared, ...`
+/// ```
+pub(crate) fn a_merge_the_branch_moved_before_its_save_behind_the_lock(reference: &str, branch: &str, bytes: &BytesAfterAFailedMerge<'_>) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: {branch} moved while this merge was prepared, so this merge does not \
+         land. Nothing of the merge is in the checkout. {where} The record of this merge was kept, and the next git command in this \
+         worktree puts your own bytes back; running the merge again is safe and merges {reference} onto {branch} as it is now.\n",
+        where = bytes.where_your_bytes_are()
     );
 }
 

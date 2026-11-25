@@ -45,6 +45,8 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
+/// Standard error as a stream whose lines a thread of their own writes.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 /// The build phase's stretches by name
 /// for that record.
 use crate::commit_build_part_durations::BuildPartClock;
@@ -341,7 +343,11 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  commits never fail, so the command says what became of it and exits 0 (`SPEC.md`, "A commit held behind a
                 //  reference lock"). Nothing is pushed and nothing is reviewed here: no branch names the commit yet, and the
                 //  command that made it is over before its gate could run.
-                let _written = writeln!(std::io::stderr(), "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
+                // What: The held commit's words go to the thread that writes standard error.
+                // Why:  The exit status already says the result, and a reader that stopped draining must
+                //       not keep this command from returning.
+                let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+                let _written = writeln!(notes, "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
                 return Ok(ServiceCommit { result: TransactionResult { events: Vec::new(), exit_code: 0, landed_oid: None, uses_lfs: false }, handoff: None });
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {

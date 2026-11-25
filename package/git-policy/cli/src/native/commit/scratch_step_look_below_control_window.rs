@@ -36,6 +36,10 @@ static WINDOW: Mutex<()> = Mutex::new(());
 ///  with nothing planted.
 /// Why:
 ///  A control that read another's plant would test the wrong look.
+/// This window is taken before `native_commit_waiting_notice`'s,
+/// as every control that needs both does,
+///  because two orders in one process hold each other for ever in a threaded run
+/// (`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

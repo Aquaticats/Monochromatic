@@ -39,7 +39,6 @@ use crate::worktree_clone_mount_protocol::DatasetGuid;
 use serde_json::{Map, Value};
 use std::ffi::OsString;
 use std::io::Write;
-use std::os::unix::ffi::OsStrExt;
 
 /// The record's format version.
 pub const RECORD_VERSION: &str = "v1";
@@ -316,17 +315,6 @@ pub fn read_record_text(cache: &std::fs::File, guid: DatasetGuid) -> Result<Opti
         Ok(text) => Ok(Some(String::from(text))),
         Err(_) => Err(StagedFolderRefusal::Malformed { said: String::from("the file is not UTF-8 text") }),
     };
-}
-
-/// The folder's name as the record's component spells it.
-pub fn record_folder_of(record: &StagedFolderRecord) -> OsString {
-    return OsString::from(record.component.as_str());
-}
-
-/// The component as bytes,
-/// which is the name a descriptor takes.
-pub fn os_str_of(component: &str) -> &std::ffi::OsStr {
-    return std::ffi::OsStr::from_bytes(component.as_bytes());
 }
 
 /// Controls stay out of the release executable.

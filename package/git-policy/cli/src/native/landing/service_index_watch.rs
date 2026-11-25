@@ -38,6 +38,9 @@ thread_local! {
     /// How many watches the current thread holds open,
     /// so a control can tell that a watch was dropped without reading descriptor numbers another thread may reuse.
     static LIVE_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many waits on a watch ended at the timer they asked for on the current thread,
+    /// for the controls.
+    static WAKES_BY_THE_TIMER_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// How many watches the current thread holds open.
@@ -47,7 +50,7 @@ pub fn live_watches_on_this_thread() -> usize {
 }
 
 /// What:
-///  How many waits on a watch ended at the timer they asked for,
+///  How many waits on a watch ended at the timer they asked for on the calling thread,
 /// for the controls;
 /// nothing in the release executable.
 /// Why:
@@ -55,13 +58,20 @@ pub fn live_watches_on_this_thread() -> usize {
 /// and not the reminder's timer" otherwise reads the host's
 /// speed,
 /// while the wait itself knows which of the two ended it.
+/// The count is the thread's and not the process's because a run of
+/// `cargo test` is many tests as threads of one process:
+///  a control that read the process's count took another test's wait for its own,
+/// and failed on a correct wake
+///  (`doc/troubleshooting/git-policy-cli-landing-controls-wait-on-order-not-time.md`).
 #[cfg(test)]
-pub static WAKES_BY_THE_TIMER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub fn wakes_by_the_timer_on_this_thread() -> usize {
+    return WAKES_BY_THE_TIMER_ON_THIS_THREAD.with(std::cell::Cell::get);
+}
 
 /// Records for the controls that a wait on a watch ended at its timer.
 #[cfg(test)]
 fn note_a_wake_at_the_timer() {
-    WAKES_BY_THE_TIMER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    WAKES_BY_THE_TIMER_ON_THIS_THREAD.with(|count| { count.set(count.get() + 1); });
 }
 
 /// Does nothing in the release executable.

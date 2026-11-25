@@ -3905,6 +3905,9 @@ importers:
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
+      '@earendil-works/pi-ai':
+        specifier: 'catalog:'
+        version: 1.6.0(undici@8.13.1)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 1.6.0(zod@4.6.7)

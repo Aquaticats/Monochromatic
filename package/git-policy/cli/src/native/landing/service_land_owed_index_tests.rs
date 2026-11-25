@@ -9,7 +9,7 @@ use super::*;
 /// The trait that gives a child's input and this process's standard error their `write_all`.
 use std::io::Write as _;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
-use crate::test_support::{git, git_text, remove};
+use crate::test_support::{fixture, git, git_text, remove};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::Path;
 
@@ -1564,4 +1564,24 @@ fn a_batch_that_waits_for_the_index_lock_owes_nothing_yet() {
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the worktree's index agrees with the branch");
     let _ended = holder.wait();
     remove(world.root.as_path());
+}
+
+/// An owed-index record that is a named pipe is counted as unreadable and kept,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and the service reads these records on every settlement (issue 6415).
+#[test]
+fn an_owed_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("owed-record-named-pipe");
+    let git_dir: PathBuf = root.join(".git");
+    let directory: PathBuf = crate::owed_index_update::directory_of(git_dir.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("the owed folder");
+    let record: PathBuf = directory.join("1.owed");
+    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600).expect("a named pipe where an owed record goes");
+    let inside: PathBuf = git_dir.clone();
+    let answered = crate::test_support::finished_within(move || return crate::owed_index_update::records_and_unreadable(inside.as_path()));
+    let Some((records, unreadable)) = answered else { panic!("an owed record that is a named pipe held the settlement") };
+    assert!(records.is_empty(), "a pipe records nothing owed");
+    assert_eq!(unreadable, 1, "and it is counted as unreadable, which the caller keeps");
+    remove(root.as_path());
 }

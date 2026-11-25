@@ -15,7 +15,7 @@
 
 use super::{kept_notice_directory, kept_worktree_notices, record_kept_worktree};
 use crate::push_failure_notice_shown_then_removed::Notice;
-use crate::test_support::{fixture, shown_notices};
+use crate::test_support::{fixture, remove, shown_notices};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -104,4 +104,21 @@ fn a_file_that_is_no_record_of_this_program_is_left_where_it_is() {
     std::fs::write(foreign.as_path(), b"a note of another program\n").expect("a file this program did not write");
     assert!(shown(root.as_path()).is_empty(), "nothing of another program's is shown as this one's line");
     assert!(foreign.is_file(), "and nothing of it is removed: {}", foreign.display());
+}
+
+/// A kept-notice record that is a named pipe says nothing and holds no command,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and every command of the repository shows these records (issue 6415).
+#[test]
+fn a_kept_notice_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("kept-notice-named-pipe");
+    let directory: PathBuf = kept_notice_directory(root.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("the kept-notice folder");
+    crate::subvolume_sync_attrs::make_fifo(directory.join("kept-0123456789abcdef.txt").as_path(), 0o600).expect("a named pipe where a notice goes");
+    let inside: PathBuf = root.clone();
+    let answered = crate::test_support::finished_within(move || return shown(inside.as_path()));
+    let Some(texts) = answered else { panic!("a kept notice that is a named pipe held the command") };
+    assert!(texts.is_empty(), "a pipe is no notice");
+    remove(root.as_path());
 }
