@@ -331,6 +331,12 @@ running since 2026-11-24T19:10-05:00:
 step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
 issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`),
 and step 12's move refusal reading the working directory for every forwarded command before it checks for `worktree move` (`pi-fix-move-refusal-reads-its-word-first`);
+running since 2026-11-24T19:25-05:00:
+issue 6322's fix (`pi-fix-removal-keeps-journals-of-gone-worktrees`),
+since a removal keeps the commit service's journal for `rules-repository` or a `claim-watch` naming only the removed worktree,
+which has left 595 journals of removed worktrees among 663 (56 MB) in the service state folder;
+after it merges, `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` clears them on this machine;
+the gate on `main` at `a467773fbf` (`gate-on-main-at-a467773fbf`) runs for step 12's merge;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
@@ -567,9 +573,20 @@ typed Clippy bans on `std::env::args` and `args_os`,
 and the two modes the owner's answers need:
 `record-checkout --checkout <path>` (step 10's option E)
 and `mount-path-descendant --dataset <name>` (step 19's later mounter).
-Running:
-a Sonnet read of it that writes the eight choices for the owner
-(`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/`).
+Its Sonnet read (`report-sonnet-read-of-the-third-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/keep/`)
+found the `mount-path-descendant` rule refusing the one dataset the step 19 record names
+(`zpcachyos/nosnap/vm-builder-output` is not named under the checkout dataset, only mounted under the checkout path),
+no way for `record-checkout` to record a checkout again after a restore gives it a new GUID,
+nine guard variants that pass the printed guards (five change the names module's decisions, two read `argv[0]` in `main`),
+evidence labels naming logs that do not hold the claim,
+statements in choices 1, 4, 5 and 6 that are wrong,
+and a warm-start paragraph that concludes against its own data;
+it asks that the panic hook be its own choice
+and that the nested unit keep `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run.
+Running since 2026-11-24T19:16:51-05:00:
+the fourth revision folding all of it (`pi-zfs-root-modes-fourth-revision`, branch `docs/planning-cli-git-zfs-root-modes-fourth-revision`);
+a Sonnet read of that follows,
+then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
