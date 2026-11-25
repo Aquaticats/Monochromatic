@@ -192,10 +192,18 @@ fn the_removal_finish_pass_guest_arms() {
     }
     let plan_folder: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(common.as_path());
     assert!(!plan_folder.exists(), "the plan and its empty folder went");
-    let claims: Vec<String> = std::fs::read_dir(home.as_path()).expect("the wrapper's home lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).filter(|name| return name.starts_with(claim_prefix(SLOT).to_string_lossy().as_ref())).collect();
-    assert_eq!(claims.len(), 1, "the pass left one claim file, and this run left {claims:?}");
-    let text: String = std::fs::read_to_string(home.join(claims[0].as_str()).as_path()).expect("the claim reads");
-    assert!(text.contains("released"), "the claim was given back after the plan's removal: {text}");
+    let mut claims: Vec<String> = std::fs::read_dir(home.as_path())
+        .expect("the wrapper's home lists")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.starts_with(claim_prefix(SLOT).to_string_lossy().as_ref()))
+        .collect();
+    // The removal's own run and the pass each take a generation, and the newest is the claim that
+    // counts: a released one is what the next command takes over.
+    claims.sort();
+    let newest: &String = claims.last().expect("the pass took the slot's claim");
+    let text: String = std::fs::read_to_string(home.join(newest.as_str()).as_path()).expect("the claim reads");
+    assert!(text.contains("released"), "the newest claim was given back after the plan's removal: {text}");
     println!("FINISH settled=registration records=removed plan=removed claim=released lines={}", lines.len());
 
     fixture.teardown();

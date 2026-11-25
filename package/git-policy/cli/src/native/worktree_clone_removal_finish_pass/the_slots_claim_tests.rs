@@ -2,10 +2,10 @@
 //!  The controls of the pass's claim:
 //!  a free slot taken and given back,
 //!  a live owner ending the attempt,
-//!  and the generation file's own name.
+//!  and the claim written into the wrapper's own folder.
 //! Why:
 //!  The claim is what keeps two commands off one slot,
-//!  and the name it is taken under is the slot and never the clone's dataset name.
+//!  and the pass takes the removal's own claim so the two meet each other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -69,9 +69,10 @@ fn a_claim_is_written_into_the_wrapper_own_home_and_not_the_repository() {
 }
 
 #[test]
-fn a_slot_whose_claim_folder_was_removed_answers_a_refusal_and_not_a_held_claim() {
+fn a_record_folder_that_is_not_there_is_made_by_the_claims_own_taker() {
     let common: PathBuf = fixture("finish-pass-claim-no-folder");
-    let answer: TheClaim = take_the_slots_claim(common.as_path(), SLOT);
-    let TheClaim::Refused { said } = answer else { panic!("a claim folder that is not there proves nothing about the slot") };
-    assert!(said.contains("cannot list the claims"), "the refusal says what the claim call answered: {said}");
+    assert!(!home_folder(common.as_path()).exists(), "the fixture has no record folder yet");
+    let taken: TheClaim = take_the_slots_claim(common.as_path(), SLOT);
+    assert!(matches!(taken, TheClaim::Held(_)), "the taker makes the folder a standing plan implies and takes the claim");
+    assert!(home_folder(common.as_path()).join(format!("{SLOT}.claim.1")).exists(), "the claim stands in the folder");
 }

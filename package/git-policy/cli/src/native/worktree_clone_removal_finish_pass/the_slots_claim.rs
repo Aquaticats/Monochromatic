@@ -10,9 +10,11 @@
 //!  "The removal's one order of writes and removals";
 //!  `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  "The finish pass that settles a registration").
-//!  The claim is the slot's own generation file,
-//!  keyed by the last path component of the plan's `targetHex`,
-//!  and never by the dataset name in `cloneDataset`.
+//!  The claim is the removal's own,
+//!  `worktree_clone_removal_proof_and_plan::removal_slot_claim`,
+//!  so the pass and a removal of the same slot meet each other rather than interleave,
+//!  and it is keyed by the last path component of the plan's `targetHex`,
+//!  never by the dataset name in `cloneDataset`.
 //!  A live owner means a removal is finishing this slot,
 //!  so the pass touches nothing and waits for that command.
 //!
@@ -21,8 +23,9 @@
 //! const claim = takeTheSlotsClaim(commonDir, slot); // held | busy | refused
 //! ```
 
-use crate::single_owner_claim::{BusyOwner, ClaimOutcome, OwnerClaim, take_claim};
-use crate::worktree_clone_binding_record::registration_home::{claim_prefix, home_folder};
+use crate::single_owner_claim::BusyOwner;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::Path;
 
 /// What:
@@ -38,7 +41,7 @@ use std::path::Path;
 /// ```
 pub enum TheClaim {
     /// This process holds the slot and may finish that plan's tail.
-    Held(OwnerClaim),
+    Held(RemovalClaim),
     /// A live process holds the slot,
     /// so its own command finishes the removal.
     Busy(BusyOwner),
@@ -53,19 +56,19 @@ pub enum TheClaim {
 ///  The claim for one slot,
 ///  under the name its generation files carry.
 /// Why:
-///  The slot is the key every reader of this family knows first,
-///  and the plan names it as the last path component of its `targetHex` path.
+///  The pass and a removal of one slot must not both write its binding and its plan,
+///  so both take the same claim,
+///  and a live owner's refusal is read here as the wait it is rather than as an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const claim = takeTheSlotsClaim(commonDir, slot);
 /// ```
 pub fn take_the_slots_claim(common_dir: &Path, slot: &str) -> TheClaim {
-    let folder = home_folder(common_dir);
-    return match take_claim(folder.as_path(), claim_prefix(slot).as_os_str()) {
-        Ok(ClaimOutcome::Held(claim)) => TheClaim::Held(claim),
-        Ok(ClaimOutcome::Busy(owner)) => TheClaim::Busy(owner),
-        Err(refusal) => TheClaim::Refused { said: refusal.to_string() },
+    return match take_the_removals_claim(common_dir, slot) {
+        Ok(claim) => TheClaim::Held(claim),
+        Err(RemovalStop::TheSlotIsClaimed { pid, path, .. }) => TheClaim::Busy(BusyOwner { pid, path }),
+        Err(stop) => TheClaim::Refused { said: stop.message() },
     };
 }
 
@@ -81,8 +84,11 @@ pub fn take_the_slots_claim(common_dir: &Path, slot: &str) -> TheClaim {
 /// ```ts
 /// giveTheClaimBack(claim);
 /// ```
-pub fn give_the_claim_back(claim: &mut OwnerClaim) -> Result<(), String> {
-    return claim.release().map_err(|refusal| return refusal.to_string());
+pub fn give_the_claim_back(claim: &mut RemovalClaim) -> Result<(), String> {
+    return match release_at_the_last_step(claim) {
+        ClaimEnd::Released | ClaimEnd::Held => Ok(()),
+        ClaimEnd::RefusedToRelease { said } => Err(said),
+    };
 }
 
 /// Controls stay out of the release executable.
