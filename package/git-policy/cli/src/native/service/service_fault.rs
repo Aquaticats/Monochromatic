@@ -98,6 +98,14 @@ pub fn reach(point: &str) {
     hooks::run(point);
     // The armed point a control named, which a release build never reads.
     let armed: Option<String> = crate::test_only_switches::text(FAULT_VARIABLE);
+    // What:     `.as_deref()` lends the `Option<String>` as an `Option<&str>`: the owned text stays where it is and the
+    //           comparison sees a borrowed view of it.
+    // Why:      `point` is a `&str`, so the equality compares borrowed text and no copy is made.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (armed === point) { ... }
+    // ```
     if armed.as_deref() == Some(point) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]

@@ -33,6 +33,13 @@ pub const RUNTIME_PROBE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_PROBE";
 /// const probe = switchValueIn(environment, 'CLI_GIT_TEST_ONLY_RUNTIME_PROBE') !== undefined
 /// ```
 pub fn is_requested(environment: &[(OsString, OsString)]) -> bool {
+    // What:     `.is_some()` answers whether the `Option` holds a value at all, dropping the value itself.
+    // Why:      The probe is asked for by the variable being present, whatever it says.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return switchValueIn(environment, 'CLI_GIT_TEST_ONLY_RUNTIME_PROBE') !== undefined;
+    // ```
     return crate::test_only_switches::value_in(environment, RUNTIME_PROBE_VARIABLE).is_some();
 }
 

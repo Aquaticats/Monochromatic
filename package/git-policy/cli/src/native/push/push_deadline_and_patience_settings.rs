@@ -201,6 +201,16 @@ pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
 /// secondsOf(env.CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS) ?? 150_000
 /// ```
 pub fn connected_window(environment: &[(OsString, OsString)]) -> Duration {
+    // What:     `.and_then(...)` runs the function on the value when the `Option` holds one and answers nothing when it
+    //           does not; `positive_seconds` is that function, and it answers nothing again for a value that is not a
+    //           positive whole number.
+    // Why:      One chain says "a switch that is set and names a positive number of seconds, or nothing", which is the
+    //           whole rule for every value of this kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const named = valueIn(environment, V)?.secondsIfPositive(); return named ?? CONNECTED_PUSH_QUIET_WINDOW;
+    // ```
     // The seconds a control named, from the environment the command was started with; a release build reads neither.
     let named: Option<Duration> = crate::test_only_switches::value_in(environment, CONNECTED_WINDOW_VARIABLE)
         .and_then(|value| return positive_seconds(CONNECTED_WINDOW_VARIABLE, value.as_os_str()));
