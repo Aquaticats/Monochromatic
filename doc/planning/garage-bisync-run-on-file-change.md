@@ -121,16 +121,94 @@ two things need measuring on a disposable Garage before the design settles:
   and draft a report for the owner to review;
   nothing is posted upstream without the owner's approval of the wording.
 
+## Owner answers, round 4 (2026-11-25T17:59:11-05:00)
+
+- Never interrupt a running sync:
+  a hard requirement for the watcher on every client.
+  Measured on this PC,
+  killing a `systemctl start` client does not stop the sync,
+  so on Linux this rules out nothing by itself;
+  on macOS and Windows a restart-style watcher would kill rclone mid-run.
+  Restart-only tools leave the vet,
+  which also makes `watch-restart`'s exit consistent with the rest of the screening.
+- Follow-up shape:
+  a watcher that queues its own runs natively,
+  calling a trigger unit ordered `After=` `rclone-bisync-garage.service`
+  whose only step is `systemctl --user start rclone-bisync-garage.service`.
+  The trigger unit covers changes during timer runs (measured);
+  the watcher's own queue covers changes during runs it started.
+  The 5-minute timer keeps starting the sync unit directly,
+  so syncing goes on if the watcher dies.
+  Native queueing becomes a hard requirement for the watcher.
+- Upstream draft:
+  before the owner reads it,
+  its reproduction steps run exactly as written on a throwaway Garage.
+
+## Owner answer on the upstream draft (2026-11-25T18:04:35-05:00)
+
+"Make the changes but don't post it."
+The reproduction fix (start from a seed file) is in
+`doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`;
+nothing is posted upstream.
+
+## Repository precedent the owner pointed out (2026-11-25T18:16:16-05:00)
+
+The owner:
+"I believe we have already audited watchexec much earlier and found it unsatisfactory?"
+and "We wrote a custom watchexec replacement too. A whole package!"
+Both are on record:
+`package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507` rates `watchexec` "Fit: rejected"
+and `:718-723` says "We cannot adopt a tool whose async runtime we cannot inspect";
+`package/watch-restart/cli` is the replacement.
+The vet had carried watchexec as a candidate and exited watch-restart as restart-only;
+see the vet report section "Repository precedent missed by discovery".
+
+## Owner answers, round 5 (2026-11-25T18:18:47-05:00)
+
+- Watcher pick:
+  "Vet 3p, no watchexec.
+  Only going back to watch-restart if nothing works,
+  because watch-restart has its own critical problems we'd need to fix if we use it."
+  So watchexec leaves the vet,
+  the third-party vet goes on with Watchman, onchange, modd and directory-watcher,
+  and extending `package/watch-restart/cli` is the fallback only if every one of them fails.
+- Skill fix:
+  tighten source class 4 of `.claude/skills/choosing-technology/SKILL.md`
+  (search every candidate's name across `doc/` and package docs,
+  record every verdict found as counterevidence,
+  and enter a repository package that owns the responsibility as a candidate to extend);
+  the owner sees the diff before it is committed.
+
+## What is on record against the watch-restart fallback (2026-11-25T18:18:47-05:00)
+
+The owner gave no list with "its own critical problems";
+these are the problems the repository records,
+which the fallback would have to clear first:
+
+- open issue #4790:
+  Ctrl+C inside a restart's stop-timeout grace abandons the SIGKILL escalation and can orphan the detached child;
+- open issue #4793:
+  the publish-ready package ships a TypeScript-source bin with no `engines` constraint;
+- open issues #4787, #4788, #4789, #4791, #6038 and #4795:
+  README and doc claims that disagree with the code (missing exports, event names, signals, the oversized-file sentinel);
+- open issue #4796:
+  the `start()` and `restart()` re-entry guards for state `stopping` have no tests;
+- `package/watch-restart/cli/HANDOVER.implementation-state.md`:
+  interactive verification cases 2, 3, 4 and 6 are still pending
+  (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
+  and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
   so a watcher that queues its own runs still misses a change that lands during a timer run
   unless something starts one more run after it.
-  Two shapes meet the round 3 requirement:
-  a wrapper that starts the unit again when it was already running at the time of the request,
-  or making the watcher the only thing that starts the unit,
-  with the 5-minute timer reaching it through a file the watcher watches.
-  This waits for the watcher pick.
+  Settled in round 4:
+  a queuing watcher plus a trigger unit ordered after the sync unit.
+- `TimeoutStartSec=3000` was sized for an hourly timer;
+  with 5-minute polling and change triggers,
+  a stalled run would hold every start request for up to 50 minutes.
+  The value needs the longest legitimate run (a large upload) as its floor.
 - The reasoning in `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` that `--conflict-resolve newer`
   cannot let a stale remote copy win assumes one writer;
   it needs rechecking once other clients write to the bucket on change.
@@ -233,6 +311,25 @@ under systemd as PID 1 in the `docker.io/cachyos/cachyos:latest` container:
 
 So a start request made while any run is going (the timer's or the watcher's) is absorbed by that run,
 and a change that lands mid-run needs a new start request after the run ends.
+
+Measured at 2026-11-25T17:57:35-05:00 under systemd 262 (`262.2-1-arch`) in the same container image,
+with an 8-second stand-in oneshot for the sync
+and a trigger oneshot ordered `After=` it whose only step is `systemctl start` of the stand-in:
+
+- a trigger requested 2 seconds into a running sync waited for that sync to end,
+  then started a fresh one:
+  two syncs ran,
+  and the trigger request returned after the second;
+- a trigger requested with no sync running started one sync;
+- a second trigger requested while the first trigger was still running joined it:
+  one sync ran,
+  and both requests returned together.
+- killing a blocking `systemctl start` client with SIGTERM (it exited 143) left the run going (`activating`),
+  and the run ended normally.
+
+So on Linux a trigger unit ordered after the sync unit covers a change that lands during a timer run without custom code,
+a watcher that queues its own runs covers a change that lands during a run it started,
+and no watcher can kill a sync it starts through `systemctl`.
 
 So a settle pass narrows the window in which a save makes a conflict copy
 from "until the next run" to the length of the upload pass plus the gap before the settle pass,

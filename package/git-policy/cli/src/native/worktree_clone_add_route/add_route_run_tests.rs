@@ -5,7 +5,9 @@
 //!  in the plan stop's own sentence,
 //!  and a checkout whose source the fill's own restore would refuse makes the
 //!  runner decline before the claim,
-//!  so the add reaches the ladder with nothing of the route's own written.
+//!  so the add reaches the ladder with nothing of the route's own written,
+//!  and it reaches the ladder with the person's own lock words too,
+//!  which a rule of the route that is not serving it would otherwise refuse.
 //!
 //! Why the plan's refusal is driven here:
 //!  the plan read is the record writer's first statement,
@@ -178,6 +180,55 @@ fn an_untracked_repository_makes_the_runner_decline_before_the_claim() {
         Ok(None) => {}
         Ok(Some(lines)) => panic!("the route served an add from a source its own restore cannot prove and printed {lines:?}"),
         Err(refusal) => panic!("the route fails the add instead of leaving it to the ladder: {}", refusal.message),
+    }
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
+    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add naming the person's own lock from a source the route declines reaches
+///  the ladder with its words,
+///  before the claim.
+/// Why:
+///  The runner is what the wrapper's add path calls,
+///  so this is the answer a person meets:
+///  the lock sentence names a rule of the ZFS clone route,
+///  and the ladder hands the same words to Git,
+///  whose `worktree add` takes `--lock`, `--reason` and `--checkout` by itself
+///  (`SPEC.md`, the ladder's forms).
+///  Refusing here failed an add another rung makes (issue 6453).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(runTheRoute(nestedRepositoryCheckout, addPlan, ['worktree','add','--lock',slot,'main'])).toBeNull();
+/// ```
+#[test]
+fn a_lock_word_from_a_declined_source_leaves_the_add_to_the_ladder() {
+    let root: PathBuf = fixture("route-nested-repository-lock-word");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let route: RouteFacts = RouteFacts {
+        source_root: repo.clone(),
+        common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
+        destination: repo.join(".claude").join("worktrees").join("topic"),
+        slot: String::from("topic"),
+        checkout_dataset: String::from("tank/checkouts/checkout"),
+        container_dataset: String::from("tank/clones"),
+        pool: String::from("tank"),
+    };
+    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
+    let nested: PathBuf = repo.join("nested");
+    std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+    git(nested.as_path(), &["init", "--quiet"]);
+    std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+    let context: GitContext = git_context();
+    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), String::from("--lock"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
+    let answer: Result<Option<Vec<String>>, StepRefusal> = run_the_route(&route, &plan, &context, std::path::Path::new(REAL_GIT), arguments.as_slice(), &[]);
+    match answer {
+        Ok(None) => {}
+        Ok(Some(lines)) => panic!("the route served an add from a source its own restore cannot prove and printed {lines:?}"),
+        Err(refusal) => panic!("the route fails an add given `--lock` from a source it declines, so the ladder never makes the worktree Git's `--lock` asks for: {}", refusal.message),
     }
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
     assert!(!route.destination.exists(), "the slot stays empty when the route declines");

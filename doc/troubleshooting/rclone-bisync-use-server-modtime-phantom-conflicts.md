@@ -405,6 +405,21 @@ Read the previous run's upload line instead.
 
 ## Upstream report draft (not filed)
 
+The owner at 2026-11-25T18:04:35-05:00, after the reproduction fix described next:
+"Make the changes but don't post it."
+The fix is applied; the draft is not to be posted.
+
+Reproduction checked at 2026-11-25T18:02:38-05:00 by the coordinating session,
+on a throwaway Garage v2.3.0 in podman with rclone v1.76.0:
+the steps as first drafted failed at step 2 with
+`Empty prior Path1 listing. Cannot sync to an empty directory` (exit status 7),
+so step 1 now creates a seed file;
+with that change every step produced the output the draft states,
+except that Garage reported the upload time to the millisecond (`23:02:16.022`),
+which step 3 now says.
+Output of both attempts:
+`~/temp/agent/garage-bisync-on-change-grilling-2026-11-25/throwaway-garage-test/keep/upstream-draft-reproduction-as-written-and-corrected.txt`.
+
 Status:
  agent-drafted 2026-11-25T17:48:32-05:00,
  never filed,
@@ -858,8 +873,12 @@ the server's upload time instead of the stored mtime.
 
 ### Minimal reproduction
 
-1. Prepare an empty bucket path and an empty local directory, then resync:
+1. Prepare an empty bucket path and a local directory holding one seed file, then resync
+   (bisync refuses to start from two empty sides:
+   "Empty prior Path1 listing. Cannot sync to an empty directory"):
 
+    mkdir -p /srv/sync-test/notes
+    printf 'seed\n' > /srv/sync-test/notes/seed.txt
     rclone bisync sandbox:sandbox-bucket/notes /srv/sync-test/notes \
       --use-server-modtime --workdir /srv/sync-test/bisync-workdir --resync -v
 
@@ -876,7 +895,7 @@ the server's upload time instead of the stored mtime.
     stat -c %y /srv/sync-test/notes/a.txt
 
    Path1 is the remote. The listing line carries the local file's mtime, to the
-   nanosecond; the server reports the upload time, to the second.
+   nanosecond; the server reports the upload time (to the millisecond on Garage v2.3.0).
 
 4. Run again without touching the file:
 

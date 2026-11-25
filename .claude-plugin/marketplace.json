@@ -44,7 +44,7 @@
     {
       "name": "bash-output-filter",
       "source": "./packages/claude-code-plugin/bash-output-filter",
-      "description": "Strips wasteful patterns from Bash tool output (git boilerplate, long lines, repeated diagnostics) to save tokens.",
+      "description": "Filters Bash output, applies a one-second foreground timeout to eligible main-agent commands, and warns when native background tasks are disabled.",
       "version": "0.0.1",
       "category": "productivity",
       "tags": ["bash", "filter", "tokens", "optimization"]
