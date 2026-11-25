@@ -3,8 +3,10 @@
 use super::*;
 use crate::bounded_push::{StopReport, StopWindow};
 use crate::lfs_pre_push::failed_message;
-use crate::test_support::{executable, fixture, remove};
-use std::path::PathBuf;
+use crate::test_support::{executable, fixture, remove, spawn_owned, this_test_binary};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
 
 /// An argument list from words.
 fn words(items: &[&str]) -> Vec<OsString> {
@@ -376,6 +378,148 @@ fn a_failing_or_missing_upload_stops_with_the_explanation() {
     remove(root.as_path());
 }
 
+//region A wrapper run in a process the control started
+
+/// How long the upload would run if nothing stopped it,
+/// in whole seconds;
+/// far past the control.
+const HOLD_SECONDS: u32 = 3_000;
+
+/// The stall window these controls give the upload,
+/// in whole seconds:
+/// short enough to assert,
+/// long enough that a process start under load fits inside it.
+const STALL_SECONDS: &str = "2";
+
+/// Environment variable naming the helper's scenario.
+const HELPER_MODE_VARIABLE: &str = "CLI_GIT_LFS_UPLOAD_TEST_MODE";
+
+/// Environment variable naming the fixture root the helper runs in.
+const HELPER_ROOT_VARIABLE: &str = "CLI_GIT_LFS_UPLOAD_TEST_ROOT";
+
+/// The filter that selects this file's helper entry inside the helper process.
+const HELPER_FILTER: &str = "lfs::lfs_upload::tests::helper_entry";
+
+/// How long a control waits for one helper step before failing.
+const HELPER_STEP_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// What:
+///  A stand-in program that never answers,
+/// which is the shape of a server that accepts the connection and never replies.
+/// It records its own number and then waits far past every bound.
+/// Why:
+///   The bound must be shown to end the program and to report the stop,
+/// not to wait for it to decide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fs.writeFileSync(bin/git-lfs, `#!/bin/sh\necho $$ > '${pid}'\nexec sleep ${HOLD}`)
+/// ```
+fn never_answering_program(bin: &Path, pid_file: &Path) {
+    std::fs::create_dir_all(bin).expect("bin directory");
+    let source: String = format!("#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n", pid_file.display());
+    executable(bin.join("git-lfs").as_path(), source.as_bytes());
+}
+
+/// Whether a process number still names a living process.
+fn alive(pid: i32) -> bool {
+    // SAFETY: signal 0 takes no pointers and only asks whether the number names a process.
+    return unsafe { libc::kill(pid, 0) } == 0;
+}
+
+/// What:
+///  The helper: one upload run in a process of its own,
+/// for the controls that send the wrapper a signal or leave a stand-in holding.
+/// Why:
+///   The guard's handlers are process-wide and the first guard of a process owns them
+///  (`process/signal_relay.rs`),
+/// so a signal sent to this test binary reaches every control sharing a threaded run,
+/// and wherever no guard is installed at that instant the signal's default action ends the whole test binary.
+/// A helper holds one upload and its own guard,
+/// so the signal reaches only the program that helper waits for,
+/// and the stand-in it starts stays in the helper's process group,
+/// which `spawn_owned` ends with the test thread.
+///  Outside the helper environment this test does nothing.
+#[test]
+fn helper_entry() {
+    let Some(mode) = std::env::var_os(HELPER_MODE_VARIABLE) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(std::env::var_os(HELPER_ROOT_VARIABLE).expect("the helper is given its root"));
+    let bin: PathBuf = root.join("bin");
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let mut variables: Vec<(&str, &str)> = vec![("XDG_STATE_HOME", state.as_str())];
+    if mode.to_string_lossy() == "stall" {
+        variables.push((crate::bounded_push::PUSH_DEADLINE_VARIABLE, STALL_SECONDS));
+    }
+    let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), variables.as_slice());
+    std::fs::write(root.join("upload.code"), format!("{}\n", code.unwrap_or(0))).expect("the helper records its status");
+    std::fs::write(root.join("upload.diagnostics"), diagnostics).expect("the helper records its diagnostics");
+    std::process::exit(code.unwrap_or(0));
+}
+
+/// Start this test binary as the upload helper for one scenario.
+fn spawn_upload_helper(mode: &str, root: &Path) -> Child {
+    let binary: PathBuf = this_test_binary().expect("this test's own executable");
+    // Owned, so a helper still waiting when a control fails does not outlive it.
+    return spawn_owned(
+        Command::new(binary)
+            .args(["--exact", HELPER_FILTER, "--nocapture", "--test-threads=1"])
+            .env(HELPER_MODE_VARIABLE, mode)
+            .env(HELPER_ROOT_VARIABLE, root)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("the helper starts");
+}
+
+/// Wait until `path` appears while the helper runs,
+/// or fail after the step timeout or when the helper ended.
+fn wait_for_helper_file(path: &Path, helper: &mut Child) {
+    let started: Instant = Instant::now();
+    while !path.exists() {
+        assert!(started.elapsed() < HELPER_STEP_TIMEOUT, "{} never appeared", path.display());
+        if let Some(status) = helper.try_wait().expect("the helper's status") {
+            panic!("the helper ended before {} appeared: {status:?}", path.display());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Wait, bounded, for the helper's own end.
+fn finish_helper(helper: &mut Child) -> ExitStatus {
+    let started: Instant = Instant::now();
+    loop {
+        if let Some(status) = helper.try_wait().expect("the helper's status") {
+            return status;
+        }
+        assert!(started.elapsed() < HELPER_STEP_TIMEOUT, "the helper did not end");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Send one signal to the helper from this test process,
+/// so the kernel records it as sent by a process and the helper's guard relays it.
+fn send_to_helper(helper: &Child, signal: libc::c_int) {
+    let target: libc::pid_t = libc::pid_t::try_from(helper.id()).expect("a helper pid fits the pid type");
+    // SAFETY: `kill` takes no pointers, and the target is the helper this control started.
+    let sent: libc::c_int = unsafe { libc::kill(target, signal) };
+    assert_eq!(sent, 0, "the signal was delivered to the helper");
+}
+
+/// The answer the helper recorded: its status and its diagnostics.
+fn helper_answer(root: &Path) -> (i32, String) {
+    let code: i32 = std::fs::read_to_string(root.join("upload.code"))
+        .expect("the helper recorded its status")
+        .trim()
+        .parse()
+        .expect("a status");
+    let diagnostics: String = std::fs::read_to_string(root.join("upload.diagnostics")).expect("the helper recorded its diagnostics");
+    return (code, diagnostics);
+}
+
+//endregion
+
 /// An upload ended by a signal says so by number,
 /// and a signal sent to the wrapper reaches the child.
 #[test]
@@ -406,41 +550,31 @@ fn a_submodule_push_gets_the_notice() {
 /// A signal sent to the wrapper while an upload runs reaches the upload:
 /// the child is gone,
 /// and the status is the signal's.
-///  (Each test runs in its own process,
-/// so the process-wide relay of the guard affects only this test.)
+///  The wrapper runs in a helper process of its own,
+/// because the guard's handlers are process-wide
+///  (`process/signal_relay.rs`),
+/// so a signal sent to this test binary would reach every control of a threaded run.
 #[test]
 fn a_signal_sent_to_the_wrapper_stops_the_upload() {
-    let root = fixture("lfs-upload-relay");
+    let root: PathBuf = fixture("lfs-upload-relay");
     let bin: PathBuf = root.join("bin");
-    let pid_file: PathBuf = root.join("child.pid");
-    std::fs::create_dir(&bin).expect("bin directory");
-    executable(
-        bin.join("git-lfs").as_path(),
-        format!("#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n", pid_file.display()).as_bytes(),
-    );
-    let waiting_for_start: PathBuf = pid_file.clone();
-    let sender = std::thread::spawn(move || {
-        while std::fs::read_to_string(&waiting_for_start).unwrap_or_default().trim().is_empty() {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        // SAFETY: `kill` takes no pointers; the target is this test's own process, whose guard relays the signal.
-        unsafe { libc::kill(libc::getpid(), libc::SIGTERM) };
-    });
-    let (code, diagnostics) = run(root.as_path(), &[bin.as_path()], &[], &plan());
-    sender.join().expect("sender");
-    assert_eq!(code, Some(128 + libc::SIGTERM), "{diagnostics}");
+    let pid_file: PathBuf = root.join("upload.pid");
+    never_answering_program(bin.as_path(), pid_file.as_path());
+    let mut helper: Child = spawn_upload_helper("relay", root.as_path());
+    // The stand-in appears only after the helper's guard is installed and its child started, so the number the helper was
+    // given at spawn names the process this control signals, not one it read from a file.
+    wait_for_helper_file(pid_file.as_path(), &mut helper);
+    send_to_helper(&helper, libc::SIGTERM);
+    let status: ExitStatus = finish_helper(&mut helper);
+    assert!(status.code().is_some(), "the helper ended by its own answer, not a signal: {status:?}");
+    let (code, diagnostics) = helper_answer(root.as_path());
+    assert_eq!(code, 128 + libc::SIGTERM, "{diagnostics}");
     assert!(diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)), "{diagnostics}");
-    let child: i32 = std::fs::read_to_string(&pid_file).expect("pid").trim().parse().expect("a pid");
-    // SAFETY: signal 0 only tests whether the process exists.
-    let alive: bool = unsafe { libc::kill(child, 0) } == 0;
-    assert!(!alive, "the upload was still running after the signal");
+    assert_eq!(status.code(), Some(128 + libc::SIGTERM), "the wrapper's own status is what the helper exits with");
+    let child: i32 = std::fs::read_to_string(pid_file.as_path()).expect("pid").trim().parse().expect("a pid");
+    assert!(!alive(child), "the upload was still running after the signal");
     remove(root.as_path());
 }
-
-/// How long the upload would run if nothing stopped it,
-/// in whole seconds;
-/// far past the control.
-const HOLD_SECONDS: u32 = 3_000;
 
 /// The line `git-lfs` printed in the incident,
 /// with the token the `lfs.url` carries.
@@ -642,39 +776,9 @@ fn the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the
 
 //region An upload that shows no sign of work, and one that needed a login
 
-/// The stall window these controls give the upload,
-/// in whole seconds:
-/// short enough to assert,
-/// long enough that a process start under load fits inside it.
-const STALL_SECONDS: &str = "2";
-
 /// How much longer than the stall window and the stop grace a control's run may take under host load,
 /// in whole seconds.
 const LOAD_ALLOWANCE_SECONDS: u64 = 60;
-
-/// What:
-///  A stand-in program that never answers,
-/// which is the shape of a server that accepts the connection and never replies.
-/// It records its own number and then waits far past every bound.
-/// Why:
-///   The bound must be shown to end the program and to report the stop,
-/// not to wait for it to decide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// fs.writeFileSync(bin/git-lfs, `#!/bin/sh\necho $$ > '${pid}'\nexec sleep ${HOLD}`)
-/// ```
-fn never_answering_program(bin: &std::path::Path, pid_file: &std::path::Path) {
-    std::fs::create_dir_all(bin).expect("bin directory");
-    let source: String = format!("#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n", pid_file.display());
-    executable(bin.join("git-lfs").as_path(), source.as_bytes());
-}
-
-/// Whether a process number still names a living process.
-fn alive(pid: i32) -> bool {
-    // SAFETY: signal 0 takes no pointers and only asks whether the number names a process.
-    return unsafe { libc::kill(pid, 0) } == 0;
-}
 
 /// An upload that shows no sign of work is stopped at the push's stall window,
 /// its program is ended,
@@ -686,12 +790,14 @@ fn an_upload_that_shows_no_sign_of_work_is_stopped_at_the_stall_window() {
     let pid_file: PathBuf = root.join("upload.pid");
     let bin: PathBuf = root.join("bin");
     never_answering_program(bin.as_path(), pid_file.as_path());
-    let state: String = root.join("state").to_string_lossy().into_owned();
-    let variables = [("XDG_STATE_HOME", state.as_str()), (crate::bounded_push::PUSH_DEADLINE_VARIABLE, STALL_SECONDS)];
-    let started: std::time::Instant = std::time::Instant::now();
-    let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
-    let elapsed: std::time::Duration = started.elapsed();
-    assert_eq!(code, Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1)), "{diagnostics}");
+    let started: Instant = Instant::now();
+    let mut helper: Child = spawn_upload_helper("stall", root.as_path());
+    let status: ExitStatus = finish_helper(&mut helper);
+    let elapsed: Duration = started.elapsed();
+    assert!(status.code().is_some(), "the helper ended by its own answer, not a signal: {status:?}");
+    let (code, diagnostics) = helper_answer(root.as_path());
+    assert_eq!(code, i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1), "{diagnostics}");
+    assert_eq!(status.code(), Some(code), "the wrapper's own status is what the helper exits with");
     assert!(diagnostics.contains(&format!("made no progress for {STALL_SECONDS} seconds and was stopped")), "{diagnostics}");
     assert!(diagnostics.contains("was not started and nothing was published"), "{diagnostics}");
     assert!(
