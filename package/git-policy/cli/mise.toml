@@ -85,7 +85,7 @@ description = "Run the TypeScript checks of this package (or of `-- <task>...`) 
 run = "node bin/native-ts-checks.ts"
 
 [tasks."native:install"]
-description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff against the last commit, converges the installed tools, refuses unless `git --version` names the release and `mount-git-worktree-clone-datasets --version` names it too, commits what the lock then holds unless the last commit already holds it (refusing when another process wrote the lock while the release was installed, and leaving that write as it is), then prints the newest timing line and the service journal of the sample commit; `--deadline-seconds` must be from 1 to 2147483; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff against the last commit, converges the installed tools, refuses unless `git --version` names the release and `git monochromatic-git-policy-cli zfs-root --version` names it too, commits what the lock then holds unless the last commit already holds it (refusing when another process wrote the lock while the release was installed, and leaving that write as it is), then prints the newest timing line and the service journal of the sample commit; `--deadline-seconds` must be from 1 to 2147483; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
 # The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
 # bin/native-install.ts.
 run = "node bin/native-install.ts"
@@ -95,11 +95,11 @@ description = "Ask cargo whether every manifest the gate builds still resolves a
 run = "node bin/native-lock-check.ts"
 
 [tasks."native:build"]
-description = "Build the crate's two executables on the host, for differential runs that start them by path"
+description = "Build the crate's one executable on the host, for differential runs that start it by path"
 run = "cargo build --locked --offline --bins"
 
 [tasks."native:build:release"]
-description = "Build the crate's two optimised executables on the host, for timing runs that start them by path (`target/release/monochromatic-git-policy-cli` and `target/release/mount-git-worktree-clone-datasets`); nothing is installed"
+description = "Build the crate's one optimised executable on the host, for timing runs that start it by path (`target/release/monochromatic-git-policy-cli`, whose root modes the words `monochromatic-git-policy-cli zfs-root <mode>` select); nothing is installed"
 run = "cargo build --locked --offline --release --bins"
 
 [tasks."native:check"]
@@ -155,7 +155,7 @@ description = "Lint the native wrapper with Clippy, warnings denied; matches the
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
-description = "Build the crate's two executables in release mode: `monochromatic-git-policy-cli`, the artifact the cargo-installed `git` runs, and `mount-git-worktree-clone-datasets`, the root-run clone-mount handler"
+description = "Build the crate's one executable in release mode: `monochromatic-git-policy-cli`, the artifact the cargo-installed `git` runs, and the root-owned file the ZFS route's root modes are started as"
 run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]
@@ -266,7 +266,7 @@ flag "--cpus <count>" help="Container CPUs, from 0.01, fractions allowed (defaul
 run = "node bin/e2e-native-container.ts run"
 
 [tasks."e2e:mount-git-worktree-clone-datasets"]
-description = "Run the root-run clone-mount handler's adoption arm end to end in the throwaway `mvm` libvirt guest: the administrator records a replacement `.claude/worktrees` folder and each mismatch (another device, a link, a widened mode, a differing slot) is refused without recording anything; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
+description = "Run the root modes' adoption arm end to end in the throwaway `mvm` libvirt guest: the administrator records a replacement `.claude/worktrees` folder and each mismatch (another device, a link, a widened mode, a differing slot) is refused without recording anything; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
 run = "node e2e/mount-git-worktree-clone-datasets-guest.ts"
 
 [tasks."e2e:zfs-slot-state"]

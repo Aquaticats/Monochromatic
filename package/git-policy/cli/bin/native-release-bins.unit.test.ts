@@ -5,8 +5,8 @@
  cargo-binstall requires every `[[bin]]` of a crate to be in the archive, so a `[[bin]]` that the release job does not
  package fails every install that does not compile: the `catalog-specifiers` workflow was red from 2026-11-01 until the
  commit service stopped being a second executable (`doc/planning/cli-git-resident-service.md`, "One executable").
- The crate now declares two, `monochromatic-git-policy-cli` and `mount-git-worktree-clone-datasets`
- (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 5), and every list here names both.
+ The crate now declares one, `monochromatic-git-policy-cli`, because the ZFS route's root modes are modes of it
+ (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`), and every list here names it.
  */
 import { readFileSync, } from 'node:fs';
 import { resolve, } from 'node:path';

@@ -246,32 +246,40 @@ XFS,
 overlayfs and ZFS" for the conversion,
 the removal and the migration.
 
-## The two executables and shipped policies
+## The single executable and shipped policies
 
-One release archive carries two executables,
- and they are the whole of it:
-`monochromatic-git-policy-cli`,
- which is the program a caller runs as `git`,
- and `mount-git-worktree-clone-datasets`,
- which is the root-run clone-mount handler of the ZFS worktree route
- (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
- "Binding crate and compatibility").
-One archive and not two because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate,
+One release archive carries one executable,
+ `monochromatic-git-policy-cli`,
+ which is the program a caller runs as `git` and the program root runs the ZFS
+ route's modes as:
+ the owner answered "One program only,
+ ever"
+ (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+ so the release holds no second program.
+One file and not two because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate,
  so the manifest,
  the release job,
- the release list and the toolchain lock name both executables and nothing else
+ the release list and the toolchain lock name one executable and nothing else
  (`src/native/source_guard/release_bins_tests.rs`,
  `bin/native-release-bins.unit.test.ts`).
-The handler answers five kinds of work and the administrator's adoption,
- is meant to be installed at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
- and at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
- by the setup of plan step 19,
- which no release carries yet,
- is never linked as `git`,
- and carries no policy:
- it owns clone attachment,
- unmount and the recorded folder identities,
- and it shares the ZFS binding and the compatibility gate with the wrapper.
+The root modes are modes of this file,
+ and root reaches them two ways
+ (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
+ `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+ choice 1):
+ the words `monochromatic-git-policy-cli zfs-root <mode>` select a mode on any file,
+ which is what a unit's `ExecStart`,
+ an adoption and a person use;
+ and the installed ZED history event's own file name,
+ `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
+ whose ZED entry `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
+ is a link to it,
+ selects the clone-mount sweep when ZED starts it with no argument,
+ and the modes' own `--help` and `--version`,
+ and refuses every other word before the mode grammar sees it.
+The setup of plan step 19 installs that file and the link,
+ and no release installs them yet;
+ nothing is ever linked as `git`.
 The default invocation,
  which is how the installed ZED event starts it,
  runs the clone-mount sweep;
@@ -283,11 +291,22 @@ which is not built yet and names the unit that runs it,
 `holder-scan` is the all-namespace holder scan of one dataset under a nonce of
 its own,
 which reads and changes nothing,
- and `adopt-worktree-parent` is the administrator's decision to record a
-replacement `.claude/worktrees` folder
+`adopt-worktree-parent` is the administrator's decision to record a
+replacement `.claude/worktrees` folder,
+`record-checkout` records the checkout's path,
+dataset,
+GUID,
+container and pool for the route,
+ and `mount-path-descendant` mounts one nested dataset at its own mountpoint
+beneath the recorded checkout
  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-step 5).
-Both executables start on a machine whose kernel has no ZFS device and neither links one of OpenZFS's CDDL libraries.
+step 5;
+ `doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+ choices 8 and 9).
+The modes' own work is unchanged code and shares the ZFS binding and the
+ compatibility gate with the wrapper,
+ and the modes' refusals and lines open with the words `monochromatic-git-policy-cli zfs-root:`.
+The executable starts on a machine whose kernel has no ZFS device and links none of OpenZFS's CDDL libraries.
 Every policy is compiled into the wrapper;
  no configuration loads code,
  and there are no plugins.
@@ -8143,7 +8162,7 @@ and a clean scan alone does not qualify such a deployment.
 
 #### The mode, and who reads the result
 
-`mount-git-worktree-clone-datasets holder-scan --dataset <name> [--nonce <32 hex digits>]`
+`monochromatic-git-policy-cli zfs-root holder-scan --dataset <name> [--nonce <32 hex digits>]`
 runs one scan for one dataset:
 
 - it reads the dataset's identity through the binding,
@@ -19870,7 +19889,12 @@ and the wrapper starts none of them.
 Git never starts the wrapper for a hook:
 the wrapper writes no hook entry,
 passes no hooks path of a directory it made,
-and the executable does not read the name it was started under.
+and reads the name it was started under in one module only,
+the installed ZED history event's,
+where that name selects the clone-mount sweep and the modes' own `--help` and
+`--version`,
+and nothing else a Git command means
+(`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`).
 
 - Every real-Git start of the wrapper carries `-c core.hooksPath=/dev/null/cli-git-no-hooks` and
   `-c hook.<event>.enabled=false` for every hook event Git 2.56.0 knows (`HOOK_EVENTS` in `hooks_off.rs`,
@@ -22421,7 +22445,7 @@ and reports a successful commit of another file.
 
 ### The start-time ZFS compatibility gate
 
-The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
+The root modes run one gate before
 its first request to `/dev/zfs`,
 and no raw request is made until it passes.
 The wrapper `monochromatic-git-policy-cli` will run the same gate before its
@@ -22601,7 +22625,7 @@ held until its owed cost measurement runs.
 
 #### The start probe beside the gate
 
-`mount-git-worktree-clone-datasets start-probe` is the functional probe the
+`monochromatic-git-policy-cli zfs-root start-probe`, run as root, is the functional probe the
 kernel-release answer asks for,
 run as `ExecStartPre=-` of the boot unit.
 It proves the running kernel and module can make the route's calls,

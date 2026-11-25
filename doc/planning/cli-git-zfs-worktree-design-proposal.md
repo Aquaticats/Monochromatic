@@ -152,11 +152,14 @@ Do not add a C build step, link or load OpenZFS's CDDL libraries, or invoke the 
 wrapper or handler. The vet's "Where the wrapper ships and what it links today" explains why the wrapper must
 start even when OpenZFS is absent. Administrative commands printed by `doctor` do not run inside the wrapper.
 
-The project kept `mount-git-worktree-clone-datasets` in `package/git-policy/cli` as a separate Linux Rust binary
-alongside `monochromatic-git-policy-cli`, rather than making a second package, answering "Keep inside cli
-(Recommended)". The placement shares the binding and the compatibility gate with the wrapper without adding a
-package. Both use the same binding and compatibility gate, even for reads. Its cost is stated under
-[Decided defaults](#decided-defaults).
+The project kept the handler in `package/git-policy/cli` rather than making a second package, answering "Keep
+inside cli (Recommended)". The owner then answered "One program only, ever" on 2026-11-23
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`), so the handler's modes are modes
+of `monochromatic-git-policy-cli`: the release holds one executable, and root reaches the modes through the words
+`monochromatic-git-policy-cli zfs-root <mode>` or through one root-owned file under the installed ZED history
+event's name (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`). The placement shares
+the binding and the compatibility gate with the wrapper without adding a package. The modes use the same binding and
+compatibility gate, even for reads. Their cost is stated under [Decided defaults](#decided-defaults).
 The handler uses child enumeration and dataset/property reads for its sweep and Linux mount calls for the actual
 attachment and removal. It has no Git, pool administration, or dataset destruction operation.
 
@@ -477,11 +480,13 @@ an unmounted slot, where that kernel protection does not apply.
 
 ## ZED reconciliation and mount safety
 
-Install the mount binary as a root-owned executable at
-`/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets` for service calls, and install the same
-build as `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` for ZED events. Keep code, executable search
-paths and `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` root-controlled. The handler runs in the
-host mount namespace. It does not load code from the checkout, run Git, create or remove account slots, or widen
+Install one root-owned regular file,
+`/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
+and make `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` a link to it:
+one file and its name, not two programs
+(`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`, choice 3). Keep code,
+executable search paths and `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc` root-controlled.
+The modes run in the host mount namespace. It does not load code from the checkout, run Git, create or remove account slots, or widen
 sandbox access to `/dev/zfs`.
 
 ### Boot and shutdown unit
@@ -514,7 +519,8 @@ race the clone sweep. Run both modes in the host mount namespace. Order startup 
 `systemd-user-sessions.service`; install the checkout provider dependency for services of the account that
 need the checkout rather than relying on login ordering alone.
 
-- `ExecStart` runs the installed `mount-git-worktree-clone-datasets boot-reconcile`. It verifies ABI, keys,
+- `ExecStart` runs the installed file with the words:
+  `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root boot-reconcile`. It verifies ABI, keys,
   checkout and the private propagation the boot unit itself sets
   ([Checkout propagation policy](#project-decisions)), then reconciles current intent and publishes this boot's
   readiness (proposed from [item 3][vm-propagation]). It does not yet establish
@@ -522,7 +528,7 @@ need the checkout rather than relying on login ordering alone.
   no design yet ([Open items the decisions leave](#open-items-the-decisions-leave)).
   A failed prerequisite authorizes no attachment. Report per-clone failures without discarding the unit's
   stop action for mounts that did succeed.
-- `ExecStopPost` runs `mount-git-worktree-clone-datasets shutdown-unmount`, including after a failed or interrupted
+- `ExecStopPost` runs the same words with `shutdown-unmount`, including after a failed or interrupted
   start (`systemd.service(5)`, `ExecStopPost=`). Withdraw readiness and close admission to new ZED attaches
   before draining in-flight slot operations. Unmount the verified managed mounts only;
   do not change durable intent. Reverse stop ordering puts the sweep before the checkout/home providers
@@ -1481,14 +1487,20 @@ beside the staging default.
   and each receipt is root-owned mode `0644`, read-only to the wrapper, so the caller cannot reap them, and no
   handler step, timer or install action is assigned that role; an acknowledgement property would ride reads the
   handler already makes.
-- The mount handler as a second Linux binary inside `package/git-policy/cli`, rather than a package of its own:
+- The mount handler inside `package/git-policy/cli`, rather than a package of its own:
   kept, answering "Keep inside cli (Recommended)"; it shares the binding and the ABI gate without adding a package
-  ([Binding crate and compatibility](#binding-crate-and-compatibility)). Evidence: none measured; this is a
-  placement choice about this repository's packages, not a compatibility result. Cost: the handler's code, tests
-  and release move with the wrapper, so a wrapper change can alter what root runs, a wrapper rollback also changes
-  the mount handler, and the handler cannot be released or pinned apart from the wrapper; a package of its own
-  would version and gate separately at the price of one more package. The two root-owned install paths belong to
-  either placement ([ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety)).
+  ([Binding crate and compatibility](#binding-crate-and-compatibility)). The owner then answered "One program only,
+  ever" on 2026-11-23, so the handler's modes are modes of the one wrapper executable and no second binary is
+  released (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`). Evidence: none
+  measured; this is a placement choice about this repository's packages, not a compatibility result. Cost: the
+  modes' code, tests and release move with the wrapper, so a wrapper change can alter what root runs and a wrapper
+  rollback also changes the modes; a package of its own would version and gate separately at the price of one more
+  package. The cost the owner accepted is the start: a root start runs the whole wrapper's code, measured at 2.81
+  times the handler's page-cache-cold start on this host and 1.87 times it in the guest, with the warm per-event
+  start 0.48 ms more than the handler's at the median
+  (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+  "The cold start, measured four ways"). The one root-owned file and its ZED link belong to either placement
+  ([ZED reconciliation and mount safety](#zed-reconciliation-and-mount-safety)).
 - No implicit remount after a failure or restart: kept, with one exception, answering "Keep, one exception
   (Recommended)". The exception is the checked reattach of a removal that cancels itself without `--force`, which
   the cancellation and busy-unmount decisions otherwise require, because an implicit remount would race the

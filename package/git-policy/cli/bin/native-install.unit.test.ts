@@ -8,7 +8,6 @@ import {
 
 import { runGateCommand } from './native-gate-run.ts';
 import {
-  handlerVersionLine,
   installSteps,
   journalIdentifiers,
   journalSince,
@@ -16,6 +15,7 @@ import {
   newestTimingLine,
   stepNameOf,
   summaryLinesOf,
+  rootModesVersionLine,
   timingReportLine,
   wrapperVersionLine,
 } from './native-install-steps.ts';
@@ -117,7 +117,7 @@ await describe({
     it({
       name: 'names the release text the installed handler prints',
       fn: async () => {
-        expect(handlerVersionLine({ version: releaseVersion, }),).toBe('mount-git-worktree-clone-datasets 0.6.1-alpha.10',);
+        expect(rootModesVersionLine({ version: releaseVersion, }),).toBe('monochromatic-git-policy-cli zfs-root 0.6.1-alpha.10',);
       },
     }),
     it({
@@ -234,7 +234,7 @@ await describe({
         expect(printed.stdout,).toContain(`+{"tools":{"cargo:monochromatic-git-policy-cli":"${releaseVersion}"}}`,);
         expect(printed.stdout,).toContain(`installed cargo:monochromatic-git-policy-cli ${releaseVersion}`,);
         expect(printed.stdout,).toContain(wrapperVersionLine({ version: releaseVersion, }),);
-        expect(printed.stdout,).toContain(handlerVersionLine({ version: releaseVersion, }),);
+        expect(printed.stdout,).toContain(rootModesVersionLine({ version: releaseVersion, }),);
         expect(printed.stdout,).toContain('== the sample commit took ',);
         expect(printed.stdout,).toContain('== newest timing line (',);
         expect(printed.stdout,).toContain('== service journal since the sample commit began',);
@@ -414,11 +414,11 @@ await describe({
       },
     }),
     it({
-      name: 'refuses when the release archive moved only the wrapper, and commits nothing',
+      name: 'refuses when the installed build answers no root modes, and commits nothing',
       fn: async () => {
         await using fixture = await createInstallFixture({
           version: releaseVersion,
-          options: { withoutHandler: true, },
+          options: { withoutRootModes: true, },
         });
         /**
          How the refused install ended.
@@ -428,7 +428,8 @@ await describe({
           args: [releaseVersion,],
         });
         expect(printed.status,).toBe(1,);
-        expect(printed.stderr,).toContain('mount-git-worktree-clone-datasets',);
+        expect(printed.stderr,).toContain('zfs-root');
+        expect(printed.stderr,).toContain('does not answer the root modes');
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
       },
     }),

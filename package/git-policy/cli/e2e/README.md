@@ -830,11 +830,16 @@ so they detect the regression.
 
 ## The ZFS adoption arm
 
-`mount-git-worktree-clone-datasets-guest.ts` runs one end-to-end arm of the root-run clone-mount handler's
-`adopt-worktree-parent` mode,
+`mount-git-worktree-clone-datasets-guest.ts` runs the root modes' `adopt-worktree-parent` end to end,
 which is the mode plan step 5 wires
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 5).
+The modes are modes of the one wrapper executable now, so every arm starts the
+ built wrapper under the installed ZED history event's name or through the words
+ `monochromatic-git-policy-cli zfs-root <mode>`, and the link's name and the
+ words come from the library's own constants
+ (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+ choice 1).
 The arms write the store folder `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`
 and open a checkout as root,
 so they run only in a throwaway guest:
@@ -1050,6 +1055,13 @@ the move and the unmount from a second process,
 and the record under `/run`
 (`doc/planning/cli-git-zfs-start-probe-design.md`,
 "The arms").
+Every arm starts the built wrapper through the words
+`monochromatic-git-policy-cli zfs-root start-probe`,
+ and the one arm whose point is a step that finishes after the shipped bound
+ runs the same build made with `--features start-probe-raised-deadline`,
+ because the release compiles the deadline variable out
+ (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+ choice 11).
 Its `probe-dataset` step makes the fixture a probe needs:
 the file-backed pool,
 the `nosnap` container,

@@ -191,7 +191,7 @@ impl CloneSlotRefusal {
             CloneSlotRefusal::Walk(refusal) => refusal.message(),
             CloneSlotRefusal::Store(refusal) => refusal.message(),
             CloneSlotRefusal::ParentIdentity { checkout, recorded, found, fields } => format!(
-                "the `.claude/worktrees` parent folder below {} is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. A changed identity is not permission to adopt the replacement, so no clone is mounted, and one store records one checkout: a folder of a second checkout never matches this record. Ways forward: restore the folder whose identity is recorded; or, after a checkout restore or a controlled recreation, an administrator runs `mount-git-worktree-clone-datasets adopt-worktree-parent` with the intended replacement's device and inode and runs the command again.",
+                "the `.claude/worktrees` parent folder below {} is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. A changed identity is not permission to adopt the replacement, so no clone is mounted, and one store records one checkout: a folder of a second checkout never matches this record. Ways forward: restore the folder whose identity is recorded; or, after a checkout restore or a controlled recreation, an administrator runs `monochromatic-git-policy-cli zfs-root adopt-worktree-parent` as root, from the root-owned file the installed ZED event links to, with the intended replacement's device and inode, and runs the command again.",
                 checkout.display(),
                 field_names(fields),
                 recorded.describe(),

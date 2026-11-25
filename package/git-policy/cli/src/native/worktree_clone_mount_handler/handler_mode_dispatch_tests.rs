@@ -113,7 +113,7 @@ fn fixture_places(label: &str) -> DispatchPlaces {
 /// so no two lines run together.
 #[test]
 fn one_line_carries_its_own_newline() {
-    assert_eq!(super::line_to_write("mount-git-worktree-clone-datasets 0.6.1-alpha.44"), "mount-git-worktree-clone-datasets 0.6.1-alpha.44\n");
+    assert_eq!(super::line_to_write("monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44"), "monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44\n");
 }
 
 /// The two statuses are zero and the wrapper's own refusal status.

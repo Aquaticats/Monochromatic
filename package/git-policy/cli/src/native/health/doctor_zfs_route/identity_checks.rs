@@ -142,7 +142,7 @@ pub fn check_parent_identity(facts: &ParentIdentityFacts) -> CheckOutcome {
     let recorded: &CloneFolderIdentity = match &facts.recorded {
         RecordedIdentity::Read(identity) => identity,
         RecordedIdentity::Absent { why } => {
-            return finding("parent-record", format!("the store files no `{PARENT_RECORD}`, so no live folder can be compared ({why}); an administrator's `mount-git-worktree-clone-datasets adopt-worktree-parent` records the intended replacement, and nothing is attached meanwhile", PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME));
+            return finding("parent-record", format!("the store files no `{PARENT_RECORD}`, so no live folder can be compared ({why}); an administrator's `monochromatic-git-policy-cli zfs-root adopt-worktree-parent`, run as root from the root-owned file the installed ZED event links to, records the intended replacement, and nothing is attached meanwhile", PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME));
         }
         RecordedIdentity::Unreadable { why } => return unknown(format!("`{PARENT_RECORD}` could not be read ({why}), so the parent's identity is unproved", PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME)),
     };
@@ -161,7 +161,7 @@ pub fn check_parent_identity(facts: &ParentIdentityFacts) -> CheckOutcome {
     }
     return finding(
         field_names(&fields),
-        format!("the live `.claude/worktrees` folder is not the recorded one: the {} differs. Recorded: {}. Found: {}. Ways forward: restore the recorded folder, or let an administrator run `mount-git-worktree-clone-datasets adopt-worktree-parent` with the replacement's device and inode", field_names(&fields), recorded.describe(), found.describe()),
+        format!("the live `.claude/worktrees` folder is not the recorded one: the {} differs. Recorded: {}. Found: {}. Ways forward: restore the recorded folder, or let an administrator run `monochromatic-git-policy-cli zfs-root adopt-worktree-parent` as root with the replacement's device and inode", field_names(&fields), recorded.describe(), found.describe()),
     );
 }
 

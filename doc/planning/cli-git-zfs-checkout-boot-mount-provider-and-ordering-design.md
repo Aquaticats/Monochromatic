@@ -2384,6 +2384,16 @@ The choices are settled; what waits is the build each chosen piece needs.
   may change a dataset's state by name at all, and it needs the new refusal
   `dataset-outside-the-checkout`.
   Until it lands, the nested dataset's unit runs `/usr/bin/zfs mount` (V4 and V9's answer).
+  (Written 2026-11-25:
+  the mode is built and its refusals are named,
+  `no-recorded-checkout` among them,
+  which refuses until root has run `record-checkout`;
+  the unit's line becomes one line naming the mode once the checkout migration has run and the record
+  stands,
+  `ExecStart=<the root-owned file> monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset <dataset>`,
+  and the order is
+  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+  "The order the nested dataset's unit changes in".)
 - `canmount=noauto` on `zpcachyos/nosnap/vm-builder-output`: the owner's act on an existing dataset
   (V4), and step 20's snapshot coverage and the setup runbook must state it too.
   With this design's unit installed the dataset is mounted at boot; nothing else mounts it.

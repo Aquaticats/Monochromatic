@@ -38,8 +38,19 @@ import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 
 /** Where the crate is unpacked and built inside the guest, which every account may traverse. */
 const CRATE_DIR = '/opt/git-policy-cli-start-probe';
-/** The handler binary the arms start. */
-const HANDLER = `${CRATE_DIR}/package/git-policy/cli/target/release/mount-git-worktree-clone-datasets`;
+/**
+ The command every arm starts: the wrapper this guest built, and the words that select a root mode on any file.
+ The words are choice 2's, so a bare mode word is refused under the installed name and this shape is what reaches the
+ modes (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`).
+ */
+const HANDLER = `${CRATE_DIR}/package/git-policy/cli/target/release/monochromatic-git-policy-cli monochromatic-git-policy-cli zfs-root`;
+/**
+ The same command built with the probe's raised-deadline feature, which the release compiles out.
+ Choice 11 answers that a build made for a control says so in its manifest, so the one control whose point is a step
+ that finishes after the shipped bound runs this build and never the release's bytes
+ (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`, choice 11).
+ */
+const RAISED_DEADLINE_HANDLER = `${CRATE_DIR}/package/git-policy/cli/target/raised-deadline/release/monochromatic-git-policy-cli monochromatic-git-policy-cli zfs-root`;
 /** The record the probe writes and the arms read. */
 const RECORD = '/run/git-worktree-clone-mount-probe/result';
 /** The probe dataset the design names (doc/planning/cli-git-zfs-start-probe-design.md, "The source"). */
@@ -194,7 +205,9 @@ async function build(chosen: Options): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     'cargo build --release --locked --bins > /root/probe-build.log 2>&1',
+    'cargo build --release --locked --bin monochromatic-git-policy-cli --features start-probe-raised-deadline --target-dir target/raised-deadline > /root/probe-build-raised.log 2>&1',
     'tail --lines=3 /root/probe-build.log',
+    'tail --lines=3 /root/probe-build-raised.log',
   ].join('\n');
   guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
 }
@@ -441,6 +454,7 @@ function probeScript(lines: readonly string[]): string {
     `export PATH=${OPENZFS_PATH}`,
     `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
     `H=${HANDLER}`,
+    `R=${RAISED_DEADLINE_HANDLER}`,
     `REC=${RECORD}`,
     `CONF=${CONFIGURATION}`,
     `SRC='${PROBE_DATASET}@ready'`,
@@ -578,7 +592,7 @@ function m2Controls(chosen: Options): void {
   guest({ chosen, script, log: 'guest-m2-controls.log', timeout: ARM_TIMEOUT_MS, });
 }
 
-/** M3's kill matrix: every named hold point, each process alone, and the raised-deadline control. */
+/** M3's kill matrix: every named hold point, each process alone, and the raised-deadline control, which runs the feature build. */
 function m3Kill(chosen: Options): void {
   const script = probeScript([
     'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m3-table-before.txt',
@@ -607,7 +621,7 @@ function m3Kill(chosen: Options): void {
     '    check_after "hold-$step kill-$target"',
     '  done',
     'done',
-    'CLI_GIT_TEST_ONLY_START_PROBE=hold-unmount CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $H start-probe > /root/m3-raised.log 2>&1 || true',
+    'CLI_GIT_TEST_ONLY_START_PROBE=hold-unmount CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $R start-probe > /root/m3-raised.log 2>&1 || true',
     'if grep -q "^verdict passed" $REC && grep -q "^step unmount passed" $REC; then echo "M3 raised-deadline-control-passed"; else echo "M3 raised-deadline-control-failed"; cat $REC; exit 1; fi',
     '$H start-probe > /root/m3-run.log 2>&1 & mode=$!; kill -KILL $mode 2>/dev/null || true; wait $mode 2>/dev/null || true; check_after "kill-immediately mode"',
     'if grep -q TABLE-DIFFERS /root/m3-summary.txt; then echo "M3 a kill changed the host table"; exit 1; fi',

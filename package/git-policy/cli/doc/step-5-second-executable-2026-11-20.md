@@ -10,6 +10,17 @@ step 5.
 the owner has not reviewed it,
 and nothing here was merged.
 
+**Note, 2026-11-25:**
+the second executable this record built was removed by the owner's answer
+"One program only, ever"
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
+and the root modes are modes of `monochromatic-git-policy-cli` now,
+reached through the words `monochromatic-git-policy-cli zfs-root <mode>` or
+through one root-owned file under the installed ZED history event's name
+(`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`).
+The record's text below is kept as it was written,
+and `mount-git-worktree-clone-datasets` is no program and no path any more.
+
 ## What landed
 
 - The `[[bin]]` `mount-git-worktree-clone-datasets`

@@ -8,10 +8,10 @@ forwards every command to the real Git,
 and checks the commands and the commits that pass through it against policies the repository configures as data.
 
 The executable a caller runs is `monochromatic-git-policy-cli`.
-The crate's release also holds `mount-git-worktree-clone-datasets`,
- the root-run clone-mount handler of the ZFS worktree route
+The release holds that one executable,
+ and the ZFS worktree route's root modes are modes of it
  (`SPEC.md`,
- "The two executables and shipped policies").
+ "The single executable and shipped policies").
 The library inside the crate is named `git_policy_cli`.
 
 How the owner wants this package designed and judged is in [DESIGN.md](DESIGN.md).
@@ -1918,19 +1918,20 @@ Install it as a `cargo:` tool of [mise][mise],
 Otherwise it compiles the crate from source with the Rust toolchain.
 `cargo install monochromatic-git-policy-cli --locked` compiles the same executable into `~/.cargo/bin`.
 
-One archive carries two executables,
- and an install places both:
+One archive carries one executable,
+ and an install places it:
 `monochromatic-git-policy-cli`,
  the wrapper,
- and `mount-git-worktree-clone-datasets`,
- the root-run clone-mount handler of the ZFS worktree route
+ whose modes also do the ZFS worktree route's root work
  (`SPEC.md`,
-"The two executables and shipped policies").
-The wrapper is the file a caller runs as `git`;
-the handler is never linked as `git`,
-and a machine that never mounts a ZFS worktree clone leaves it unused.
+"The single executable and shipped policies").
+It is the file a caller runs as `git`;
+root reaches its modes through the words
+`monochromatic-git-policy-cli zfs-root <mode>`
+ or through one root-owned file under the installed ZED history event's name,
+ and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
-The handler runs five kinds of work:
+The root modes run six kinds of work:
 no argument at all is the clone-mount sweep the installed ZED event starts,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
@@ -1943,7 +1944,13 @@ and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
 of its own,
 which reads and changes nothing.
 `adopt-worktree-parent` is the administrator's decision to record a replacement
-`.claude/worktrees` folder.
+`.claude/worktrees` folder,
+`record-checkout` records the checkout's path,
+ dataset,
+ GUID,
+ container and pool for the route,
+ and `mount-path-descendant` mounts one nested dataset at its own mountpoint
+ beneath the recorded checkout.
 The sweep and `boot-reconcile` are described in `SPEC.md` under the section
 on the sweep and the boot it reconciles,
 and the guest arms that run them against a real pool are in
@@ -7338,15 +7345,12 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   `--repository <path>` names the checkout
   (otherwise the nearest folder above the caller whose `.git` is a folder)
   and `--dry-run` prints the same plan and changes nothing.
-  The install also refuses unless `mount-git-worktree-clone-datasets --version` prints the release's line,
-  and no release published so far carries that program:
-  `toolchain.lock.json` names it for this tree's release,
+  The install also refuses unless `git monochromatic-git-policy-cli zfs-root --version` prints the release's line,
+  and no release published so far answers those words:
+  the ZFS route's root modes are modes of the one executable since this change,
   so installing any earlier release ends refused after the wrapper is installed and the lock is moved,
-  and nothing is committed under that release's name;
-  `mise run toolchain:install` on this tree's lock installs that release,
-  exits 0,
-  and prints `toolchain install: unresolved bins: mount-git-worktree-clone-datasets`.
-  The first release built from this tree carries both executables,
+  and nothing is committed under that release's name.
+  The first release built from this tree answers the words,
   and the refusal then names nothing.
 
 ### Lint
@@ -8215,12 +8219,12 @@ composed and resumed is in
 
 ### Source layout
 
-The crate is one library and two executables
+The crate is one library and one executable
 (`monochromatic-git-policy-cli`,
- which is also the commit service in its service mode,
- and `mount-git-worktree-clone-datasets`,
- the root-run clone-mount handler at `src/native/mount_git_worktree_clone_datasets/main.rs`
- whose decisions are the library's `src/native/worktree_clone_mount_handler/`),
+ which is also the commit service in its service mode and the ZFS route's root
+ modes,
+ whose decisions are the library's
+ `src/native/worktree_clone_mount_handler/`),
 and its sources live under `src/native/`.
 Each folder there is one subsystem,
 so a contributor opens a folder for a concern instead of searching a flat list of

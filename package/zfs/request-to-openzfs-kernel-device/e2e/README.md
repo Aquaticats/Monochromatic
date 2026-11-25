@@ -536,11 +536,12 @@ so an arm that never ran is never counted as passed.
 
 Everything in this arm is a root-run integration test of the wrapper's module,
 not part of the account-side suite:
-until step 5's `mount-git-worktree-clone-datasets` binary exists,
 the `fsopen`,
 `fsconfig`,
 `fsmount` and `move_mount` calls are the test's own,
-and the production copies are what the arms will drive after that step.
+and the wrapper's own copy is what the arms present after step 5
+(`git_policy_cli::worktree_clone_mount::attach_the_clone`,
+reached through the root modes' `mount-path-descendant` and the clone attach).
 
 The step leaves the guest as it found it:
 the teardown takes down every mount still below the fixture root
