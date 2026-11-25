@@ -130,21 +130,15 @@ fn a_git_child_that_a_signal_ended_keeps_its_signal_when_no_scratch_place_is_giv
 /// Why:
 ///   The two tests of the deaths above differ only in whether the run has a scratch place,
 /// so one helper keeps them
-///  the same in everything else.
-/// Each names its own fixture folder:
-/// the two tests run as threads of one process,
-/// and  a fixture folder carries the process id and the name the test writes,
-/// so one name for both let the second test's
-///  "remove stale fixture" delete the first test's live folder
-/// (`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md`).
+///  the same in everything else,
+/// and one fixture name for both is safe because every call of `fixture` makes a folder of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const standIn = `#!/bin/sh\nfor token in "$@"; do if [ "$token" = "add" ]; then kill -TERM $$; fi; done; exec git "$@"`;
 /// ```
 fn coordinated_death_of_a_git_killed_by_sigterm(home: bool) -> CoordinatedRun {
-    let name: &str = if home { "forward-killed-with-a-scratch-place" } else { "forward-killed-without-a-scratch-place" };
-    let root: PathBuf = fixture(name);
+    let root: PathBuf = fixture("forward-killed");
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"content\n").expect("file to add");
     let mut forward: CoordinatedForward = add_forward(repo.as_path());
