@@ -206,7 +206,44 @@ The snapshot helper is `package/git-policy/cli/bin/native-wrapper-snapshot.ts`,
 whose tarball is 12.6 MB.
 The host samples every 10 seconds while the build runs.
 The sampler,
-the guest scripts and every reading are under `keep/` in the round folder.
+the guest scripts and every reading are under `keep/` in the round folder:
+
+- `samples-mem-a.jsonl`,
+  `samples-mem-b.jsonl`,
+  `samples-mem-c.jsonl` and `samples-mem-d.jsonl`:
+one JSON line per host sample,
+  with the `/proc/meminfo` fields,
+the unit's `memory.current` and `memory.stat` fields,
+memory pressure,
+the zram device's `mm_stat`,
+KSM's counters,
+and each QEMU process's `smaps_rollup` numbers,
+its largest mapping and its mergeable count;
+- `memory-gate-log.txt`:
+  the gate reading before every guest,
+  and the reading at which each create fired;
+- `poll-*.log`:
+  the guest logs' progress as the host polled them;
+- `guest-samples-a.log` and `guest-samples-b.log`:
+  the guests' own samples every 5 seconds during a build;
+- `host-build.log`,
+  `build-b.log` and
+  `prepare.log`:
+  the builds' and preparation's own output;
+- `mem-c-guest-readings.txt`:
+  guest `mem-c`'s readings,
+  transcribed,
+  because its guest-side logs were
+  lost (it was destroyed before they were pulled);
+- `monochromatic-git-policy-cli`:
+  the wrapper `mem-a` built,
+  pulled for the 4 GiB arm;
+- `probe-patch-for-the-measurement.diff`:
+  the probe patch,
+  reverted from the worktree before the commit
+  that published this document;
+- the scripts the round ran,
+  in the round folder's `scratch/`
 
 Two measurements need a domain attribute or a smaller memory than `mvm`'s constants allow,
 and `mvm` has no flag for either.
