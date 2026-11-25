@@ -66,6 +66,50 @@ fn shown(path: &Path) -> &str {
     return path.to_str().expect("the guest's paths are UTF-8");
 }
 
+/// The wrapper program the driver built,
+/// which the arm reaches through a `git` link so it runs as the person's `git`.
+const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
+
+/// What:
+///  Run one Git command through the built wrapper,
+///  the way a person's shell starts it.
+/// Why:
+///  Plan step 12's wiring is the command path itself,
+///  so the arm proves the refusal,
+///  the restore and the report a person meets rather than the function behind
+///  them.
+fn wrapper_git(checkout: &Path, arguments: &[&str]) -> Output {
+    let bin: PathBuf = PathBuf::from("/root/slot-state-bin");
+    std::fs::create_dir_all(bin.as_path()).expect("the wrapper's bin folder");
+    let home: PathBuf = PathBuf::from("/root/slot-state-home");
+    std::fs::create_dir_all(home.as_path()).expect("the wrapper's home folder");
+    let runtime: PathBuf = PathBuf::from("/root/slot-state-runtime");
+    std::fs::create_dir_all(runtime.as_path()).expect("the wrapper's runtime folder");
+    let link: PathBuf = bin.join("git");
+    let _stale: std::io::Result<()> = std::fs::remove_file(link.as_path());
+    std::os::unix::fs::symlink(WRAPPER, link.as_path()).expect("the wrapper's git link");
+    return std::process::Command::new(link.as_path())
+        .args(arguments)
+        .current_dir(checkout)
+        .env_clear()
+        .env("PATH", format!("{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", bin.display()))
+        .env("HOME", home.as_path())
+        .env("XDG_RUNTIME_DIR", runtime.as_path())
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+        .output()
+        .unwrap_or_else(|error| panic!("the wrapper `git {arguments:?}` could not start: {error}"));
+}
+
+/// One command's whole answer as text.
+fn said_of(output: &Output) -> String {
+    return format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+}
+
 /// What:
 ///  Plan step 12's arms in the guest.
 /// Why:
@@ -166,6 +210,12 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert!(!refused.status.success(), "a mounted clone's move is refused by the kernel: {said}");
     assert!(said.to_lowercase().contains("busy"), "the refusal is the busy mount: {said}");
     println!("MOVE-REFUSAL mounted git=refused-busy");
+    // The wrapper's own command path refuses the same move before Git runs.
+    let by_the_wrapper: Output = wrapper_git(checkout.as_path(), &["worktree", "move", shown(slot.as_path()), shown(moved.as_path())]);
+    assert_eq!(by_the_wrapper.status.code(), Some(1), "the wrapper's refusal status: {}", said_of(&by_the_wrapper));
+    assert!(said_of(&by_the_wrapper).contains("`git worktree move` is refused"), "{}", said_of(&by_the_wrapper));
+    assert!(slot.is_dir(), "the wrapper moved nothing");
+    println!("MOVE-REFUSAL wrapper-mounted cause=bound status=refused");
 
     // Unmounted: the kernel no longer refuses and Git's own move succeeds, which is the hole the wrapper closes.
     unmount_at(slot.as_path());
@@ -176,6 +226,11 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     let unmounted_refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), slot.as_path()).expect("the unmounted slot refuses too");
     assert!(matches!(unmounted_refusal.cause, ManagedMoveRefusalCause::Bound { .. }));
     println!("MOVE-REFUSAL unmounted cause=bound");
+    let refused_unmounted: Output = wrapper_git(checkout.as_path(), &["worktree", "move", shown(slot.as_path()), shown(moved.as_path())]);
+    assert_eq!(refused_unmounted.status.code(), Some(1), "the wrapper refuses the unmounted move: {}", said_of(&refused_unmounted));
+    assert!(said_of(&refused_unmounted).contains("`git worktree move` is refused"), "{}", said_of(&refused_unmounted));
+    assert!(slot.is_dir(), "the wrapper moved nothing while the clone was unmounted");
+    println!("MOVE-REFUSAL wrapper-unmounted cause=bound status=refused");
     let allowed: Output = git(checkout.as_path(), &["worktree", "move", shown(slot.as_path()), shown(moved.as_path())]);
     assert!(
         allowed.status.success(),
@@ -185,6 +240,40 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     );
     println!("MOVE-REFUSAL unmounted git=succeeded");
     command_ok("git", &["-C", shown(checkout.as_path()), "worktree", "move", shown(moved.as_path()), shown(slot.as_path())]);
+
+    // The removal of the bound slot is refused, because Git's own removal would delete the registration and the underlay
+    // pointer while the clone dataset kept the worktree.
+    let removal: Output = wrapper_git(checkout.as_path(), &["worktree", "remove", "--force", shown(slot.as_path())]);
+    assert_eq!(removal.status.code(), Some(1), "the wrapper refuses the removal: {}", said_of(&removal));
+    assert!(said_of(&removal).contains("this release has no removal for a clone"), "{}", said_of(&removal));
+    assert!(place.registration.is_dir(), "the registration stands");
+    assert!(slot.join(".git").is_file(), "the underlay pointer stands");
+    println!("REMOVAL-REFUSAL wrapper class=known-unmounted-clone status=refused");
+
+    // The pointer the add keeps for prune: real Git's own prune keeps the registration while the pointer stands.
+    let pruned_intact: Output = git(checkout.as_path(), &["worktree", "prune", "--verbose"]);
+    assert!(pruned_intact.status.success(), "prune ran: {}", said_of(&pruned_intact));
+    assert!(place.registration.is_dir(), "the registration stands after a prune with the pointer intact");
+    assert!(slot.join(".git").is_file(), "the underlay pointer stands after the prune");
+    println!("PRUNE-POINTER intact registration=kept");
+
+    // A pointer an account deleted: the wrapper's prune writes the recorded bytes back before Git starts, and the
+    // registration it would have dropped stands.
+    std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
+    let restored: Output = wrapper_git(checkout.as_path(), &["worktree", "prune"]);
+    assert!(restored.status.success(), "the wrapped prune ran: {}", said_of(&restored));
+    assert!(said_of(&restored).contains("restored the pointer"), "{}", said_of(&restored));
+    assert!(place.registration.is_dir(), "the registration stands after the restore");
+    assert_eq!(std::fs::read(slot.join(".git")).expect("the restored pointer reads"), place.pointer);
+    println!("PRUNE-POINTER restored registration=kept");
+
+    // A damaged link with the registration surviving: the report says what a repair restores, and Git rebuilds it.
+    std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
+    let repaired: Output = wrapper_git(checkout.as_path(), &["worktree", "repair", shown(slot.as_path())]);
+    assert!(said_of(&repaired).contains("link: damaged, and the registration stands"), "{}", said_of(&repaired));
+    assert!(said_of(&repaired).contains("next safe command: `git worktree repair"), "{}", said_of(&repaired));
+    assert!(slot.join(".git").is_file(), "Git rebuilt the pointer from the registration");
+    println!("REPAIR damaged registration=stands");
 
     // A pending add at a slot the add has not mounted, and a pending removal whose plan names this clone.
     publish(&two, Phase::Snapshotted, sbin.as_str(), SLOT_TWO);
@@ -207,8 +296,21 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert_eq!(class_of(&classify_slot(&removing)), "pending removal");
     println!("SLOT-STATE pending-removal class={}", class_of(&classify_slot(&removing)));
 
-    // The fixture's own cleanup: the plan, the base dataset and the repository.
+    // The plan goes first, so the prune below reads a slot no removal is in flight for.
     std::fs::remove_file(plans.join(clone_guid.file_name())).expect("the plan is removed");
+
+    // A registration Git already pruned: the report says what is lost, and a pointer restored from the record points at
+    // nothing, because Git does not rebuild a registration.
+    std::fs::remove_file(slot.join(".git")).expect("the underlay pointer goes");
+    let pruned: Output = git(checkout.as_path(), &["worktree", "prune"]);
+    assert!(pruned.status.success(), "prune ran: {}", said_of(&pruned));
+    assert!(!place.registration.exists(), "the registration is gone");
+    let pruned_report: Output = wrapper_git(checkout.as_path(), &["worktree", "repair", shown(slot.as_path())]);
+    assert!(said_of(&pruned_report).contains("link: pruned, and the registration is gone"), "{}", said_of(&pruned_report));
+    assert!(said_of(&pruned_report).contains("cannot rebuild a registration"), "{}", said_of(&pruned_report));
+    println!("REPAIR pruned registration=gone");
+
+    // The fixture's own cleanup: the base dataset and the repository.
     let _unmounted = zfs(sbin.as_str(), "zfs", &["unmount", checkout_dataset.as_str()], None);
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8").as_str()]);
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());

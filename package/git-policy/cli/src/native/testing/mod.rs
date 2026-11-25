@@ -132,3 +132,9 @@ pub(crate) mod real_git_lfs_the_run_requires_tests;
 #[cfg(test)]
 #[cfg(unix)]
 pub(crate) mod child_ended_with_its_whole_group;
+
+/// One binding record whose slot, registration and pointer are a fixture's own paths,
+/// and the publication that puts it under a fixture's Git common directory;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod fixture_zfs_binding_record;

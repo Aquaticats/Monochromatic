@@ -778,6 +778,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   `1` when any other hook is found,
   also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
+- A slot a managed clone's record names is reported by the shape in
+  "Unmounted,
+  pruned and moved ZFS worktree clones":
+  the slot,
+  its state,
+  its dataset and pool,
+  one evidence line per source,
+  the one next safe action,
+  and,
+  when the pointer or the registration needs one,
+  the link's repair report.
+  Plan step 18 adds these lines to this command;
+  this release prints them from the add's refusal at a filled slot and from the removal's refusal
+  of a slot a whole clone is bound to.
   A directory that does not exist holds no hooks.
 - It says on stderr whether Git's own fsmonitor is off (see "Git's own fsmonitor" in `README.md`).
   It reads one listing,
@@ -885,7 +899,10 @@ An applicable source is a forwarded invocation whose shared identity selects a l
 and whose subcommand,
 after ordinary Git alias resolution,
 creates a worktree (`git worktree add`).
-A `git worktree move` registers nothing new and is forwarded like any other command.
+A `git worktree move` registers nothing new and is forwarded like any other command,
+except a move of a slot a managed clone is bound to,
+which the wrapper refuses (see "Unmounted,
+pruned and moved ZFS worktree clones").
 No lock stands around the command (no per-repository lock,
 and no lock of any kind on this path):
 the owner's rule is lock-free first,
@@ -3832,8 +3849,13 @@ and gives both commands
 `convert-worktree-to-subvolume --abandon <path>` to
 discard the copy),
 because the removal deletes the registration and the journal in it is what names that copy.
-`git worktree prune` is not seen by the wrapper,
-and neither is a `git worktree remove --force` of a worktree that is not a subvolume or whose mount lacks the option,
+`git worktree prune` still runs as Git's own command,
+and the wrapper reads it before forwarding only to keep its own registrations' pointers
+(see "Unmounted,
+pruned and moved ZFS worktree clones"),
+so a copy a prune leaves behind is still not cleaned up;
+a `git worktree remove --force` of a worktree that is not a subvolume or whose mount lacks the option
+is not seen either,
 so those still remove the
 worktree and leave the copy behind;
 a forced removal the wrapper serves refuses like the option-free one,
@@ -4988,6 +5010,14 @@ and every step reads the state a kill at the step before it leaves:
   and the trash is handed to the service,
   which empties it after the command returns.
 
+A record at `phase=filled` means the slot is a whole worktree,
+so a second `git worktree add` at it refuses and prints the slot's state,
+its dataset and the one next safe action
+(see "Unmounted,
+pruned and moved ZFS worktree clones");
+a record at an earlier phase resumes the add from that phase,
+and a removal's plan that names the clone refuses before the claim.
+
 The record is
 `<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
 one `key=value` line per field,
@@ -5115,6 +5145,173 @@ What this release does not yet do:
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
+
+### Unmounted, pruned and moved ZFS worktree clones
+
+Design and plan:
+`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Unmounted,
+pruned or moved worktrees",
+and "Prune protection while unmounted" under "Project decisions";
+plan step 12.
+The states and the report are in `src/native/worktree_clone_slot_state/`,
+the refusal in `src/native/worktree_clone_move_refusal/`,
+the pointer and its pass before a prune in
+`src/native/worktree_clone_prune_pointer/`,
+and the repair report in `src/native/worktree_clone_link_repair/`.
+
+A managed clone is one worktree in more than one visible state,
+and the wrapper reads which of them a slot is in from its own records rather than from
+the folder's contents:
+
+- The add's binding record,
+  filed under the slot's name in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
+  Its phase says how far the add got.
+- The removal's destruction plan,
+  which names the clone while a removal is in flight or was killed.
+- The clone's own mount intent on its dataset,
+  and this process's mount table.
+- The Git registration the record names,
+  and its own `gitdir`.
+
+The answers are `not a managed clone`,
+`pending add`,
+`pending removal`,
+`known unmounted clone`,
+`mounted managed clone`,
+and `cannot be proved`.
+The order is the order of proof:
+an unreadable record or plan proves nothing,
+a plan that names the clone is a removal in flight,
+the phase says how far the add got,
+and only the mount table says whether a clone the record calls mounted is mounted here,
+elsewhere or nowhere.
+A state nothing proves is reported as such and never as its neighbour,
+so absent files under an unmounted slot are never read as deleted tracked files.
+
+The report is one shape for every reader:
+`slot` with the name,
+`state` with the answer,
+`dataset` with the clone dataset and its pool,
+one `evidence` line per source,
+and `next safe action`,
+which names the commands and the mount-intent property a person may use.
+An unmounted clone's action says that the checkout lives on the clone dataset and that no
+tracked file is deleted.
+No command mounts an existing clone in this release,
+so that action names the intended-state property a person may write and the sweep that
+attaches it.
+The report is printed by the add's refusal at a slot a record already calls `filled`,
+and by the removal's refusal of a slot a whole clone is bound to,
+with the link's report beside it when the pointer or the registration needs one.
+
+`git worktree move` is refused for a slot a record binds,
+mounted or not,
+because the route derives a clone's slot from the dataset's own name and a renamed folder
+would leave the record and the registration naming different paths.
+The kernel refuses a mounted clone's move with `Device or resource busy` by itself;
+the wrapper's refusal is the only one on an unmounted slot,
+where Git's own move succeeds.
+The refusal reads the source the command names,
+resolved the way Git resolves it,
+changes nothing,
+and names the one route that moves the work:
+the removal,
+then a new add where the work belongs.
+A record filed under the slot's name that cannot be read refuses too,
+and one that names another path refuses,
+because nothing then proves the move would not rename a managed clone's slot.
+
+`git worktree remove` is refused for a slot whose record proves a whole worktree,
+which is the two states `mounted managed clone` and `known unmounted clone`.
+Git's own removal would delete the registration and the slot's underlay folder,
+which holds the pointer the add kept for prune,
+and the clone dataset with the person's checked-out files would then be reachable by
+nobody.
+The refusal prints the slot's report and says that this release has no removal for a clone,
+which plan steps 14 and 16 build.
+A pending add's removal is not refused,
+because the add's own refusal names `git worktree remove <slot>` as its way forward;
+a pending removal and a slot nothing proves are left to Git.
+
+The underlay pointer is kept for `git worktree prune`,
+independent of the clone's own pointer:
+Git's `worktree add` wrote it into the empty slot on the checkout dataset before the clone was
+mounted over it,
+the add recorded its exact bytes in the binding,
+and the clone's own copy is the same bytes installed at its root.
+The wrapper compares the pointer the slot shows with the recorded bytes and names which copy
+it read,
+the underlay's while the clone is unmounted and the clone's own while it is mounted.
+Before a `git worktree prune` it forwards,
+it restores a pointer an account deleted or changed from the recorded bytes,
+by a staging name and one rename and with Git's own mode,
+prints the line that says so,
+and then lets Git prune.
+A slot whose registration stands and whose pointer nothing can restore stops the prune before
+Git starts,
+with the link's report and the sentence that nothing was pruned,
+so no managed registration is dropped silently.
+A dry run (`-n` or `--dry-run`) writes nothing and is left wholly to Git.
+The pass reads no pool and writes no record.
+
+The repair report says what a damaged link can and cannot restore,
+in five states:
+
+- `intact`:
+  the pointer is the recorded bytes and the registration stands,
+  which is what a prune keeps.
+- `damaged, and the registration stands`:
+  the pointer is absent or holds other bytes,
+  and `git worktree repair <slot>` rebuilds it from the registration's own `gitdir`.
+  The record's bytes are written back by the pass before a forwarded prune,
+  and Git `2.56.1` exits 1 while rebuilding a missing pointer,
+  so a second run of the repair exits 0.
+- `not compared, and the registration stands`:
+  the record keeps no pointer bytes,
+  so the wrapper cannot tell an intact pointer from a damaged one,
+  and the repair can still rebuild a missing one.
+  The record's grammar writes those bytes from the phase that names a
+  registration,
+  so a record a reader accepts carries them;
+  this arm is for a record a person or an older build wrote.
+- `pruned, and the registration is gone`:
+  Git's own prune took HEAD,
+  the index,
+  the worktree's per-worktree refs and its lock with the registration,
+  and no repair rebuilds a registration;
+  a pointer restored from the record would point at nothing.
+  The clone dataset and its files are kept,
+  and the next safe action is an explicit re-registration at a commit a person names or the
+  removal of the clone,
+  never a guess from a branch or a path.
+- `cannot be proved`:
+  the record names no registration yet,
+  the registration's `gitdir` names another path,
+  or a reading refused.
+
+`git worktree repair` prints the report for each slot it names before Git runs,
+so Git's own nonzero exit for a rebuilt link is explained rather than surprising.
+Nothing in the report writes a file.
+
+What this release does not do:
+
+- It does not distinguish the managed lock it wrote from an operator's lock,
+  recover a lost lock or release one;
+  that is plan step 13's,
+  and the lock is what keeps a registration whose pointer is missing.
+- It does not remove a clone;
+  the refusal above is the whole of its removal behaviour,
+  and plan steps 14 and 16 build the removal.
+- `doctor` does not print this report yet;
+  plan step 18 reads it,
+  and the slot and link report's shape is the one it prints.
+- The `git gc` path is unmeasured:
+  Git's prune inside `git gc` expires a worktree entry only after three months by default,
+  and the pass above runs for an explicit `git worktree prune` only.
+- The repair actions were measured on this host with Git `2.56.1`;
+  the guest's Git writes the same pointer and the same back-link,
+  and the arm below runs there.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 

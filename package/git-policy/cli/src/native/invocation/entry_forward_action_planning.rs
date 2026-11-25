@@ -62,7 +62,7 @@ pub(crate) fn forward_action(
     real_git: PathBuf,
     arguments: Vec<OsString>,
     overlay: Vec<(OsString, OsString)>,
-    stderr: String,
+    mut stderr: String,
     environment: &[(OsString, OsString)],
     copy_bypassed: bool,
     checks: &mut ShippedChecks<GitFacts>,
@@ -101,6 +101,19 @@ pub(crate) fn forward_action(
             overlay,
             stderr,
         };
+    }
+    // The wrapper refuses `git worktree move` for a slot a managed clone is bound to, mounted or not, restores the
+    // pointer a prune would otherwise drop, and reports what a repair can restore
+    // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; plan step 12).
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(&command, common_directory(&location.identity)) {
+            return ending;
+        }
+        crate::entry_zfs_slot_commands::before_a_repair(&command, common_directory(&location.identity), &mut stderr);
+        if let Some(ending) = crate::entry_zfs_slot_commands::before_a_prune(&command, common_directory(&location.identity), &mut stderr) {
+            return ending;
+        }
     }
     // An invalid configuration refuses an index writer; a main checkout's worktree copy reads none.
     if configuration_needed(writes_index)

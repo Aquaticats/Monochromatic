@@ -111,11 +111,16 @@ fn run_the_route(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan, c
         Err(refusal) => return Err(StepRefusal::refused(refusal.message(&home_path.join(format!("{}.binding", route.slot))))),
     };
     if record.phase == Phase::Filled {
-        return Err(StepRefusal::refused(format!(
-            "the worktree {} is already a whole ZFS clone, and Git refuses a second worktree at a slot that holds one. Ways forward: use it, or remove it with `git worktree remove {}`",
-            route.destination.display(),
-            route.slot
-        )));
+        // The slot is a whole worktree, and a person reads its state, its dataset and the one next safe action rather
+        // than a guess between a deleted worktree and a pending add
+        // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; step 12).
+        let slot = crate::worktree_clone_link_repair::the_slot_at(route.common_dir.as_path(), route.slot.as_str(), route.destination.as_path());
+        let mut message: String = format!("the worktree {} is already a whole ZFS clone, and Git refuses a second worktree at a slot that holds one. Nothing was added; the slot's state follows.", route.destination.display());
+        for line in slot.lines() {
+            message.push('\n');
+            message.push_str(line.as_str());
+        }
+        return Err(StepRefusal::refused(message));
     }
     if record.phase == Phase::Settling {
         return Err(StepRefusal::refused(format!(

@@ -270,7 +270,7 @@ description = "Run the root-run clone-mount handler's adoption arm end to end in
 run = "node e2e/mount-git-worktree-clone-datasets-guest.ts"
 
 [tasks."e2e:zfs-slot-state"]
-description = "Run plan step 12's slot classes and `git worktree move` refusal end to end in the throwaway `mvm` libvirt guest: one real Git registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, and the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while unmounted; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
+description = "Run plan step 12's slot classes, move and removal refusals, prune pointer and repair report end to end in the throwaway `mvm` libvirt guest: one real Git registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, the wrapper's refusals of `git worktree move` and `git worktree remove` beside Git's own answers, the prune pass that writes the recorded pointer back, and the repair report before Git runs, with and without a registration; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--keep-guest]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it: on this machine it prints SKIPPED"
 run = "node e2e/slot-state-and-move-refusal-guest.ts"
 
 [tasks."e2e:deferred-origin-check"]

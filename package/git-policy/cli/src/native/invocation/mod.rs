@@ -42,6 +42,13 @@ pub mod entry;
 /// or index-writer coordination.
 pub mod entry_forward_action_planning;
 
+/// What a forwarded Git command does when it meets a managed clone's slot:
+/// the refusal of a move,
+/// the pass before a prune,
+/// and the repair report a repair command prints.
+#[cfg(target_os = "linux")]
+pub mod entry_zfs_slot_commands;
+
 /// The stop of an invocation that names the repository through a link to the 860 drive that does not resolve.
 pub mod entry_repository_link_stop;
 

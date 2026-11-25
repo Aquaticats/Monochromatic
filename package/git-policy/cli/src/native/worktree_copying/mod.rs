@@ -238,6 +238,11 @@ pub mod worktree_copy_unreadable_record_aside;
 #[cfg(unix)]
 pub mod worktree_copy_unreadable_record_words;
 
+/// The refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
+/// with the slot's state printed beside it.
+#[cfg(unix)]
+pub mod worktree_removal_of_a_bound_clone;
+
 /// The records of an interrupted copy that cannot be read:
 /// each is moved aside with one line,
 /// what it named is found again from the records beside it where it can be,
