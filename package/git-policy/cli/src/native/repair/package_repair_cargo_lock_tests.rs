@@ -120,6 +120,47 @@ fn a_lock_the_clean_removed_is_put_back_as_checked_out() {
 }
 
 /// What:
+///  A lock whose displaced directory is on another filesystem than the worktree is
+///  written over with the checked-out bytes,
+///  and nothing is left staged beside it.
+/// Why:
+///   `RENAME_EXCHANGE` across two filesystems answers `EXDEV`,
+///  which is the shape of a linked worktree whose Git directory the main
+///  checkout's dataset holds:
+/// there is no exchange to make,
+///  so the checked-out bytes go back by the plain write this repair has always
+///  used,
+///  and the copy staged for the exchange is taken away instead of staying in the
+///  Git directory.
+///  A host fixture root is one filesystem,
+///  so the refusal is planted at the seam the window controls beside this one use,
+///  and the guest arm proves the kernel answers `EXDEV` across the two datasets.
+#[test]
+fn a_lock_whose_displaced_directory_is_on_another_filesystem_is_written_over() {
+    let root: PathBuf = fixture("cargo-lock-another-filesystem");
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let git_dir: PathBuf = git_directory(root.as_path());
+    std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
+    let before: Option<Vec<u8>> = read_lock(root.as_path());
+    std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
+    THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| { flag.set(true); });
+    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), CHECKED_OUT, "the checked-out bytes are written over the lock");
+    let words: String = said.expect("the person is told where the bytes that stood there are kept");
+    assert!(words.contains("back as checked out"), "{words}");
+    let kept: PathBuf = the_kept_copy(git_dir.as_path(), lock.as_path());
+    assert_eq!(std::fs::read(kept.as_path()).expect("the kept bytes"), ANOTHER_COMMAND, "the bytes that stood there are kept whole");
+    let left: Vec<PathBuf> = std::fs::read_dir(copies_directory(git_dir.as_path(), lock.as_path()).as_path()).map(|entries| return entries.filter_map(|entry| return entry.ok().map(|entry| return entry.path())).collect()).unwrap_or_default();
+    for path in left.iter() {
+        let name: String = path.file_name().map(|name| return name.to_string_lossy().into_owned()).unwrap_or_default();
+        assert!(!name.contains(STAGING_SUFFIX), "the copy staged for the exchange is taken away, and only the kept bytes stay: {}", path.display());
+    }
+    let spent: bool = THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| return flag.get());
+    assert!(!spent, "the planted refusal is spent on the one exchange");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A lock whose displaced bytes cannot be kept is left exactly as it was found,
 ///  and the person is told.
 /// Why:

@@ -470,6 +470,21 @@ pub mod worktree_clone_prune_pointer;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_prune_pointer::*;
 
+/// The watches a clone's mount leaves blind:
+///  whether the slot still names the directory its registration recorded,
+///  and the sentence that names the editor watcher and the fsmonitor daemon a
+///  person must reopen.
+/// Plan step 21 builds it ahead of its wiring,
+///  and no wrapper command reaches it yet.
+/// It is Linux only,
+///  like the identity it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_watch_rebinding;
+
+/// The same re-export for `worktree_clone_watch_rebinding`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_watch_rebinding::*;
+
 /// The report of a damaged link between a worktree and its Git registration:
 ///  what was found,
 ///  what is kept,
