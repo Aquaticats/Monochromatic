@@ -215,7 +215,7 @@ const CANARY_PASS: &str = "CANARYPASS9137";
 
 /// The token the fixture wrote as a path segment,
 /// made up,
-/// and longer than [`LONGEST_PLAIN_WORD`],
+/// and longer than [`MASKED_SEGMENT_LENGTH`],
 /// because a shorter segment prints as written under the rule of 2026-11-24.
 const CANARY_PATH: &str = "CANARYPATH5521CANARYPATH5521";
 
@@ -232,7 +232,7 @@ const CANARY_QUERY: &str = "CANARYQUERY7720";
 #[test]
 fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
     // The rule hides this segment by its length alone, so a canary that grew past the limit would not be hidden.
-    assert!(CANARY_PATH.len() > LONGEST_PLAIN_WORD, "{CANARY_PATH}");
+    assert!(CANARY_PATH.len() >= MASKED_SEGMENT_LENGTH, "{CANARY_PATH}");
     // Written from the parts, as the appending of `/objects/batch` to a URL that already holds a query is git-lfs's own.
     let line: String = format!(
         "batch response: Post \"http://{CANARY_USER}:{CANARY_PASS}@127.0.0.1:1/{CANARY_PATH}/lfs?token={CANARY_QUERY}/objects/batch\": \
@@ -271,8 +271,8 @@ fn a_repository_name_with_a_capital_or_a_digit_stays_named() {
 }
 
 /// What:
-///  A path segment of [`LONGEST_PLAIN_WORD`] characters or fewer prints as written,
-///  a segment one character longer is hidden,
+///  A path segment of [`MASKED_SEGMENT_LENGTH`] characters is hidden,
+///  a segment one character shorter prints as written,
 ///  and the short labels a real LFS URL's path is made of stay as they are.
 /// Why:
 ///   The owner's answer of 2026-11-24
@@ -287,25 +287,25 @@ fn a_repository_name_with_a_capital_or_a_digit_stays_named() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(masked(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD)}/lfs`)).toBe(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD)}/lfs`)
-/// expect(masked(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD + 1)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// expect(masked(`https://h.invalid/${'a'.repeat(MASKED_SEGMENT_LENGTH)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// expect(masked(`https://h.invalid/${'a'.repeat(MASKED_SEGMENT_LENGTH - 1)}/lfs`)).toBe(`https://h.invalid/${'a'.repeat(MASKED_SEGMENT_LENGTH - 1)}/lfs`)
 /// ```
 #[test]
-fn a_path_segment_over_the_limit_is_hidden_and_short_labels_stay() {
-    let at_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD);
-    let over_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD + 1);
+fn a_path_segment_at_the_mask_length_is_hidden_and_short_labels_stay() {
+    let at_the_limit: String = "a".repeat(MASKED_SEGMENT_LENGTH);
+    let under_the_limit: String = "a".repeat(MASKED_SEGMENT_LENGTH - 1);
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{at_the_limit}/lfs")),
-        format!("https://lfs.example.invalid/{at_the_limit}/lfs"),
-        "a segment at the limit prints as written"
+        masked(&format!("https://lfs.example.invalid/{at_the_limit}/objects/batch")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
+        "a segment at the mask length is hidden and the short labels after it stay"
     );
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{over_the_limit}/objects/batch")),
-        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
-        "a segment one character over the limit is hidden and the short labels after it stay"
+        masked(&format!("https://lfs.example.invalid/{under_the_limit}/lfs")),
+        format!("https://lfs.example.invalid/{under_the_limit}/lfs"),
+        "a segment one character under the mask length prints as written"
     );
     // The limit is the segment's, so two short words joined by a dot are one segment over it.
-    let joined: String = format!("{short}.{short}", short = "a".repeat(LONGEST_PLAIN_WORD));
+    let joined: String = format!("{short}.{short}", short = "a".repeat(MASKED_SEGMENT_LENGTH));
     assert_eq!(
         masked(&format!("https://lfs.example.invalid/{joined}/lfs")),
         format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
@@ -337,17 +337,17 @@ fn a_path_segment_over_the_limit_is_hidden_and_short_labels_stay() {
 /// ```
 #[test]
 fn the_segment_rule_at_its_edges() {
-    let digits: String = "7".repeat(LONGEST_PLAIN_WORD);
+    let digits: String = "7".repeat(MASKED_SEGMENT_LENGTH - 1);
     assert_eq!(
         masked(&format!("https://lfs.example.invalid/{digits}/lfs")),
         format!("https://lfs.example.invalid/{digits}/lfs"),
         "a segment of digits alone is a name while it is short"
     );
-    let more_digits: String = "7".repeat(LONGEST_PLAIN_WORD + 1);
+    let masked_digits: String = "7".repeat(MASKED_SEGMENT_LENGTH);
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{more_digits}/lfs")),
+        masked(&format!("https://lfs.example.invalid/{masked_digits}/lfs")),
         format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
-        "a segment of digits one character over the limit is a token"
+        "a segment of digits at the mask length is a token"
     );
     // `%2F` is an encoded slash inside one segment, so the segment is hidden whole and starts no new one.
     assert_eq!(
@@ -404,7 +404,7 @@ fn an_encoded_secret_in_a_path_or_a_query_is_hidden() {
     assert_eq!(masked("https://host.invalid/a%2Fb/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
     assert_eq!(masked("https://host.invalid/lfs?token=%43ANARY%2B7720"), format!("https://host.invalid/lfs?token={m}", m = CREDENTIALS_MASK));
     // A segment over the limit is a token whatever it carries, and the canary is made long enough for it.
-    assert!(CANARY_PATH.len() > LONGEST_PLAIN_WORD, "{CANARY_PATH}");
+    assert!(CANARY_PATH.len() >= MASKED_SEGMENT_LENGTH, "{CANARY_PATH}");
     assert_eq!(masked(&format!("https://host.invalid/{CANARY_PATH}/lfs")), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
 }
 
