@@ -362,9 +362,12 @@ which asserts the pool's refusal text, while the gate's container has no `/dev/z
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
+that control now derives the refusal it expects from the device layer, so it holds with and without `/dev/zfs`
+(merged `c12b45dfc4`; red then green in the gate image itself),
+and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
+(added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
 running since 2026-11-24T19:50-05:00, once that stall was falling:
-the round that makes that control hold without `/dev/zfs` (`pi-fix-preflight-dirty-source-test-without-dev-zfs`)
-and the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
+the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
