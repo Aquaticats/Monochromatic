@@ -133,7 +133,14 @@ fn finish_under_the_claim(pass: &FinishPass<'_>, plan: &DestructionPlan, plan_pa
     }
     let settlement: String = match &standing {
         RegistrationStanding::ThisPlans => match settle_the_plans_registration(pass.common_dir, slot, plan, pass.settle) {
-            Ok(answer) => the_settlement_of(&answer),
+            Ok(answer) => {
+                // A settle that wrote the managed lock again says so in its own line, and a person
+                // reading this command's output needs that line as much as the pass's summary.
+                for said in &answer.lines {
+                    lines.push(said.clone());
+                }
+                the_settlement_of(&answer)
+            }
             Err(stop) => {
                 let (step, said) = the_settles_words(&stop);
                 lines.push(the_registration_could_not_be_settled(plan_path, step.as_str(), said.as_str()));

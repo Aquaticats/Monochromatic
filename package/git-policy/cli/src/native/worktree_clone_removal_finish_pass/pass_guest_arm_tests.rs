@@ -182,8 +182,9 @@ fn the_removal_finish_pass_guest_arms() {
     let pass: FinishPass<'_> = FinishPass { common_dir: common.as_path(), folder: &TheLivePlansFolder, gate: &APassedGate, probe: &reader, settle: &settle };
     println!("FINISH step=arm-2-enter");
     let lines: Vec<String> = crate::worktree_clone_removal_finish_pass::pass_over_the_plans::finish_the_removal_plans(&pass);
-    assert_eq!(lines.len(), 1, "the pass prints one line for the removal it finished, and this run printed {lines:?}");
-    assert!(lines[0].contains("Finished the interrupted removal"), "the line says what it finished: {}", lines[0]);
+    assert!(!lines.is_empty(), "the pass prints the removal it finished, and this run printed nothing");
+    let summary: &String = lines.last().expect("the pass printed its line");
+    assert!(summary.contains("Finished the interrupted removal"), "the last line says what it finished: {summary}");
     assert!(!fixture.registration().exists(), "the registration was settled");
     assert!(!fixture.slot_path().exists(), "the slot's underlay folder went with the settle");
     for name in [origin_inventory_name(SLOT), clone_inventory_name(SLOT), binding_name(SLOT)] {
