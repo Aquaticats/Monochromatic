@@ -47,6 +47,9 @@ and "Maintenance audit".
   committer date `2019-01-21T08:10:17+13:00`,
   subject "Update changelog, bump version"
   (`git log -1`, `git tag --points-at HEAD` printed `v0.8`, `git describe --tags` printed `v0.8`).
+- The clone was deleted when this run ended, under its own scratch-cleanup rule,
+  so a reader who wants to check a line re-clones the tag with the command above;
+  every path below is relative to the root of that tree.
 - Repository metadata at access date:
   MIT in the `license.spdx_id` field,
   2967 stars,
