@@ -2025,3 +2025,36 @@ Afterwards `sudo pacman-key --verify` on that package printed
 and `btrfs filesystem usage -T` read the mounted filesystem.
 The `umount` rule ends the ninth batch's refusal of `dac_override`,
 which every gate window since has logged (for example the gate at `7ed5ec0b34`).
+
+Later the same afternoon, while setting up zram writeback to the old NVMe
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, "zram writeback to the old NVMe"):
+
+```text
+# /etc/apparmor.d/local/systemd-analyze
+/usr/bin/flatpak rix,
+/sys/firmware/acpi/fpdt/** r,
+/tmp/systemd-analyze-*/ rw,
+/tmp/systemd-analyze-*/** rwl,
+# /etc/apparmor.d/local/zram-generator
+/{etc,run,usr/lib,usr/local/lib}/systemd/zram-generator.conf.d/ r,
+/{etc,run,usr/lib,usr/local/lib}/systemd/zram-generator.conf.d/*.conf r,
+@{HOME}/temp/agent/** rw,
+capability dac_read_search,
+capability dac_override,
+/dev/dm-* rw,
+/dev/mapper/ r,
+/dev/mapper/* r,
+```
+
+`systemd-analyze verify` had printed a flatpak generator's `Permission denied`
+and then failed with "Failed to setup working directory";
+afterwards it exited 0 with no denial between 15:15:17 and 15:15:19.
+The `zram-generator` profile allowed `/etc/systemd/zram-generator.conf` and none of its drop-in folders,
+so a `conf.d` file made the generator fail with `Permission denied (os error 13)`,
+which at boot is no zram swap at all;
+and when `--setup-device` writes `backing_dev` the kernel opens the device as that process,
+denied as `open /dev/dm-0 wr`.
+A probe on a throwaway `zram2` read error 13 before the `/dev/dm-*` rule and error 16 (busy) after it.
+The home and capability lines serve a dry run of the generator into a scratch folder.
+The main `systemd-analyze` profile does include `local/systemd-analyze`, on the line before its closing brace;
+a search capped at two lines first hid it.

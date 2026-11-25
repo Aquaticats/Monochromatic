@@ -31,72 +31,16 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::the_names_not_destroyed;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
-    ClearingDevice, EpochProbe, LivePool, TheCompletion, a_clear_scan, a_scan_with_a_holder, complete, ScriptedHead, ScriptedHolders, ScriptedSettle,
+    ClearingDevice, EpochProbe, LivePool, ORIGIN_OWN_NAME, ScriptedHead, ScriptedHolders, ScriptedSettle, TheCompletion, a_clear_scan, a_fixture, a_record_stands, a_scan_with_a_holder, complete, the_budget,
+    the_checks_pool, the_origin_full_name,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
-    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_DATASET, ORIGIN_DATASET_GUID, ORIGIN_CREATETXG, ORIGIN_SNAPSHOT_GUID, OWN_SNAPSHOT, POOL, RemovalFixture, SANOID_SNAPSHOT,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{CLONE, RemovalFixture};
 use crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
-use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
-use crate::worktree_removal_deferred_origin_check::fixtures::{Answer, Pool, origin_properties};
-use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
+use crate::worktree_removal_deferred_origin_check::fixtures::Pool;
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
-/// The origin snapshot's own name,
-/// which begins with the add's prefix and its nonce.
-const ORIGIN_OWN_NAME: &str = "git-worktree-clone-origin-445566778899aabbccddeeff00112233";
-
-/// The origin snapshot's full name.
-fn the_origin_full_name() -> String {
-    return format!("{ORIGIN_DATASET}@{ORIGIN_OWN_NAME}");
-}
-
-/// What:
-///  One healthy removal fixture whose origin snapshot a record can name.
-/// Why:
-///  The step 14 fixture names its origin snapshot `origin`,
-///  which the cleanup record's grammar refuses,
-///  so this control starts from the same tuple with the add's own name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fixture = aFixture('x');
-/// ```
-fn a_fixture(name: &str) -> RemovalFixture {
-    return RemovalFixture::healthy(name).with_origin_snapshot(the_origin_full_name().as_str());
-}
-
-/// The check's pool,
-/// keyed by the origin snapshot's full name.
-fn the_checks_pool() -> Pool {
-    let full: String = the_origin_full_name();
-    return Pool::new(vec![
-        (CLONE, Answer::of(crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, full.as_str()), NvList::new())),
-        (ORIGIN_DATASET, Answer::of(crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), NvList::new())),
-        (
-            full.as_str(),
-            Answer::of(crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""), origin_properties(Some(MARK_OFF), Some(0))),
-        ),
-    ]);
-}
-
-/// The budget both of the clone's own snapshots need,
-/// measured from the exact request they become.
-fn the_budget() -> RequestBudget {
-    let names: Vec<String> = vec![format!("{CLONE}@{OWN_SNAPSHOT}"), format!("{CLONE}@{SANOID_SNAPSHOT}")];
-    let bytes: usize = encoded_request_bytes(POOL, names.as_slice()).expect("both names pack into a request");
-    return RequestBudget::of_input_bytes(bytes);
-}
-
-/// Whether one record file stands in the wrapper's home,
-/// by the name it is filed under.
-fn a_record_stands(fixture: &RemovalFixture, name: &str) -> bool {
-    return std::fs::symlink_metadata(crate::worktree_clone_binding_record::registration_home::home_folder(fixture.common()).join(name).as_path()).is_ok();
-}
 
 //endregion
 

@@ -19,6 +19,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::RecordsGone;
 use crate::worktree_clone_removal_proof_and_plan::removal_report::{OriginCleanupDone, TheRemovalDone};
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
 use std::path::PathBuf;
 
 /// One finished removal,
@@ -35,6 +36,7 @@ fn a_finished_removal() -> TheRemovalDone {
         origin: OriginCleanupDone::Finished { snapshot: Some(String::from("tank/mono-checkout@git-worktree-clone-origin-00")), line: Some(String::from("the origin cleanup destroyed the snapshot `tank/mono-checkout@git-worktree-clone-origin-00`")) },
         settle: SettleAnswer { wrote_the_lost_lock: false, released_the_lock: true, removed_the_registration: true, removed_the_underlay: true, lines: Vec::new() },
         records: RecordsGone { files: Vec::new(), plan_removed: true, folder_removed: true },
+        claim: ClaimEnd::Released,
         plan_path: PathBuf::from("/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/7828944690444299989"),
         requests: Vec::new(),
     };
@@ -76,4 +78,28 @@ fn a_name_the_plan_did_not_settle_is_printed_as_not_destroyed() {
     assert!(text.contains("NOT destroyed snapshot tank/wt/fix-flaky-test@sanoid-hourly"));
     assert!(text.contains("the clone's head destroy was refused"));
     assert!(!done.is_finished());
+}
+
+#[test]
+fn the_released_claim_prints_that_the_next_command_starts_at_once() {
+    let done: TheRemovalDone = a_finished_removal();
+    let text: String = done.text();
+    assert!(text.contains("the slot's per-slot claim is released, so nothing of this removal keeps another command off `fix-flaky-test`"), "{text}");
+}
+
+#[test]
+fn a_claim_that_could_not_be_released_prints_why_and_what_waits() {
+    let mut done: TheRemovalDone = a_finished_removal();
+    done.claim = ClaimEnd::RefusedToRelease { said: String::from("the claim on the slot fix-flaky-test could not be released (permission denied)") };
+    let text: String = done.text();
+    assert!(text.contains("the claim on the slot fix-flaky-test could not be released (permission denied)"), "{text}");
+    assert!(text.contains("another command on `fix-flaky-test` is refused until this process ends, when the claim stops counting as alive"), "{text}");
+}
+
+#[test]
+fn a_claim_the_order_still_holds_prints_that_the_slot_is_not_free_yet() {
+    let mut done: TheRemovalDone = a_finished_removal();
+    done.claim = ClaimEnd::Held;
+    let text: String = done.text();
+    assert!(text.contains("the removal still holds the slot's per-slot claim: `fix-flaky-test` is not free until its last step runs"), "{text}");
 }

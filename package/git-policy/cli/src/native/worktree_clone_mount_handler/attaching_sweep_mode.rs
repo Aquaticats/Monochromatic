@@ -1,6 +1,6 @@
 //! What:
 //!  The clone-mount sweep:
-//!  what the installed ZED event runs when it starts the program with no argument,
+//!  what ZED's own start runs when it hands the program no argument,
 //!  and what `boot-reconcile` runs after its own checks.
 //! Why:
 //!  The sweep enumerates the pinned parent's clone datasets,

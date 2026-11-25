@@ -79,6 +79,9 @@
 //! - `removal_stop.rs`:
 //!   every way the removal stops,
 //!   and the sentence each prints.
+//! - `removal_slot_claim.rs`:
+//!   the per-slot claim the whole order takes first and releases last,
+//!   and what a release did.
 //! - `lineage_proof.rs`:
 //!   the three checks,
 //!   the origin-side comparison and the refusal each makes.
@@ -144,6 +147,7 @@ pub mod plan_publication;
 pub mod removal_inventory;
 pub mod removal_reads;
 pub mod removal_stop;
+pub mod removal_slot_claim;
 pub mod removal_identities;
 pub mod lineage_proof;
 pub mod bookmark_rule;
@@ -178,6 +182,7 @@ pub use started_moment::{is_seconds_with_offset, now_with_offset};
 pub use removal_inventory::{LiveInventory, LiveObject};
 pub use removal_reads::{LiveRemovalReads, RemovalPoolReads, whole_inventory};
 pub use removal_stop::{BookmarkRefusalReason, RefusedBookmark, RemovalStop};
+pub use removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
 pub use removal_identities::{RecordedBinding, prove_the_adds_registration, read_the_origin_inventory, read_the_recorded_binding};
 pub use lineage_proof::{ObjectIdentity, ProvenIdentities, ProvenRemoval, prove_the_lineage};
 pub use bookmark_rule::{Explanations, explanations_of, refuse_the_unexplained_bookmarks};
