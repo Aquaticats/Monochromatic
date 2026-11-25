@@ -103,6 +103,38 @@ two things need measuring on a disposable Garage before the design settles:
   the failure alert,
   and systemd's one-run-at-a-time guarantee for a unit.
 
+## Owner answers, round 3 (2026-11-25T17:38:21-05:00)
+
+- Mid-run edits:
+  a hard requirement.
+  When a change lands while a sync runs,
+  one more sync starts after that run ends,
+  by the watcher itself or by a small wrapper around the command it runs.
+- Settle pass:
+  every run of the unit runs bisync twice,
+  the second pass straight after the first
+  (on Linux a second `ExecStart=` line in `rclone-bisync-garage.service`),
+  accepting one more bucket listing per run,
+  including the 5-minute timer runs.
+- Upstream:
+  research whether rclone already tracks or fixed the baseline mtime behaviour,
+  and draft a report for the owner to review;
+  nothing is posted upstream without the owner's approval of the wording.
+
+## Design consequences still to settle
+
+- A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
+  so a watcher that queues its own runs still misses a change that lands during a timer run
+  unless something starts one more run after it.
+  Two shapes meet the round 3 requirement:
+  a wrapper that starts the unit again when it was already running at the time of the request,
+  or making the watcher the only thing that starts the unit,
+  with the 5-minute timer reaching it through a file the watcher watches.
+  This waits for the watcher pick.
+- The reasoning in `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` that `--conflict-resolve newer`
+  cannot let a stale remote copy win assumes one writer;
+  it needs rechecking once other clients write to the bucket on change.
+
 ## Facts gathered for round 2
 
 - systemd path units do not recurse:
