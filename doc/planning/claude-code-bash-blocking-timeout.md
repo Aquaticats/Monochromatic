@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:08:16-05:00.
+State recorded 2026-11-25T17:10:41-05:00.
 
 ## Requirement as stated
 
@@ -142,36 +142,55 @@ not a configurable duration.
 The change remains scoped to the existing Bash hook.
 PowerShell behavior does not change.
 
+### Legacy opt-out and primary name
+
+The existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off` setting must remain effective.
+The new primary variable is `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED`.
+The accepted values for the new boolean name and its precedence over the legacy alias remain open.
+
+### Disabled native background tasks
+
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is a misconfiguration for this policy.
+The hook warns the user but otherwise applies the selected policy normally.
+It does not suppress the default timeout,
+change the requested background mode,
+block the command,
+or add a fallback execution path.
+Consequently,
+a long foreground command can still terminate at its timeout when native auto-backgrounding is unavailable.
+No special bare-mode fallback is added.
+
+### Completion notice
+
+Claude Code's native moved-to-background result is sufficient.
+The hook adds no second completion notice.
+
 ## Open frontier
 
-The first-round answers unblock these independent questions:
+The second-round answers unblock these independent questions:
 
-- `legacy-opt-out`:
-  must the existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off` setting remain effective?
-- `opt-out-name`:
-  should that name remain primary,
-  or should a name describing blocking timeout replace it?
-- `background-unavailable`:
-  when native auto-backgrounding is disabled,
-  should the default timeout still apply even though the native result is termination?
-- `notice-channel`:
-  is Claude Code's native moved-to-background result sufficient,
-  or should the hook add its own notice?
+- `enabled-values`:
+  which values of `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` disable the policy?
+- `opt-out-precedence`:
+  when the new primary variable and legacy opt-out disagree,
+  which one wins?
+- `warning-cadence`:
+  does the disabled-background-task warning accompany every eligible main-agent Bash call,
+  or appear only once per session?
 
-The exact sleep probes,
-opt-out precedence if a rename and legacy alias coexist,
-and final verification matrix depend on these answers.
+The exact warning text and final verification matrix depend on these answers.
 
 ## Current recommendations
 
 These are recommendations to grill,
 not accepted design:
 
-- Preserve existing opt-outs and use an accurately named primary variable.
-- Avoid applying a foreground timeout when background tasks are explicitly disabled,
-  because the design intends to bound blocking rather than terminate ordinary commands.
-- Use Claude Code's native auto-background result without a second notice,
-  since only native execution knows whether the threshold was crossed and which task ID was assigned.
+- Let the new primary variable win when explicitly present,
+  with the legacy `off` alias consulted only when it is absent.
+- Accept conventional false-like values for the new boolean variable.
+- Use the hook's `systemMessage` warning on every eligible main-agent Bash call
+  while the misconfiguration remains,
+  so the warning is stateless and appears beside the command that can terminate.
 
 ## Rejected recommendations
 
