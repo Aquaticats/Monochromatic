@@ -129,9 +129,8 @@ C > B > A.
 C outranks B because B turns the sweep's refusal into a repair,
 and the repair lands after the clone exists;
 with the check in the preflight, C refuses the wrong container before any write.
-C outranks A because A is the only answer that deletes a name from the forbidden list,
-which weakens the removal proof,
-and the same permission lets the account choose where root's own boot mount places its clone.
+C outranks A because A is the only answer that gives the account a grant the design forbids,
+and that permission lets the account choose where root's own boot mount places its clone.
 B outranks A because B keeps that list intact and ends at the value C has from creation.
 
 ### Choice 1: which answer
@@ -158,8 +157,8 @@ Three written copies of one sentence are also wrong and get corrected:
 the SPEC's "a clone inherits the origin's mountpoint",
 the comment at `add_zfs.rs:103` to `:109`,
 and the add record design's A9 paragraph.
-A keeps the request sentence and its comment;
-B and C correct them.
+A keeps the request and its comment, because its local property makes the origin's value irrelevant;
+B and C delete the property and correct the three copies.
 It also leaves a reader to know that an inherited value is a real value,
 where A writes one locally.
 
@@ -226,7 +225,8 @@ The pin covers `mountpoint` on that clone;
 and C's check, in the preflight, answers the same change for the next add only.
 
 What it costs:
-it deletes one entry from the list whose absence is the removal proof's threat boundary,
+it deletes one entry from the list the design forbids the account,
+the entry the layout section forbids for the early-mount hazard,
 and it gives the account the ability to choose the path root's own `zfs mount -a` uses.
 Both shapes are measured.
 With the descendant grant the account set its clone's `mountpoint` inside the checkout
@@ -458,7 +458,7 @@ Two claims follow from the issue,
 and they are not the same claim.
 The account cannot create a clone that carries `mountpoint` at creation.
 That is measured,
-and this round's guest re-measures it.
+and the second revision's guest re-measured it.
 A clone without the property "inherits the origin's `mountpoint` (the checkout path) and `canmount=on`",
 which is the issue's stated reason the property is needed at creation.
 That sentence is false about `mountpoint`,
@@ -706,7 +706,7 @@ Where it fails:
   the account set `/home/cloneprobe-checkout/.claude/worktrees/auto`,
   root's ordinary scan mounted the clone on the checkout's own mount (mount 70 on mount 52),
   and a second aim at an arbitrary path outside the checkout was mounted the same way.
-  This round's guest measures the second shape,
+  The second revision's guest measured the second shape,
   and the same root mount with `overlay` on
   over a directory root had already filled (see `## The guest probe`);
 - it cannot be narrowed.
@@ -730,7 +730,7 @@ The exact case the mount study measured is worse than a nuisance:
 the clone lands inside the checkout,
 the checkout's later mount covers it,
 and the pool cannot be exported.
-The case this round measured is the plainer one:
+The case the second revision measured is the plainer one:
 a root-owned,
 non-empty directory at the path the account chose,
 with `overlay=on` on the dataset,
@@ -977,7 +977,7 @@ both on the same release and the same recipe.
   `/home/user/temp/agent/zfs-add-clone-mountpoint-without-the-forbidden-grant-design-2026-11-25/keep/guest-logs/`.
   That pool's size was not recorded in either log,
   so this document claims none.
-- This round's guest,
+- The second revision's guest,
   `zfs-clone-mountpoint-controls-2026-11-25`,
   created and prepared through the same recipe
   (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`),
@@ -1020,13 +1020,13 @@ cloneprobe2/ROOT/clones/bare  devices     off         inherited from cloneprobe2
 The same request with `-u` printed nothing and exited 0,
 and read the same four values.
 
-### C's premise: the account cannot re-aim the clone, measured this round
+### C's premise: the account cannot re-aim the clone, measured in the second revision's round
 
 The gate review named the arm the earlier round did not run:
 the account,
 holding the nine decided grants and no `mountpoint`,
 tries to move its own clone's mountpoint and to inherit it away.
-This round's guest ran it,
+The second revision's guest ran it,
 and it refused both.
 
 Its clone was created by the same bare request the add will send:
@@ -1143,7 +1143,7 @@ parent 29).
 The same scan mounted `cloneprobe/ROOT/other/plain`,
 the positive control that a clone with an ordinary mountpoint is exactly what `zfs mount -a` picks up.
 
-### A's second shape: the creation-time grant, measured this round
+### A's second shape: the creation-time grant, measured in the second revision's round
 
 `zfs allow -c mountpoint <container>` names no account:
 the guest's `zfs` refused `zfs allow -c -u ubuntu mountpoint <container>`
@@ -1155,7 +1155,7 @@ as a local grant
 (`module/zfs/dsl_dataset.c:1340`,
 `dsl_deleg_set_create_perms` at `module/zfs/dsl_deleg.c:728`;
 `man/man8/zfs-allow.8:300` to `:305`).
-This round's guest granted it,
+The second revision's guest granted it,
 then asked the question the add asks:
 
 ```text
@@ -1287,9 +1287,9 @@ so the clone stands wrong until the handler's next attach.
 C keeps the refusal, and with the preflight it refuses the wrong container before any write.
 
 C outranks A for two reasons.
-A is the only answer that deletes a line of the forbidden list,
-which is the boundary the removal proof rests on.
-And the permission it buys lets the account aim root's own boot mount at any path it chooses,
+A is the only answer that gives the account a grant the design forbids.
+That grant is the one the layout section forbids for the early-mount hazard,
+and it lets the account aim root's own boot mount at any path it chooses,
 measured twice,
 while no check would notice A's second shape today.
 
@@ -1335,7 +1335,7 @@ and `doctor` and the sweep are what report it then.
   `:283` already says "Clones must inherit `mountpoint=legacy`".
 - Tests,
   in the guest:
-  the negative control this round ran (the account's `zfs set mountpoint` and `zfs inherit mountpoint` refused,
+  the negative control the second revision ran (the account's `zfs set mountpoint` and `zfs inherit mountpoint` refused,
   `userprop` accepted);
   a container with an ordinary mountpoint,
   which the preflight's new check refuses;
@@ -1388,7 +1388,7 @@ and they fill the "handler's real attach" item with a measured run.
 What they still do not cover is the container that is not `legacy`,
 which is the preflight check's case,
 and the ungranted re-aim arm,
-which this round's guest ran (see `## The guest probe`).
+which the second revision's guest ran (see `## The guest probe`).
 
 ## The `doctor` gap this decision leans on
 
@@ -1412,8 +1412,8 @@ and it has its own issue:
 "git-policy-cli:
 doctor reads no create-time ZFS grant,
 and its forbidden check skips named sets".
-This round's guest measured that the creation-time grant is effective
-(the section `### A's second shape: the creation-time grant, measured this round`),
+The second revision's guest measured that the creation-time grant is effective
+(the section `### A's second shape: the creation-time grant, measured in the second revision's round`),
 so the issue is not hypothetical.
 
 ## The first gate review's findings, and where each is answered
@@ -1429,7 +1429,7 @@ and each answer is in this document.
   and its cost stated wrongly":
   the new-`ZFS_IOC_GET_PROP` claim is deleted.
   C's cost is now one reader call on replies the add already gets
-  (`### Choice 2: where C's check runs` and `### C`).
+  (`### Choice 2: where C's check runs, and only if the owner picks C` and `### C`).
   The fork inside C is its own flagged choice,
   with four placements and a recommendation.
 - "The accepted design already says C,
@@ -1459,7 +1459,7 @@ and each answer is in this document.
 - "'So this is not an escalation' is unsupported":
   the sentence is gone.
   `### A` calls the exposure a root mount of account-controlled content at an account-chosen path,
-  and this round's guest measures root's `zfs mount -a` with `overlay` on over a non-empty directory.
+  and the second revision's guest measured root's `zfs mount -a` with `overlay` on over a non-empty directory.
 - "'The root setup already creates' the container is not true yet":
   `### C` now says the design's setup is plan step 19's and is not built,
   that an operator or a fixture makes the container today,
@@ -1496,7 +1496,7 @@ and each answer is in this document.
 - "1 GiB" in neither log,
   and the probe script not kept:
   no pool size is claimed for the earlier round,
-  and this round's commands and pool size are kept in `keep/guest-logs/probe-commands-2026-11-25.txt`.
+  and the second revision's commands and pool size are kept in `keep/guest-logs/probe-commands-2026-11-25.txt`.
   The `ubuntu$ zfs set ...` line the earlier proposal printed inside a block of log text is not repeated;
   the measured lines quoted here are copied from the logs.
 - "nine" permissions the design forbids:
@@ -1515,7 +1515,7 @@ and each answer is in this document.
   replaced by the accepted record's own words
   (`doc/decision/cli-git-zfs-worktree-design.md:40`).
 - Logs named by file name only:
-  `## The guest probe` gives both logs' full paths and says where this round's logs sit.
+  `## The guest probe` gives both logs' full paths and says where the second revision's logs sit.
 
 ## The second gate review's findings, and where each is answered
 
@@ -1604,7 +1604,7 @@ It found no High, four Mediums and the Lows this section lists.
 - The add's own binary was not run as the account:
   the wrapper's account companion refuses a bare `ubuntu` at `/proc/self/setgroups`,
   as issue 6462 records.
-  The route's guest tests and this round's arms narrow that gap.
+  The route's guest tests and the second revision's arms narrow that gap.
 - `zfs clone -o mountpoint=legacy` as the account was refused under the nine grants
   and succeeded once `mountpoint` was granted,
   descendant or at creation,
