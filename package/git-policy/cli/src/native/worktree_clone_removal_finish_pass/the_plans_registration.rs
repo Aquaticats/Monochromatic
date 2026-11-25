@@ -102,7 +102,8 @@ pub fn the_registration_standing_for(common_dir: &Path, plan: &DestructionPlan) 
 ///  a pointer and a folder the next add reuses,
 ///  so the proof travels with the request and the live settle compares it with the record it settles.
 ///  The empty answer is the state a kill after step 11 leaves:
-///  the binding records no registration, so there is nothing to settle.
+///  the binding records no registration,
+/// so there is nothing to settle.
 ///
 /// # Throws
 /// A binding whose facts cannot be read,

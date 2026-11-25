@@ -21,7 +21,8 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::RemovalFixture;
 use std::path::{Path, PathBuf};
 
-/// One fixture with a binding, its two inventories and a plan whose head is `gone`.
+/// One fixture with a binding,
+/// its two inventories and a plan whose head is `gone`.
 fn a_slot( name: &str) -> (RemovalFixture, crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan) {
     let fixture: RemovalFixture = RemovalFixture::healthy(name);
     let plan = a_plan_for(&fixture, HeadWord::Gone);

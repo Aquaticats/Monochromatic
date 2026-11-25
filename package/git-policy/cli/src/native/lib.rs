@@ -409,7 +409,8 @@ pub use worktree_clone_origin_cleanup::*;
 ///  built ahead of the plan's order:
 ///  no command reaches it until that step wires it in.
 /// It is Linux only,
-///  like the claim, the pool reads and the folder modes it checks.
+///  like the claim,
+/// the pool reads and the folder modes it checks.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_removal_finish_pass;
 

@@ -81,6 +81,7 @@ fn a_foreign_entry_is_named_and_read_by_nobody() {
     let lines: Vec<String> = the_pass(&fixture, &TheLivePlansFolder, &AGate::passing(), &AProbe::absent(), &ASettle::succeeding());
     assert_eq!(lines.len(), 1, "one line for one foreign entry");
     assert!(lines[0].contains("notes.txt"), "the line names the entry: {}", lines[0]);
+    assert!(lines[0].contains("carries no clone GUID's name"), "the entry is refused by its name, never read as a plan: {}", lines[0]);
     assert!(stands(foreign.as_path()), "a foreign entry is left alone");
     assert!(stands(folder.path()), "the folder still holds an entry, so it stays");
 }

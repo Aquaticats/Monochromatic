@@ -180,9 +180,11 @@ fn remove_the_inventories(home: &Path, slot: &str) -> Vec<String> {
 enum OneFile {
     /// The name stood and the unlink took it.
     Removed,
-    /// The name was not there, which is the same step done.
+    /// The name was not there,
+    /// which is the same step done.
     AlreadyGone,
-    /// The unlink refused, so nothing proves the name gone.
+    /// The unlink refused,
+    /// so nothing proves the name gone.
     Refused,
 }
 

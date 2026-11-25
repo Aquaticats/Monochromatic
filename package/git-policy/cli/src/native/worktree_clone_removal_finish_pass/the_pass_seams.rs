@@ -1,6 +1,7 @@
 //! What:
 //!  Everything the finish pass reads and writes through,
-//!  named as values so a control answers each without a pool, a repository or a registration.
+//!  named as values so a control answers each without a pool,
+//! a repository or a registration.
 //! Why:
 //!  The pass reads the plan folder,
 //!  asks the compatibility gate before any request,
@@ -25,7 +26,8 @@ use crate::zfs_compatibility_gate::BeforeRequests;
 use std::path::Path;
 
 /// What:
-///  The repository, the folder and the three seams one finish pass runs over.
+///  The repository,
+/// the folder and the three seams one finish pass runs over.
 /// Why:
 ///  Five arguments at each call would hide which one a control changed,
 ///  and the live wiring of this pass supplies one value for a whole command.

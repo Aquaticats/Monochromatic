@@ -15,7 +15,8 @@
 //!  The gate is the arm's own answer,
 //!  because a refused gate is the host arm's subject and this arm judges the settle,
 //!  the records and the claim;
-//!  every pool read, every destroy and every Git write here is the release's own.
+//!  every pool read,
+//! every destroy and every Git write here is the release's own.
 //!  A run on this machine prints one `SKIPPED` line,
 //!  which the recipe reads as a failure when it meant the arm to run.
 //!

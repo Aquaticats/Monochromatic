@@ -20,10 +20,12 @@
 ///  The line for a gate that refused before the pass read the pool.
 /// Why:
 ///  A refusing gate makes no request at all,
-///  so the registration, the binding and the plan stay,
+///  so the registration,
+/// the binding and the plan stay,
 ///  and the next forwarded command reads the pool again
 ///  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-///  "When the route's gate refuses, or the device cannot be opened").
+///  "When the route's gate refuses,
+/// or the device cannot be opened").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,7 +152,8 @@ pub fn the_binding_disagrees(plan: &std::path::Path, binding: &std::path::Path, 
 /// What:
 ///  The line for a registration the settle refused.
 /// Why:
-///  A settle that refused leaves the registration, the binding and the plan,
+///  A settle that refused leaves the registration,
+/// the binding and the plan,
 ///  and the next command may try again,
 ///  so the line names the step and the settle's own words.
 ///
@@ -271,7 +274,8 @@ pub fn the_entry_is_no_plan_name(entry: &std::path::Path) -> String {
 }
 
 /// What:
-///  The line for a plan folder that is not a folder, or that could not be listed.
+///  The line for a plan folder that is not a folder,
+/// or that could not be listed.
 /// Why:
 ///  Reading no plan is the whole answer,
 ///  and the sentence names the path so a person can look at it.

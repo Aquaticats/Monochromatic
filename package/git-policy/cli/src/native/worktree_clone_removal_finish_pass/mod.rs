@@ -11,7 +11,8 @@
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  "The finish pass that settles a registration";
 //!  `doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-//!  "What a kill at each point leaves, and who finishes it").
+//!  "What a kill at each point leaves,
+//! and who finishes it").
 //!  The pass is the wrapper's own driver in the place it already finishes an interrupted destroy,
 //!  with the plan folder in place of the destroy records
 //!  (`worktree/worktree_removal_finishes_an_interrupted_destroy.rs`).
@@ -22,7 +23,8 @@
 //!  This folder is built ahead of the plan's order and is wired by no command:
 //!  plan step 16's own switch calls it,
 //!  and no `git` command,
-//! `doctor`, mount handler or boot unit reaches it
+//! `doctor`,
+//! mount handler or boot unit reaches it
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
 //!
@@ -83,7 +85,8 @@ pub mod pass_over_the_plans;
 pub use pass_over_the_plans::finish_the_removal_plans;
 pub use the_pass_seams::FinishPass;
 
-/// The repository, the plan and the seams a finish-pass control starts from.
+/// The repository,
+/// the plan and the seams a finish-pass control starts from.
 /// Never part of the release executable.
 #[cfg(test)]
 #[path = "pass_fixtures_tests.rs"]

@@ -35,7 +35,8 @@ use std::path::Path;
 pub enum FolderLook {
     /// Nothing stands at the folder's path.
     NoFolder,
-    /// Something else stands there, or the look could not list it.
+    /// Something else stands there,
+    /// or the look could not list it.
     NotAFolder {
         /// What the call answered,
         /// or that the entry is not a folder.

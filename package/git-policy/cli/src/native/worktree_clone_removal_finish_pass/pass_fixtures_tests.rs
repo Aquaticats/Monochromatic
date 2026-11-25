@@ -1,5 +1,8 @@
 //! What:
-//!  The repository, the plan, the gate, the pool reader and the settle a finish-pass control starts from,
+//!  The repository,
+//! the plan,
+//! the gate,
+//! the pool reader and the settle a finish-pass control starts from,
 //!  and the small helpers that read what a pass left.
 //! Why:
 //!  Every arm changes exactly one thing from a state the design names,
