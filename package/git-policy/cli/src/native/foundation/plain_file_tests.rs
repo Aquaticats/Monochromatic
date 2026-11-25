@@ -104,3 +104,24 @@ fn bytes_that_are_not_text_are_refused_as_text() {
     assert_eq!(read_plain_file(path.as_path(), SMALL_FILE_LIMIT).expect("bytes"), [0xff_u8, 0xfe]);
     remove(parent.as_path());
 }
+
+/// A named pipe and a directory both open at once through the non-blocking open,
+/// which asks nothing about the type,
+/// so a caller that sets a time on a name cannot be made to wait (issue 6415).
+#[test]
+fn the_non_blocking_open_answers_a_pipe_and_a_directory_at_once() {
+    let parent: PathBuf = fixture("plain-file-open-without-blocking");
+    let pipe: PathBuf = parent.join("pipe");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    let directory: PathBuf = parent.join("directory");
+    std::fs::create_dir(directory.as_path()).expect("directory");
+    let opened = crate::test_support::finished_within(move || {
+        let on_a_pipe: bool = open_without_blocking(pipe.as_path()).is_ok();
+        let on_a_directory: bool = open_without_blocking(directory.as_path()).is_ok();
+        return (on_a_pipe, on_a_directory);
+    });
+    let Some((on_a_pipe, on_a_directory)) = opened else { panic!("the non-blocking open waited on a name it should answer at once") };
+    assert!(on_a_pipe, "a pipe opens without a writer");
+    assert!(on_a_directory, "a directory opens, because a caller may set its time");
+    remove(parent.as_path());
+}

@@ -33,13 +33,16 @@ which is the escape hatch for a command whose output should never reach the mode
 ### What the model receives
 
 A poke is a custom message with the `bash-poke` type,
-sent with `triggerTurn` and `deliverAs: "followUp"`,
-so it fires immediately when the agent is idle and queues behind current work otherwise.
+sent with `triggerTurn` and `deliverAs: "steer"`,
+so it fires immediately when the agent is idle
+and lands after the agent's current batch of tool calls while it works.
+A follow-up would wait for the whole run to end;
+see `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 Its content is:
 
 `````text
 [bash finished] $ make test (exit 2)
-[complete output: /tmp/pi-bash-poke/6f1c....log]
+[complete output: /path/to/project/node_modules/.monochromatic/bash-poke/pi-bash-poke/6f1c....log]
 ```
 FAILED tests/foo.test.ts
 ```
@@ -54,7 +57,9 @@ so a poke never looks like something you typed.
 
 Output is middle-out truncated:
 the head and the tail are kept and the middle is elided with a marker naming the loss.
-The complete output is spooled to an owner-only file below the OS temp directory,
+The complete output is spooled to an owner-only file in `node_modules/.monochromatic/bash-poke/pi-bash-poke/`
+under the nearest `node_modules` above Pi's working directory
+(`$XDG_CACHE_HOME/monochromatic-dev/bash-poke/pi-bash-poke/` outside a project),
 and the poke names that path whenever elision happened,
 so a truncated result is never a dead end.
 
@@ -166,6 +171,16 @@ because Pi auto-discovers that directory and both copies would intercept `!`.
 
 ## Known limitations in v0.x
 
+- While the agent is working,
+  a finished command's poke waits for the agent's current batch of tool calls,
+  so a tool call that itself waits (a long `sleep` or build) holds the poke until that call returns.
+  The `(running in background; output will be sent when it finishes)` placeholder never changes,
+  and the progress row disappears when the command exits,
+  so nothing on screen shows that the command finished until the card arrives.
+  Pressing Escape during that run discards a poke still queued
+  (shown through Pi's RPC `clear_queue`, the call Escape makes).
+  The complete output is already in the spool file.
+  See `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - Jobs are not tracked across session transitions.
   Pi invalidates an extension runtime on reload and on session replacement,
   and Pi exits through `process.exit` without killing children it does not own,

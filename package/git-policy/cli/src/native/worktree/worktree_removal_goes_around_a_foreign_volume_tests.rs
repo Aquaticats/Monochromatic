@@ -325,3 +325,20 @@ fn a_refusal_beside_a_volume_over_an_unchanged_tree_names_the_proof_and_no_missi
     assert!(report.contains("Nothing was removed"), "and that the command changed nothing: {report}");
     remove(root.as_path());
 }
+
+/// A left-in-place record that is a named pipe says nothing and holds no command,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and every command of the repository shows these records (issue 6415).
+#[test]
+fn a_left_in_place_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("left-in-place-named-pipe");
+    let directory: PathBuf = left_in_place_directory(root.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("the left-in-place folder");
+    crate::subvolume_sync_attrs::make_fifo(directory.join("left-0123456789abcdef.txt").as_path(), 0o600).expect("a named pipe where a record goes");
+    let inside: PathBuf = root.clone();
+    let answered = crate::test_support::finished_within(move || return left_in_place_notices(inside.as_path()).len());
+    let Some(count) = answered else { panic!("a left-in-place record that is a named pipe held the command") };
+    assert_eq!(count, 0, "a pipe is no notice");
+    remove(root.as_path());
+}

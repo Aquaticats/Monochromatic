@@ -340,9 +340,9 @@ fn adopt_at(request: &AdoptRequest, store_path: &Path, running_as_root: bool, ef
         other => AdoptFailure::Store(other),
     })?;
     let policy: ParentPolicy = ParentPolicy::from_recorded(&recorded_parent);
-    // The first listing is also the removal: the staging names a killed writer left are removed from the names this
-    // pass read, which is what makes one remover's reach the quiesced adoption rather than a lock.
-    let (names, _removed): (Vec<String>, Vec<String>) = store.list_and_remove_staging_entries().map_err(AdoptFailure::Store)?;
+    // The first listing is also the removal: the staging names a killed writer left are removed as this pass reads the
+    // set, which is what makes one remover's reach the quiesced adoption rather than a lock.
+    let names: Vec<String> = store.list_and_remove_staging_entries().map_err(AdoptFailure::Store)?;
     let walked: Result<HeldWorktreesParent, WalkRefusal> = hold_the_worktrees_parent(request.checkout.as_path());
     let walk: Result<CloneFolderIdentity, WalkRefusal> = match &walked {
         Ok(held) => Ok(held.identity.clone()),

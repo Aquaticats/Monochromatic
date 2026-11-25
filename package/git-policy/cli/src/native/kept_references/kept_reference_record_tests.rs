@@ -76,3 +76,22 @@ fn removing_the_record_leaves_the_folder_empty() {
     assert_eq!(read_record(root.as_path(), record.reference.as_str()), None);
     remove(&root);
 }
+
+/// A record that is a named pipe is read as no record,
+/// at the bound,
+/// and a sweep of the folder skips it rather than waiting for a writer (issue 6415).
+#[test]
+fn a_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("kept-reference-named-pipe");
+    std::fs::create_dir_all(record_folder(root.as_path()).as_path()).expect("the record folder");
+    crate::subvolume_sync_attrs::make_fifo(record_folder(root.as_path()).join("a-record").as_path(), 0o600).expect("a named pipe where a record goes");
+    let inside: PathBuf = root.clone();
+    let answered = crate::test_support::finished_within(move || {
+        crate::kept_reference_record::sweep_records_of_references_that_are_gone(inside.as_path(), &[], 10_000_000, std::time::Duration::ZERO);
+        return read_record(inside.as_path(), "refs/cli-git/kept/13");
+    });
+    let Some(record) = answered else { panic!("a record that is a named pipe held the pass") };
+    assert_eq!(record, None, "a pipe is no record");
+    assert!(record_folder(root.as_path()).join("a-record").exists(), "and the sweep left it where it is");
+    remove(&root);
+}

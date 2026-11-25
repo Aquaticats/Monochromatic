@@ -94,13 +94,37 @@ const PATIENCE: Duration = Duration::from_secs(5);
 ///  and which no control can force by holding this process back.
 const OUTLASTING_THE_LINES_BOUND_SECONDS: u64 = 5;
 
-/// How long a wait may take when the bound it is given has already passed,
-/// in seconds.
-/// Why a fifth of a second:
+/// The bound this control gives the command it lets run past it,
+/// in seconds,
+/// and the wait it hands that command.
+/// Why four:
+///  the wait must answer in a quarter of this bound,
+///  and it must be the whole bound that a wait counting from its call would spend,
+///  so each side of the comparison is four times away from the other one.
+///  Measured on 2026-11-25 with the bound a second: the wait took 0.65 to 2.46 ms quiet,
+///  and 233 and 238 ms in two of eight runs on this host, spent on its `/proc` read (27 and
+///  50 ms), its two pipe-drain thread creations (114 and 118 ms) and the kill with its reap
+///  (51 and 82 ms), so a fifth of a second left no room for the work it was measuring.
+const SPENT_BOUND_SECONDS: u64 = 4;
+
+/// How much longer than its bound the command of the control below runs before the wait is
+/// reached,
+/// so that nothing of the bound is left.
+const SPENT_OVERRUN: Duration = Duration::from_millis(200);
+
+/// How long a wait may take when the bound it is given has already passed.
+/// Why a quarter of the bound:
 ///  the wait has nothing left to wait for,
-///  so this covers a signal and a reap and no more;
-///  a wait that counts its bound from the moment it is called takes the whole bound instead.
-const ALREADY_SPENT_PATIENCE: Duration = Duration::from_millis(200);
+///  so this covers the signal and the reap together with the threads and the `/proc` reads it makes
+///  before it can answer,
+///  and a wait that counts its bound from the moment it is called takes the whole bound instead.
+const ALREADY_SPENT_PATIENCE: Duration = Duration::from_millis(SPENT_BOUND_SECONDS * 1_000 / 4);
+
+/// The bound the control below hands its command,
+/// built from the seconds it states.
+fn spent_bound() -> Duration {
+    return Duration::from_secs(SPENT_BOUND_SECONDS);
+}
 
 /// What:
 ///  A command in the harness's own bounded form,
@@ -263,10 +287,10 @@ fn a_bound_counts_from_the_commands_own_start() {
     started.arg(command.as_path()).current_dir(made.root.as_path());
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut started);
     // The command runs for longer than its own bound before the wait is called at all.
-    std::thread::sleep(Duration::from_millis(1_200));
+    std::thread::sleep(spent_bound() + SPENT_OVERRUN);
     let began: Instant = Instant::now();
     // The command's own line states no bound of its own: it is a script of this control's, not a bounded form.
-    let answer = wait_under_bound(child, Some(group), LineBound { kept: Duration::from_secs(1), stated: None }, b"");
+    let answer = wait_under_bound(child, Some(group), LineBound { kept: spent_bound(), stated: None }, b"");
     let elapsed: Duration = began.elapsed();
     println!("the wait answered {:?} after {elapsed:?}", answer.ending);
     assert_eq!(answer.ending, Ending::AtTheBound, "a command past its bound is ended by this wait, not by itself");

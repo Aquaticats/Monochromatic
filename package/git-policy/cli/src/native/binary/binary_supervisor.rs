@@ -60,9 +60,14 @@
 //!  claims the record right after it waited,
 //! and a record nobody claims fails the test:
 //! the process aborts three seconds after
-//!  the kill,
+//!  the kill when no thread of the test is occupied with that command,
 //! and a process that exits first exits with status 101 from an exit handler,
 //! so a kill is never silent.
+//!  The abort asks whether a thread is occupied with the command, never how long a claim took:
+//! a test thread this host does not schedule for seconds would otherwise lose a
+//!  passing result to a signal no output of it survives
+//!  (issue 6469,
+//! a gate on 2026-11-25).
 //! Limits:
 //!  - Signals reach only pinned processes (`binary_supervisor_pin.rs`):
 //! a pidfd where the kernel has one,
@@ -119,7 +124,9 @@ pub const CPU_BUDGET: Duration = Duration::from_secs(10);
 /// How often the monitor looks at the commands.
 pub const POLL: Duration = Duration::from_millis(100);
 
-/// How long a kill may stay unclaimed by the test that ran the command before the process aborts with its message.
+/// How long a kill may stay unclaimed by the test that ran the command,
+/// with no thread of that test occupied with the command,
+/// before the process aborts with its message.
 pub const UNCLAIMED_GRACE: Duration = Duration::from_secs(3);
 
 /// The status a process exits with when a kill nobody claimed is found at its exit.
@@ -272,6 +279,15 @@ struct Registry {
     /// by process ID,
     /// kept after the command ends.
     looks: HashMap<i32, u32>,
+    /// The commands a thread of this process is occupied with,
+    /// by process ID,
+    /// each with how many threads hold it.
+    /// Why:
+    ///  A kill that is not claimed aborts the process only when nothing here is occupied with its command:
+    ///  a wait that is running claims it as soon as this host schedules that thread,
+    ///  and a kill whose ending is still going on cannot be claimed at all until the ending is over.
+    ///  What this map holds is a state, never how much time has passed.
+    occupied: HashMap<i32, u32>,
 }
 
 /// The registry of this process.
@@ -383,6 +399,81 @@ pub fn hold_idle_judgment(pid: u32) -> IdleHold {
     let held: i32 = i32::try_from(pid).expect("a process ID fits");
     with_registry(|registry| { *registry.holds.entry(held).or_default() += 1; });
     return IdleHold { pid: held };
+}
+
+/// What:
+///  A thread's hold on one command's entry in the registry of the commands this process is occupied with,
+///  released when the thread is done with it,
+///  whether it returned or unwound.
+/// Why:
+///  One value carries both the mark and its removal,
+///  so no path of a wait or of an ending can leave a command marked after the thread stopped working on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Occupied { constructor(pid) { markOccupied(pid); } [Symbol.dispose]() { stopOccupying(pid); } }
+/// ```
+pub struct Occupied {
+    /// The command this hold marks.
+    pid: i32,
+}
+
+/// A thread ends its hold here,
+/// however it ended.
+impl Drop for Occupied {
+    fn drop(&mut self) {
+        with_registry(|registry| {
+            if let Some(count) = registry.occupied.get_mut(&self.pid) {
+                *count -= 1;
+                if *count == 0 {
+                    registry.occupied.remove(&self.pid);
+                }
+            }
+        });
+    }
+}
+
+/// What:
+///  Mark the command `pid` as one this thread is waiting for,
+///  until the returned hold is dropped.
+/// Why:
+///  `support_observation_bound::wait_under_bound` is the only place a kill is claimed,
+///  so a kill of a command a wait is running for is a claim that is on its way,
+///  not a kill nobody reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using _waiting = waitingFor(child.pid); // cleared when the wait returns or throws
+/// ```
+pub fn waiting_for(pid: u32) -> Occupied {
+    return occupy(pid);
+}
+
+/// What:
+///  Mark the command `pid` as one whose ending is still going on,
+///  until the returned hold is dropped.
+/// Why:
+///  The kill of a command is recorded before its tree is ended,
+///  and a tree a starved host takes seconds to end leaves a record nobody can claim yet:
+///  the grace counts from the moment the command is gone
+///  (`end_command`).
+///  So the abort must know an ending is in progress, or it overruns the very grace it grants.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using _ending = endingTheCommandOf(pin.pid()); // cleared when the tree is ended
+/// ```
+pub fn ending_the_command_of(pid: i32) -> Occupied {
+    let marked: u32 = u32::try_from(pid).expect("a command's number is positive");
+    return occupy(marked);
+}
+
+/// Add one thread's mark to the command `pid`,
+/// answering the hold that removes it again.
+fn occupy(pid: u32) -> Occupied {
+    let marked: i32 = i32::try_from(pid).expect("a process ID fits");
+    with_registry(|registry| { *registry.occupied.entry(marked).or_default() += 1; });
+    return Occupied { pid: marked };
 }
 
 /// The exit handler:
@@ -504,7 +595,12 @@ fn judge_one(pid: i32, now: Instant) {
 /// so the record has to be there before.
 pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
     with_registry(|registry| { registry.kills.push(Kill { pid: pin.pid(), message: message.to_string(), at: Instant::now() }); });
+    // What: the mark saying this command's ending is still going on, held until the tree is ended.
+    // Why:  the record above cannot be claimed until the command is gone, and a starved host can take seconds to end a
+    //       tree, so the monitor must not abort over a record no test could have claimed yet.
+    let _ending: Occupied = ending_the_command_of(pin.pid());
     end(pin);
+    drop(_ending);
     // The test has the whole grace to claim the record from the moment the command is gone: an ending that a starved host
     //  makes slow must not use the grace up before the test has had a chance to run (a gate saw the process abort that way).
     with_registry(|registry| {
@@ -533,10 +629,35 @@ pub fn plant_kill(pid: i32, message: &str, at: Instant) {
     with_registry(|registry| { registry.kills.push(Kill { pid, message: message.to_string(), at }); });
 }
 
-/// A kill nobody claimed within the grace ends the process,
+/// What:
+///  The message of a kill past `grace` that no thread of this process is occupied with,
+///  if there is one.
+/// Why:
+///  This is what the monitor aborts on:
+///  a kill whose command no thread of the test is waiting for or ending,
+///  which no amount of time will make anybody claim.
+///  A command a thread is occupied with is left to that thread,
+///  because its claim happens as soon as this host schedules it
+///  (issue 6469).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const killToAbort = (now, grace) => kills.find((k) => now - k.at >= grace && !occupied.has(k.pid));
+/// ```
+pub fn kill_to_abort(now: Instant, grace: Duration) -> Option<String> {
+    return with_registry(|registry| {
+        return registry
+            .kills
+            .iter()
+            .find(|kill| { return now.saturating_duration_since(kill.at) >= grace && !registry.occupied.contains_key(&kill.pid); })
+            .map(|kill| { return kill.message.clone(); });
+    });
+}
+
+/// A kill nobody claims and no thread is occupied with ends the process,
 /// so a command ended by the supervisor always fails its test.
 fn abort_on_unclaimed(now: Instant) {
-    if let Some(message) = unclaimed_kill(now, UNCLAIMED_GRACE) {
+    if let Some(message) = kill_to_abort(now, UNCLAIMED_GRACE) {
         eprintln!("a command the supervisor ended was never reported by its test, so the process aborts:\n{message}");
         std::process::abort();
     }

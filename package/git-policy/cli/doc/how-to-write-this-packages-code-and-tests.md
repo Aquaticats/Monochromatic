@@ -9,12 +9,20 @@ a test's stand-in child outlived its test and held the run's output open for 45 
 and a test's signal reached its own test binary.
 The owner, that day: "So pay the debt."
 
+This guide adds to the repository's skill for writing code in a language other than TypeScript,
+`.agents/skills/dum-dum-non-ts/SKILL.md`,
+which sets the code's shape (the simplest constructs)
+and its comments (the What, Why and Gotcha template the crate uses);
+load that skill before your first Rust edit, then write by both.
+What follows is what that skill does not cover: how this crate's tests and children behave.
+
 ## Tests hold as threads of one process
 
 `cargo test --lib` runs a module's tests as threads of one process, and that is how rounds run them on this host.
 The container gate runs each test in a process of its own,
 so a test that only holds alone passes the gate and fails every threaded run.
-Before you report, run each module you touched threaded (`cargo test --locked --offline --lib <module>`, default threads)
+Before you report, run each module you touched threaded
+(`cargo test --locked --offline --lib <module> -- --skip guest --skip _arm_tests`, default threads, guest arms skipped)
 and name the run's `test result` line.
 A test that passes alone and fails threaded is a defect of that test until a measurement shows otherwise
 (`AGENTS.md`'s SUF);
@@ -31,12 +39,15 @@ Issue 6454 removed the current-directory changes; keep them out.
 ## One fixture folder per test
 
 A test takes its folder from `testing/test_support.rs`.
-`fixture(name)` names the folder `native-unit-<process id>-<name>` and removes a folder of that name first,
-so two tests that pass the same name share one folder in one process,
-and each deletes the other's live folder:
+`fixture(name)` names the folder `native-unit-<process id>-<the number this call took>-<name>`,
+so every call gets a folder of its own:
+before the number was there, two tests that passed one name shared one folder in one process,
+and each deleted the other's live folder:
 `lock::index_writer_forward`'s two signal tests did,
 failing with `DirectoryNotEmpty` and with a `create_dir` panic at `test_support.rs:332`.
-Give every test a name no other test uses until the helper makes each call's folder its own.
+The binary test target's own helper names its folders the same way
+(`native-binary-<process id>-<the number this call took>-<name>`,
+`binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
 ## Own every child, end it on every path
@@ -44,10 +55,12 @@ Never write a fixed path outside the fixture root (no `/tmp`, no shared name und
 A child a test starts is the test's to end, on success, on failure and on a panic:
 start it with `test_support::spawn_owned`, whose child is ended with the test thread's fixtures however the test ends,
 so a failing assertion cannot leave it running.
-A control that needs a signal sent to the wrapper runs the wrapper in such a helper process and signals only `helper.id()`,
+A control that needs a signal sent to the wrapper runs the wrapper in such a helper process
+and signals only `helper.id()`,
 as `process/signal_relay_tests.rs` does:
 `lfs::lfs_upload`'s signal control once sent `libc::kill(libc::getpid(), libc::SIGTERM)`,
-and `getpid()` is the test binary, whose signal handlers are process-wide, so it ended every thread of the run (issue 6463).
+and `getpid()` is the test binary, whose signal handlers are process-wide,
+so it ended every thread of the run (issue 6463).
 Start a stand-in in a process group of its own, and signal only the process or group the test started and proved,
 never a group or session the test binary belongs to, never by name.
 A child must not keep the test's standard output or error open after the test:

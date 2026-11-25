@@ -227,21 +227,6 @@ pub fn create_the_staging_folder(home: &Path, pin: &crate::user_cache_pin::UserC
 }
 
 /// What:
-///  The account's cache folder reached from its home,
-///  which the wrapper's creation step opens before it makes a folder.
-/// Why:
-///  The accessor keeps the deliberate one-mount hop in this module beside the
-///  cleanup that reads the same descriptor.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const cache = theAccountCache(home);
-/// ```
-pub fn the_account_cache(home: &Path) -> Result<std::fs::File, String> {
-    return crate::user_cache_pin::open_cache(home).map_err(|refusal| return refusal.message());
-}
-
-/// What:
 ///  Make the per-removal folder after the pin check.
 /// Why:
 ///  The wrapper creates it,
@@ -254,12 +239,6 @@ pub fn the_account_cache(home: &Path) -> Result<std::fs::File, String> {
 pub fn make_staging_folder(cache: &std::fs::File, guid: DatasetGuid) -> Result<bool, String> {
     let name: OsString = OsString::from(staging_folder_name(guid));
     return crate::fs_beneath::make_directory_at(cache, name.as_os_str(), 0o700).map_err(|error| return format!("the staging folder {name:?} could not be made: {error}"));
-}
-
-/// The mount a cache descriptor is on,
-/// read by the creation step before any folder is made.
-pub fn mount_of(cache: &std::fs::File) -> Result<MountFacts, String> {
-    return crate::user_cache_pin::cache_mount_facts(cache).map_err(|refusal| return refusal.message());
 }
 
 /// Controls stay out of the release executable.

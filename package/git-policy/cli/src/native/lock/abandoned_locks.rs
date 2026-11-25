@@ -116,22 +116,6 @@ impl Outcome {
 }
 
 /// What:
-///  Every lock file below the Git directories `roots`,
-///  in path order,
-///  leaving out the PID files Git writes beside them.
-/// Why:
-///  One list decides which files the pass judges,
-///  and a control can ask for it without a repository.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function lockCandidates(roots: string[]): string[];
-/// ```
-pub fn lock_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
-    return walked(roots).locks;
-}
-
-/// What:
 ///  The lock files one walk found,
 ///  and whether the walk saw every file of the Git directories it searched.
 /// Why:

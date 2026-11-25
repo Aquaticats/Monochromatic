@@ -266,7 +266,7 @@ await describe({
             expect(String(sent.message.content, ), )
               .toContain('[bash finished] $ printf poked (exit 0)');
             expect(String(sent.message.content, ), ).toContain('poked');
-            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'followUp', });
+            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'steer', });
           },
         }, ),
         it({

@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{git, git_context, remove};
+use crate::test_support::{fixture, git, git_context, remove};
 use crate::worktree_ladder_test_support::{commit_all, subvolume_repository, tracked};
 use crate::worktree_snapshot_ahead::{AHEAD_KEPT, hand_over_with, kept_in, pool_folder, request_item};
 use std::path::PathBuf;
@@ -194,5 +194,23 @@ fn btrfs_the_service_stops_at_the_count_an_add_keeps() {
     let beyond: Verdict = snapshot_ahead(&request(repo.as_path()));
     assert!(matches!(beyond, Verdict::Skipped(_)), "the pool is full: {beyond:?}");
     assert_eq!(kept_in(request_pool(repo.as_path()).as_path(), repo.as_path()).len(), AHEAD_KEPT);
+    remove(root.as_path());
+}
+
+/// A worktree whose `.git` is a named pipe is no worktree this service can name,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and this reading runs for every snapshot request (issue 6415).
+#[test]
+fn a_worktree_whose_git_is_a_named_pipe_is_refused_at_once() {
+    let root: PathBuf = fixture("snapshot-ahead-named-pipe-git");
+    let repository: PathBuf = root.join("worktree");
+    std::fs::create_dir_all(repository.as_path()).expect("the worktree");
+    crate::subvolume_sync_attrs::make_fifo(repository.join(".git").as_path(), 0o600).expect("a named pipe where a worktree's .git goes");
+    let item: WorkItem = WorkItem { kind: crate::work_item::WorkKind::SnapshotAhead, repository: repository.clone(), git_dir: repository.join(".git"), branch_ref: String::new(), oid: String::from("0123456789abcdef0123456789abcdef01234567"), parent: root.join(".git/ahead").display().to_string(), created: String::new(), tries: 0, transport: false };
+    let requested: WorkItem = item.clone();
+    let answered = crate::test_support::finished_within(move || return snapshot_ahead(&requested));
+    let Some(verdict) = answered else { panic!("a .git that is a named pipe held the request") };
+    assert!(matches!(verdict, crate::service_work::Verdict::Failed(_)), "a pipe names no Git directory, and no second try can change that");
     remove(root.as_path());
 }
