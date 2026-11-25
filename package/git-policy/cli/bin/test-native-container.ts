@@ -371,9 +371,9 @@ await runGateChecks({
         .cidFile,
       identity: run.suite
         .identity,
+      limits,
       deadlineMilliseconds,
       args: [
-        ...limits,
         ...fixtureRootArguments(),
         image,
       ],
@@ -388,9 +388,9 @@ await runGateChecks({
         .cidFile,
       identity: run.clippy
         .identity,
+      limits,
       deadlineMilliseconds,
       args: [
-        ...limits,
         '--security-opt',
         'label=disable',
         '--volume',
