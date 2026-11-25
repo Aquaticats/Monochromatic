@@ -783,6 +783,11 @@ fn a_temporary_beside_a_path_that_is_not_text_keeps_its_bytes() {
 /// and installs the ignored state there.
 #[test]
 fn recovery_installs_into_a_destination_whose_path_is_not_text() {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_journal::tests::recovery_installs_into_a_destination_whose_path_is_not_text",
+    ) {
+        return;
+    }
     use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::test_support::dead_copy_owner;
     let (root, common, destination, snapshot) = staged_for_destination("journal-recovery-bytes", b"par\xffnt");
@@ -875,6 +880,11 @@ fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
 /// and refuses one whose roots hold other bytes instead of acting on the replacement spelling.
 #[test]
 fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_bytes() {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_journal::tests::an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_bytes",
+    ) {
+        return;
+    }
     use crate::test_support::dead_copy_owner;
     let (text_root, text_common, text_destination, text_snapshot) = staged_for_destination("journal-earlier-text", b"parent");
     let text_journal: PendingJournal = create_journal_for(text_common.as_path(), text_destination.as_path(), &text_snapshot, &dead_copy_owner()).expect("journal");

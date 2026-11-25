@@ -400,6 +400,9 @@ fn assert_byte_named_refs(shadow: &Path, head: &str) {
 /// so the shadow's Git reads the same ref.
 #[test]
 fn the_files_snapshot_keeps_a_name_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_ref_write::tests::the_files_snapshot_keeps_a_name_that_is_not_text") {
+        return;
+    }
     let root: PathBuf = fixture("shadow-refs-files-non-text");
     let (repo, head) = byte_named_refs(root.as_path());
     let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
@@ -420,6 +423,9 @@ fn the_files_snapshot_keeps_a_name_that_is_not_text() {
 /// The reftable snapshot sends a name that is not text as its bytes too.
 #[test]
 fn the_reftable_snapshot_keeps_a_name_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_ref_write::tests::the_reftable_snapshot_keeps_a_name_that_is_not_text") {
+        return;
+    }
     let root: PathBuf = fixture("shadow-refs-reftable-non-text");
     let (repo, head) = byte_named_refs(root.as_path());
     let shadow: PathBuf = bare_shadow(root.as_path(), "reftable", repo.join(".git").join("objects").as_path());
@@ -521,6 +527,9 @@ fn a_snapshot_of_many_refs_starts_no_git_child() {
 #[cfg(unix)]
 #[test]
 fn a_ref_name_the_reader_declines_asks_git_for_the_whole_listing() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_ref_write::tests::a_ref_name_the_reader_declines_asks_git_for_the_whole_listing") {
+        return;
+    }
     let root: PathBuf = fixture("shadow-refs-fall-back-to-git");
     let (repo, head) = byte_named_refs(root.as_path());
     let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());

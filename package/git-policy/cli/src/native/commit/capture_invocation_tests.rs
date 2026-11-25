@@ -8,6 +8,7 @@ use super::*;
 use crate::git_report_answers::{answers_of, required_answer};
 use crate::ref_files::tests::{Probe, probe};
 use crate::test_support::{fixture, git, git_context, git_text, repository, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 #[cfg(unix)]
 use crate::recording_git::{recorded_starts, recording_context};
 
@@ -442,6 +443,9 @@ fn require_layout_inside(repo: &Path, layout: &InvocationLayout) {
 ///  instead of landing.
 #[test]
 fn a_repository_whose_name_is_not_utf8_is_captured() {
+    if !in_a_fixture_root_taking_any_name("commit::capture_invocation::tests::a_repository_whose_name_is_not_utf8_is_captured") {
+        return;
+    }
     let root: PathBuf = fixture("capture-invocation-not-utf8");
     // 0xEF opens a three-byte sequence and is no name on its own, so this is not UTF-8 text.
     let repo: PathBuf = repository_named(root.as_path(), b"rep\xefo");
@@ -479,6 +483,9 @@ fn a_repository_whose_name_holds_a_line_feed_is_captured() {
 ///  decoding it as UTF-8 refused a repository Git works in.
 #[test]
 fn the_report_git_prints_is_read_as_bytes() {
+    if !in_a_fixture_root_taking_any_name("commit::capture_invocation::tests::the_report_git_prints_is_read_as_bytes") {
+        return;
+    }
     let root: PathBuf = fixture("capture-invocation-not-utf8-from-git");
     let repo: PathBuf = repository_named(root.as_path(), b"na\xefve");
     let mut context: GitContext = git_context();

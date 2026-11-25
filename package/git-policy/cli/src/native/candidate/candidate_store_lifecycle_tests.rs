@@ -22,6 +22,7 @@ use crate::candidate_object::{CandidateMode, ObjectId};
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion};
 use crate::test_support::{fixture, git, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -30,6 +31,9 @@ use std::rc::Rc;
 ///  against nothing for a root commit.
 #[test]
 fn committed_version_lists_the_commit_delta() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::lifecycle_tests::committed_version_lists_the_commit_delta") {
+        return;
+    }
     let root: PathBuf = fixture("store-committed");
     let repo: PathBuf = staged_changes(root.as_path());
     git(repo.as_path(), &["commit", "--quiet", "--message=changes"]);

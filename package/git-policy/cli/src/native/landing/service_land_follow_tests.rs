@@ -9,6 +9,7 @@ use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
 use crate::index_reset_file::support::git_with;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use crate::transaction_git::GitOutput;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -41,6 +42,11 @@ pub(super) fn differs(repo: &Path, commit: &str) -> bool {
 /// whatever their number.
 #[test]
 fn derived_paths_cover_names_that_are_not_text_and_lists_past_the_request_limit() {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land_follow::tests::derived_paths_cover_names_that_are_not_text_and_lists_past_the_request_limit",
+    ) {
+        return;
+    }
     let mut files: Vec<Vec<u8>> = vec![b"not-utf8-\xff\xfe.txt".to_vec(), b"back\\slash \"quoted\".txt".to_vec(), b"line\nbreak.txt".to_vec()];
     files.extend((0..crate::service_protocol::MAX_CHANGES + 50).map(|number| { return format!("many/file-{number}.txt").into_bytes(); }));
     let (root, repo, first, second) = index_behind("service-follow-derived", files.as_slice());

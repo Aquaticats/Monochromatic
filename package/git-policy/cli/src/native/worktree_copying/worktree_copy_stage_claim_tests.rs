@@ -1083,6 +1083,11 @@ fn awkward_components() -> Vec<OsString> {
 /// ```
 #[test]
 fn a_report_names_its_path_as_the_shell_reads_it_back() {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_stage_claim::tests::a_report_names_its_path_as_the_shell_reads_it_back",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("claim-report-shell-quoting");
     for component in awkward_components() {
         let repository: PathBuf = root.join(&component).join("repo");
@@ -1301,6 +1306,11 @@ fn earlier_release_claim_container(text: &str) -> Option<PathBuf> {
 /// so the reader names the container the claim was made for.
 #[test]
 fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_stage_claim::tests::a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text",
+    ) {
+        return;
+    }
     let (root, common, destination) = scene_with_bytes("claim-bytes", b"par\xffnt");
     let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &owner).expect("claim");
@@ -1375,6 +1385,11 @@ fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
 /// and refuses one that names other bytes instead of acting on the replacement spelling.
 #[test]
 fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes() {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_stage_claim::tests::an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes",
+    ) {
+        return;
+    }
     let (root, common, destination) = scene("claim-earlier-text");
     let text_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     let text: String = std::fs::read_to_string(text_claim.path.as_path()).expect("claim file");
