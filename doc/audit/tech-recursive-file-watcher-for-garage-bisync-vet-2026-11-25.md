@@ -133,7 +133,6 @@ so they are recorded per candidate and are not gates:
 
 - runs the command to completion and never kills a run in progress;
 - merges a burst of events into one run (a quiet period);
-- queues one more run when events land while a run is going;
 - excludes paths by pattern (for example rclone's `*.partial` download names);
 - what it does when the inotify watch limit or the macOS and Windows equivalents run out;
 - whether it reports hidden files;
