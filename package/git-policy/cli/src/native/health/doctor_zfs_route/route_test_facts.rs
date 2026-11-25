@@ -34,6 +34,7 @@ use super::handler_checks::{
 };
 use super::holder_checks::HolderFacts;
 use super::identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity};
+use super::managed_lock_checks::ManagedLockFacts;
 use super::mount_checks::MountCheckFacts;
 use super::registration_checks::RegistrationFacts;
 use super::removal_plan_checks::{PlanFileReading, RemovalPlanFacts};
@@ -43,6 +44,8 @@ use super::store_listing::{ListedEntry, RecordFacts, SlotRecordFacts, StoreListi
 use super::zfs_checks::{AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, DeviceState, PoolFacts, Reading};
 use crate::fs_mount_options::parse_mount_table;
 use crate::worktree_clone_binding_record::binding_words::Phase;
+use crate::worktree_clone_managed_lock::{Classification, ManagedLockState};
+use crate::worktree_clone_mount_protocol::RequestNonce;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, PropertyValue};
 use crate::worktree_clone_mount_protocol::ReadyState;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -82,6 +85,10 @@ pub(crate) const LIVE_BOOT: &str = "4c4c4544-0042-3510-8051-b4c04f4e4d32";
 /// The staging folder prefix,
 /// which a control's names carry.
 pub(crate) const STAGING_PREFIX: &str = crate::worktree_clone_unmount::staging_folder_name::STAGING_FOLDER_PREFIX;
+
+/// The add nonce the healthy clone's managed Git lock names,
+/// which is step 13's own fixture nonce.
+pub(crate) const LOCK_NONCE: &str = "9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f";
 
 /// The origin snapshot every fixture clone names.
 pub(crate) const ORIGIN_SNAPSHOT: &str = "zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f";
@@ -430,6 +437,23 @@ pub(crate) fn accounting(object: &str, used: u64) -> AccountingFacts {
     return AccountingFacts { object: String::from(object), used: PropertyValue::Number(used), referenced: PropertyValue::Number(0), logical_referenced: PropertyValue::Number(used), written: PropertyValue::Number(used) };
 }
 
+/// The managed Git lock a healthy slot holds:
+/// the sentence the add wrote for its nonce,
+/// with the slot's pointer beside it.
+/// Why:
+/// a healthy slot is the control every other state's control is read against.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const classification = healthyClassification(registration); // { state: { kind: 'managed', nonce }, pointer: { kind: 'bytes' } }
+/// ```
+fn healthy_classification(registration: &PathBuf) -> Classification {
+    return Classification {
+        state: ManagedLockState::Managed { nonce: RequestNonce::parse(LOCK_NONCE).expect("the fixture nonce reads"), registration: registration.clone() },
+        pointer: crate::worktree_clone_managed_lock::Reading::Bytes(Vec::from(format!("gitdir: {}\n", registration.display()).into_bytes())),
+    };
+}
+
 /// One managed clone at the design's healthy state:
 /// mounted at its slot,
 /// its Git registration complete,
@@ -457,6 +481,7 @@ pub(crate) fn healthy_clone() -> CloneFacts {
         registration_stands: Some(true),
     };
     let holders: HolderFacts = HolderFacts { clone: String::from(CLONE_DATASET), holders: Vec::new(), incomplete: Vec::new() };
+    let lock: ManagedLockFacts = ManagedLockFacts { slot: String::from(CLONE_SLOT), classification: healthy_classification(&registration) };
     return CloneFacts {
         state: CloneStateFacts { readings, staging_binds: Vec::new() },
         registration: RegistrationFacts {
@@ -466,6 +491,7 @@ pub(crate) fn healthy_clone() -> CloneFacts {
             gitdir: Some(slot_path.join(".git")),
             slot_git: slot_path.join(".git"),
         },
+        lock,
         plan: RemovalPlanFacts { clone: String::from(CLONE_DATASET), reading: PlanFileReading::NoPlan },
         snapshots: CloneSnapshotFacts {
             clone: String::from(CLONE_DATASET),

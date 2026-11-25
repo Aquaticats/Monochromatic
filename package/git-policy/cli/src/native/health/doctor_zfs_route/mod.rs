@@ -100,6 +100,9 @@
 //! - `registration_checks.rs`:
 //!   the Git registration one slot's record names,
 //!   complete, pruned or pointing elsewhere.
+//! - `managed_lock_checks.rs`:
+//!   the sentence one slot's managed Git lock prints in each state,
+//!   and the missing pointer's sentence beside it.
 //! - `binding_record_checks.rs`:
 //!   the fields of the binding record one add wrote.
 //! - `removal_plan_checks.rs`:
@@ -176,6 +179,9 @@ pub mod clone_state_checks;
 /// The Git registration one slot's record names.
 pub mod registration_checks;
 
+/// The sentence one slot's managed Git lock prints.
+pub mod managed_lock_checks;
+
 /// The binding record one add wrote.
 pub mod binding_record_checks;
 
@@ -250,6 +256,8 @@ pub use holder_checks::{HolderFacts, NamespaceHold, check_holders};
 pub use clone_state_checks::{CloneStateFacts, check_clone_state};
 /// The Git registration one slot's record names.
 pub use registration_checks::{RegistrationFacts, check_registration};
+/// The sentence one slot's managed Git lock prints.
+pub use managed_lock_checks::{ManagedLockFacts, check_managed_lock};
 /// The binding record one add wrote.
 pub use binding_record_checks::{NOT_RECORDED, check_binding_record};
 /// The destruction plan one removal left.

@@ -2,6 +2,7 @@
 //!  Plan step 18's removal-side `doctor` lines against a real file-backed pool,
 //!  in a throwaway guest:
 //!  the healthy clone passes every line,
+//!  the managed Git lock's line in its verified, lost and person-written states,
 //!  and each broken fact moves the line that judges it.
 //! Why:
 //!  The lines read `/dev/zfs`,
@@ -40,10 +41,13 @@ use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
 use super::clone_state_checks::{CloneStateFacts, check_clone_state};
 use super::handler_checks::PathState;
 use super::holder_checks::{HolderFacts, NamespaceHold, check_holders};
+use super::managed_lock_checks::{ManagedLockFacts, check_managed_lock};
 use super::registration_checks::{RegistrationFacts, check_registration};
 use super::removal_plan_checks::{PlanFileReading, RemovalPlanFacts, check_removal_plan, recorded_outcomes};
 use super::staging_folder_checks::{StagingBind, staging_binds};
 use super::zfs_checks::{Reading, reading_of};
+use crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_MAXIMUM_BYTES;
+use crate::worktree_clone_managed_lock::{Classification, DatasetGuidReads, InstallAnswer, classify_the_managed_lock, lock_file_path, read_the_recorded_facts, write_the_lost_lock};
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::value_of;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -118,6 +122,29 @@ const OWN_SNAPSHOT: &str = "worktree-own";
 /// The staging folder's name for the fixture's clone.
 fn staging_folder(cache: &Path, guid: DatasetGuid) -> PathBuf {
     return cache.join(crate::worktree_clone_unmount::staging_folder_name::staging_folder_name(guid));
+}
+
+/// What:
+///  The pool the managed lock's proof asks for one dataset's GUID.
+/// Why:
+///  A mount of the record's clone over the slot proves the registration through
+///  that clone's GUID,
+///  and the read is the add route's own through the device;
+///  this arm's slot is unmounted, so the proof compares the slot folder's
+///  identity and never asks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheGuestsPool implements DatasetGuidReads { guidOf(dataset) { return device().identityOf(dataset).guid; } }
+/// ```
+struct TheGuestsPool;
+
+impl DatasetGuidReads for TheGuestsPool {
+    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String> {
+        let device: ZfsDevice = ZfsDevice::open().map_err(|error| return error.to_string())?;
+        let held: DatasetIdentity = device.objset_stats(dataset).map_err(|error| return error.to_string())?;
+        return DatasetGuid::parse(held.stats.dds_guid.to_string().as_str()).map_err(|refusal| return format!("{refusal:?}"));
+    }
 }
 
 //endregion
@@ -318,6 +345,23 @@ fn blocked_of(readings: &SlotReadings, plan: &RemovalPlanFacts, holders: HolderF
     return BlockedRemovalFacts { slot: String::from(SLOT), clone: record_of(readings).clone_dataset.clone(), intent, plan_stands, recorded: recorded_states, holders, in_the_callers_session: mine, the_forced_arm_is_measured: false };
 }
 
+/// The add's own nonce,
+/// as the fixture's record holds it.
+fn the_adds_nonce(common: &Path) -> RequestNonce {
+    return match read_the_recorded_facts(common, SLOT) {
+        Ok(facts) => facts.nonce,
+        Err(refusal) => panic!("the fixture's record must read, and it answered {refusal:?}"),
+    };
+}
+
+/// One slot's managed-lock facts,
+/// read from the machine.
+fn lock_of(common: &Path, slot_path: &Path) -> ManagedLockFacts {
+    let mounts: LiveMountedDatasets = LiveMountedDatasets;
+    let classification: Classification = classify_the_managed_lock(common, SLOT, slot_path, &mounts, &TheGuestsPool);
+    return ManagedLockFacts { slot: String::from(SLOT), classification };
+}
+
 /// One clone's whole group of facts,
 /// read from the machine.
 fn clone_facts(common: &Path, slot_path: &Path, cache: &Path) -> super::route_checks::CloneFacts {
@@ -331,6 +375,7 @@ fn clone_facts(common: &Path, slot_path: &Path, cache: &Path) -> super::route_ch
     return super::route_checks::CloneFacts {
         state,
         registration: registration_of(&readings, slot_path),
+        lock: lock_of(common, slot_path),
         plan: plan.clone(),
         origin: origin_of(&readings),
         retention: retention_of(clone.as_str(), &readings, &snapshots),
@@ -366,9 +411,19 @@ fn zfs_doctor_removal_lines_guest() {
     let slot_path: PathBuf = built.slot_path();
     let clone: String = built.clone();
     write_a_complete_registration(&slot_path, &built.registration());
+    writes_the_adds_lock(&built);
     let healthy: super::route_checks::CloneFacts = clone_facts(common.as_path(), slot_path.as_path(), cache.as_path());
     assert_passes(&healthy);
     println!("DOCTOR-GUEST-REMOVAL healthy-lines-pass");
+    let lost: super::route_checks::CloneFacts = loses_the_lock(&built, common.as_path(), slot_path.as_path(), cache.as_path());
+    assert_the_lost_lock(&lost);
+    println!("DOCTOR-GUEST-REMOVAL lost-lock-is-a-finding");
+    let restored: super::route_checks::CloneFacts = writes_the_lock_again(&built, common.as_path(), slot_path.as_path(), cache.as_path());
+    assert_the_written_lock(&restored, &built);
+    println!("DOCTOR-GUEST-REMOVAL written-lock-passes-and-the-line-wrote-nothing");
+    let foreign: super::route_checks::CloneFacts = a_person_locks_the_slot(&built, common.as_path(), slot_path.as_path(), cache.as_path());
+    assert_the_foreign_lock(&foreign);
+    println!("DOCTOR-GUEST-REMOVAL foreign-lock-is-a-finding");
     let interrupt: super::route_checks::CloneFacts = publishes_a_plan(&built, &cache);
     assert_interrupted(&interrupt);
     println!("DOCTOR-GUEST-REMOVAL interrupt-state-is-a-finding");
@@ -392,6 +447,7 @@ fn zfs_doctor_removal_lines_guest() {
 }
 
 /// The healthy clone passes the seven lines,
+/// the managed lock's line among them,
 /// and the scan finds no holder.
 fn assert_passes(facts: &super::route_checks::CloneFacts) {
     let state: CheckOutcome = check_clone_state(&facts.state);
@@ -400,6 +456,11 @@ fn assert_passes(facts: &super::route_checks::CloneFacts) {
     };
     assert!(detail.contains("known unmounted clone"), "{detail}");
     passed(&check_registration(&facts.registration), "the registration line");
+    let lock: CheckOutcome = check_managed_lock(&facts.lock);
+    let CheckOutcome::Pass { detail: lock_detail } = lock else {
+        panic!("the lock the add wrote passes: {lock:?}");
+    };
+    assert!(lock_detail.contains("holds the managed Git lock its add wrote"), "{lock_detail}");
     passed(&check_removal_plan(&facts.plan), "the plan line with no plan");
     passed(&check_clone_snapshots(&facts.snapshots), "the snapshot line");
     let origin: CheckOutcome = check_clone_origin(&facts.origin);
@@ -410,6 +471,76 @@ fn assert_passes(facts: &super::route_checks::CloneFacts) {
     passed(&check_clone_retention(&facts.retention), "the retention line");
     passed(&check_blocked_removal(&facts.blocked), "the blocked line with nothing pending");
     passed(&check_holders(&facts.holders), "the holders line with nothing mounted");
+}
+
+/// The lock the add wrote, put at the registration the fixture's record names.
+fn writes_the_adds_lock(built: &LivePoolFixture) {
+    let answer: InstallAnswer = write_the_lost_lock(built.registration().as_path(), SLOT, &the_adds_nonce(built.common().as_path()));
+    match answer {
+        InstallAnswer::Wrote { .. } => {}
+        other => panic!("the fixture's slot holds no lock yet, and the write answered {other:?}"),
+    }
+}
+
+/// The slot whose lock is gone,
+/// which a person's `git worktree unlock` or a kill leaves.
+fn loses_the_lock(built: &LivePoolFixture, common: &Path, slot_path: &Path, cache: &Path) -> super::route_checks::CloneFacts {
+    std::fs::remove_file(lock_file_path(built.registration().as_path())).expect("the lock goes");
+    return clone_facts(common, slot_path, cache);
+}
+
+/// The lost lock's line names the nonce and the command that writes it again,
+/// and never passes.
+fn assert_the_lost_lock(facts: &super::route_checks::CloneFacts) {
+    let answer: CheckOutcome = check_managed_lock(&facts.lock);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a lost lock is a finding: {answer:?}");
+    };
+    assert_eq!(field, "lock");
+    assert!(detail.contains("holds no managed Git lock for add nonce"), "{detail}");
+    assert!(detail.contains("writes the lock again and prints one line saying it did"), "{detail}");
+}
+
+/// The next command that holds the slot's claim writes the lost lock again.
+fn writes_the_lock_again(built: &LivePoolFixture, common: &Path, slot_path: &Path, cache: &Path) -> super::route_checks::CloneFacts {
+    writes_the_adds_lock(built);
+    return clone_facts(common, slot_path, cache);
+}
+
+/// The line passes the installed lock and writes nothing at its name:
+/// the file's bytes are the whole bound before the answer and after two of
+/// them.
+fn assert_the_written_lock(facts: &super::route_checks::CloneFacts, built: &LivePoolFixture) {
+    let path: PathBuf = lock_file_path(built.registration().as_path());
+    let before: Vec<u8> = std::fs::read(path.as_path()).expect("the installed lock reads");
+    assert_eq!(before.len() as u64, LOCK_WORDS_MAXIMUM_BYTES, "the sentence and Git's newline are the whole bound");
+    let first: CheckOutcome = check_managed_lock(&facts.lock);
+    let second: CheckOutcome = check_managed_lock(&facts.lock);
+    assert!(matches!(first, CheckOutcome::Pass { .. }), "the installed lock passes: {first:?}");
+    assert_eq!(first, second, "one fact answers one line");
+    let after: Vec<u8> = std::fs::read(path.as_path()).expect("the lock still reads");
+    assert_eq!(before, after, "the line wrote nothing at the lock's name");
+}
+
+/// A person's words at the lock's name,
+/// as `git worktree lock` without a reason writes them.
+fn a_person_locks_the_slot(built: &LivePoolFixture, common: &Path, slot_path: &Path, cache: &Path) -> super::route_checks::CloneFacts {
+    let path: PathBuf = lock_file_path(built.registration().as_path());
+    std::fs::remove_file(path.as_path()).expect("the installed lock goes");
+    std::fs::write(path.as_path(), b"initializing\n").expect("a person's lock is written");
+    return clone_facts(common, slot_path, cache);
+}
+
+/// The line names the words it found and the command that unlocks the slot,
+/// and says the wrapper will not release it.
+fn assert_the_foreign_lock(facts: &super::route_checks::CloneFacts) {
+    let answer: CheckOutcome = check_managed_lock(&facts.lock);
+    let CheckOutcome::Finding { field, detail } = answer else {
+        panic!("a person's lock is a finding: {answer:?}");
+    };
+    assert_eq!(field, "lock");
+    assert!(detail.contains("words its add did not write (initializing)"), "{detail}");
+    assert!(detail.contains("git worktree unlock"), "{detail}");
 }
 
 /// A published plan and a written `unmount` intent leave the slot a removal in
