@@ -21,12 +21,12 @@ this round's merge of `main`'s `3f459371af`;
 the round merged `main` before its first edit and again before its last,
 and no commit after that merge touches a file this document cites.
 A citation given at another commit says which,
-and gives this tip's line beside it where the line moved;
-every citation that names a path is resolved at this tip in
+and gives this base's line beside it where the line moved;
+every citation that names a path is resolved at this base in
 `keep/citations-at-this-rounds-base.txt`,
 which shows the line each one names,
 and the bare `:line` continuations that follow a named file in a list were read by hand at the same
-tip.
+base.
 The decision records and the handover are untouched by this round.
 
 This is the fifth revision,
