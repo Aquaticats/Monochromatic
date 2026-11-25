@@ -1490,6 +1490,16 @@ it missed the verdicts:
   before adopting a new one,
   so extending it with a run-to-completion queue mode is a candidate this report did not consider.
 
+The owner decided at 2026-11-25T18:18:47-05:00
+(design record, "Owner answers, round 5"):
+"Vet 3p, no watchexec.
+Only going back to watch-restart if nothing works,
+because watch-restart has its own critical problems we'd need to fix if we use it."
+So `watchexec` exits on the owner's decision and the recorded rejection;
+Watchman stays,
+with its "not justified" verdict recorded as counterevidence;
+extending `watch-restart` is the fallback only if every remaining candidate fails.
+
 Whether these verdicts transfer to this job
 (no `-j` filter, queue mode, a one-level `systemctl` child on Linux)
 is unverified;

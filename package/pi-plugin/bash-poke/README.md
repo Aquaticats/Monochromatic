@@ -177,7 +177,8 @@ because Pi auto-discovers that directory and both copies would intercept `!`.
   The `(running in background; output will be sent when it finishes)` placeholder never changes,
   and the progress row disappears when the command exits,
   so nothing on screen shows that the command finished until the card arrives.
-  Pressing Escape during that run discards a poke still queued (read from Pi's source, not exercised).
+  Pressing Escape during that run discards a poke still queued
+  (shown through Pi's RPC `clear_queue`, the call Escape makes).
   The complete output is already in the spool file.
   See `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
 - Jobs are not tracked across session transitions.
