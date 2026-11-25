@@ -391,10 +391,11 @@ and the ide marker was stale (the file hands the root file through `bin/run-boun
 a manual dispatch (run 45529509832) showed the step had never reached it:
 `task-run` reads `task.ts` only, `package/upstream-fork/p-map/task.ts` had no `test:unit` since `592d78b143` (2026-10-29),
 so the step stopped there on every admitted run, and `package/container-limit/core` had no `task.ts` at all;
-`144814293a` adds both, each passing locally through `task-run`, and a second dispatch (run 45531170934) checks it;
-push runs of that workflow show green only because its rate window skips the core job,
-and the same dispatch also failed its static, committed-file drift, pnpr config drift and Rust install steps,
-which open issues 1826, 1827, 1828, 3501 and 5462 partly cover;
+`144814293a` adds both, and the second dispatch (run 45531170934) ran the ledger in CI (`[the container start sites ledger] [PASS]`);
+push runs of that workflow show green only because its rate window skips the core job;
+that dispatch's remaining red steps: the unit step now stops at `//package/forbidden-strings/cli:test`, whose `cargo nextest` the runner lacks (issue 6457, two routes named there),
+the committed-file drift and Rust frozen install (both issue 6398, the Slint catalog floor),
+and pnpr config drift, fixed by regenerating `package/config/pnpr/config.yaml` (five packages added without it, `//package/config/pnpr:check:config` clean after);
 the merged GUID follow-up (`b92b6783b8`): with a mount covering the slot, the lock's proof now also compares `cloneGuid=` with the pool's answer for the mounted dataset,
 and its guest arm refuses a clone made again under the same name;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
