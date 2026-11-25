@@ -99,6 +99,33 @@ mod standards_review_boundary_tests;
 #[cfg(test)]
 pub(crate) mod source_scan_tests;
 
+/// Which bytes of a Rust source are code and which sit in a comment or a text literal,
+/// read once so every scan of this module reads the same answer;
+/// never in the release build.
+#[cfg(test)]
+#[path = "source_code_places_tests.rs"]
+pub(crate) mod source_code_places_tests;
+
+/// The scans that find a test file's unowned child start and its signal to its own process;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_scan_tests.rs"]
+pub(crate) mod test_children_owned_scan_tests;
+
+/// The ledger of the child starts the tree still holds,
+/// and the comparison that fails on a new site and on a line whose site is gone;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_ledger_tests.rs"]
+pub(crate) mod test_children_owned_ledger_tests;
+
+/// The control that refuses an unowned child start and a signal to the run's own process,
+/// with the ledger of the sites the tree still holds;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_tests.rs"]
+mod test_children_owned_tests;
+
 /// The owner's rule that nothing of the wrapper starts at system startup or at login:
 /// no install line,
 /// no enabling call,
