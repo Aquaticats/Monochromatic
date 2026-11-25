@@ -44,6 +44,11 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 ///  The intent, the plan's names, the scan and the caller's session are four
 ///  different reads of one clone,
 ///  and a line that took three of them would describe a state nobody saw.
+///  The plan's presence is its own fact beside its lines,
+///  because a removal of a clone that holds no snapshot of its own writes a
+///  plan whose line set is empty,
+///  and reading "no lines" as "no plan" would call a removal in flight an
+///  intent with nothing behind it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,12 +64,6 @@ pub struct BlockedRemovalFacts {
     /// and nothing when no intent of the clone's own stands.
     pub intent: Option<String>,
     /// Whether a destruction plan stands for the clone.
-    /// Why:
-    ///  A plan whose first write records no snapshot line is a real state:
-    ///  a removal of a clone that holds no snapshot of its own writes one.
-    ///  The plan's presence and its lines are therefore two facts, and reading
-    ///  "no lines" as "no plan" would call a removal in flight an intent with
-    ///  nothing behind it.
     pub plan_stands: bool,
     /// Every name the destruction plan holds,
     /// with the outcome its history ends on,

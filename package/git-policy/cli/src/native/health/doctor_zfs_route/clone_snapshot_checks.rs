@@ -42,6 +42,11 @@ use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInvent
 ///  the recorded states come from the plan and nowhere else,
 ///  and the reading keeps "not there" apart from "could not be read",
 ///  so one value carries every fact this check judges.
+///  The plan's presence is its own fact beside its lines:
+///  a plan records its first write's whole inventory,
+///  so a plan that stands and holds no line is a real state,
+///  and "no plan" against "a plan with no line" decides whether an own
+///  snapshot is late history or unexplained.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,11 +61,6 @@ pub struct CloneSnapshotFacts {
     /// What the pool answered for the clone's snapshots and bookmarks.
     pub live: Reading<LiveInventory>,
     /// Whether a destruction plan stands for the clone.
-    /// Why:
-    ///  A plan records its first write's whole inventory,
-    ///  so a plan that stands and holds no line is a real state,
-    ///  and the difference between "no plan" and "a plan with no line" decides
-    ///  whether an own snapshot is late history or unexplained.
     pub plan_stands: bool,
     /// Every name the plan holds a line for,
     /// and the outcome its history ends on.
