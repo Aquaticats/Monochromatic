@@ -153,6 +153,13 @@ QWD:
  only a failed try defers it,
  and deferring means writing it to the handover in the same turn.
 
+NWC:
+ A wait on a condition ("when memory allows",
+ "once X ends") names the test that ends it
+ and starts a command that waits on that test,
+ in the same turn;
+ never a bare "when X allows".
+
 DCK:
  After corrections,
  decisions,

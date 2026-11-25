@@ -16,12 +16,14 @@
 //! so the constant is lowered in the
 //!  same change and the saving cannot be given back unnoticed.
 //! The controls need `strace`;
-//! a host without it reports that and checks nothing,
-//! so the host suite is where they run.
+//! a run without it fails them,
+//! or names each one and passes only when the run states that the
+//! absence is known (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`,
+//! `src/native/testing/strace_the_controls_run_under.rs`).
 
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::strace::{strace_available, strace_program};
+use super::strace::{strace_available_or_acknowledged, strace_program};
 use super::support::{Fixture, REAL_GIT, direct, fixture, git, repository};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -409,8 +411,7 @@ impl Drop for StopsMonitor<'_> {
 
 /// Run the scenario's commit under `strace` and require its counts to equal `budget`.
 fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no process start or sync call was counted");
+    if !strace_available_or_acknowledged(label) {
         return;
     }
     let fixture: Fixture = fixture(format!("budget-{label}").as_str());
@@ -546,8 +547,7 @@ fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Coun
 /// asked once.
 #[test]
 fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no process start was counted");
+    if !strace_available_or_acknowledged("the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer") {
         return;
     }
     let read_only: [&str; 9] = ["config", "diff", "diff-index", "diff-tree", "for-each-ref", "ls-files", "remote", "show", "symbolic-ref"];
@@ -602,8 +602,7 @@ fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
 ///  message or an identity.
 #[test]
 fn a_commit_the_service_declines_starts_no_git_for_an_identity() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no process start was counted");
+    if !strace_available_or_acknowledged("a_commit_the_service_declines_starts_no_git_for_an_identity") {
         return;
     }
     let (taken, _) = traced_through_the_service("taken", false);

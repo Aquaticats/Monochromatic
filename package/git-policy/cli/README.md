@@ -453,7 +453,7 @@ Read-only commands,
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
    of every URL replaced by `<credentials>`:
   the userinfo,
-  every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark
+  every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark
   (a shorter segment of letters,
   digits and `-`,
   `.`,
@@ -469,7 +469,7 @@ Read-only commands,
   quoted:
   "Never print or commit secrets".
   The same mask covers the wrapper's own diagnostic lines and the service's journal,
-  and a token of 20 characters or fewer with no percent sign reads as a label and is not hidden,
+  and a token shorter than 20 characters with no percent sign reads as a label and is not hidden,
   which the owner accepted on 2026-11-24
   (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`).
   It covers a typed `git push` (including the merge push of a lost race),
@@ -495,8 +495,7 @@ Read-only commands,
   so a Git that never answers is stopped and named.
   Every push uploads with `GIT_ASKPASS` set to the empty string,
    `GIT_TERMINAL_PROMPT=0`,
-   `SSH_ASKPASS` set to the sentence that answers nothing and names a way forward (
-   `NO_ANSWER_SENTENCE`) and `SSH_ASKPASS_REQUIRE=force`,
+   `SSH_ASKPASS` set to `false` and `SSH_ASKPASS_REQUIRE=force`,
   whether or not its process has a controlling terminal,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
    to answer,
@@ -1928,11 +1927,11 @@ One archive carries one executable,
 It is the file a caller runs as `git`;
 root reaches its modes through the words
 `monochromatic-git-policy-cli zfs-root <mode>`
- or through one root-owned file under the installed ZED history event's name,
+ or through one root-owned file under the ZED history event's name,
  and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
 The root modes run these kinds of work:
-no argument at all is the clone-mount sweep the installed ZED event starts,
+no argument at all is the clone-mount sweep ZED's own start runs,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
@@ -2217,7 +2216,11 @@ while an empty one may be a drive that is not mounted yet and proves nothing
 (the proof is the one the pushes waiting for a new try are read by,
 `landing/unreachable_git_dir_proven_gone.rs`),
 says which worktree each stopped instance was,
-and names an instance that maps to nothing without touching it.
+and names an instance that maps to nothing without touching it:
+one whose socket file or note still stands may have a unit running,
+and one whose journal is all that is left has no unit and no command of the wrapper to stop,
+so the command says the folder the journals are in and that a person can remove one by hand after looking,
+and `doctor`'s note says the same.
 A stopped instance's note and socket file are removed,
 because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
@@ -2242,10 +2245,15 @@ and a claim watch note points at the work directory of the repository it names
 so a note naming the removed worktree,
 or one whose repository is gone,
 leads the only service that read it,
-the removed worktree's own, to nothing.
+the removed worktree's own,
+to nothing.
 The command reads the journals as well as the note and the socket file,
 and names each journal it removed with its folder,
 so the journals that an earlier removal kept are cleared by a run that finds no unit beside them.
+A journal it keeps is named on standard output as a removed one is,
+with the worktree it belonged to and its folder,
+so a run that kept a journal never says on standard output that no unit or journal belongs to a removed worktree
+while standard error explains the one it kept.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
@@ -2284,7 +2292,10 @@ Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,
 and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
-how many removed worktrees still have units and names this command.
+how many removed worktrees still have units,
+how many journals are all that is left of an instance,
+naming which can be removed by hand after looking,
+and it names this command.
 
 A removal through the wrapper stops the worktree's units and asks the manager whether the service's processes are gone
 before it removes the journal that service writes,
@@ -2545,6 +2556,23 @@ and deciding between a re-registration at a commit a person names and removing t
 `git monochromatic-git-policy-cli doctor` prints the same reports for each slot a record names once plan step 18
 wires its checks;
 this release prints them from the add's and the removal's refusals.
+
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
+and the command that settles it is built and reachable from nothing:
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
+takes the slot's claim,
+reads the record,
+the pool,
+the slot,
+an origin cleanup record and a destruction plan,
+and removes the registration and the three records once the two flags confirm the record,
+or only the records when a checkout has begun there
+(`SPEC.md`,
+"The settling command,
+built and reachable from no command").
+No management grammar admits it yet,
+so the sentences that name it today still send a person to a command this release does not have,
+and the round that switches removal on adds it to the grammar.
 
 ### The Git lock a managed clone's registration holds
 
@@ -5086,7 +5114,7 @@ The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MON
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.
  The userinfo of any URL in such a line,
-every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark,
+every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
 
@@ -5747,22 +5775,17 @@ fractional or non-numeric value is ignored.
    failure above,
   and no desktop password dialog opens for nobody to answer.
   OpenSSH reads neither of those,
-  so its own two variables name one sentence that answers nothing and names a way forward,
+  so its own two variables name the standard program that answers nothing (`SSH_ASKPASS=false`)
    and send every question to it (`SSH_ASKPASS_REQUIRE=force`),
    which reaches the questions OpenSSH asks at a terminal as well,
   and a command typed at a terminal gets the same four variables as one whose process has no controlling terminal,
   because no command the wrapper runs or forwards asks a person for a credential.
-  The sentence is not a program: it cannot start,
-  and OpenSSH prints its own line about that with the sentence inside it,
-   `ssh_askpass: exec(monochromatic-git-policy-cli: …): File name too long`,
-  above its refusal.
-  A typed `git clone` or `git fetch` at an unknown host key,
-   or at a key whose passphrase nothing can supply,
-  therefore reads that line and then acts on it,
-  and the same line prints on a command that succeeds when the question was about adding a key to an agent
-   (`AddKeysToAgent=ask`) or about a key skipped for one that works,
-  which the sentence's own words say
-  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+  The value has to be a program OpenSSH can start:
+  a value it cannot start makes the failing child kill the connection's `ProxyCommand`,
+  so a connection that ended 0 without one ends 255 with it.
+  The wrapper adds no words of its own where a question was asked,
+  so this release names no next step at a new host key;
+  how such a text reaches a person is the project's next choice.
   An SSH key whose passphrase no agent holds therefore fails at once,
   at a terminal or without one,
    while a key without a passphrase needs no agent at all,
@@ -6382,7 +6405,9 @@ is in
   no privilege and no load) and requires that the step is stopped,
   named with its class,
   and that the repository recovers.
-  The control reports a skip and checks nothing on a host without `strace`.
+  The control fails with both ways forward on a run without `strace`,
+  and names itself and passes only when that run states the absence is known
+  (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`).
 - A process killed at any instruction elsewhere:
   the worktree-copy and merge flows are killed at their phase markers
   (`binary_merge_isolation_tests.rs`,
@@ -6865,6 +6890,24 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and the same filters select the btrfs controls,
   which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
   which the task does not set.
+- The controls that need `strace` follow the same rule,
+  under `CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`:
+  the budget,
+  fault,
+  child-bound,
+  file-trace and stop-lock controls run a command or a service under the tracer,
+  so a run without it fails each of them with both ways forward,
+  and a run that states the absence is known gets one line per control that did not run
+  (`STRACE CONTROL NOT RUN: <control> (...)`).
+  Nothing in this repository sets that acknowledgement,
+  because the gate image installs `strace`
+  (`native-test-base.Containerfile`)
+  and every host task runs where it is installed;
+  an image or a machine that loses the tracer is red rather than green with every traced control unchecked.
+  One function serves every site
+  (`strace_available_or_acknowledged` of
+  `src/native/testing/strace_the_controls_run_under.rs`),
+  so no list of control names has to stay current.
 - The controls that prove the upload against the real `git-lfs` run in the gate,
   which is why the image installs the program
   (`doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`):
@@ -7545,12 +7588,14 @@ The wrapper adds the same four variables to every command it forwards
 (`no_prompt_overlay` and `invocation_overlay` in `src/native/invocation/child_environment.rs`),
 with or without a controlling terminal:
 the owner's answer of 2026-11-19T16:58:00-05:00 is that no command the wrapper runs or forwards asks for a credential.
-The wrapper's own value is not `false`:
-it is `NO_ANSWER_SENTENCE`, one sentence that cannot start and says what a person does instead,
-so a command the wrapper runs prints OpenSSH's `ssh_askpass: exec(…)` line with that sentence in it
-before the refusal.
-The `false` above is what a test or a script names, and a test that wants the same silence keeps it:
-nothing in a test depends on that sentence's wording.
+The wrapper's own value is that same `false`,
+so a command the wrapper runs names one program that answers nothing and prints nothing.
+A sentence stood there for one release to carry the next step at a new host key,
+and it went because a value OpenSSH cannot start kills a connection through a `ProxyCommand`
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md` holds the answer,
+and the SPEC's rule for `no_prompt_overlay` names the control that holds the ending).
+This release names no next step at a new host key;
+how that text reaches a person is the project's next choice.
 A control that compares a forwarded command's environment builds the rule from those two functions
 (`forward` in `src/native/invocation/entry_tests.rs`),
 so no control depends on the terminal the runner happens to have.
@@ -7854,7 +7899,8 @@ because a release waits on that gate and its suite is what the CPUs shorten
   That reclaim is the stall the issue measured at 2026-11-24T19:20-05:00
   (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`),
   and `doc/planning/git-policy-cli-cachyos-test-containers.md`
-  ("The image build's own memory bound, measured 2026-11-24") holds the arms,
+  ("The image build's own memory bound,
+  measured 2026-11-24") holds the arms,
   the ratios and the bound's arithmetic.
   Eight GiB is 1.53 times the measured peak and inside the 20 GiB the gate's own systemd unit allows.
   The base image's own build keeps the 2 GiB default,
@@ -9215,7 +9261,7 @@ Every line ends with `at_ms=<milliseconds since the epoch>`,
 the time of its event,
 on both paths.
 The userinfo of any URL in a line,
-every path segment longer than 20 characters or carrying a percent encoding or another punctuation mark,
+every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`.
 
 The lines,

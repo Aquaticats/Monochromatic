@@ -401,6 +401,25 @@ pub mod worktree_clone_origin_cleanup;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_origin_cleanup::*;
 
+/// The settling command a state a resume meets names and this release does not have yet:
+///  its grammar and the two values a person confirms,
+///  its six reads in the design's order,
+///  its two modes over the records and the registration,
+///  and its refusal.
+/// Built ahead of the plan's order and unwired:
+/// no path from a `git` command,
+/// `doctor`,
+/// the mount handler or a boot unit
+/// calls it until the round that switches removal on adds it to the grammar.
+/// It is Linux only,
+/// like the record modes and the pool reads it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_record_settling;
+
+/// The same re-export for `worktree_clone_record_settling`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_record_settling::*;
+
 /// What one worktree-clone slot is,
 ///  read without changing anything:
 ///  a known unmounted clone,
