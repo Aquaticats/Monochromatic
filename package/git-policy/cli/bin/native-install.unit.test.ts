@@ -166,10 +166,10 @@ await describe({
       },
     }),
     it({
-      name: 'orders releases the way a rollback moves: preleases by their identifiers, and a release above its prereleases',
+      name: 'orders releases the way a rollback moves: prereleases by their identifiers, and a release above its prereleases',
       fn: async () => {
         /**
-         Pairs whose order a rollback depends on, oldest first.
+         Releases whose order a rollback depends on, oldest first.
          */
         const ascending = [
           '0.6.1-alpha.9',
@@ -183,7 +183,7 @@ await describe({
         ];
         for (let index = 0; index < (ascending.length - 1); index += 1) {
           /**
-           Each step's two releases.
+           Each step's two releases, the older then the newer.
            */
           const older = ascending[index] ?? '';
           const newer = ascending[index + 1] ?? '';
