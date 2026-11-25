@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:57:43-05:00.
+State recorded 2026-11-25T18:00:40-05:00.
 This work is incomplete and unapproved.
 
 ## Current state
@@ -35,15 +35,17 @@ The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q
 
 ## Open work
 
-- Measure controlled command durations and result arrival in wrapped and unwrapped,
-  headless and interactive sessions.
 - The user accepted result arrival beyond the nominal one-second timeout in `Q21 A`.
-- Obtain a fresh final review of the accepted design and complete evidence.
+- The final fresh Claude Sonnet acceptance review returned **READY**.
+  Its missing-measurement-file correction is fixed.
 - Present the final assembled contract for explicit shared-understanding confirmation.
 - Implement only after that confirmation.
+- Record that `mise run lint:monochromatic-lint` could not run because
+  `monochromatic-lint: command not found`;
+  the locked repository linter must not be compiled ad hoc.
+  A rendered Markdown check remains before documentation completion.
 
 ## Next step
 
-Obtain the final review,
-record its verdict,
-then request explicit shared-understanding confirmation.
+Present the assembled contract and request explicit shared-understanding confirmation.
+Implementation remains unauthorized until the user confirms.
