@@ -1258,7 +1258,13 @@ a start that waits on memory names its test and gets a command that waits for it
 the three answers merged as `ff474f29ee` (the usage prints `<file> monochromatic-git-policy-cli zfs-root <mode>` and "no release installs it yet", byte-identical to the design's block;
 `native:install` below `0.6.1-alpha.46` skips the words check, with a control that fails when the floor and the release list disagree;
 a plain worktree sharing a slot's last name moves, and the slot spelled through a link still refuses), its merged-tree check green;
-queued from that round: the usage's `(no argument)` row still sits under `zfs-root <mode>` though `zfs-root` alone is refused;
+queued from that round: the usage's `(no argument)` row still sits under `zfs-root <mode>` though `zfs-root` alone is refused,
+now briefed as `zfs-root-usage-no-argument-row-names-the-zed-start` (the row is the zedlet start, `ZEDLET_START_NAME` handed no argument);
+the per-slot claim round merged as `9179874527` (2026-11-25T14:45:54-05:00; the removal takes the add's `<slot>.claim.<n>` first and releases it last, checks on its merged tree `1bae3c5649` with only `SPEC.md` changed after);
+`strace-controls-fail-unless-the-absence-is-acknowledged` is briefed: every control needing `strace` fails without it unless the run acknowledges the absence,
+the shape of `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` (package `README.md` near line 6835), replacing `CLI_GIT_REQUIRE_STRACE`, which copied the git-lfs shape; this pick is the coordinator's, open to the owner's veto;
+at 2026-11-25T14:44 the memory test failed (stall rising, avg10 2.08 over avg60 1.29; `MemFree` plus the ARC above `c_min` 2993 MiB), so the usage round starts from a waiting command on that test and the strace round from one that also waits for the usage round's first 10 minutes;
+the old NVMe shrink runs as root unit `old-nvme-btrfs-shrink-for-swap` (metadata balance 30 of about 86 chunks by 14:39:39, then `resize 1:-66G`, then `btrfs check --readonly`), task 638;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
