@@ -197,7 +197,7 @@ struct Scene {
 }
 
 fn sweep() -> (Option<i32>, String) {
-    let out = Command::new(env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets")).output().expect("the handler starts");
+    let out = Command::new(crate::support_installed_name::installed_name("step9")).output().expect("the sweep starts under the installed name");
     return (out.status.code(), format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)));
 }
 
@@ -558,9 +558,11 @@ fn m7_two_removals() {
     make_folder(&two);
     ask(&world, &one, "11111111111111111111111111111111");
     ask(&world, &two, "22222222222222222222222222222222");
-    let binary = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
-    let first = std::thread::spawn(move || return Command::new(binary).output().expect("the first handler"));
-    let second = std::thread::spawn(move || return Command::new(binary).output().expect("the second handler"));
+    let binary = crate::support_installed_name::installed_name("step9");
+    let first_link = binary.clone();
+    let second_link = binary.clone();
+    let first = std::thread::spawn(move || return Command::new(first_link).output().expect("the first handler"));
+    let second = std::thread::spawn(move || return Command::new(second_link).output().expect("the second handler"));
     let a = first.join().expect("the first ends");
     let b = second.join().expect("the second ends");
     let said = format!("{}{}{}{}", String::from_utf8_lossy(&a.stdout), String::from_utf8_lossy(&a.stderr), String::from_utf8_lossy(&b.stdout), String::from_utf8_lossy(&b.stderr));

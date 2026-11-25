@@ -227,9 +227,9 @@ pub(super) struct Run {
 /// Run the built handler's default invocation,
 /// which is the sweep.
 pub(super) fn sweep() -> Run {
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let binary: PathBuf = crate::support_installed_name::installed_name("sweep");
     let started: Instant = Instant::now();
-    let output: Output = Command::new(binary).output().expect("the handler starts");
+    let output: Output = Command::new(binary).output().expect("the sweep starts under the installed name");
     return Run {
         status: output.status.code(),
         said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),
@@ -240,9 +240,9 @@ pub(super) fn sweep() -> Run {
 /// Run the built handler's `start-probe` mode,
 /// which writes this boot's record.
 fn start_probe() -> Run {
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let binary: PathBuf = crate::support_installed_name::installed_name("sweep");
     let started: Instant = Instant::now();
-    let output: Output = Command::new(binary).arg("start-probe").output().expect("the probe mode starts");
+    let output: Output = Command::new(binary).args(crate::support_installed_name::root_mode_words()).arg("start-probe").output().expect("the probe mode starts");
     return Run {
         status: output.status.code(),
         said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),
@@ -872,10 +872,10 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let stale_clone: String = String::from(stale_fields[1]);
     let stale_slot: String = String::from(stale_fields[2].trim_start_matches("slot="));
     let stale_slot_folder: PathBuf = stale_checkout.join(".claude").join("worktrees").join(stale_slot.as_str());
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let binary: PathBuf = crate::support_installed_name::installed_name("sweep");
 
     // The flags removed in place: the mount keeps its number, so only a fresh read sees the cleared flags.
-    let running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    let running: std::process::Child = Command::new(binary.clone()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
     std::thread::sleep(Duration::from_millis(400));
     command_ok("mount", &["-o", "remount,bind,suid,dev", stale_slot_folder.display().to_string().as_str()]);
     let flags_output: Output = running.wait_with_output().expect("the stale sweep ends");
@@ -898,7 +898,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
         let restored_line: &str = line_about(restored.said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the clone");
         assert!(restored_line.starts_with("attached "), "attempt {attempt} starts from this clone's mount standing at the slot: {restored_line}");
         let old_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
-        let replaced_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+        let replaced_running: std::process::Child = Command::new(binary.clone()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
         std::thread::sleep(Duration::from_millis(400));
         unmount_at(stale_slot_folder.as_path());
         command_ok("mount", &["-t", "tmpfs", "stale-bystander", stale_slot_folder.display().to_string().as_str()]);

@@ -12,7 +12,7 @@
 //! expect(remaining(start, start)).toBeGreaterThan(0); expect(deadlinePassed(start, start + PROBE_DEADLINE)).toBe(true);
 //! ```
 
-use super::{PROBE_DEADLINE, PROBE_DEADLINE_MARGIN, deadline_from_words, deadline_passed, remaining};
+use super::{PROBE_DEADLINE, PROBE_DEADLINE_MARGIN, deadline_from_words, deadline_passed, remaining, the_bound};
 use std::time::{Duration, Instant};
 
 /// A just-started run has time left,
@@ -43,4 +43,13 @@ fn the_test_only_deadline_is_a_positive_number() {
     assert_eq!(deadline_from_words(Some("900000")), std::time::Duration::from_millis(900000));
     assert_eq!(deadline_from_words(Some("0")), PROBE_DEADLINE);
     assert_eq!(deadline_from_words(Some("soon")), PROBE_DEADLINE);
+}
+
+/// A build the release ships uses the shipped bound,
+/// whatever the environment says,
+/// because the variable's read sits behind the feature a control's build turns
+/// on.
+#[test]
+fn the_shipped_bound_is_what_this_build_uses() {
+    assert_eq!(the_bound(), PROBE_DEADLINE, "the release's probe path is the shipped bound; only `--features start-probe-raised-deadline` reads the variable");
 }

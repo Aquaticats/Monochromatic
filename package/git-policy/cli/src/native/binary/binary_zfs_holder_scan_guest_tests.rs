@@ -287,8 +287,8 @@ struct Run {
 
 /// Run the built handler once with the given words.
 fn handler(arguments: &[&str]) -> Run {
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
-    let output: Output = Command::new(binary).args(arguments).output().expect("the handler starts");
+    let binary: PathBuf = crate::support_installed_name::installed_name("holder-scan");
+    let output: Output = Command::new(binary).args(crate::support_installed_name::root_mode_words()).args(arguments).output().expect("the mode starts under the installed name");
     return Run {
         status: output.status.code(),
         said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),
@@ -889,10 +889,12 @@ fn reduced_capability_scan(clone: &str, sbin: &str) -> Option<HolderScan> {
     if !available {
         return None;
     }
-    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let binary: PathBuf = crate::support_installed_name::installed_name("holder-scan");
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
     let output: Output = Command::new("setpriv")
-        .args(["--bounding-set=-sys_ptrace", binary, "holder-scan", "--dataset", clone])
+        .args(["--bounding-set=-sys_ptrace", binary.display().to_string().as_str()])
+        .args(crate::support_installed_name::root_mode_words())
+        .args(["holder-scan", "--dataset", clone])
         .env("PATH", path)
         .env("LD_LIBRARY_PATH", format!("{}/lib", sbin.trim_end_matches("/sbin")))
         .output()

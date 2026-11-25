@@ -569,9 +569,9 @@ fn describe_chain_refusal(refusal: &crate::subvolume::fs_beneath_walk_chain::Cha
 /// ```
 fn create_and_open(parent: &std::fs::File, name: &std::ffi::OsStr) -> Result<std::fs::File, String> {
     rustix::fs::mkdirat(parent, name, rustix::fs::Mode::from_bits_truncate(0o755)).map_err(|error| return format!("the last component could not be created: {error}"))?;
-    rustix::fs::openat(parent, name, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+    return rustix::fs::openat(parent, name, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
         .map(std::fs::File::from)
-        .map_err(|error| return format!("the folder could not be reopened: {error}"))
+        .map_err(|error| return format!("the folder could not be reopened: {error}"));
 }
 
 /// The components of a mountpoint below a checkout,

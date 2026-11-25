@@ -57,9 +57,10 @@ fn the_configuration_path_is_the_designed_one() {
 #[test]
 fn the_checkout_record_path_is_beside_the_slot_identities() {
     assert_eq!(CHECKOUT_RECORD_PATH, "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json");
-    let folder: &str = CHECKOUT_RECORD_PATH.rsplit_once('/').map(|(folder, _file)| folder).unwrap_or_default();
+    let record_folder: &str = CHECKOUT_RECORD_PATH.rsplit_once('/').map(|(kept, _file)| return kept).unwrap_or_default();
     let slots: &str = crate::worktree_clone_mount::SLOT_IDENTITY_STORE_PATH;
-    assert_eq!(slots.rsplit_once('/').map(|(folder, _name)| folder), Some(folder), "the record and the slot identities live in one root-owned folder");
+    let slots_folder: Option<&str> = slots.rsplit_once('/').map(|(kept, _name)| return kept);
+    assert_eq!(slots_folder, Some(record_folder), "the record and the slot identities live in one root-owned folder");
 }
 
 /// The words are the program's own word and the group word,

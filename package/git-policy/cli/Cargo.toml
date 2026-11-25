@@ -27,6 +27,12 @@ homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/git-po
 name = "git_policy_cli"
 path = "src/native/lib.rs"
 
+# The release holds this one executable (the owner, 2026-11-23: "One program only, ever"), and the ZFS route's root
+# modes are modes of it: one root-owned regular file under the ZED history event's own name is installed for root, and
+# every mode is reached through the words `monochromatic-git-policy-cli zfs-root <mode>`
+# (doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md).
+# cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate, and `bin/native-release-bins.unit.test.ts`
+# holds the four lists that count the executables together.
 # The artifact is deliberately not named `git`: a `target/*/git` or a tool `bin/git` on PATH would shadow Git by accident.
 # The repository's mise tool entry links it as `git` in a per-worktree directory after installing it.
 # The resident commit service (doc/planning/cli-git-resident-service.md) is a mode of this executable,
@@ -36,22 +42,11 @@ path = "src/native/lib.rs"
 name = "monochromatic-git-policy-cli"
 path = "src/native/main.rs"
 
-# The root-run mount handler of the ZFS worktree route: the resident clone-mount sweep the ZED event calls,
-# and the boot, shutdown and parent-adoption modes of the same program
-# (doc/decision/cli-git-zfs-worktree-design.md; doc/planning/cli-git-zfs-worktree-implementation-plan.md, step 5).
-# It is installed twice, at /usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets for service
-# calls and at /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets for ZED events, and it is never named `git`.
-# cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate, so one archive carries both executables and
-# `bin/native-release-bins.unit.test.ts` holds the four lists that count them together.
-[[bin]]
-name = "mount-git-worktree-clone-datasets"
-path = "src/native/mount_git_worktree_clone_datasets/main.rs"
-
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
 # but this repository tags each crate's release monochromatic-git-policy-cli-v<version> and names the archive
 # monochromatic-git-policy-cli-<version>-<target>, so without this table mise falls back to compiling from source.
 # Only Linux archives are released, and only for the GNU targets; any other target compiles from source.
-# `bin-dir` names each declared `[[bin]]` through `{ bin }`, so one archive entry unpacks both executables.
+# `bin-dir` names each declared `[[bin]]` through `{ bin }`, so one archive entry unpacks the one executable.
 # doc/troubleshooting/mise-cargo-binstall-falls-back-to-compiling.md has the evidence.
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
@@ -73,6 +68,12 @@ path = "src/native/candidate/candidate_consumer_tests.rs"
 # no setting can reach a route the shipped code does not take.
 [features]
 measurement-routes = []
+# The start probe's deadline variable (`CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS`) is compiled out of the release,
+# because a variable that can raise the bound turns a missed deadline into a pass and a unit's `Environment=` line can
+# set one. The one control whose point is a step that finishes after the shipped bound builds this feature, so the
+# release and the control are told apart by the manifest and never by a variable
+# (doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md, choice 11).
+start-probe-raised-deadline = []
 
 [dependencies]
 # The handler's typed /dev/zfs requests, and the ABI gate both programs run before their first ioctl, are this

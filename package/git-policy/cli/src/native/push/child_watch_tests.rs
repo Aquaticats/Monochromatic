@@ -997,6 +997,7 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
     )
     .expect("the step");
     // The test binary is the program this process was started as (the test harness starts it by its path).
+    #[allow(clippy::disallowed_methods, reason = "identification only: the test binary is the program this process was started as, and the helper runs one test of it again")]
     let test_binary: PathBuf = PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
     let mut running = Command::new(test_binary)
         .args(["--exact", "push::child_watch::tests::left_running_helper", "--nocapture"])

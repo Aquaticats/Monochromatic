@@ -372,10 +372,10 @@ pub fn run_with(places: &RecordCheckoutPlaces<'_>, request: &RecordCheckoutReque
     let checkout: PathBuf = request.checkout.clone();
     let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), places.mounted).map_err(RecordCheckoutFailure::Configuration)?;
     let mount: CheckoutMount = places.mounts.mount_holding(checkout.as_path()).map_err(RecordCheckoutFailure::Mount)?;
-    let Some(dataset) = mount.dataset() else {
+    let Some(mounted_dataset) = mount.dataset() else {
         return Err(RecordCheckoutFailure::NotOnZfs { checkout, filesystem_type: mount.filesystem_type });
     };
-    let dataset: String = String::from(dataset);
+    let dataset: String = String::from(mounted_dataset);
     if !the_checkout_is_the_mounts_root(checkout.as_path(), &mount) {
         return Err(RecordCheckoutFailure::NotAMountPoint {
             checkout,
@@ -621,15 +621,22 @@ fn is_inside(inner: &str, outer: &str) -> bool {
 /// it could not be read,
 /// or it is not the record's shape.
 pub(super) fn read_record(path: &Path) -> Result<Option<RecordedCheckout>, RecordCheckoutFailure> {
+    // The folder a record stands in decides whether the record is the one this
+    // route wrote, so it answers before the file is read:
+    // a record another account could replace in its own folder is no record.
+    match path.parent() {
+        Some(folder) if folder.exists() => check_the_record_folder(folder)?,
+        _ => {}
+    }
     let text: Option<String> = match read_file_only_root_may_write(path) {
         Ok(text) => text,
         Err(refusal @ FileControlRefusal::Open { .. }) => return Err(RecordCheckoutFailure::RecordUnreadable { path: path.to_path_buf(), reason: refusal.reason() }),
         Err(refusal) => return Err(RecordCheckoutFailure::RecordUnreadable { path: path.to_path_buf(), reason: refusal.reason() }),
     };
-    let Some(text) = text else {
+    let Some(record_text) = text else {
         return Ok(None);
     };
-    let document: serde_json::Value = serde_json::from_str(text.as_str()).map_err(|error| return RecordCheckoutFailure::RecordUnreadable { path: path.to_path_buf(), reason: format!("it is not JSON ({error})") })?;
+    let document: serde_json::Value = serde_json::from_str(record_text.as_str()).map_err(|error| return RecordCheckoutFailure::RecordUnreadable { path: path.to_path_buf(), reason: format!("it is not JSON ({error})") })?;
     let Some(object) = document.as_object() else {
         return Err(RecordCheckoutFailure::RecordUnreadable { path: path.to_path_buf(), reason: String::from("it is not a JSON object") });
     };
@@ -669,15 +676,16 @@ pub(super) fn read_record(path: &Path) -> Result<Option<RecordedCheckout>, Recor
 fn write_record(path: &Path, proved: &RecordedCheckout) -> Result<(), RecordCheckoutFailure> {
     let folder: PathBuf = path.parent().map_or(PathBuf::from("/"), |parent| return parent.to_path_buf());
     make_the_record_folder(folder.as_path())?;
-    let document: String = serde_json::to_string_pretty(&serde_json::json!({
+    #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
+    let object: serde_json::Value = serde_json::json!({
         "version": proved.version,
         "checkout": proved.checkout.display().to_string(),
         "dataset": proved.dataset,
         "guid": proved.guid,
         "container": proved.container,
         "pool": proved.pool,
-    }))
-    .map_err(|error| return RecordCheckoutFailure::RecordUnwritable { path: path.to_path_buf(), reason: error.to_string() })?;
+    });
+    let document: String = format!("{object:#}\n");
     let held: std::fs::File = crate::foundation::entries_of_one_open_folder::open_folder(folder.as_path()).map_err(|error| return RecordCheckoutFailure::RecordUnwritable { path: path.to_path_buf(), reason: error.to_string() })?;
     let writing: std::fs::File = match rustix::fs::openat(&held, WRITING_NAME, rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::CREATE | rustix::fs::OFlags::EXCL | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::from_bits_truncate(RECORD_MODE)) {
         Ok(opened) => std::fs::File::from(opened),
@@ -727,6 +735,27 @@ fn make_the_record_folder(folder: &Path) -> Result<(), RecordCheckoutFailure> {
         std::fs::create_dir_all(folder).map_err(|error| return RecordCheckoutFailure::RecordUnwritable { path: folder.to_path_buf(), reason: error.to_string() })?;
         let _moded = rustix::fs::chmod(folder, rustix::fs::Mode::from_bits_truncate(RECORD_FOLDER_MODE));
     }
+    return check_the_record_folder(folder);
+}
+
+/// What:
+///  Refuse the record's folder when it is not this program's account's or
+///  when another account could write it.
+/// Why:
+///  The record decides which checkout the route places a mount under,
+///  so the folder it stands in is part of the proof,
+///  and a folder another account could add a file to would let that account
+///  answer for the route.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// checkTheRecordFolder('/var/lib/monochromatic-git-policy-cli');
+/// ```
+///
+/// # Errors
+/// The folder is not this account's,
+/// or a group or other write bit is set.
+fn check_the_record_folder(folder: &Path) -> Result<(), RecordCheckoutFailure> {
     let held: std::fs::File = crate::foundation::entries_of_one_open_folder::open_folder(folder).map_err(|error| return RecordCheckoutFailure::RecordUnwritable { path: folder.to_path_buf(), reason: error.to_string() })?;
     let metadata: std::fs::Metadata = held.metadata().map_err(|error| return RecordCheckoutFailure::RecordUnwritable { path: folder.to_path_buf(), reason: error.to_string() })?;
     use std::os::unix::fs::MetadataExt;

@@ -8,12 +8,31 @@
 //! // source_guard/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// The ban on Git starting the wrapper for a hook:
-/// no entry writer,
-/// no start-name dispatch.
+/// The ban on Git starting the wrapper for a hook,
+/// and the pin of the one entry that decides what a start is.
 #[cfg(test)]
 #[path = "hook_self_invocation_tests.rs"]
 mod hook_self_invocation_tests;
+
+/// The pin of the one module that may read a start name,
+/// and the wiring assertions no text pin can see.
+#[cfg(test)]
+#[path = "root_mode_name_tests.rs"]
+mod root_mode_name_tests;
+
+/// The pin of every lint-level attribute in release code,
+/// because one such attribute can excuse a typed ban in a file no text pin
+/// covers.
+#[cfg(test)]
+#[path = "lint_attribute_tests.rs"]
+mod lint_attribute_tests;
+
+/// The pin of the typed ban's own configuration,
+/// because a level set to `allow` silences every call the ban names without
+/// changing a line of source.
+#[cfg(test)]
+#[path = "typed_ban_configuration_tests.rs"]
+mod typed_ban_configuration_tests;
 
 /// The lock inventory of the service and its support modules:
 /// a lock stands only on the inventory,
@@ -101,3 +120,63 @@ mod packaged_uses_links_tests;
 #[cfg(test)]
 #[path = "removal_command_path_writes_nothing_tests.rs"]
 mod removal_command_path_writes_nothing_tests;
+
+/// The text with every whitespace character removed,
+/// so `args_os ()` reads as `args_os()` and `clippy ::` as `clippy::`.
+///
+/// Why:
+///  A needle and a pinned anchor are about the code,
+///  and Rust's meaning does not change with the blanks between its tokens.
+pub(super) fn squeezed(text: &str) -> String {
+    return text.chars().filter(|character| { return !character.is_whitespace(); }).collect();
+}
+
+/// What:
+///  One pinned file's code text: each line as written,
+///  a line that is only a comment dropped, leading and trailing blanks trimmed.
+/// Why:
+///  The two files this reads are held to comments on their own line,
+///  which the assertion below checks,
+///  so cutting at a leading `//` is exact and no lexer decides what a line is.
+///  Every byte of every literal stays, because a module's constants and its format text are behaviour.
+pub(super) fn pinned_code_lines(source: &str, what: &str) -> Vec<String> {
+    assert_whole_line_comments_only(what, source);
+    return source.lines().map(|line| {
+        let trimmed: &str = line.trim();
+        return if trimmed.starts_with("//") { String::new() } else { String::from(trimmed) };
+    }).collect();
+}
+
+/// Every `//` in the source begins its own line,
+/// so cutting a line at the first one hides nothing,
+/// and no block comment spans lines a reader would have to reconstruct.
+pub(super) fn assert_whole_line_comments_only(what: &str, source: &str) {
+    assert!(!source.contains("/*"), "{what} holds a block comment, which no line-at-a-time reader can cut exactly");
+    for line in source.lines() {
+        if let Some(at) = line.find("//") {
+            assert!(line[..at].trim().is_empty(), "a comment starts after code in {what}, and a line-at-a-time reader would cut what follows it: {line}");
+        }
+    }
+}
+
+/// What:
+///  The release source files under `root`,
+///  as `/`-separated paths relative to it:
+///  every file the module tree reaches from a crate root through declarations
+///  that no `cfg(test)` gates.
+/// Why:
+///  A pin over a whole tree cannot be maintained file by file,
+///  so the tree's scans classify it once and every one of them reads the same
+///  list:
+///  test sidecars, binary-level controls and support that only tests compile
+///  are told apart by the declarations that reach them, never by file name,
+///  and a tree that cannot be fully classified is an error.
+pub(super) fn release_sources_in(root: &std::path::Path, roots: &[source_scan_tests::CrateRoot]) -> Result<Vec<String>, String> {
+    let mut found: Vec<String> = Vec::new();
+    for file in source_scan_tests::classified_sources(root, roots)? {
+        if !file.test_only {
+            found.push(file.path);
+        }
+    }
+    return Ok(found);
+}

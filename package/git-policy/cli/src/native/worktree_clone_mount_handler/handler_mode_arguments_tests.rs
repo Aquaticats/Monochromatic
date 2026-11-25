@@ -21,7 +21,7 @@ use super::{
 };
 use crate::worktree_clone_mount_handler::handler_install_paths::version_line;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name};
+use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -157,7 +157,7 @@ fn the_usage_names_the_modes_the_paths_and_the_device() {
     }
     assert!(text.contains(ROOT_MODE_INSTALL_PATH), "{text}");
     assert!(text.contains(&root_modes_name()), "the usage opens with the words: {text}");
-    assert!(text.contains(ZEDLET_INSTALL_PATH), "{text}");
+    assert!(text.contains(crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME), "the usage names the ZED event's own file name: {text}");
     assert!(text.contains(DEVICE_PATH), "{text}");
 }
 

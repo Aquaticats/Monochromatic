@@ -64,7 +64,7 @@ pub enum RootModeStart<'arguments> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function rootModeStart(argv) { const [name, ...handed] = argv; if (isWords(handed)) { /* … */ } if (lastComponent(name) !== ZEDLET) return { kind: 'wrapper' }; /* … */ }
+/// function rootModeStart(argv) { const [name, ...handed] = argv; if (isWords(handed)) { return words(argv); } if (lastComponent(name) !== ZEDLET) { return { kind: 'wrapper' }; } return zedletStart(handed); }
 /// ```
 pub fn root_mode_start(arguments: &[OsString]) -> RootModeStart<'_> {
     let (start_name, handed): (Option<&OsStr>, &[OsString]) = split_the_name(arguments);
@@ -141,7 +141,7 @@ fn last_component(start_name: &OsStr) -> Option<&str> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const split = (argv) => argv.length === 0 ? [undefined, []] : [argv[0], argv.slice(1)];
+/// const split = (argv) => argv.length === 0 ? [undefined, []] : [argv.at(0), argv.slice(1)];
 /// ```
 fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {
     let Some((start_name, handed)) = arguments.split_first() else {

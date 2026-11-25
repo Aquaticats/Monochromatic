@@ -26,9 +26,6 @@ use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, Mo
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
 use std::path::{Path, PathBuf};
 
-/// The recorded checkout.
-const CHECKOUT: &str = "/home/user/Monochromatic";
-
 /// The checkout's own dataset.
 const CHECKOUT_DATASET: &str = "zpcachyos/nosnap/monochromatic-git-checkout";
 
@@ -40,10 +37,6 @@ const CONTAINER_MOUNTPOINT: &str = "/var/lib/monochromatic-git-policy-cli/clones
 
 /// The nested dataset the mode places.
 const NESTED: &str = "zpcachyos/nosnap/vm-builder-output";
-
-/// The nested dataset's own mountpoint,
-/// which descends from the checkout.
-const NESTED_MOUNTPOINT: &str = "/home/user/Monochromatic/package/vm-builder/cli/output";
 
 /// The checkout's GUID,
 /// which the record holds.
@@ -148,6 +141,12 @@ impl Reply {
     }
 }
 
+/// The nested dataset's own mountpoint,
+/// which descends from the checkout.
+fn nested_mountpoint(checkout: &Path) -> PathBuf {
+    return checkout.join("package").join("vm-builder").join("cli").join("output");
+}
+
 /// A pool holding the replies the control scripts.
 struct ScriptedPool {
     /// One reply per dataset.
@@ -155,13 +154,15 @@ struct ScriptedPool {
 }
 
 impl ScriptedPool {
-    /// The three datasets a case starts from.
-    fn beside() -> ScriptedPool {
+    /// The three datasets a case starts from,
+    /// with the checkout mounted at the fixture's own checkout folder.
+    fn beside(checkout: &Path) -> ScriptedPool {
         return ScriptedPool {
             replies: vec![
-                Reply::of(CHECKOUT_DATASET, CHECKOUT_GUID, CHECKOUT),
+                Reply::of(CHECKOUT_DATASET, CHECKOUT_GUID, checkout.display().to_string().as_str()),
                 Reply::of(CONTAINER, 77, CONTAINER_MOUNTPOINT),
-                Reply::of(NESTED, 88, NESTED_MOUNTPOINT),
+                Reply::of(NESTED, 88, nested_mountpoint(checkout).display().to_string().as_str()),
+                Reply::of("zpcachyos", 5, "/"),
             ],
         };
     }
@@ -194,8 +195,8 @@ struct ScriptedTable {
 
 impl ScriptedTable {
     /// The table of a boot whose checkout is mounted.
-    fn checkout_mounted() -> ScriptedTable {
-        return ScriptedTable { rows: vec![MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") }] };
+    fn checkout_mounted(checkout: &Path) -> ScriptedTable {
+        return ScriptedTable { rows: vec![MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: checkout.to_path_buf(), root: PathBuf::from("/") }] };
     }
 }
 
@@ -216,15 +217,22 @@ struct Fixture {
 }
 
 impl Fixture {
-    /// A fixture with a record the kernel agrees with.
+    /// A fixture with a record the kernel agrees with,
+    /// whose checkout is a folder inside it.
     fn new(name: &str) -> Fixture {
         let folder: PathBuf = crate::test_support::fixture(format!("mount-descendant-{name}").as_str());
-        let _created: std::io::Result<()> = std::fs::create_dir_all(folder.as_path());
+        let _checkout: std::io::Result<()> = std::fs::create_dir_all(folder.join("checkout"));
         let record: String = format!(
-            "{{\n  \"version\": 1,\n  \"checkout\": \"{CHECKOUT}\",\n  \"dataset\": \"{CHECKOUT_DATASET}\",\n  \"guid\": \"{CHECKOUT_GUID}\",\n  \"container\": \"{CONTAINER}\",\n  \"pool\": \"zpcachyos\"\n}}\n"
+            "{{\n  \"version\": 1,\n  \"checkout\": \"{}\",\n  \"dataset\": \"{CHECKOUT_DATASET}\",\n  \"guid\": \"{CHECKOUT_GUID}\",\n  \"container\": \"{CONTAINER}\",\n  \"pool\": \"zpcachyos\"\n}}\n",
+            folder.join("checkout").display()
         );
         std::fs::write(folder.join("git-worktree-clone-checkout.json"), record).expect("the fixture record");
         return Fixture { folder };
+    }
+
+    /// The recorded checkout.
+    fn checkout(&self) -> PathBuf {
+        return self.folder.join("checkout");
     }
 
     /// The record's path.
@@ -248,8 +256,8 @@ fn plan(fixture: &Fixture, pool: &ScriptedPool, table: &ScriptedTable, running_a
 #[test]
 fn a_caller_that_is_not_root_is_refused_first() {
     let fixture: Fixture = Fixture::new("not-root");
-    let pool: ScriptedPool = ScriptedPool::beside();
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, false).expect_err("an account may not mount inside a served checkout");
     assert_eq!(failure, MountPathDescendantFailure::NotRoot { effective_user: 1_000 });
     assert!(failure.message().contains("mount-path-descendant"), "the refusal names the mode: {}", failure.message());
@@ -261,8 +269,8 @@ fn a_caller_that_is_not_root_is_refused_first() {
 fn no_record_refuses_before_any_dataset_is_read() {
     let fixture: Fixture = Fixture::new("no-record");
     std::fs::remove_file(fixture.record()).expect("the fixture starts without a record");
-    let pool: ScriptedPool = ScriptedPool::beside();
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("no record stands");
     assert_eq!(failure, MountPathDescendantFailure::NoRecordedCheckout { record: fixture.record() });
     assert!(failure.message().contains("no-recorded-checkout"), "{}", failure.message());
@@ -273,9 +281,9 @@ fn no_record_refuses_before_any_dataset_is_read() {
 #[test]
 fn a_record_whose_guid_moved_refuses_and_names_the_replace() {
     let fixture: Fixture = Fixture::new("guid");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     pool.edit(CHECKOUT_DATASET).guid = CHECKOUT_GUID + 1;
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the record is stale");
     let MountPathDescendantFailure::RecordNoLongerMatches { field, .. } = &failure else {
         panic!("a moved GUID is the field that differs: {failure:?}");
@@ -290,9 +298,9 @@ fn a_record_whose_guid_moved_refuses_and_names_the_replace() {
 #[test]
 fn a_record_whose_mountpoint_moved_refuses() {
     let fixture: Fixture = Fixture::new("mountpoint");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     pool.edit(CHECKOUT_DATASET).mountpoint = String::from("/home/user/elsewhere");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the record is stale");
     let MountPathDescendantFailure::RecordNoLongerMatches { field, .. } = &failure else {
         panic!("a moved mountpoint is the field that differs: {failure:?}");
@@ -304,9 +312,9 @@ fn a_record_whose_mountpoint_moved_refuses() {
 #[test]
 fn a_container_that_moved_inside_the_checkout_refuses() {
     let fixture: Fixture = Fixture::new("container");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
-    pool.edit(CONTAINER).mountpoint = String::from("/home/user/Monochromatic/clones");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    pool.edit(CONTAINER).mountpoint = fixture.checkout().join("clones").display().to_string();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the container is inside the checkout");
     let MountPathDescendantFailure::RecordNoLongerMatches { field, .. } = &failure else {
         panic!("a moved container is the field that differs: {failure:?}");
@@ -319,7 +327,7 @@ fn a_container_that_moved_inside_the_checkout_refuses() {
 #[test]
 fn a_checkout_that_is_not_mounted_refuses() {
     let fixture: Fixture = Fixture::new("unmounted");
-    let pool: ScriptedPool = ScriptedPool::beside();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     let table: ScriptedTable = ScriptedTable { rows: Vec::new() };
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the checkout is not mounted");
     assert!(matches!(failure, MountPathDescendantFailure::CheckoutNotMounted { .. }), "{failure:?}");
@@ -330,8 +338,8 @@ fn a_checkout_that_is_not_mounted_refuses() {
 #[test]
 fn the_checkouts_own_dataset_is_refused() {
     let fixture: Fixture = Fixture::new("own-dataset");
-    let pool: ScriptedPool = ScriptedPool::beside();
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let places: MountPlaces<'_> = MountPlaces { record: fixture.record(), configuration: fixture.folder.join("configuration.jsonc"), datasets: &pool, mounted: &table };
     let own: MountPathDescendantRequest = MountPathDescendantRequest { dataset: String::from(CHECKOUT_DATASET) };
     let failure: MountPathDescendantFailure = plan_with(&places, &own, true, 1_000).expect_err("the checkout is not placed by this mode");
@@ -342,11 +350,11 @@ fn the_checkouts_own_dataset_is_refused() {
 #[test]
 fn a_dataset_in_another_pool_refuses() {
     let fixture: Fixture = Fixture::new("pool");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
-    let mut other: Reply = Reply::of("tank/nosnap/vm-builder-output", 99, NESTED_MOUNTPOINT);
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let mut other: Reply = Reply::of("tank/nosnap/vm-builder-output", 99, nested_mountpoint(fixture.checkout().as_path()).display().to_string().as_str());
     other.name = String::from("tank/nosnap/vm-builder-output");
     pool.replies.push(other);
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let places: MountPlaces<'_> = MountPlaces { record: fixture.record(), configuration: fixture.folder.join("configuration.jsonc"), datasets: &pool, mounted: &table };
     let foreign: MountPathDescendantRequest = MountPathDescendantRequest { dataset: String::from("tank/nosnap/vm-builder-output") };
     let failure: MountPathDescendantFailure = plan_with(&places, &foreign, true, 1_000).expect_err("another pool's subtree may not sit inside a served checkout");
@@ -358,9 +366,9 @@ fn a_dataset_in_another_pool_refuses() {
 #[test]
 fn a_dataset_without_a_mountpoint_refuses() {
     let fixture: Fixture = Fixture::new("no-mountpoint");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     for value in ["none", "-", "legacy"] {
-        let mut pool: ScriptedPool = ScriptedPool::beside();
+        let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
         pool.edit(NESTED).mountpoint = String::from(value);
         let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("no mountpoint is no mountpoint to place");
         assert!(matches!(failure, MountPathDescendantFailure::DatasetWithoutAMountpoint { .. }), "{value}: {failure:?}");
@@ -371,10 +379,10 @@ fn a_dataset_without_a_mountpoint_refuses() {
 #[test]
 fn a_mountpoint_outside_the_checkout_refuses() {
     let fixture: Fixture = Fixture::new("outside");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
-    for value in ["/home/user/elsewhere/output", "/home/user", CHECKOUT] {
-        let mut pool: ScriptedPool = ScriptedPool::beside();
-        pool.edit(NESTED).mountpoint = String::from(value);
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
+    for value in [String::from("/home/user/elsewhere/output"), String::from("/home/user"), fixture.checkout().display().to_string()] {
+        let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+        pool.edit(NESTED).mountpoint = value.clone();
         let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the mountpoint does not descend from the checkout");
         assert!(matches!(failure, MountPathDescendantFailure::DatasetOutsideTheCheckout { .. }), "{value}: {failure:?}");
         assert!(failure.message().contains(NESTED), "the refusal names the dataset: {}", failure.message());
@@ -387,26 +395,27 @@ fn a_mountpoint_outside_the_checkout_refuses() {
 #[test]
 fn a_dataset_already_mounted_at_its_own_mountpoint_answers() {
     let fixture: Fixture = Fixture::new("already");
-    let pool: ScriptedPool = ScriptedPool::beside();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     let table: ScriptedTable = ScriptedTable {
         rows: vec![
-            MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") },
-            MountedDatasetInstance { dataset: String::from(NESTED), mount_point: PathBuf::from(NESTED_MOUNTPOINT), root: PathBuf::from("/") },
+            MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: fixture.checkout(), root: PathBuf::from("/") },
+            MountedDatasetInstance { dataset: String::from(NESTED), mount_point: PathBuf::from(nested_mountpoint(fixture.checkout().as_path()).display().to_string().as_str()), root: PathBuf::from("/") },
         ],
     };
     let answer: Answer = plan(&fixture, &pool, &table, true).expect("the dataset stands where it belongs");
-    assert_eq!(answer, Answer::AlreadyMountedAtItsOwnMountpoint { dataset: String::from(NESTED), mountpoint: PathBuf::from(NESTED_MOUNTPOINT) });
-    assert_eq!(super::already_mounted_line(NESTED, Path::new(NESTED_MOUNTPOINT)), format!("already mounted: {NESTED} at {NESTED_MOUNTPOINT}"));
+    let mountpoint: PathBuf = nested_mountpoint(fixture.checkout().as_path());
+    assert_eq!(answer, Answer::AlreadyMountedAtItsOwnMountpoint { dataset: String::from(NESTED), mountpoint: mountpoint.clone() });
+    assert_eq!(super::already_mounted_line(NESTED, mountpoint.as_path()), format!("already mounted: {NESTED} at {}", mountpoint.display()));
 }
 
 /// A dataset the kernel has mounted somewhere else refuses.
 #[test]
 fn a_dataset_mounted_elsewhere_refuses() {
     let fixture: Fixture = Fixture::new("elsewhere");
-    let pool: ScriptedPool = ScriptedPool::beside();
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     let table: ScriptedTable = ScriptedTable {
         rows: vec![
-            MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") },
+            MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: fixture.checkout(), root: PathBuf::from("/") },
             MountedDatasetInstance { dataset: String::from(NESTED), mount_point: PathBuf::from("/media/other"), root: PathBuf::from("/") },
         ],
     };
@@ -420,7 +429,7 @@ fn a_dataset_mounted_elsewhere_refuses() {
 #[test]
 fn the_properties_an_explicit_mount_refuses_are_refused() {
     let fixture: Fixture = Fixture::new("unmountable");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     for (edit, property) in [
         (Box::new(|reply: &mut Reply| reply.canmount = String::from("off")) as Box<dyn Fn(&mut Reply)>,
          CANMOUNT_PROPERTY),
@@ -434,7 +443,7 @@ fn the_properties_an_explicit_mount_refuses_are_refused() {
             INCONSISTENT_PROPERTY,
         ),
     ] {
-        let mut pool: ScriptedPool = ScriptedPool::beside();
+        let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
         edit(pool.edit(NESTED));
         let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the dataset refuses an explicit mount");
         let MountPathDescendantFailure::DatasetNotMountable { property: named, .. } = &failure else {
@@ -449,10 +458,10 @@ fn the_properties_an_explicit_mount_refuses_are_refused() {
 #[test]
 fn an_encrypted_dataset_without_its_key_refuses() {
     let fixture: Fixture = Fixture::new("key");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     pool.edit(NESTED).encryption = String::from("aes-256-gcm");
     pool.edit(NESTED).keystatus = String::from("unavailable");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, true).expect_err("the key is not loaded");
     assert!(matches!(failure, MountPathDescendantFailure::EncryptionKeyNotLoaded { .. }), "{failure:?}");
     assert!(failure.message().contains("encryption-key-not-loaded"), "{}", failure.message());
@@ -464,12 +473,12 @@ fn an_encrypted_dataset_without_its_key_refuses() {
 #[test]
 fn a_mountpoint_that_holds_something_refuses() {
     let fixture: Fixture = Fixture::new("not-empty");
-    let pool: ScriptedPool = ScriptedPool::beside();
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
-    let folder: PathBuf = fixture.folder.join("output");
+    let pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
+    let folder: PathBuf = nested_mountpoint(fixture.checkout().as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the fixture mountpoint");
     std::fs::write(folder.join("a-file"), "held\n").expect("the fixture holds a file");
-    let mut pool_with_output: ScriptedPool = ScriptedPool::beside();
+    let mut pool_with_output: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
     pool_with_output.edit(NESTED).mountpoint = folder.display().to_string();
     let failure: MountPathDescendantFailure = plan(&fixture, &pool_with_output, &table, true).expect_err("the mountpoint holds a file and the dataset does not overlay");
     assert!(matches!(failure, MountPathDescendantFailure::MountpointNotEmpty { .. }), "{failure:?}");
@@ -483,17 +492,17 @@ fn a_mountpoint_that_holds_something_refuses() {
 #[test]
 fn every_proof_that_holds_answers_a_plan_with_the_datasets_attributes() {
     let fixture: Fixture = Fixture::new("plan");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
-    let folder: PathBuf = fixture.folder.join("output");
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let folder: PathBuf = nested_mountpoint(fixture.checkout().as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the fixture mountpoint");
     pool.edit(NESTED).mountpoint = folder.display().to_string();
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let answer: Answer = plan(&fixture, &pool, &table, true).expect("every proof answered");
     let Answer::Plan(plan) = answer else {
         panic!("a checkout mounted and a dataset not yet mounted answers a plan");
     };
     assert_eq!(plan.dataset, NESTED);
-    assert_eq!(plan.checkout, PathBuf::from(CHECKOUT));
+    assert_eq!(plan.checkout, fixture.checkout());
     assert_eq!(plan.mountpoint, folder);
     assert_eq!(plan.attributes & libc::MOUNT_ATTR_NOATIME, libc::MOUNT_ATTR_NOATIME, "`atime=off` resolves to `noatime`");
     assert_eq!(plan.attributes & libc::MOUNT_ATTR_RDONLY, 0, "a writable dataset in a writable pool is not read-only");
@@ -505,14 +514,12 @@ fn every_proof_that_holds_answers_a_plan_with_the_datasets_attributes() {
 #[test]
 fn a_read_only_pool_resolves_to_a_read_only_mount() {
     let fixture: Fixture = Fixture::new("readonly");
-    let mut pool: ScriptedPool = ScriptedPool::beside();
-    let folder: PathBuf = fixture.folder.join("output");
+    let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
+    let folder: PathBuf = nested_mountpoint(fixture.checkout().as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the fixture mountpoint");
     pool.edit(NESTED).mountpoint = folder.display().to_string();
-    let mut zpool: Reply = Reply::of("zpcachyos", 5, "/");
-    zpool.readonly = String::from("on");
-    pool.replies.push(zpool);
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    pool.edit("zpcachyos").readonly = String::from("on");
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let answer: Answer = plan(&fixture, &pool, &table, true).expect("every proof answered");
     let Answer::Plan(plan) = answer else {
         panic!("a proved state answers a plan");
@@ -526,11 +533,11 @@ fn a_read_only_pool_resolves_to_a_read_only_mount() {
 #[test]
 fn the_atime_pairs_resolve_to_the_attributes_upstream_derives() {
     let fixture: Fixture = Fixture::new("atime");
-    let folder: PathBuf = fixture.folder.join("output");
+    let folder: PathBuf = nested_mountpoint(fixture.checkout().as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the fixture mountpoint");
-    let table: ScriptedTable = ScriptedTable::checkout_mounted();
+    let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     for (atime, relatime, wanted_none, wanted_strict) in [("off", "off", true, false), ("on", "on", false, false), ("on", "off", false, true)] {
-        let mut pool: ScriptedPool = ScriptedPool::beside();
+        let mut pool: ScriptedPool = ScriptedPool::beside(fixture.checkout().as_path());
         pool.edit(NESTED).mountpoint = folder.display().to_string();
         pool.edit(NESTED).atime = String::from(atime);
         pool.edit(NESTED).relatime = String::from(relatime);
