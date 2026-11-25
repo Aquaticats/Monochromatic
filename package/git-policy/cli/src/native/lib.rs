@@ -401,6 +401,23 @@ pub mod worktree_clone_origin_cleanup;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_origin_cleanup::*;
 
+/// The finish pass that removes a destruction plan whose head is `gone`,
+///  settles the Git registration it names,
+///  removes the binding's files and then the plan,
+///  and releases the slot's claim last.
+/// Plan step 16's piece,
+///  built ahead of the plan's order:
+///  no command reaches it until that step wires it in.
+/// It is Linux only,
+///  like the claim,
+/// the pool reads and the folder modes it checks.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_removal_finish_pass;
+
+/// The same re-export for `worktree_clone_removal_finish_pass`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_removal_finish_pass::*;
+
 /// The settling command a state a resume meets names and this release does not have yet:
 ///  its grammar and the two values a person confirms,
 ///  its six reads in the design's order,

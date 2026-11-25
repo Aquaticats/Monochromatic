@@ -167,10 +167,10 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 }
 
 /// What:
-///  Every slot name the folder lists and every known staging name it holds,
-///  from one listing that both checks the set and removes what a killed writer left.
+///  Every slot name the folder lists,
+///  while the same listing removes every known staging name a killed writer left.
 /// Why:
-///  The adoption needs both answers of the same instant:
+///  The adoption needs the set and the removal of the same instant:
 ///  the design's step 2 lists the folder once,
 ///  keeps every name that is a slot record,
 ///  refuses a foreign name,
@@ -181,22 +181,24 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 ///  and the listing it needs").
 ///  The removal follows the listing's own checks,
 ///  so a listing that refuses a foreign name removes nothing and leaves the staging names to the next adoption.
+///  What the removal took is logged where it goes,
+///  and no caller of this one reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { names, removed } = listAndRemoveKnownStagingEntries(folder);
+/// const names = listSlotNamesRemovingKnownStagingEntries(folder);
 /// ```
 ///
 /// # Errors
 /// Everything the listing refuses,
 /// and a removal the system refused.
-pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
+pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
     let entries: Vec<OsString> = one_listing(folder, folder_path)?;
     let names: Vec<String> = slot_names_of(folder_path, entries.as_slice())?;
-    let removed: Vec<String> = remove_staging_entries_of(folder, folder_path, entries.as_slice())?;
-    return Ok((names, removed));
+    remove_staging_entries_of(folder, folder_path, entries.as_slice())?;
+    return Ok(names);
 }
 
 /// One listing of the folder,
