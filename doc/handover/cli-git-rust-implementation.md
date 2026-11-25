@@ -388,7 +388,7 @@ the new modes' device-open failure reuses the dataset-read refusal, whose senten
 the gate on `main` at `b97c09746f` runs since 2026-11-25T05:14:00-05:00 (unit `gate-on-main-at-b97c09746f`);
 the lost guest results are issue 6458 (filed 2026-11-25; mvm's templates give `qemu-guest-agent` no out-of-memory protection, a reading, not a cause),
 and its diagnosis round `pi-mvm-long-guest-command-loses-its-result` (brief `~/temp/agent/mvm-long-guest-command-loses-its-result-2026-11-25/prompt.md`)
-starts once the memory stall stops rising (avg10 6.21 over avg60 1.97 at about 05:25);
+runs since the memory stall fell again (avg10 0.14 under avg60 3.49, after a rise to 6.21 over 1.97);
 the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees
 (`5832100ff723f37e05b7e204050d9077`, `860ac88661a0f23f1a31eb7b490f26b8`, `b10ce79fa8d9f51c7935474923718ad1`),
 which the fixed build's `service stop-units-of-removed-worktrees` clears after this batch;
