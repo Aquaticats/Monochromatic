@@ -372,7 +372,13 @@ fn coverage_passes(pool: &Pool) {
     let answer: CoverageAnswer = check_coverage(&facts(pool, "decided", &decision, text.as_str(), "decided-config"));
     assert!(matches!(answer.outcome, CheckOutcome::Pass { .. }), "{:?}", answer.outcome);
     assert!(answer.findings.is_empty(), "{:?}", fields(&answer));
-    assert_eq!(gather_tree(pool, "decided").datasets.len(), 11, "the ancestor, its child and the nine exclusions");
+    let tree: MeasuredTree = gather_tree(pool, "decided");
+    assert!(tree.dataset(decision.recursive_root.as_str()).is_some(), "the ancestor is in the tree");
+    assert!(tree.dataset(pool.dataset("decided", "ROOT/cos/home/worktrees").as_str()).is_some(), "the covered child is in the tree");
+    for exclusion in &decision.exclusions {
+        assert!(tree.dataset(exclusion.dataset.as_str()).is_some(), "{} is in the tree", exclusion.dataset);
+    }
+    assert_eq!(tree.datasets_under(decision.recursive_root.as_str()).len(), 1, "only the covered child stands under the ancestor");
     claim("coverage-passes");
 }
 
