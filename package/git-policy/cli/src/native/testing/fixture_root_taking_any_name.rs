@@ -75,6 +75,7 @@ pub(crate) fn in_a_root_taking_any_name(root: &Path, test: &str) -> bool {
         return false;
     }
     mount_a_tmpfs(root);
+    stop_gaining_capabilities_across_exec();
     assert!(
         a_name_that_is_not_utf8_can_be_made(root),
         "the control {test} mounted a tmpfs at {} because the file system there refused a name that is not UTF-8, and the \
@@ -131,4 +132,37 @@ fn mount_a_tmpfs(root: &Path) {
     // SAFETY: the three names are NUL-terminated and outlive the call, and `mount` reads no other memory of ours.
     let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, std::ptr::null()) };
     assert_eq!(mounted, 0, "a tmpfs is mounted at the fixture root {}: {}", root.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  Stop every program started from here on from gaining a capability,
+/// without taking away the ones this process already holds.
+/// Why:
+///   This process is the root of the user namespace the control was re-executed in,
+///  and the kernel gives the root of a program it starts every capability of that namespace
+///  unless the process carries `SECURE_NOROOT`:
+///  `handle_privileged_root` overwrites the permitted set with the bounding set and makes it effective
+///  (`security/commoncap.c`).
+///  A process that holds no capability is refused by the capability module before any confined profile is asked,
+///  so a profile's refusal is never logged,
+///  and the fixture's `git` reaches the hardlink check of a read-only object as an ordinary account's does
+///  (`fs/namei.c`, `safe_hardlink_source`;
+///  `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+///  the `dac_override` section).
+///  The bit is set after the tmpfs is mounted and this process keeps its own capabilities,
+///  so the fixtures this inner half goes on to make are root's and written as they were.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// syscall('prctl', PR_SET_SECUREBITS, SECBIT_NOROOT); // throws when the kernel refuses it
+/// ```
+fn stop_gaining_capabilities_across_exec() {
+    // SAFETY: `prctl` with `PR_SET_SECUREBITS` reads the integers it is given and touches no memory of ours.
+    let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_SECUREBITS, libc::SECBIT_NOROOT, 0, 0, 0) };
+    assert_eq!(
+        refused,
+        0,
+        "this inner half stops gaining capabilities across exec: {}",
+        std::io::Error::last_os_error()
+    );
 }
