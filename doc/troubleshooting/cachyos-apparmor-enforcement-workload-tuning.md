@@ -1539,8 +1539,11 @@ and the reason is measured rather than argued:
   empty:
   `CapEff: 0000000000000000`
   (`keep/repro-capabilities-of-the-gates-user.log`).
-  AppArmor's capability check runs before the kernel's own,
-  so refusing a capability the caller does not hold cannot change the caller's result:
+  The kernel's own capability check runs before AppArmor's
+  (the `capability` LSM is `LSM_ORDER_FIRST` in `security/commoncap.c`,
+  and this host's `/sys/kernel/security/lsm` reads
+  `capability,landlock,lockdown,yama,apparmor,bpf`),
+  so a caller that holds no capability never reaches AppArmor's check:
   every `capable` denial inside the gate is a log line and nothing else.
 - A grant is not free outside the gate.
   `local/git` confines this host's Git as well as the gate's,
@@ -1549,6 +1552,74 @@ and the reason is measured rather than argued:
   this machine pass every file permission check,
   for a workload no test needs.
   That is why the first batch held the line and why it stays held.
+
+### The `git` `dac_override` records are the any-name fixture's Git (issue 6459)
+
+Recorded 2026-11-25T07:55:39-05:00 by the round
+`any-name-fixture-root-git-without-capabilities`,
+on branch `fix/git-policy-cli-any-name-fixture-root-git-without-capabilities`.
+Not approved and not final.
+This corrects the attribution of the two capability families as far as the `git` one goes,
+and the ordering the batch above states for the two capability checks.
+
+The `SYSCALL` record beside each of these denials names the call:
+`syscall=86 success=yes` with `/usr/bin/git commit --quiet --allow-empty --message=initial`
+in a fixture repository under the run's fixture root,
+and its `PATH` record carries `mode=0100444` and `nametype=CREATE`.
+System call 86 is `link`,
+and Git makes it for a loose object it has just written in its object directory
+(`finalize_object_file` links the temporary file into place unless
+`core.createObject` is `rename`, and the fixture repositories set no such value).
+
+This host sets `fs.protected_hardlinks = 1`, so `may_linkat` asks
+`safe_hardlink_source` (`fs/namei.c`),
+which calls `inode_permission(idmap, inode, MAY_READ | MAY_WRITE)`.
+The file's mode is `0444`, so the owner's write bit refuses,
+and `generic_permission` asks `capable_wrt_inode_uidgid(..., CAP_DAC_OVERRIDE)`.
+That reaches `security_capable`,
+which walks the capability hooks and returns at the first refusal.
+The `capability` LSM is `LSM_ORDER_FIRST` (`security/commoncap.c`),
+and this host's `/sys/kernel/security/lsm` reads
+`capability,landlock,lockdown,yama,apparmor,bpf`,
+so an ordinary process's ask is answered by `cap_capable` and AppArmor is never consulted for it.
+That is why no record names an ordinary test's hardlink.
+
+The namespace's root is answered differently,
+and that is what makes these records.
+`handle_privileged_root` in the same file gives the root of a user namespace
+the whole bounding set in permitted and effective at every `exec`,
+so a Git started inside the any-name control's inner half holds `CAP_DAC_OVERRIDE`
+for an inode whose owner that namespace maps:
+`cap_capable` answers 0, AppArmor's `git` profile is asked next, refuses, and logs,
+and `may_linkat` then succeeds on its owner check (`inode_owner_or_capable`),
+which is why the record says `success=yes`.
+Measured inside that half on this host,
+an exec'd child starts with `CapPrm: 000001ffffffffff` and `CapEff: 000001ffffffffff`,
+and the control's `git` `link()` of each loose object returns 0
+(`keep/inner-half-before.trace`).
+
+So the `git` family is the any-name fixture's own Git and no workload outside it,
+and the fix belongs to the fixture rather than to a profile.
+Once the inner half has mounted its tmpfs it sets `SECURE_NOROOT`
+(`src/native/testing/fixture_root_taking_any_name.rs`),
+so every program it starts is given no capability of the namespace,
+while the inner half keeps its own for the root-owned fixtures it goes on to make.
+`cap_capable` then answers the hardlink's ask as it does for an ordinary account,
+no profile is consulted, no record is made, and the `link()` still returns 0
+(`keep/inner-half-after.trace`, `prctl(PR_SET_SECUREBITS, SECBIT_NOROOT) = 0`).
+A run whose fixture root already takes a name that is not UTF-8 starts no namespace,
+and the same control runs there as it always did.
+
+The control that holds the fix is
+`testing::fixture_root_taking_any_name_of_unit_tests::tests::a_program_started_from_the_any_name_root_holds_no_capability`:
+it reads a child's own `/proc/self/status` and requires an empty `CapInh`, `CapPrm`, `CapEff` and `CapAmb`.
+It was red before the bit, naming `CapPrm=0x000001ffffffffff`
+(`keep/control-red-before-the-fix.log`),
+and green after it (`keep/control-green-after-the-fix.log`),
+and the guarded controls of `commit::capture_invocation` passed after it
+(`keep/module-capture-invocation-after-the-fix.log`).
+No rule is added for this family and none is needed:
+the ask was the fixture's, and the fixture now runs as an ordinary account does.
 
 ### The tests that would pass with their program refused
 
