@@ -74,7 +74,7 @@ const EXPECTED_MARKERS = [
   'REMOVAL done',
   'REMOVAL-ARMS healthy=proved wrote=nothing',
   'REMOVAL-ARMS promoted=refused',
-  'REMOVAL-ARMS inherited-history=refused',
+  'REMOVAL-ARMS inherited-tuple=measured',
   'REMOVAL-ARMS reverse-promotion=proved',
   'REMOVAL-ARMS bookmark-live=printed',
   'REMOVAL-ARMS bookmark-stale=refused',
@@ -228,10 +228,18 @@ async function run(chosen: Options): Promise<void> {
     'fi',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/removal-lineage-build.log 2>&1',
-    'tail --lines=3 /root/removal-lineage-build.log',
+    'df --human-readable / /mnt/shared',
+    'free --mebytes',
+    // Two compiling jobs: the guest has four cores, and a linking test binary of this crate needs more than a
+    // gigabyte, so an out-of-memory kill here would look like a compile failure. The log is copied to the shared
+    // folder whatever the build answered, so a guest's death still leaves the reason on the host.
+    'if cargo build --release --tests --locked --jobs 2 > /root/removal-lineage-build.log 2>&1; then status=0; else status=$?; fi',
+    'cp /root/removal-lineage-build.log /mnt/shared/removal-lineage-build.log',
+    'tail --lines=5 /root/removal-lineage-build.log',
+    'test "$status" = 0',
   ].join('\n');
   guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/removal-lineage-build.log', join(chosen.logDir, 'removal-lineage-build.log'),], log: 'host-pull-build.log', });
   const arm = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
@@ -280,17 +288,38 @@ function destroy(chosen: Options): void {
 }
 
 /**
- Create, prepare, run and destroy, in that order.
+ Create, prepare, run and destroy, in that order, destroying even when a step refused.
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused
+ @throws Error naming the step that refused, after the guest it created is gone
  */
 async function all(chosen: Options): Promise<void> {
-  create(chosen);
-  prepare(chosen);
-  await run(chosen);
-  destroy(chosen);
+  let failure: unknown = null;
+  let created = false;
+  try {
+    create(chosen);
+    created = true;
+    prepare(chosen);
+    await run(chosen);
+  } catch (thrown) {
+    failure = thrown;
+  }
+  if (!created) {
+    console.error(`git-policy removal-lineage guest: no guest was destroyed, because this run did not create '${chosen.name}'`);
+    if (failure !== null)
+      throw failure;
+    return;
+  }
+  try {
+    destroy(chosen);
+  } catch (destruction) {
+    if (failure === null)
+      throw destruction;
+    console.error(`git-policy removal-lineage guest: destroying '${chosen.name}' also failed: ${String(destruction)}`);
+  }
+  if (failure !== null)
+    throw failure;
 }
 
 /** The steps this driver knows, and nothing else. */

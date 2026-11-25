@@ -108,7 +108,6 @@ fn wrapper_git(checkout: &Path, arguments: &[&str]) -> Output {
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .env("GIT_POLICY_NATIVE_IMAGE_TAG", "unused-in-the-guest")
         .output()
         .unwrap_or_else(|error| panic!("the wrapper `git {arguments:?}` could not start: {error}"));
 }
@@ -229,6 +228,18 @@ fn write_the_origin_inventory(place: &Place, sbin: &str) -> InventoryRecord {
     return record;
 }
 
+/// One dataset's,
+/// snapshot's or bookmark's GUID and creation transaction group,
+/// which is the tuple a promotion moves and a bookmark carries.
+fn identity_of(sbin: &str, name: &str) -> (u64, u64) {
+    let (ok, said, error): (bool, String, String) = zfs(sbin, "zfs", &["get", "-H", "-p", "-o", "value", "guid,createtxg", name], None);
+    assert!(ok, "`guid,createtxg` of `{name}` reads: {said}{error}");
+    let mut values = said.lines();
+    let guid: u64 = values.next().expect("the GUID is printed").trim().parse().expect("the GUID is a number");
+    let group: u64 = values.next().expect("the group is printed").trim().parse().expect("the group is a number");
+    return (guid, group);
+}
+
 /// The clone's current intent property,
 /// which no refusal of this release may change.
 fn the_intent_of(sbin: &str, clone: &str) -> String {
@@ -316,8 +327,11 @@ fn zfs_removal_refusal_guest() {
         registration: common.join("worktrees").join(SLOT),
     };
     publish(&place, Phase::Filled, sbin.as_str(), SLOT);
-    write_the_origin_inventory(&place, sbin.as_str());
     let origin_snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{NONCE}");
+    // The checkout's own bookmark is part of the history a removal refuses to inherit, and it is what the origin-side
+    // inventory records beside the snapshots.
+    zfs_ok(sbin.as_str(), &["bookmark", origin_snapshot.as_str(), format!("{checkout_dataset}#from-checkout").as_str()]);
+    write_the_origin_inventory(&place, sbin.as_str());
     let intent: String = the_intent_of(sbin.as_str(), clone.as_str());
     let binding: Vec<u8> = the_binding_bytes(common.as_path());
 
@@ -348,14 +362,20 @@ fn zfs_removal_refusal_guest() {
     assert_eq!(the_plan_folder_holds(common.as_path()), 0);
     println!("REMOVAL-ARMS promoted=refused cause=origin-is-not-the-recorded-one protected=survived");
 
-    // Arm 3: a bookmark of the transferred snapshot a promotion left on the clone carries the origin's tuple, and the
-    // clone's transferred snapshots are older than the clone itself.
+    // Arm 3: the promotion left the origin snapshot's own tuple under the clone, and a bookmark made from it carries that
+    // tuple unchanged, which is item 13's measurement and what the host controls refuse as inherited history.
     let transferred: String = format!("{clone}@{ORIGIN_PREFIX}{NONCE}");
+    let (transferred_guid, transferred_group): (u64, u64) = identity_of(sbin.as_str(), transferred.as_str());
+    let (origin_guid, origin_group): (u64, u64) = identity_of(sbin.as_str(), origin_snapshot.as_str());
+    assert_eq!((transferred_guid, transferred_group), (origin_guid, origin_group), "a promotion moves the origin snapshot's tuple under the clone without changing it");
+    assert!(transferred_group <= createtxg_of(sbin.as_str(), clone.as_str()), "the transferred snapshot is older than the clone, which is how the proof tells it from the clone's own");
     zfs_ok(sbin.as_str(), &["bookmark", transferred.as_str(), format!("{clone}#from-origin").as_str()]);
+    assert_eq!(identity_of(sbin.as_str(), format!("{clone}#from-origin").as_str()), (origin_guid, origin_group), "a bookmark made from a transferred snapshot carries that snapshot's tuple");
     let inherited: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(inherited.contains("history this clone inherited"), "the transferred snapshot and bookmark are refused as inherited history: {inherited}");
+    assert!(inherited.contains("the removal's own checks stopped it before anything was written"), "{inherited}");
     assert_eq!(protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]).len(), protected.len() + 1, "the arm's bookmark is the only object added, and the refusal destroyed nothing");
-    println!("REMOVAL-ARMS inherited-history=refused cause=transferred-snapshot-or-bookmark protected=survived");
+    assert_eq!(the_plan_folder_holds(common.as_path()), 0);
+    println!("REMOVAL-ARMS inherited-tuple=measured guid={origin_guid} group={origin_group} refused=before-any-write");
 
     // Arm 4: the reverse promotion restores the recorded lineage, and the removal proves again.
     zfs_ok(sbin.as_str(), &["promote", checkout_dataset.as_str()]);
@@ -396,7 +416,8 @@ fn zfs_removal_refusal_guest() {
 
     // The fixture's own cleanup, which is this arm's and no record's.
     zfs_ok(sbin.as_str(), &["destroy", clone.as_str()]);
-    zfs_ok(sbin.as_str(), &["destroy", "-r", format!("{pool}/step8").as_str()]);
+    let _unmounted: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["unmount", checkout_dataset.as_str()], None);
+    zfs_ok(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8").as_str()]);
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());
     println!("REMOVAL-ARMS done");
 }
