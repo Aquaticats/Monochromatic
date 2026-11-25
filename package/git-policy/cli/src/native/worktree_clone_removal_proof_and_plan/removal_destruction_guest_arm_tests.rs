@@ -261,9 +261,10 @@ fn the_removal_destruction_guest_arms() {
     let head_run: Run<'_> = Run::over(&fixture, &reads);
     let marking_device: HookedDevice<'_> = HookedDevice {
         live: &live,
-        before: Box::new(|| {
+        after_the_first: Box::new(|| {
             fixture.run("zfs", &["destroy", "-d", fixture.origin().as_str()]);
         }),
+        calls: Cell::new(0),
     };
     let head_stop: RemovalStop = head_run.destroy(&reader, &marking_device).expect_err("the head check refuses the mark the batch's own request made");
     let head_cause: OriginRefusal = cause_of(&head_stop);

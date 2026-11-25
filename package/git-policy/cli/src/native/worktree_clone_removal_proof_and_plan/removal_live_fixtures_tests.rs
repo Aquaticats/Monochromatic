@@ -441,8 +441,8 @@ pub(crate) fn guid_of(value: u64) -> DatasetGuid {
 
 /// What:
 ///  A device that sends every request to the guest's own kernel,
-///  and runs one hook first,
-///  so an arm can change the pool at the moment between two requests.
+///  and runs one hook after the first request returns,
+///  so an arm can change the pool in the window between two requests.
 /// Why:
 ///  The owed measurement's second half needs the mark set after the batch's request and before
 ///  the head check,
@@ -452,19 +452,26 @@ pub(crate) fn guid_of(value: u64) -> DatasetGuid {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const device = { destroySnaps: (pool, names) => { hook(); return live.destroySnaps(pool, names); } };
+/// const device = { calls: 0, destroySnaps: (pool, names) => { const a = live.destroySnaps(pool, names); if (++this.calls === 1) hook(); return a; } };
 /// ```
 pub(crate) struct HookedDevice<'a> {
     /// The guest's own device,
     /// which every request reaches.
     pub(crate) live: &'a dyn SnapshotDestroyDevice,
-    /// What the arm does before the next request reaches the kernel.
-    pub(crate) before: Box<dyn Fn() + 'a>,
+    /// What the arm does once the first request has returned.
+    pub(crate) after_the_first: Box<dyn Fn() + 'a>,
+    /// How many requests have reached the kernel.
+    pub(crate) calls: std::cell::Cell<usize>,
 }
 
 impl SnapshotDestroyDevice for HookedDevice<'_> {
     fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
-        (self.before)();
-        return self.live.destroy_snaps(pool, names);
+        let answer: Result<Option<NvList>, DeviceError> = self.live.destroy_snaps(pool, names);
+        let seen: usize = self.calls.get();
+        self.calls.set(seen + 1);
+        if seen == 0 {
+            (self.after_the_first)();
+        }
+        return answer;
     }
 }
