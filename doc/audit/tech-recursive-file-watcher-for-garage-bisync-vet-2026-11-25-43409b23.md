@@ -12,8 +12,9 @@
   targeted evidence, finalist validation and scoring not started.
   Broad discovery ran as the Pi subagent run the owner chose on 2026-11-25T17:19:41-05:00.
   The owner added a mid-run requirement at 2026-11-25T17:38:21-05:00,
-  so "Fingerprint input" no longer lists every hard requirement;
-  the coordinator re-keys this report after the run.
+  and the coordinator re-keyed the report for it at 2026-11-25T17:51:19-05:00
+  (see "Prior compatible report").
+  Targeted evidence for the 20 ready-to-use survivors starts next.
 - Subject:
   recursive file watcher for garage bisync.
 - Scope:
@@ -23,19 +24,26 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:47:13-05:00.
+  2026-11-25T17:51:19-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
 - Compatibility fingerprint:
-  `928b2333d4d7cc480b13a355821cf6f6cd7377ecaf5eb58238cf1b9ce3c2b32a`.
+  `43409b2337bcac1b82e6ab195c96f8254f834ebc9560380d5b2ef839990078c2`.
   The canonical input is the RFC 8785 serialization of the object in "Fingerprint input".
 - Active audit owner:
   the Claude Code session that runs the grilling in `doc/planning/garage-bisync-run-on-file-change.md`;
   the discovery phase is written by the Pi run it starts.
 - Prior compatible report:
-  none;
-  no report under `doc/audit/` covers a file watcher.
+  none.
+  This file is the same report re-keyed:
+  it was `doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25.md`
+  with fingerprint `928b2333d4d7cc480b13a355821cf6f6cd7377ecaf5eb58238cf1b9ce3c2b32a`
+  until 2026-11-25T17:51:19-05:00,
+  when the owner's round 3 requirement joined the hard constraints,
+  which made the old fingerprint incompatible;
+  the file was moved here with `git mv` and its content carried over unchanged apart from the metadata,
+  "Fingerprint input" and "Hard constraints".
 
 ## Fingerprint input
 
@@ -50,6 +58,7 @@
     "now": "CachyOS Linux x86-64, systemd 262 user manager, home on ZFS"
   },
   "hardConstraints": [
+    "after a change that lands while a sync runs, one more sync starts after that run ends, by the watcher or by a small wrapper around its command",
     "open source with inspectable source",
     "runs an arbitrary command, here systemctl --user start rclone-bisync-garage.service",
     "runs on Linux x86-64, macOS arm64 and Windows x64",
@@ -93,6 +102,9 @@ The owner's answers that bind this vet:
   macOS arm64 and Windows x64.
 - Watches every folder under the root recursively,
   including folders created after it starts.
+- After a change that lands while a sync runs,
+  one more sync starts after that run ends,
+  by the watcher or by a small wrapper around its command.
 
 ### Requirement added during discovery
 
@@ -107,8 +119,8 @@ and it does not exit any candidate at screening,
 because a wrapper around the command can supply it.
 Every ledger entry records whether the candidate meets it natively (with the primary source that says so)
 or only through a wrapper.
-"Fingerprint input" was frozen before this answer,
-so its `hardConstraints` list is incomplete for the current request.
+"Fingerprint input" now lists it,
+and the report was re-keyed at 2026-11-25T17:51:19-05:00.
 
 ## Base components and overlays
 
