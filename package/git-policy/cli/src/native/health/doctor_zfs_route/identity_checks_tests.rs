@@ -67,6 +67,29 @@ fn a_store_without_a_parent_record_is_a_finding() {
     assert!(detail.contains("adopt-worktree-parent"), "{detail}");
 }
 
+/// What:
+///  The parent-record finding's way forward runs the adoption after the
+///  root-owned file's path,
+///  and says who installs that file and when.
+/// Why:
+///  A person meeting a store with no parent record is sent to the adoption,
+///  and a sentence pointing at "the root-owned file the installed ZED event
+///  links to" sends them to a path no release installs;
+///  the owner's answer that fixed the usage fixed this sentence the same way
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+///  "How the root modes' usage reads").
+#[test]
+fn the_parent_record_finding_says_who_installs_the_root_owned_file() {
+    let facts: ParentIdentityFacts = ParentIdentityFacts { recorded: RecordedIdentity::Absent { why: String::from("no parent record is filed") }, live: LiveIdentity::Held(Box::new(folder_identity(7))) };
+    let super::CheckOutcome::Finding { detail, .. } = check_parent_identity(&facts) else {
+        panic!("no parent record is a finding");
+    };
+    assert!(detail.contains("after the root-owned file's path"), "{detail}");
+    assert!(detail.contains("Plan step 19's setup installs") || detail.contains("plan step 19's setup installs"), "{detail}");
+    assert!(detail.contains("no release installs it yet"), "{detail}");
+    assert!(!detail.contains("the installed ZED event links to"), "{detail}");
+}
+
 /// A parent record this account could not read leaves the answer unknown.
 #[test]
 fn an_unreadable_parent_record_is_unknown() {

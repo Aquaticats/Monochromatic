@@ -5168,22 +5168,27 @@ needs
 (`snapshot` on the checkout,
 `clone` on its descendants,
 `create` and `mount` on the clone container,
-`mount` and `userprop` on the container's descendants)
-and the two `destroy` grants its failure path uses,
-on the container's descendants for the clone and on the checkout's descendants
-for the origin snapshot.
+`mount` and `userprop` on the container's descendants).
 The refusal prints that check's finding,
 which names each failing permission with the `zfs allow` or `zfs unallow`
 command that settles it,
 and the add writes nothing.
-One decided permission is not the add's:
-`mount` on the checkout's descendants,
-which only a removal uses when it clears an origin snapshot.
-When that one is missing the add prints one line naming the `zfs allow` command,
+Three decided permissions are not the add's,
+because no step of it destroys or mounts a checkout snapshot:
+`destroy` on the container's descendants,
+which a removal uses to destroy a clone,
+and `mount` and `destroy` on the checkout's descendants,
+which a removal uses to clear an origin snapshot.
+When one of those is missing the add prints one line naming the `zfs allow`
+command,
 says the add will finish,
 and goes on,
 so a person does not run a root command and repeat the add for a permission no
 step of it uses.
+A failed add keeps the clone and the origin snapshot,
+so the settle that would use both `destroy` grants is not this release's,
+and the two `destroy` grants join the six at the step that gives the add's own
+failure path its destroy.
 The kernel's `ZFS_IOC_GET_FSACL` needs no privilege for this read:
 OpenZFS `zfs-2.4.4` registers it with `zfs_secpolicy_read`,
 which returns zero in the global zone

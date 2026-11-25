@@ -25,7 +25,10 @@
 //! The counters of `strace` are per process,
 //! so a position is the
 //!  `n`th call of the busiest process.
-//! A host without `strace` reports that and checks nothing,
+//! A control whose run has no `strace` fails with both ways forward,
+//! or names itself and passes when the run states that
+//! the absence is known (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`,
+//! `src/native/testing/strace_the_controls_run_under.rs`),
 //! as the budget controls do.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,7 +41,7 @@ use super::commit::{git_text, remove_settled};
 use super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository, verify_recovery_with};
 use super::fault_limits::check_limited_run;
 use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper, with_manager};
-use super::strace::{strace_available, strace_program};
+use super::strace::{strace_available_or_acknowledged, strace_program};
 use super::support::{ABSENT_ACKNOWLEDGED_VARIABLE, Fixture, ServiceLaunch, fixture, fixture_root, hermetic, service_runtime, wrapper_first_path};
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -320,8 +323,7 @@ fn service_call_count(syscall: &'static str, follow: bool) -> usize {
 /// Sweeps one fault over the service's calls:
 /// `effect` at each position of each call in `calls`.
 fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(usize) -> When, follow: bool, recover: Recovery) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was faulted");
+    if !strace_available_or_acknowledged(label) {
         return;
     }
     let counts: Vec<(&'static str, usize)> = calls.iter().map(|syscall| { return (*syscall, service_call_count(syscall, follow)); }).collect();
@@ -349,8 +351,7 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
 /// `binary_service_tests.rs` (`a_client_that_disappears_after_sending_still_lands_once`),
 /// so this control does not require one of its own kills to land a commit.
 fn sweep_service_call(label: &str, syscall: &'static str, recover: Recovery) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was killed");
+    if !strace_available_or_acknowledged(label) {
         return;
     }
     assert!(KILL_CALLS.contains(&syscall), "{label} has no kill control for {syscall}, so a control here would test what its list does not name");
@@ -368,8 +369,7 @@ fn sweep_service_call(label: &str, syscall: &'static str, recover: Recovery) {
 
 /// Requires that every call the service kill list names is one the commit makes.
 fn require_the_service_kill_list_is_made() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was counted");
+    if !strace_available_or_acknowledged("the service kill list") {
         return;
     }
     let counts: Vec<(&'static str, usize)> = KILL_CALLS.iter().map(|syscall| { return (*syscall, service_call_count(syscall, false)); }).collect();
@@ -522,8 +522,7 @@ fn a_service_killed_at_each_clone3_leaves_a_recoverable_repository() {
 /// and leaves nothing.
 #[test]
 fn slow_flushes_delay_a_commit_and_change_nothing_else() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was delayed");
+    if !strace_available_or_acknowledged("slow_flushes_delay_a_commit_and_change_nothing_else") {
         return;
     }
     let fixture: Fixture = fixture("slow-flush");
@@ -551,8 +550,7 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
 ///  land too ("what Git completes,
 /// we complete").
 fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was refused");
+    if !strace_available_or_acknowledged(label) {
         return;
     }
     let fault: Injection = Injection { syscall: calls, effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
@@ -683,8 +681,7 @@ fn kill_calls(flow: &Flow, root: &Path) -> Vec<&'static str> {
 /// One control covers one call,
 /// so each call's positions stay inside the per-test limit.
 fn sweep_wrapper_kill(flow: &Flow, syscall: &'static str) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no process was killed");
+    if !strace_available_or_acknowledged(flow.name) {
         return;
     }
     assert!(
@@ -718,8 +715,7 @@ fn sweep_wrapper_kill(flow: &Flow, syscall: &'static str) {
 /// Requires that every call a flow's kill controls cover is one the flow makes,
 /// so a list cannot name a call whose positions would be empty.
 fn require_the_kill_list_is_made(flow: &Flow) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was counted");
+    if !strace_available_or_acknowledged(flow.name) {
         return;
     }
     let root: PathBuf = fixture_root();

@@ -6405,7 +6405,9 @@ is in
   no privilege and no load) and requires that the step is stopped,
   named with its class,
   and that the repository recovers.
-  The control reports a skip and checks nothing on a host without `strace`.
+  The control fails with both ways forward on a run without `strace`,
+  and names itself and passes only when that run states the absence is known
+  (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`).
 - A process killed at any instruction elsewhere:
   the worktree-copy and merge flows are killed at their phase markers
   (`binary_merge_isolation_tests.rs`,
@@ -6888,6 +6890,24 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and the same filters select the btrfs controls,
   which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
   which the task does not set.
+- The controls that need `strace` follow the same rule,
+  under `CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`:
+  the budget,
+  fault,
+  child-bound,
+  file-trace and stop-lock controls run a command or a service under the tracer,
+  so a run without it fails each of them with both ways forward,
+  and a run that states the absence is known gets one line per control that did not run
+  (`STRACE CONTROL NOT RUN: <control> (...)`).
+  Nothing in this repository sets that acknowledgement,
+  because the gate image installs `strace`
+  (`native-test-base.Containerfile`)
+  and every host task runs where it is installed;
+  an image or a machine that loses the tracer is red rather than green with every traced control unchecked.
+  One function serves every site
+  (`strace_available_or_acknowledged` of
+  `src/native/testing/strace_the_controls_run_under.rs`),
+  so no list of control names has to stay current.
 - The controls that prove the upload against the real `git-lfs` run in the gate,
   which is why the image installs the program
   (`doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`):

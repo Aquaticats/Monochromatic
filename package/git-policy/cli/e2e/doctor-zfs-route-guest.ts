@@ -52,6 +52,10 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST rename-grant-is-a-finding',
   'DOCTOR-GUEST readiness-from-another-boot-is-a-finding',
   'DOCTOR-GUEST later-steps-are-unknown',
+  'DOCTOR-GUEST snapdir-visible-is-a-finding',
+  'DOCTOR-GUEST snapdir-hidden-is-a-finding',
+  'DOCTOR-GUEST snapdir-default-is-a-finding',
+  'DOCTOR-GUEST snapdir-follows-the-container',
 ];
 
 //endregion Constants

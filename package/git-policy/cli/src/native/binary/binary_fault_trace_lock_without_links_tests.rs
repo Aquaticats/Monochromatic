@@ -26,7 +26,7 @@
 use super::super::commit::remove_settled;
 use super::super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository};
 use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, unbounded_wrapper};
-use super::super::strace::strace_available;
+use super::super::strace::strace_available_or_acknowledged;
 use super::super::support::{Fixture, ServiceLaunch, fixture};
 use super::{recovers_after_service_death, took_effect, tracer};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, LOCK_CREATED_UNMARKED, LOCK_MARKED_UNSYNCED};
@@ -106,8 +106,7 @@ fn kill_case(point: &str) -> Result<(), String> {
 /// a lock with its whole marker is removed by the next landing too.
 #[test]
 fn a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was refused");
+    if !strace_available_or_acknowledged("a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository") {
         return;
     }
     let points: Vec<&'static str> = kill_points();
