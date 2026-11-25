@@ -494,7 +494,8 @@ fn the_journal_whose_claim_watch_names_only_the_removed_worktree_goes_with_the_u
 /// Why:
 ///   The note's only reader is a service of this instance,
 /// and a service of this instance reads it when its worktree is back at that path (`service_claim_watch.rs`);
-/// what it points at is that repository's own work directory, which is still there,
+/// what it points at is that repository's own work directory,
+/// which is still there,
 /// so leaving the journal costs a folder and discards nothing.
 #[test]
 fn a_journal_whose_claim_watch_names_a_repository_that_is_still_there_is_kept_and_named() {
@@ -548,13 +549,15 @@ fn a_journal_of_a_batch_that_did_not_land_keeps_the_entries_the_removal_would_di
 }
 
 /// What:
-///  A journal that a removal kept, and whose note and socket file that removal forgot,
+///  A journal that a removal kept,
+/// and whose note and socket file that removal forgot,
 ///  is found again by the sweep and cleared once nothing in it is work.
 /// Why:
 ///   A removal that kept a journal removed the note and the socket file with it,
 /// so a survey that read only those two files never saw the folder again,
 /// and the journals of removed worktrees stayed and were named to a person at every removal (issue 6322).
-/// The record of a landed batch names the Git directory, which is the proof the survey maps the instance by.
+/// The record of a landed batch names the Git directory,
+/// which is the proof the survey maps the instance by.
 #[test]
 fn the_sweep_clears_a_journal_of_a_removed_worktree_that_no_note_or_socket_names() {
     let machine: Machine = machine("files-journal-only");
@@ -579,14 +582,17 @@ fn the_sweep_clears_a_journal_of_a_removed_worktree_that_no_note_or_socket_names
 }
 
 /// What:
-///  A journal that no note, no socket file and no record names is left where it is,
+///  A journal that no note,
+/// no socket file and no record names is left where it is,
 ///  and the survey counts it as a journal with no unit rather than as an instance it could not match.
 /// Why:
 ///   The proof that a journal belongs to a worktree that is gone is a path that hashes to its instance;
 /// without one nothing is stopped or removed on a guess.
-///   No socket file and no note stands beside it, so no unit of its instance can exist,
+///   No socket file and no note stands beside it,
+/// so no unit of its instance can exist,
 ///  and the only thing left is a folder a person can look at and remove
-///  (M1 of the alpha.46 commit, push and LFS release pass).
+///  (M1 of the alpha.46 commit,
+/// push and LFS release pass).
 #[test]
 fn the_sweep_leaves_a_journal_it_cannot_map_to_a_worktree() {
     let machine: Machine = machine("files-journal-unmapped");

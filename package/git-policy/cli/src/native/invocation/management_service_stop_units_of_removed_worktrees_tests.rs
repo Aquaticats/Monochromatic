@@ -193,12 +193,14 @@ fn without_a_runtime_directory_the_note_is_empty_and_the_command_refuses() {
 
 /// What:
 ///  `doctor`'s note counts the journal of a removed worktree that no note and no socket file names,
-///  read from the fixture's own home, runtime and state directories,
+///  read from the fixture's own home,
+/// runtime and state directories,
 ///  and says nothing of this machine's state folder.
 /// Why:
 ///   That count is what tells a person the command has something to clear,
 /// and a journal that no unit names was invisible to it before (issue 6322).
-/// The fixture names its own `HOME`, `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
+/// The fixture names its own `HOME`,
+/// `XDG_RUNTIME_DIR` and `XDG_STATE_HOME`,
 /// which is what makes the reading touch nothing of this machine.
 #[test]
 fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
@@ -234,7 +236,8 @@ fn doctor_counts_a_journal_of_a_removed_worktree_that_no_note_names() {
 ///  makes standard output name the journal it kept,
 ///  and the line that says no unit or journal belongs to a removed worktree is not printed beside it.
 /// Why:
-///   M2 of the alpha.46 commit, push and LFS release pass measured one run that said on standard output
+///   M2 of the alpha.46 commit,
+/// push and LFS release pass measured one run that said on standard output
 ///  "no commit service unit or journal belongs to a removed worktree"
 ///  while standard error named the journal it had just kept for a removed worktree.
 ///  The two lines contradict each other,
@@ -282,7 +285,8 @@ fn a_kept_journal_is_named_on_standard_output_and_the_none_line_is_not_printed()
 ///  is not counted as an instance that cannot be matched:
 ///  the command says a person can look at it and remove it by hand.
 /// Why:
-///   M1 of the alpha.46 commit, push and LFS release pass measured seven such journals on a real machine,
+///   M1 of the alpha.46 commit,
+/// push and LFS release pass measured seven such journals on a real machine,
 ///  every one holding nothing but `busy` and an empty `claim-watch`.
 ///  No unit can exist for them (a socket file or a note is what makes one possible),
 ///  and the line that counted them said nothing a person could do,

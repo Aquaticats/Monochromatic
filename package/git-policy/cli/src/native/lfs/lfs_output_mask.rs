@@ -82,7 +82,8 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 ///  and one this long or longer is hidden.
 ///  The record's second paragraph restates the boundary as "at most `LONGEST_PLAIN_WORD`",
 ///  which is not what the answer says;
-///  the answer is followed here, and a 20-character name is hidden.
+///  the answer is followed here,
+/// and a 20-character name is hidden.
 ///  It amended the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only"),
 ///  which measured the longest unbroken run of lowercase letters inside a segment,
 ///  so what is measured now is the whole segment,

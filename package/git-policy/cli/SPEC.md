@@ -5198,7 +5198,8 @@ What this release does not yet do:
   (`git checkout-index --force -u --stdin` for the paths a conversion reaches)
   is not built,
   so the paths the reset does not rewrite keep the snapshot's bytes
-  (plan step 11's remainder, issue 6323).
+  (plan step 11's remainder,
+  issue 6323).
 - A source the restore cannot prove is declined before the claim,
   not swept up after it:
   an untracked Git repository of the source's own,
@@ -5230,16 +5231,21 @@ What this release does not yet do:
 - A failed proof or a failed restore does not finish the add with Git's own
   checkout,
   and nothing is destroyed or unmounted by it:
-  the claim, the slot, the locked registration, the clone and the snapshot stay
+  the claim,
+  the slot,
+  the locked registration,
+  the clone and the snapshot stay
   as they were,
   the add prints the failure and the next add at the slot resumes it.
   The settle that destroys what the add made and finishes with Git's own
   checkout needs the origin cleanup record's writer,
-  which is plan step 14's, and is not built.
+  which is plan step 14's,
+  and is not built.
 - Nothing prints the pending worktree's text or `doctor`'s line for it,
   because no step of this release leaves that state;
   the withdrawal of an unmount request,
-  the obligation record and the settling command are the settle's own, above.
+  the obligation record and the settling command are the settle's own,
+  above.
 - The warning above the measured count of changed paths is not printed:
   the count is measurement M4's,
   which has not been run,
@@ -9313,7 +9319,8 @@ The value has to be one OpenSSH can start:
 a value it cannot start makes the failing child send SIGHUP to the `ProxyCommand` the connection runs through
 (`sshconnect.c:305-312` at `V_10_6_P2`),
 which ends such a connection where `false` ends 0.
-One release put a sentence there instead, and that is why it went
+One release put a sentence there instead,
+and that is why it went
 (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
 the answer "Put `false` back"):
 behind a `ProxyCommand` or a `ProxyJump`,
@@ -16849,7 +16856,8 @@ by the Git directory of a record of a batch that landed,
 or by a note of the instance's claim watch,
 each only when the text hashes to the instance:
 a removal that kept a journal took the note and the socket file with it,
-so a survey that read only the note and the socket file never saw the folder again, and the journals of removed
+so a survey that read only the note and the socket file never saw the folder again,
+and the journals of removed
 worktrees stayed for ever
 (issue 6322).
 An instance whose socket file and note are both gone has no unit the manager could start again,
@@ -16862,7 +16870,8 @@ names the folder the journals are in,
 and says a person can remove one by hand after looking.
 `doctor` says the same in its note,
 in place of a number that no command could lower
-(M1 of the alpha.46 commit, push and LFS release pass:
+(M1 of the alpha.46 commit,
+push and LFS release pass:
 seven such journals on one machine were counted on every run).
 The command names every journal it removed with its folder,
 and every journal it kept with the entry that kept it and the command that removes it once that work is over,
@@ -22804,7 +22813,9 @@ held until its owed cost measurement runs.
 
 #### The start probe beside the gate
 
-`monochromatic-git-policy-cli zfs-root start-probe`, run as root, is the functional probe the
+`monochromatic-git-policy-cli zfs-root start-probe`,
+run as root,
+is the functional probe the
 kernel-release answer asks for,
 run as `ExecStartPre=-` of the boot unit.
 It proves the running kernel and module can make the route's calls,

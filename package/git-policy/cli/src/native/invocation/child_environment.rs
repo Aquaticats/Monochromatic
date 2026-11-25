@@ -497,7 +497,8 @@ pub const ASKPASS_REQUIRE_FORCE: &str = "force";
 ///  The value has to be one OpenSSH can start:
 ///  a value it cannot start makes its failing child send SIGHUP to the `ProxyCommand` the connection is using,
 ///  which ends such a connection where this program ends 0
-///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, H1 of the alpha.46 release pass).
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+/// H1 of the alpha.46 release pass).
 ///  This release names no next step at a new host key itself;
 ///  how that text reaches a person is the project's next choice.
 pub const NO_ANSWER_PROGRAM: &str = "false";

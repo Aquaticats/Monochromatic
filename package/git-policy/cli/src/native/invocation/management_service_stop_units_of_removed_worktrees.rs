@@ -26,7 +26,8 @@
 //! a journal that holds work is kept and named,
 //! never discarded.
 //! It reads the journals as well as the socket files and the notes,
-//! so a journal that a removal kept, and the note of which went with that removal,
+//! so a journal that a removal kept,
+//! and the note of which went with that removal,
 //! is looked at again and cleared once nothing keeps it.
 //! A journal that maps to nothing and has no socket file and no note beside it is named with the folder it is in,
 //! because no unit of it can exist and only a person can clear it.
@@ -136,10 +137,12 @@ fn note_of(gone: usize, unmapped: usize, journals_without_units: usize) -> Strin
 ///  The note about journals that name no worktree and have no unit beside them,
 ///  in the words the count needs.
 /// Why:
-///   No unit can exist for one of those journals, so no command of the wrapper stops anything for it;
+///   No unit can exist for one of those journals,
+/// so no command of the wrapper stops anything for it;
 ///  what is left is a folder a person can look at and remove,
 ///  and the note says so instead of counting an instance that nothing could match
-///  (M1 of the alpha.46 commit, push and LFS release pass).
+///  (M1 of the alpha.46 commit,
+/// push and LFS release pass).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,10 +166,12 @@ fn refused(reason: &str) -> Action {
 ///  The line about journals that name no worktree and that no socket file and no note stands beside,
 ///  in the words the count needs.
 /// Why:
-///   Such a journal is not a unit that could not be matched: no unit of it can exist,
+///   Such a journal is not a unit that could not be matched:
+/// no unit of it can exist,
 ///  so the command touches nothing and its only way forward is a person looking at the folder,
 ///  which the line names
-///  (M1 of the alpha.46 commit, push and LFS release pass).
+///  (M1 of the alpha.46 commit,
+/// push and LFS release pass).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

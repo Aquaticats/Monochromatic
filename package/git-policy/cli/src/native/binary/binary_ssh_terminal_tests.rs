@@ -654,8 +654,11 @@ fn an_unknown_host_key_is_refused_at_a_terminal_and_never_asked() {
 
 //region A key skipped behind a `ProxyCommand`, the connection the sentence broke
 
-/// The relay a `ProxyCommand` runs, with `__PYTHON__`, `__MARKER__` and `__PORT__` replaced for one fixture.
-///  Standard input and output go to the server's port, and the marker file says the relay started.
+/// The relay a `ProxyCommand` runs,
+/// with `__PYTHON__`,
+/// `__MARKER__` and `__PORT__` replaced for one fixture.
+///  Standard input and output go to the server's port,
+/// and the marker file says the relay started.
 const RELAY_SCRIPT: &str = r#"#!__PYTHON__
 import os, socket, threading
 open("__MARKER__", "a").write("the relay started\n")
@@ -690,7 +693,8 @@ fn proxy_marker(fixture: &Fixture) -> PathBuf {
 ///  and one that left no trace would let an arm whose `ProxyCommand` never ran pass.
 ///  A Python relay needs neither `nc` nor `socat`,
 ///  which the machines these controls run on do not all carry,
-///  and the interpreter is named by the path this control found, so no `PATH` lookup decides it.
+///  and the interpreter is named by the path this control found,
+/// so no `PATH` lookup decides it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -733,18 +737,24 @@ fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_li
 }
 
 /// What:
-///  A typed `git clone` whose first key has a passphrase nobody can give, whose second key works,
-///  and whose connection runs through a `ProxyCommand`, ends 0 and writes the clone.
+///  A typed `git clone` whose first key has a passphrase nobody can give,
+/// whose second key works,
+///  and whose connection runs through a `ProxyCommand`,
+/// ends 0 and writes the clone.
 /// Why:
-///  H1 of the alpha.46 commit, push and LFS release pass
+///  H1 of the alpha.46 commit,
+/// push and LFS release pass
 ///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`):
 ///  OpenSSH starts the value the no-prompt rule puts in `SSH_ASKPASS` for every question it would ask a person,
 ///  and a value it cannot start makes the failing child send SIGHUP to the connection's `ProxyCommand`
 ///  (`sshconnect.c` at `V_10_6_P2`).
-///  With a sentence there, this arm ended 255 and every connection through a proxy died with it;
+///  With a sentence there,
+/// this arm ended 255 and every connection through a proxy died with it;
 ///  with the program that answers nothing it ends as alpha.45 did.
-///  No arm before this one ran a `ProxyCommand`, which is why the gate passed a value that broke them.
-///  The two keys are both accepted, and the protected one is offered first,
+///  No arm before this one ran a `ProxyCommand`,
+/// which is why the gate passed a value that broke them.
+///  The two keys are both accepted,
+/// and the protected one is offered first,
 ///  so the question is asked and answered with nothing exactly as on the reported command.
 ///  A machine whose `ssh` may not start that program at all cannot show either ending:
 ///  its transcript says the value was refused,

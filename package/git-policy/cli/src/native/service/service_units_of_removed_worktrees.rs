@@ -390,7 +390,8 @@ pub fn instances_with_units_or_journals(folders: &UnitFolders<'_>) -> Vec<String
 ///  those two files are what make a unit possible,
 ///  and without them the journal is all that is left,
 ///  which a person can look at and remove
-///  (M1 of the alpha.46 commit, push and LFS release pass:
+///  (M1 of the alpha.46 commit,
+/// push and LFS release pass:
 ///  seven such journals on one machine were counted on every `doctor` as instances nothing could touch).
 ///
 /// In TS you'd write (pseudocode):
@@ -727,8 +728,10 @@ fn forget_the_instance(folders: &UnitFolders<'_>, instance: &str) {
 /// is never asked about.
 /// An instance whose socket file and note are both gone has no unit the manager could start again,
 /// so the manager is not asked about it and only its journal is decided:
-/// that is how the journal of a removal which kept one, and left no file that named the instance but the journal
-/// itself, is cleared here.
+/// that is how the journal of a removal which kept one,
+/// and left no file that named the instance but the journal
+/// itself,
+/// is cleared here.
 /// A refused stop keeps its note,
 /// so the next sweep tries the instance again,
 /// and so does a journal kept for a client that may still read it,

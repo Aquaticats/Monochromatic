@@ -528,9 +528,13 @@ fn a_refused_stop_is_reported_and_its_note_kept_for_the_next_sweep() {
 ///  The survey keeps an instance that maps to nothing and still has a socket file apart from a journal that has nothing
 ///  beside it.
 /// Why:
-///   A socket file or a note is what makes a unit possible, so an instance that has neither cannot be a unit that could
-///  not be matched: only its journal is left, and only a person can clear it
-///  (M1 of the alpha.46 commit, push and LFS release pass).
+///   A socket file or a note is what makes a unit possible,
+/// so an instance that has neither cannot be a unit that could
+///  not be matched:
+/// only its journal is left,
+/// and only a person can clear it
+///  (M1 of the alpha.46 commit,
+/// push and LFS release pass).
 #[test]
 fn the_survey_counts_a_journal_without_units_apart_from_an_instance_it_could_not_match() {
     let machine: Machine = machine("units-survey-journal-without-units");

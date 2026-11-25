@@ -2245,7 +2245,8 @@ and a claim watch note points at the work directory of the repository it names
 so a note naming the removed worktree,
 or one whose repository is gone,
 leads the only service that read it,
-the removed worktree's own, to nothing.
+the removed worktree's own,
+to nothing.
 The command reads the journals as well as the note and the socket file,
 and names each journal it removed with its folder,
 so the journals that an earlier removal kept are cleared by a run that finds no unit beside them.
@@ -7544,7 +7545,8 @@ The wrapper's own value is that same `false`,
 so a command the wrapper runs names one program that answers nothing and prints nothing.
 A sentence stood there for one release to carry the next step at a new host key,
 and it went because a value OpenSSH cannot start kills a connection through a `ProxyCommand`
-(the SPEC's "Git commands that may need a login" holds the record, the control and the decision).
+(the SPEC's "Git commands that may need a login" holds the record,
+the control and the decision).
 This release names no next step at a new host key;
 how that text reaches a person is the project's next choice.
 A control that compares a forwarded command's environment builds the rule from those two functions
@@ -7850,7 +7852,8 @@ because a release waits on that gate and its suite is what the CPUs shorten
   That reclaim is the stall the issue measured at 2026-11-24T19:20-05:00
   (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`),
   and `doc/planning/git-policy-cli-cachyos-test-containers.md`
-  ("The image build's own memory bound, measured 2026-11-24") holds the arms,
+  ("The image build's own memory bound,
+  measured 2026-11-24") holds the arms,
   the ratios and the bound's arithmetic.
   Eight GiB is 1.53 times the measured peak and inside the 20 GiB the gate's own systemd unit allows.
   The base image's own build keeps the 2 GiB default,
