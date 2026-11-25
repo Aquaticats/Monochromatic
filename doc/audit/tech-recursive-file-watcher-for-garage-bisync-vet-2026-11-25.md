@@ -23,7 +23,7 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:41:36-05:00.
+  2026-11-25T17:47:13-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
