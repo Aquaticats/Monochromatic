@@ -360,8 +360,14 @@ the printed `main.rs` is stale against `558bd72198`;
 choice 9 contradicts itself on option C's window;
 choice 11's printed control lacks the words;
 the read names M4 to M7 as needing a fix before the choices go to the owner, and ranks choice 5 C over A under the repository's ranking rule;
-the sixth revision runs since 2026-11-24T21:50-05:00 (`pi-zfs-root-modes-sixth-revision`, brief `~/temp/agent/zfs-root-modes-sixth-revision-2026-11-24/prompt.md`);
-the fifth read's `work/` and the fourth round's `scratch/` (which the proposal cites) stay until it ends;
+the sixth revision merged as `a0dad3adb7` (report `keep/report-pi-zfs-root-modes-sixth-revision.md` in `~/temp/agent/zfs-root-modes-sixth-revision-2026-11-24/`):
+a string-aware shared stripper that finishes all 1,472 release files, three assertions on the module declaration, `COMMAND_WORD.current` and the `[[bin]] path`,
+the printed `main.rs` and pin rebased onto `5f904d9fbd`, every printed Rust text compiled and clean under the crate's Clippy table,
+`mount-path-descendant` walking by descriptor with the root-ownership clause dropped and three refusals added,
+choice 5 re-ranked C > A > B on delivery and choice 9 E (`--replace <the kernel's GUID>`) > D > A > C > B;
+its Sonnet read runs since 2026-11-24T22:25-05:00 (brief `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/prompt.md`),
+asked to sort its findings into those that change what the owner is asked and those a revision repairs after the answers;
+the fifth read's `work/`, the sixth round's `keep/` and the fourth round's `scratch/` (which the proposal cites) stay until it ends;
 earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
