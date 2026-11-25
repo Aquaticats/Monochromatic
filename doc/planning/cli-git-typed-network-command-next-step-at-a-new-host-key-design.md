@@ -8,7 +8,7 @@ Nothing in it is approved or final,
 and only the owner declares anything complete.
 
 This text is the proposal as revised after the gate review kept at
-`/home/user/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`,
+`~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`,
 whose verdict was "Not ready to put to the owner as written",
 with no High finding,
 nine Medium findings and a list of Low findings.
@@ -36,7 +36,7 @@ Worktree:
 branch `docs/planning-host-key-next-step-design-sixth-revision`,
 made from `main` at `568ef25e10`.
 Round folder:
-`/home/user/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/`,
+`~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/`,
 whose `keep/` holds this round's seven container logs and their scripts,
 the stand-ins they ran,
 the sentences they printed,
@@ -440,8 +440,9 @@ its own text is at the path under "Status".
   the relay that ignores SIGHUP ends 0 behind a `ProxyCommand`, which names the signal as the cause,
   and still 128 behind `-J`, where there is no client-side relay to ignore it
   (run, `keep/run-6-j-arms-and-transports.log`, arms `j-noask-*`).
-  Every option ran at H1's case behind `-J`, and every one ends 0 and prints nothing
-  (run, the same log, arms `f-noask-proxyjump-*`).
+  Every option ran at H1's case behind `-J`, and every one ends 0 and prints no sentence
+  (run, the same log, arms `f-noask-proxyjump-*`; K prints the nine carriage returns and the progress display
+  that its terminal brings).
   The claim that every other failure family ran behind a `ProxyCommand` was false and is replaced by the list
   under "The case every option is tried against".
   The `f-noask` family now has a positive control: J's value on the same three transports.
@@ -2036,7 +2037,7 @@ All three are answered in the sections named with them.
 ### The revision merged as `79962f9ccc` (2026-11-25T15:57:22-05:00), merged as `800db64aa1`
 
 The gate review kept at
-`/home/user/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`
+`~/temp/agent/gate-review-host-key-next-step-fifth-revision-2026-11-25/keep/review.md`
 answered it with nine Medium findings and a list of Low findings,
 all of which are answered under "What this revision changed".
 Nothing it found reverses K2 first.
@@ -2077,7 +2078,7 @@ Nothing it found reverses K2 first.
 - Git v2.56.1: `pager.c` (`term_columns`), `progress.c` (`is_foreground_fd`, the progress gate),
   `sideband.c` (the `remote: ` prefix), `transport.c` (`ret->progress`), `editor.c` (the waiting hint),
   `connect.c`, `prompt.c`, `strbuf.c`.
-- This round's folder, `/home/user/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`:
+- This round's folder, `~/temp/agent/host-key-next-step-design-sixth-revision-2026-11-25/keep/`:
   `run-5-remote-line-under-a-terminal.log` and its script,
   `run-6-j-arms-and-transports.log` and its script,
   `run-7-unreachable-host-and-pull.log` and its script,
