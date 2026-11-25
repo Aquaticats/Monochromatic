@@ -39,7 +39,8 @@ It found one High,
 seven Medium and twelve Low items,
 and this revision answers every one of them in
 "What this revision changed,
-and why".
+and why",
+one of them by showing that it does not hold.
 The largest answer is a change of guard shape:
 the two files whose text decides what a start is are now pinned whole,
 code line for code line,
@@ -374,6 +375,11 @@ with the two shapes that contain it.
 
 ### The Low findings
 
+Eleven of the twelve hold,
+and the one that does not is answered with the record it was checked against.
+Each holds or not against this round's base and this host,
+not against the tree the read happened to have open.
+
 - `unit-argv0-fourth.log` listed its scope as `loaded active running` under a heading that said
   nothing must be left, because the scope was still ending when the list ran.
   The list is repeated now that it has ended,
@@ -381,10 +387,12 @@ with the two shapes that contain it.
   (run keep/units-left-fifth.log).
 - The placement rule's witness was `hw2`, which the log shows failing on the allow count,
   not on placement.
-  The witness is `hw2b` (the allow kept, one statement between it and the collection,
-  which fails the placement assertion alone);
-  `hw2` is kept as the count's witness,
-  and the sentence "each new rule has a witness of its own" now names what each one witnesses.
+  There is no placement rule now:
+  the allow's line is pinned where it stands,
+  so an allow one statement away from the collection is a changed line,
+  which is what `hw2b` shows,
+  and `hw2` (the allow deleted) shows the count.
+  Both are in this round's replay, and both fail as the pin says.
 - The sentence saying the third revision's guard passed `nx1` is dropped:
   its before column says FAIL, and a rerun of that copy agrees.
   The before column's names lines are six, not five (`nv1` to `nv5` and `nw1`).
@@ -424,8 +432,13 @@ with the two shapes that contain it.
 - Two citations landed on doc lines:
   `lib.rs:429` is another module's `#[cfg]` line at this base,
   and the handler module is at `:476` to `:477`;
-  `handler_install_paths.rs:36` and `:40` are doc lines, and the constants are at `:38` and `:42`.
-  The first is cited by its paragraph and its module line at this base,
+  the two `handler_install_paths.rs` citations at lines 36 and 40 were doc lines,
+  and the constants stand at lines 38 and 42.
+  The read's replacement numbers for `lib.rs` (`:457` and `:458`) hold for the tree it read,
+  not for this round's base:
+  `lib.rs` has gained 18 lines since,
+  and the paragraph and the module line are given above at this base.
+  The first is cited by its paragraph and its module line,
   and the second pair by constant name,
   as this document's advice for moved lines already says.
 - `--replace` was printed as a bare flag while the usage block omitted it and the section said a
@@ -457,8 +470,15 @@ with the two shapes that contain it.
 - Choice 2's reason for D over B ("D names the whole route") contradicted D's own con.
   The reason is the one that holds:
   D's noun is this route's own and B's is a word any later mount-shaped family would want.
-- The warm pair's sentence mixed denominators:
-  the pair is positive in all 120 rounds against the control's 66 of 119.
+- The read's warm-pair Low does not hold:
+  the sentence already said "every one of the pair's 120 rounds is positive against 66 of the
+  control's 119",
+  which are the log's own denominators, one per arm
+  (`git show 4993ad866e:doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
+  line 3790).
+  The text is unchanged,
+  and the sentence now prints the pair's own count as "120 of the pair's 120" so a reader cannot
+  take the one number for the other's denominator.
 - `mount-path-descendant`'s mechanism was unsaid.
   The mode now mounts with the primitive the route already uses for its clones,
   `fsopen`/`fsconfig`/`fsmount`/`move_mount`,
@@ -558,8 +578,8 @@ collects the environment,
 and hands everything to `invocation::entry::run_process` (`main.rs:72`),
 then waits for the log lines it handed to their own threads
 (`end_after_the_log`).
-Every line number here is re-read at this branch's base
-(`45ac28ae47`,
+Every line number here is re-read at this round's base
+(`9939a0d7a6`,
 whose `main.rs` is the same file as `f3d81e0910`'s)
 (source package/git-policy/cli/src/native/main.rs).
 
@@ -4280,7 +4300,7 @@ What that means for the decision:
 
 - the method does resolve a gap of about half a millisecond here:
   the pair's lower quartile, 0.38 ms, stands above the control's 95th percentile, 0.30 ms,
-  and every one of the pair's 120 rounds is positive against 66 of the control's 119;
+  and 120 of the pair's 120 rounds are positive against 66 of the control's 119;
 - so a warm per-event start,
   which is what each history event pays,
   costs the wrapper about 0.48 ms more than the handler at the median,
@@ -4326,8 +4346,8 @@ is the finding.
 ## What changes, and in which step
 
 Every path in this section is re-read with `rg`,
-and each line number is given at this branch's base,
-`45ac28ae47`,
+and each line number is given at this round's base,
+`9939a0d7a6`,
 unless it says `f3d81e0910`,
 which is the commit the third revision read and the line has not moved since.
 `rg --hidden -c "mount-git-worktree-clone-datasets"` finds 154 lines in 56 files at this base,
@@ -4354,7 +4374,7 @@ and `toolchain:lock:check` compares the plan and the lock offline:
 - `package/git-policy/cli/src/native/lib.rs:462` to `:475` (the paragraph) and `:476` to `:477`
   (the module):
   the module's doc paragraph,
-  which says "the crate's second executable" (`:450` at this base;
+  which says "the crate's second executable" (`:468` at this base;
   `:415` to `:428`, "second executable" at `:421`, at `f3d81e0910`);
 - `src/native/source_guard/release_bins_tests.rs`:
   its doc (`:1` to `:22`) and `RELEASED_BINS` (`:31`);
@@ -4598,7 +4618,11 @@ so they land with the release lists:
   and the guest compiles what it runs at `:340`),
   and the guest creates the installed-name link before the adoption arm runs;
 - `e2e/start-probe-guest.ts:196`,
-  whose `cargo build --release --locked --bins` builds one binary fewer.
+  whose `cargo build --release --locked --bins` builds one binary fewer,
+  and its raised-deadline arm,
+  which under choice 11's option A builds the probe with the deadline variable compiled in and
+  names that build,
+  and under options B and C keeps the released bytes.
 
 The two new modes' own files are in this commit because the grammar,
 the dispatch and the record's writer are one shape,
