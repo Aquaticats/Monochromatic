@@ -19,6 +19,7 @@
 use super::{
     ArgumentRefusal, CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, HolderScanInvocation, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION, VERSION_WORD, parse, usage,
 };
+use crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME;
 use crate::worktree_clone_mount_handler::handler_install_paths::version_line;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
@@ -144,6 +145,32 @@ fn the_adoption_reads_its_three_options_in_any_order() {
         parse(&arguments(&["adopt-worktree-parent", INODE_OPTION, "1234567", DEVICE_OPTION, "66306", CHECKOUT_OPTION, "/home/user/Monochromatic"])),
         Ok(adoption())
     );
+}
+
+/// What:
+///  The usage's first line is a spelling that works when typed,
+///  and its closing sentences say who installs the root-owned file and when.
+/// Why:
+///   The words follow whatever path starts the program,
+///  so the usage naming them alone prints a command Git answers as an unknown word,
+///  and a usage claiming the file is installed states paths no release creates
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+///  "How the root modes' usage reads").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(usage().split('\n')[0]).toBe('usage: <file> monochromatic-git-policy-cli zfs-root <mode>');
+/// ```
+#[test]
+fn the_usage_opens_with_the_spelling_that_works_and_says_who_installs_the_file() {
+    let text: String = usage();
+    let first: &str = text.lines().next().expect("the usage has a first line");
+    assert_eq!(first, format!("usage: <file> {} <mode>", root_modes_name()));
+    assert!(!text.contains("[mode]"), "no line offers a mode in brackets: {text}");
+    assert!(text.contains(ROOT_MODE_INSTALL_PATH), "the usage names the root-owned file's path: {text}");
+    assert!(text.contains("plan step 19's setup installs"), "the usage says who installs the file: {text}");
+    assert!(text.contains("no release installs it yet"), "the usage says no release installs the file yet: {text}");
+    assert!(text.contains(ZEDLET_START_NAME), "the usage names the ZED event's own file name: {text}");
 }
 
 /// The usage names the program,
