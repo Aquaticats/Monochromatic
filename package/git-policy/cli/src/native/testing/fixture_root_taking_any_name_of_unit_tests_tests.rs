@@ -130,8 +130,7 @@ fn capability_set_from(status: &str, set: &str) -> u64 {
             let (name, word) = line.split_once(':')?;
             return if name == set { Some(word.trim()) } else { None };
         })
-        .unwrap_or_else(|| { return panic!("{set} is not in the status file of the program that was started:\n{status}"); });
-    return u64::from_str_radix(printed, 16).unwrap_or_else(|error| {
-        return panic!("the status file prints {set} as {printed}, which is not a hexadecimal capability word: {error}");
-    });
+        .unwrap_or_else(|| panic!("{set} is not in the status file of the program that was started:\n{status}"));
+    return u64::from_str_radix(printed, 16)
+        .unwrap_or_else(|error| panic!("the status file prints {set} as {printed}, which is not a hexadecimal capability word: {error}"));
 }
