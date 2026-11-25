@@ -10,7 +10,9 @@ Not yet done:
 the probe harness lives only in the kept scratch folder named in "Busy-agent probe",
 not in the repository or a package test;
 hosted-source permalinks for the Pi citations,
-and an exercised check of the Escape behaviour in "Escape discards the queued pokes".
+and a drive of the interactive Escape key itself
+(the queue-clearing call it makes was exercised;
+see "Escape discards the queued pokes").
 
 ## Symptom
 
@@ -147,8 +149,8 @@ and nothing on screen marks it as finished.
 
 ### Escape discards the queued pokes
 
-This is source reading,
-not exercised.
+Exercised through RPC on 2026-11-25,
+not through the interactive key.
 Escape while streaming calls `restoreQueuedMessagesToEditor({ abort: true })`
 (`dist/modes/interactive/interactive-mode.js:2567-2569`),
 which calls `session.clearQueue()` (`:4063-4064`):
@@ -167,6 +169,19 @@ clearQueue() {
 which goes back into the editor.
 Extension custom messages live only in the agent's queues,
 which `clearAllQueues()` empties with nothing restored.
+
+RPC's `clear_queue` command calls the same `session.clearQueue()` (`dist/modes/rpc/rpc-mode.js:358`).
+The harness `run-clear-queue-arm.ts`,
+kept beside the busy-agent probe,
+queues a poke during a 1.5 s tool call,
+sends `clear_queue` then `abort` as Escape does,
+then sends a second prompt.
+In both the follow-up control and the steer build,
+`clear_queue` answered `{ "steering": [], "followUp": [] }`
+and no `bash-poke` message appeared in either run.
+The busy-agent probe is the positive control:
+without the clear,
+the poke always arrived.
 
 ## Verification
 
@@ -261,7 +276,8 @@ by the probe in "Busy-agent probe":
 ## What does not work
 
 - Pressing Escape to make the poke arrive:
-  per "Escape discards the queued pokes" it ends the run and drops the queued pokes.
+  per "Escape discards the queued pokes" it ends the run and drops the queued pokes,
+  as the `clear_queue` probe showed.
 - Watching the progress row for completion:
   the row disappears when the job exits.
 
