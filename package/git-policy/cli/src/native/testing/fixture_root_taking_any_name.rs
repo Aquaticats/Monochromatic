@@ -75,7 +75,7 @@ pub(crate) fn in_a_root_taking_any_name(root: &Path, test: &str) -> bool {
         return false;
     }
     mount_a_tmpfs(root);
-    // RED RUN: the fix is not called. stop_gaining_capabilities_across_exec();
+    stop_gaining_capabilities_across_exec();
     assert!(
         a_name_that_is_not_utf8_can_be_made(root),
         "the control {test} mounted a tmpfs at {} because the file system there refused a name that is not UTF-8, and the \
