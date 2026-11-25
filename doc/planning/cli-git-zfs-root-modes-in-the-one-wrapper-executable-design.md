@@ -16,27 +16,31 @@ about the boot mount provider and the ordering of plan step 19 in
 and about which checkouts the route serves in
 [the step 10 record](../decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md).
 Every claim about a program this repository does not own is read from that program's source,
-and every claim about this repository's code is re-read on `main` at `f3d81e0910`,
-the commit this round merged into its branch.
+and every claim about this repository's code is read on this branch's base,
+`45ac28ae47`,
+whose tree holds the same files as `8500f58fca`.
+A citation given at `f3d81e0910` is a line the third revision read there and no commit since has moved;
+where a cited file did move,
+the citation gives this branch's line and both commits' values.
 The decision records and the handover are untouched by this round.
 
-This is the third revision,
-the round of 2026-11-24T14:05:00-05:00.
-It replaces the text of the second revision
-(`37143a1daf`),
+This is the fourth revision,
+the round of 2026-11-24T19:26:27-05:00.
+It replaces the text of the third revision
+(`2ad0c2ab7d`),
 which a same-vendor pass then read again.
 That pass is not an independent review:
 it is a second reader of the same vendor,
 and its file is
-`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/keep/read-of-the-second-one-program-revision.md`.
+`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/keep/read-of-the-third-one-program-revision.md`.
 It found one High,
-seven Medium and thirteen Low items,
+seven Medium and twelve Low items,
 and this revision answers every one of them in
 "What this revision changed,
 and why".
-It also adds the two modes the owner's answers since need,
-and re-poses every choice with a command,
-a ranking and a separability statement.
+It also poses the replacement of a recorded checkout as an open choice of its own,
+lifts the panic hook out of choice 4 into a choice of its own,
+and states the order in which the nested dataset's unit changes.
 
 Every claim in this design says what it rests on,
 in one parenthesized label:
@@ -46,210 +50,415 @@ in one parenthesized label:
   whose output is that file in this round's `keep/`;
 - (replay FILE),
   an earlier round's kept transcript,
-  replayed by this round with an identical result;
+  replayed or re-analysed by this round with the same result;
 - (source PATH:LINE),
-  a file in this repository,
-  read on `main` at `f3d81e0910`;
+  one line of this repository's code,
+  read at `45ac28ae47` unless the citation says another commit;
 - (upstream PATH:LINE),
   another program's source,
   read through `gh`;
 - (record PATH),
   an accepted decision record;
+- (proposal),
+  this design's own wording,
+  where no build and no probe exists yet;
 - (design),
-  this proposal's own reasoning,
-  with no probe or record behind it.
+  this proposal's reasoning:
+  inference,
+  with no probe,
+  source line or record behind it.
 
 ## What this revision changed, and why
 
-### The High finding, and the guard's bypasses
+The third read's file is named in "Status".
+Its one High,
+seven Medium and twelve Low findings are answered here in its own order,
+and every answer names the probe,
+source line or record it rests on.
+The round's logs are listed in the appendix,
+"Probes this round ran, and what each file holds".
 
-The read's H1 was that the one-name guard did not hold the names module to one name:
-it pinned one `history_event-` literal line and three counts,
-and its four variants (a second constant,
-an inline second name,
-and a suffix test and a contains test built from the constant)
-all passed it while changing what the module decides.
-The guard now pins the whole comparison as one exact line,
-pins the module's complete set of string literals,
-and forbids `ends_with(`,
-`starts_with(`,
-`contains(` and `rsplit` there.
-All four variants fail the new guard,
-and this round adds four of its own that keep the exact comparison and reach for each
-forbidden spelling instead,
-so each of the four bans has a witness that fails on it alone
-(run keep/guard-replay-revision3.log).
+### The High finding: the nested dataset's rule refused the dataset the record names
 
-The read's M1 was that the printed hook guard was not the predicate the replay checked:
-`named_times` and the `root_mode_start(` count were in the replay and not in the printed text,
-and three bypasses passed everything
-(an alias of `args_os` through `use ... as`,
-a read of `/proc/self/cmdline`,
-and `std::env::args().take(1)`).
-The printed guard now carries every predicate the replay applies,
-compares the three vector lines whole instead of by substring,
-and adds `/proc/self/cmdline` to its needle list.
-Two typed bans do what a text guard cannot:
-`package/git-policy/cli/clippy.toml` gains rows for `std::env::args` and `std::env::args_os`,
-with one allow on `main`'s collection and three in the test files that start the test binary.
-The alias and the `args()` call fail the ban,
-measured in a probe crate that carries those two rows and the crate's own file
-(run keep/clippy-bans.log).
-All six of the read's own bypasses now fail the text guard,
-and two of them fail the typed ban independently
-(run keep/guard-replay-revision3.log).
+The third revision's `mount-path-descendant` refused a dataset whose name did not descend from
+the recorded checkout's dataset,
+or whose `mountpoint` was not under the recorded checkout's path.
+The dataset the step 19 record names fails the first half:
+`zpcachyos/nosnap/vm-builder-output` is a sibling of the checkout's dataset in the same pool,
+not a descendant of it,
+while its mountpoint lies inside the checkout
+(run keep/host-facts-fourth.log,
+which prints the table and the property).
 
-### The seven Medium findings
+Two records decide what the rule must be,
+and neither mentions descent by name:
 
-- M2,
-  "every start of the file is a root-mode start" is false for another `argv[0]`:
-  it is now "every start under that name",
-  and the probe carries the link and `exec -a` cases.
-  This round ran the compiled module under links named `git`,
-  `monochromatic-git-policy-cli` and `mount-git-worktree-clone-datasets`,
-  and under `exec -a git`:
-  each decides the wrapper,
-  while the same file under its own name refuses a bare word
-  (run keep/names-starts.log).
-- M3,
-  the check order:
-  the words are read before the one name,
-  and the service's words after both,
-  and that order decides a real case.
-  A unit's line at the installed path works only because the words are read first:
-  name-first would refuse its words.
-  The false "order cannot change what any of them does" sentence is gone
-  (cases 3 and 28;
-  run keep/dispatch-cases.log).
-- M4,
-  the change list misses companions:
-  it now names
-  `no_self_invocation_tests.rs:191`'s `samples` array and its `:208` length assertion,
-  `worktree_clone_mount_handler/mod.rs`'s `pub mod` line and its top doc,
-  `source_guard/mod.rs`'s declaration of the new guard,
-  `code_lines`' move from `hook_self_invocation_tests.rs` to `source_guard/mod.rs`,
-  the three test files that need a Clippy allow,
-  and the third pinned line of `main`.
-- M5,
-  citations that do not hold:
-  every line number in this design is re-derived with `rg` on `f3d81e0910`,
-  and each moved one is given its current value.
-  `SPEC.md`'s sentence is at `:19261`,
-  not `:19101`,
-  and the read's own `:19235` was that read's main (`2d9fa02ea5`);
-  the askpass change moved it to `:19248`,
-  and `30c3037046` to `:19261`.
-  The second `[[bin]]` is `:46` to `:48` and its comment is `:39` to `:45`;
-  `:35` to `:37` are the wrapper's own table,
-  which a literal delete of `:34` to `:45` would remove.
-  `add_zfs.rs:68` is reached from `add_preflight.rs:113`.
-  The README's five hits are `:11`,
-  `:1912`,
-  `:7188`,
-  `:7195` and `:8038`.
-  `lib.rs`'s "second executable" paragraph is `:415` to `:428`.
-  The replay excerpt is regenerated from this round's run.
-- M6,
-  choice 1's A-over-B reason:
-  `doctor`'s installed-file check does not read `--version` today
-  (`handler_checks.rs:229` reads owner and mode only,
-  and `rg -- '--version|version_line' src/native/health/` finds none),
-  so the reason is replaced.
-  What supports A is that the release smoke and a person can check the installed bytes with one command
-  that carries no words,
-  which is what makes the smoke's first arm a proof of the name dispatch.
-  A also gives the name two more spellings,
-  `--help` and `--version`,
-  and the answer's literal text is B.
-  The proposal discloses that,
-  and the choice stays the owner's.
-- M7,
-  the cold-start section:
-  the "lower bound" and "estimated sum" sentences are gone,
-  because the two arms run different programs and neither bounds the proposed start;
-  no absolute time is reported as a finding,
-  only paired differences and ratios beside a control;
-  and the warm per-event start,
-  which the second revision left unmeasured,
-  is measured this round.
-  Both warm starts are near a millisecond,
-  and their difference is smaller than the control's own per-round spread,
-  so this round reports that it cannot resolve the gap between them
-  (this round's warm logs;
-  run keep/host-warm-*.txt and keep/warm-analysis.txt).
-
-### The thirteen Low findings
-
-- Choice 3's option D example is measured now:
-  a copy of today's bytes named `holder-scan`,
-  started with `--dataset tank/checkout`,
-  answers `unknown option: --dataset` with Git's usage and status 129
-  (run keep/today-installed-name.log).
-- Choice 2's printed usage is the build's real text,
-  copied from a run of the built program,
-  with the two new modes' lines added where they will stand
-  (run keep/handler-usage.log).
-  The `decides` lines say which probe covers them.
-- The edit counts are this round's own:
-  seven edits of `main` (V3 to V9),
-  six more (hv1 to hv6),
-  eleven names modules (the three planted,
-  the read's four,
-  and four of this round's),
-  listed in the replay log.
-- `mount-git-worktree-clone-datasets` is 33 characters.
-- The version line's five readers are named once,
-  in choice 5,
-  and nowhere else.
-- The modes' list is stated as the records have it:
-  the one-program record names four modes and the sweep,
-  the grammar has `holder-scan` beside them,
-  and this design adds two more.
-- The occurrence count is this round's:
-  122 lines in 54 files without this proposal and 148 in 55 with it.
-- No relative pointer survives:
-  each one names the heading,
-  the path or the symbol.
-- The `LiveGate` account says "not yet merged into the line that review read",
-  and the commit dates are verified:
-  `b01af8c3bd` (2026-11-23T20:54:55-05:00) is not an ancestor of `c2701d58a5`
-  (2026-11-23T21:45:28-05:00),
-  and it reached `main` at `bee6531780` (2026-11-24T00:51:32-05:00)
-  (source)
-  from the three commits' `git log` lines.
-- Choice 4's option A block says which of its two lines is a prediction.
-- Choices 1,
-  4,
-  6 and 7 now carry separability statements,
-  and choice 2's list gains the modes' usage and refusal texts.
-- B over C stops claiming a difference that B shares.
-- The misuse message for `--version x` names the word that cannot be honoured,
-  which is `x` and not `--version`,
-  because the read measured that today's rule would print `--version`
-  (the `--version extra` line;
-  run keep/names-starts.log).
-
-### What the owner's answers since add
-
-Two modes,
-designed in "The two modes these answers add":
-
-- `record-checkout --checkout <path>`,
-  the root command that records a checkout,
-  which is choice 1's option E of
-  [the step 10 record](../decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md)
-  (record doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md);
-- `mount-path-descendant --dataset <dataset>`,
-  which
-  [the step 19 record](../decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md)
-  names as the later replacement for the nested dataset's unit
+- the step 19 design sets `canmount=noauto` on every dataset "whose mountpoint lies inside the checkout"
+  (source doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md:947);
+- the same design defines the refusal as a dataset "whose mountpoint lies outside the checkout"
+  (:1009 to :1013),
+  and asks the refusal to name the dataset,
+  "not only the path";
+- the step 19 record answers that the nested dataset's unit "is replaced by the wrapper's own
+  `mount-path-descendant` mode once the mode exists"
   (record doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md).
 
-The step 19 answer also fixes what this design says about AppArmor:
-the ZED hook's needs are rules in `/etc/apparmor.d/local/zed`,
-and the rule that matters here names the one root-owned file ZED starts,
-because that file's name is choice 3's.
-That is in "Steps 18 and 19".
+So the rule is mountpoint-only now,
+and the third revision's own example,
+which printed `mounted: zpcachyos/nosnap/vm-builder-output at …`,
+matches the rule that decides it instead of contradicting it.
+
+What this revision adds,
+and discloses as its own suggestion rather than a record's:
+a dataset of another pool than the recorded one is refused too,
+because the checkout and every dataset under it are in one pool,
+and a foreign pool's dataset mounted under the checkout would put another pool's subtree inside a
+served checkout.
+It costs one comparison against the record's pool,
+and the owner may drop it with one sentence,
+in which case the mode mounts a dataset of any pool whose mountpoint lies under the checkout.
+
+### The Medium findings
+
+#### M1, how a recorded checkout is replaced after a restore gives it a new GUID
+
+The step 10 design relies on a re-adoption after a legitimate restore:
+"a legitimate restore of the checkout dataset gives it a new GUID, and E refuses the add until root
+re-adopts the checkout with the command"
+(source doc/planning/cli-git-zfs-step-10-open-choices.md:578 to :579).
+The third revision gave that command no way to re-adopt:
+`checkout-record-differs` refused,
+and a second run "replaces the record only when every field is equal",
+which is a no-op.
+
+The replacement is now an open choice,
+posed in "The record a legitimate restore replaces",
+with three options,
+a command for each,
+and a ranking.
+The mode's refusal names the way forward,
+which is the grammar's own principle for every refusal.
+
+#### M2, the one-name guard passed variants that changed the module's decision
+
+The third read's five variants each kept the pinned comparison line and still changed what the
+module decides.
+This round rebuilt all five from this revision's module,
+then compiled nothing and replayed the guards over their text:
+
+- the third revision's printed guard passes all five
+  (run keep/guards-replay-fourth.log,
+  the section "the same variants through the THIRD revision's printed guards");
+- this revision's guard refuses all five,
+  and the rule that refuses each is the one the variant breaks.
+
+What the guard is now:
+
+- the five functions of the module are pinned whole,
+  as consecutive code lines:
+  `root_mode_start`,
+  `starts_with_the_group_words`,
+  `names_the_zedlet`,
+  `last_component` and `split_the_name`.
+  A variant that keeps one comparison line and adds a second live test therefore fails,
+  which is the class the read found;
+- the module may hold no `/*` and no `include!`,
+  `include_str!` or `include_bytes!`,
+  read from its own text and not only from its code lines,
+  because an `include_str!` brings a second name in without a string literal;
+- the literal set and the three counts are unchanged.
+
+This round's own witnesses for the rules the read did not trip:
+`nw1` (a block comment in the module's own doc) fails the `/*` ban alone,
+`nw2` (a second name from `include_str!`) fails the include ban alone,
+`nx1` (an early `true` beside the pinned comparison) fails the body pin alone,
+and the third revision's guard passes `nx1`,
+which is a sixth variant of the same class
+(run keep/guards-replay-fourth.log).
+
+Choice 1's option B is a change to this module too,
+so the third revision's claim that nothing about the guards changes under B was false,
+and choice 1's separability statement says so now.
+What the two guards do with a B-shaped module differs,
+which is itself the measure of the third revision's guard:
+this revision's guard refuses it on the body pin,
+while the third revision's guard passes a B shape that keeps the extra-word helper and
+refuses only a B shape that drops the helper,
+on the literal set
+(run keep/guards-replay-fourth.log,
+the section "choice 1's option B, as a module").
+
+#### M3, the hook guard did not hold `main` to the three lines
+
+The third read's four `main` variants and its whitespace-split file each passed the third revision's
+printed guard.
+Each closed here,
+and the before-and-after column is the same log:
+
+- `hv7`, a `/*` and a `// */` hiding a read:
+  `code_lines` now tracks block comments character by character,
+  so the line after an open `/*` is code,
+  and `main.rs` may hold no `/*` at all;
+- `hv8`, `include!` of an expression that reads the vector:
+  `main.rs` may hold no `include!`, `include_str!` or `include_bytes!`;
+- `hv9`, `use std::env::args as reader;` with a second allow:
+  every `env::` line of `main.rs` is one of the two pinned collections,
+  and the one `#[allow(clippy::disallowed_methods)]` must stand directly above the argument
+  collection.
+  My `hw1` carries the alias with no second allow,
+  so the text pin alone must close it,
+  and it does;
+- `hw2` moves the allow off the collection,
+  which the pinned placement refuses;
+- `hv10`, `/proc/self/comm`:
+  `/proc/self/` is banned in `main.rs` and is a needle of the `argv0-dispatch` rule,
+  which has no allows;
+- the whitespace-split file, `std::env::args_os ().next()`:
+  the scan's `argv-vector-read` rule now compares the line with its whitespace squeezed,
+  so `args_os ()` matches.
+  The third revision's rule reports nothing for that file;
+  this one reports the read
+  (run keep/guards-replay-fourth.log,
+  the section "the scan, before and after").
+
+#### M4, evidence labels that named a log not holding the claim
+
+Three labels were wrong,
+and this round reran each to a file of its own:
+
+- `names-starts.log` was cited for a non-UTF-8 start and a ZED child step.
+  That log held a `cc1` error for a missing `zed_replay.c` and no non-UTF-8 start,
+  and the ZED child step's arm printed nothing,
+  because ZED points descriptors 1 and 2 at `/dev/null`
+  (upstream cmd/zed/zed_exec.c:161 to :166).
+  This round's run is `keep/names-starts-fourth.log`:
+  every start by path,
+  through links,
+  with `exec -a`,
+  the ZED child step,
+  and the two vectors a shell cannot spell.
+  The ZED child step's decision is read from the file the child itself appended to,
+  which is how a start whose stdout is `/dev/null` can still be reported;
+- the non-UTF-8 start is `keep/non-utf8-starts-fourth.log`.
+  It is made with `exec -a`, not with a file name,
+  because this host cannot hold such a name:
+  `/home` is `utf8only=on` with `normalization=formD`
+  (run keep/host-facts-fourth.log).
+  A name ending in an invalid byte decides the wrapper,
+  an invalid byte before a slash and the zedlet's name after it decides root-mode,
+  and the zedlet's name alone is the control;
+- `unit-argv0.log` was cited for a service's `argv[0]` and held no `PROBE` line.
+  This round's run is `keep/unit-argv0-fourth.log`:
+  a transient user service started with `--wait --pipe` and a transient user scope,
+  both printing the path as `ExecStart` wrote it.
+  The units were collected on exit,
+  and `systemctl --user list-units` shows none of them.
+
+The case citation is corrected too:
+the two new modes through the words are cases 27 and 28,
+while case 29 is the record mode under the installed name,
+which A and B refuse and C hands to the grammar
+(replay keep/dispatch-cases.log).
+
+#### M5, the change list's missing companions
+
+Four were missing, and each is named where it belongs now:
+
+- `worktree_clone_mount_handler/mod.rs:183` re-exports `EXIT_DONE`, `EXIT_REFUSED` and `run` and
+  nothing else,
+  so the printed `main`'s call to `refuse_root_mode_misuse` does not compile until that line gains
+  the name (source package/git-policy/cli/src/native/worktree_clone_mount_handler/mod.rs:183);
+- the `HandlerMode` doc says "no argument names a folder to mount or a dataset to change"
+  (:112 to :115),
+  which the two new modes make false,
+  so it is rewritten in the same commit;
+- two release refusal texts tell a person to run `mount-git-worktree-clone-datasets …`:
+  `sweep_preconditions.rs:195` and
+  `worktree_clone_mount/clone_slot_walk_refusals.rs:194`,
+  beside the two `identity_checks.rs` messages the third revision already listed;
+- the printed `main` excerpt now carries the third pinned line,
+  `let handed: &[OsString] = arguments.get(1..).unwrap_or_default();`,
+  instead of a comment saying it is there.
+
+The `samples` array's own type changes with the seventh pair:
+it is `[(&str, &str); 6]` on `no_self_invocation_tests.rs:191`,
+so the pair is written with a `7` on that line,
+and `:208`'s length assertion then carries it.
+
+#### M6, statements in the owner-facing choices that were wrong
+
+- Choice 1 said that under option B "nothing about … the guards changes".
+  That is false:
+  a B-shaped module changes the decision function,
+  so it fails this revision's one-name guard on the body pin,
+  and the third revision's guard caught it only in the shape that drops the extra-word helper,
+  on the literal set
+  (run keep/guards-replay-fourth.log).
+  The reason for A over B is replaced by what each delivers:
+  A answers a word-free `--version` at the installed file,
+  which is one positive check of the installed bytes;
+  B's equivalent is a refusal check under the name, exit 2 where Git would print its version,
+  or the longer words line.
+- Choice 4's option D block printed today's output,
+  which is the management arm's refusal,
+  not what D would do.
+  Its "D keeps every pinned line" was false as well:
+  D needs the program name inside `plan_invocation`,
+  so `main` must hand the vector in,
+  and today's `main` fails the new guard on four vector lines
+  (run keep/guards-replay-fourth.log, the positive control).
+- Choice 5 counted `doctor`'s comparison as an existing reader of the version line.
+  `doctor` reads no version line today:
+  `rg -- '--version|version_line|handlerVersionLine' src/native/health/` finds none,
+  and `handler_checks.rs:229`'s check reads owner and mode
+  (source package/git-policy/cli/src/native/health/doctor_zfs_route/handler_checks.rs:229).
+  So the version line has four existing readers,
+  `handlerVersionLine`,
+  `native:install`'s comparison,
+  the release smoke's `grep` and the stand-in handler's line,
+  plus `doctor`'s planned check.
+- Choice 6 began from "today a person can type
+  `mount-git-worktree-clone-datasets adopt-worktree-parent …`".
+  On this host nothing answers that name:
+  `command -v mount-git-worktree-clone-datasets` prints nothing and exits 1,
+  while the control `command -v git` prints the wrapper's own path
+  (run keep/host-facts-fourth.log).
+- The panic hook was a list item inside choice 4 with no ranking.
+  It is a choice of its own now,
+  "Choice 10: the panic hook a root mode installs",
+  with its command and what each option prints.
+
+#### M7, the warm-start paragraph concluded against its own data
+
+The paragraph said the pair's 0.48 ms median was smaller than the control's per-round spread and
+called the warm gap unresolvable.
+Re-analysed from the same two raw files,
+it is resolvable and small
+(run keep/warm-reanalysis-fourth.log,
+which states its quantile convention so every number is recomputable):
+
+- the pair's per-round difference,
+  arm `a` the wrapper's service start and arm `b` the handler's `--version`,
+  has median 0.48 ms,
+  5th to 95th percentile 0.19 to 0.80,
+  lower quartile 0.38,
+  and every one of the 120 rounds is positive;
+- the control's difference has median 0.01 ms,
+  5th to 95th percentile -0.24 to 0.30,
+  and 67 of 120 rounds positive;
+- so the pair's lower quartile stands above the control's 95th percentile,
+  and the method does resolve a gap of about half a millisecond;
+- round 1 is not a warm round:
+  it took 416 and 72 major faults and is the pair's 3.67 ms maximum,
+  so the quantiles above are also given without it in the log,
+  where the maximum is 1.36 ms;
+- the third revision's "about twice" understated its own median ratio:
+  the ratio is 2.81 on the cold host arm and 1.72 on the warm one,
+  and each is stated where it belongs.
+
+No upper bound is claimed from the warm pair,
+and the disclosure stands:
+arm `a` is not the proposed start,
+so nothing here bounds it.
+
+### The Low findings
+
+- The grammar's "in the order the help prints" is false:
+  `parse_adoption` and `parse_holder_scan` read `--name value` pairs in any order
+  (source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_arguments.rs:393
+  and :457).
+  The sentence now says "each option as `--name value`, in any order".
+- The record's proof and its container refusal described opposite directions.
+  Both are stated now:
+  the checkout's dataset is not inside the container,
+  and the container is not inside the checkout,
+  and each refusal names the direction it found.
+- `mount-path-descendant` had no refusal for a record that no longer matches the kernel,
+  although the record's section says every reader refuses one.
+  It has one now,
+  `checkout-record-no-longer-matches`,
+  naming the field that differs.
+- The record's writer landed in this design's commit while the format was "step 10's build".
+  The fields are listed here now,
+  path,
+  dataset,
+  GUID,
+  container,
+  pool and a format version,
+  with the mode,
+  the owner and the folder's rule;
+  step 10's build owns the reader and may add a field,
+  which is a change to this list.
+- The step 10 design's record is a root-owned `0644` file
+  (source doc/planning/cli-git-zfs-step-10-open-choices.md:613),
+  and this host has no `/var/lib/monochromatic-git-policy-cli`
+  (run keep/host-facts-fourth.log).
+  The mode creates the folder `0755 root:root` when it is absent,
+  and refuses a folder that is not root's or is group- or other-writable;
+  step 19's setup runs the same `install -d` line before the first record.
+- The shared `DatasetName` refusal says "the clone's full dataset name",
+  and the new mode's dataset is not a clone.
+  The sentence is one per mode now:
+  the clone's name for `holder-scan`,
+  the dataset's own name for `mount-path-descendant`.
+- "Four of the seven modes are clone mounts" was unsupported.
+  What is checkable is narrower and is what the text says now:
+  `mount-path-descendant`'s dataset is not a clone,
+  and `start-probe`, `holder-scan`, the adoption and `record-checkout` are not mounts.
+- The sentence "before this change a person who typed the group word and forgot the mode started a
+  real sweep as root" described the second revision.
+  Today the words reach the management arm,
+  which refuses them and writes a lock-holder record
+  (replay keep/today-lines.log).
+- `SPEC.md`'s sentence said the name selects "the clone-mount sweep and nothing else",
+  while choice 1's option A also answers `--help` and `--version` there.
+  The rewritten sentence says the name selects the sweep and the modes' own two answers.
+- The release smoke's `mktemp -d` put a fixture in `/tmp`.
+  It uses `${RUNNER_TEMP}` now.
+- The relative pointers are gone:
+  "The last line calls one helper" names `word_that_cannot_be_honoured`,
+  "the logs above" names the appendix heading,
+  and the two "last paragraph" pointers name the usage's closing sentences.
+- The occurrence count is measured with `--hidden`:
+  128 lines in 55 files without this proposal,
+  which contributes 29 of the 157 in 56,
+  so its own share is left out of the count that matters
+  (run keep/occurrences-fourth.txt).
+  The third revision's 122 and 148 came from `rg` without `--hidden`,
+  which skips `.github/workflows/cargo-publish.yml`.
+- The citations the third read checked hold,
+  except those in the four files that moved since its base,
+  and each of the moved ones gives both commits' lines:
+  `SPEC.md`'s sentence (19261 at `f3d81e0910`, 19588 here),
+  its three mode command lines (7652, 21812 and 21992 there; 7943, 22139 and 22319 here),
+  `README.md`'s four hits (1912, 7188, 7195 and 8038 there; 1925, 7275, 7282 and 8131 here,
+  with `:11` unmoved),
+  `lib.rs`'s second-executable paragraph and module line
+  (415 to 428 and 429 there; 444 to 457 and 458 here),
+  and `add_preflight.rs`'s `OpenedDevice::open` call (113 there, 139 here).
+  Each is cited with the sentence it belongs to,
+  so a reader on a later commit can find it again
+  (run keep/citations-at-this-rounds-base.txt and keep/citation-drift-fourth.log).
+- `mise.toml:268` named the package's e2e task,
+  and the root `mise.toml` has different text on that line.
+  The citation now names the package's file,
+  `package/git-policy/cli/mise.toml:268`.
+
+### What the third revision's own work still holds
+
+Its dispatch probe,
+its real starts and its Clippy probe were replayed this round and stand:
+
+- thirty-five starts,
+  with cases 1 to 26 giving the second revision's seventy-eight decisions line for line
+  (replay keep/dispatch-cases.log);
+- the printed usage is the build's own text
+  (replay keep/handler-usage.log);
+- the two typed bans in a probe crate carrying the crate's `clippy.toml` refuse the alias and the
+  direct call (replay keep/clippy-bans.log).
+
+What did not hold is the evidence label the third read names in M4,
+and the guards M2 and M3 close.
 
 ## What the decision requires
 
@@ -321,7 +530,9 @@ collects the environment,
 and hands everything to `invocation::entry::run_process` (`main.rs:72`),
 then waits for the log lines it handed to their own threads
 (`end_after_the_log`).
-Every line number here is re-read on `f3d81e0910`
+Every line number here is re-read at this branch's base
+(`45ac28ae47`,
+whose `main.rs` is the same file as `f3d81e0910`'s)
 (source package/git-policy/cli/src/native/main.rs).
 
 `package/git-policy/cli/src/native/mount_git_worktree_clone_datasets/main.rs` is the second program's entry,
@@ -411,7 +622,7 @@ Each is a binary-level control under `src/native/binary/binary_tests.rs`.
 `e2e/start-probe-guest.ts:42` names the built binary in its `HANDLER` constant
 and its guest commands run `${HANDLER} start-probe`;
 `e2e/mount-git-worktree-clone-datasets-guest.ts` drives the second program with the same built path.
-`mise.toml:268` is the e2e task named for it.
+`package/git-policy/cli/mise.toml:268` is the e2e task named for it.
 
 ### The ZFS code already in the wrapper, and the gate it runs
 
@@ -421,7 +632,9 @@ The wrapper already carries the ZFS code.
 and the wrapper runs the same compatibility gate before its first request,
 which plan step 7 added:
 `worktree_clone_add_route/add_zfs.rs:68` calls `LiveGate.verdict()` inside `OpenedDevice::open()`,
-reached from `add_preflight.rs:113`,
+reached from `add_preflight.rs:139` at this base
+(`:113` at `f3d81e0910`,
+where the file has changed since),
 both release code.
 The call arrived in `b01af8c3bd` (2026-11-23T20:54:55-05:00),
 which was not yet merged into the line the first gate review read
@@ -494,7 +707,7 @@ Commands:
 
 and a person who types the words is answered by the management arm's refusal,
 because the root-mode arm does not exist yet
-(run keep/today-lines.log):
+(replay keep/today-lines.log):
 
 ```text
 $ ./target/release/monochromatic-git-policy-cli monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
@@ -566,7 +779,7 @@ and the `ZEVENT_TIME_*` values.
 This round's replay of that child step,
 with a fixture writing down what it was handed
 (from `keep/zed_replay.c` and `keep/replay_fixture.rs`;
-run keep/zed-shape-report.txt):
+replay keep/zed-shape-report.txt):
 
 ```text
 PROBE argv0=Some("history_event-mount_git_worktree_clone_datasets")
@@ -612,17 +825,18 @@ so it cannot carry the installed name ZED passes.
 
 Measured this round on this host's user manager,
 with a transient service and a transient scope
-(run keep/unit-argv0.log):
+(run keep/unit-argv0-fourth.log):
 
 ```text
-== a transient user service: ExecStart in a unit
+Running as unit: zfs-root-modes-fourth-service.service
 PROBE argc=2
-PROBE argv[0]=/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/scratch/probes/argv0/argv_view
+PROBE argv[0]=/home/user/temp/agent/zfs-root-modes-fourth-revision-2026-11-24/scratch/names-probe/argv_view
 PROBE argv[1]=boot-reconcile
+          Finished with result: success
 
-== a transient user scope: the command line is the unit's
+Running as unit: zfs-root-modes-fourth-scope.scope
 PROBE argc=2
-PROBE argv[0]=/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/scratch/probes/argv0/argv_view
+PROBE argv[0]=/home/user/temp/agent/zfs-root-modes-fourth-revision-2026-11-24/scratch/names-probe/argv_view
 PROBE argv[1]=boot-reconcile
 ```
 
@@ -819,7 +1033,51 @@ The cases that decide the question:
 The real kernel starts of the compiled module agree:
 the installed file under a link named `git` decides the wrapper,
 and the same file under its own name refuses a bare word
-(run keep/names-starts.log).
+(run keep/names-starts-fourth.log).
+
+### What each option decides, in one command each
+
+Options A's and B's lines are the module's decision,
+measured by starting the compiled module under the named `argv[0]`
+(run keep/names-starts-fourth.log;
+option B's rule is the same module with only ZED's no argument accepted,
+compiled and started the same way).
+Option C's lines are the dispatch probe's decision for the first revision's rule,
+which that probe models as its third rule
+(replay keep/dispatch-cases.log,
+case 4).
+The text a build prints is this design's (proposal).
+
+Option A:
+
+```text
+$ <the installed file>
+   decides: root-mode grammar=[]  (ZED's own sweep)
+$ <the installed file> monochromatic-git-policy-cli zfs-root boot-reconcile
+   decides: root-mode grammar="boot-reconcile"
+$ <the installed file> --version
+   decides: root-mode grammar="--version"
+$ <the installed file> boot-reconcile
+   decides: refused word-under-name "boot-reconcile"
+```
+
+Option B:
+
+```text
+$ <the installed file> --version
+   decides: refused word-under-name "--version"
+$ <the installed file> monochromatic-git-policy-cli zfs-root boot-reconcile
+   decides: root-mode grammar="boot-reconcile"
+```
+
+Option C:
+
+```text
+$ <the installed file> boot-reconcile
+   decides: root-mode grammar="boot-reconcile"
+$ <the installed file> monochromatic-git-policy-cli zfs-root boot-reconcile
+   decides: root-mode grammar="boot-reconcile"
+```
 
 ### Ranking of choice 1
 
@@ -833,10 +1091,21 @@ which is the answer's second clause.
 A answers `--help` and `--version` under the installed name,
 so the release smoke's first arm and a person's check of the installed bytes are one command with no
 words in them,
-and that is what proves the name dispatch before any sweep runs.
+and that is a positive check of the name dispatch before any sweep runs.
+B can prove the same dispatch with a refusal instead:
+a start under the name with `--version` decides `refused word-under-name "--version"` in the compiled
+module,
+and the dispatch answers `EXIT_REFUSED`, which is 2,
+where Git would print its version and exit 0
+(run keep/names-starts-fourth.log,
+the section "option B's rule, compiled";
+the status is the dispatch's own,
+EXIT_REFUSED = 2,
+source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_dispatch.rs:45).
+So A's gain is a positive check with two words fewer,
+not the only proof;
 B is the answer's literal text,
-and its price is one extra word in every such check;
-its gain is a rule with one fewer arm,
+and its gain is a rule with one fewer arm,
 which is a smaller rule,
 not a stronger one.
 A's cost,
@@ -853,15 +1122,18 @@ so under the recommended layout the words would not be what selects a mode at al
 C is also the only one of the three that decides a bare word under a stray copy of the zedlet's name (case 22),
 where A and B refuse.
 
-The choice is separable.
+The choice is separable from the other nine,
+with one exception.
 If the owner picks B,
-what changes is four lines of `root_mode_names.rs` and the release smoke's first arm,
-which then has to spell the words;
-if the owner picks C,
+the module's decision function loses the two help words,
+which is a change to `root_mode_names.rs` and to the whole-body pins of the one-name guard,
+and the release smoke's first arm becomes a refusal check.
+If the owner picks C,
 the words pair is dropped under the name and the unit lines still work,
-at the price of the property stated in "B over C".
-Nothing about the layouts,
-the dispatch's placement or the guards changes.
+at the price of the property stated in "B over C",
+and the module and its guard change the same way.
+The layouts,
+the dispatch's placement and the hook guard do not change under any of the three.
 
 ### The rule, in the entry
 
@@ -897,8 +1169,11 @@ let arguments: Vec<OsString> = std::env::args_os().collect();
         }
     }
 }
-// The service check, the panic hook, the environment and entry::run_process
-// are the code that stands today, with `handed` taken from `arguments`.
+// The service check is the code that stands today, and the vector's third pinned line stands with it,
+// because the wrapper's entry and the service both read the arguments after the program name.
+let handed: &[OsString] = arguments.get(1..).unwrap_or_default();
+// From here the code is today's: the service check, the panic hook, the environment, and
+// entry::run_process.
 }
 ```
 
@@ -1001,7 +1276,7 @@ where every other refusal is written:
 it says the misuse and then the usage,
 and answers `EXIT_REFUSED`.
 
-The last line calls one helper the second revision did not have:
+The module's last function is the helper the second revision did not have, `word_that_cannot_be_honoured`:
 
 ```rust
 /// The first word this start cannot honour: `--help x` and `--version x` name `x`, because the
@@ -1040,7 +1315,7 @@ which is what lets a unit's line work at the installed path,
 and both are read before the service's words,
 which is what refuses `monochromatic-git-policy-cli service run` under the zedlet's name
 (the `service words` line;
-run keep/names-starts.log).
+run keep/names-starts-fourth.log).
 
 ### `zfs-root` alone refuses with usage
 
@@ -1051,14 +1326,18 @@ Measured today,
 the same line reaches the management arm,
 which answers its usage and status 2,
 and writes a lock-holder record into the repository it stands in
-(run keep/today-lines.log);
+(replay keep/today-lines.log);
 the second revision's `keep/probe-install-layouts.log` counted the record per start);
 with this change it is the root-mode arm's own refusal,
 and its text names the modes and the installed path.
 
 Only `start-probe` and `adopt-worktree-parent` check the effective user today
 (`handler_mode_dispatch.rs:174` and `adopt_worktree_parent_mode.rs:315`),
-so before this change a person who typed the group word and forgot the mode started a real sweep as root.
+and the third revision's claim that before this change a person who typed the group word and forgot
+the mode started a real sweep as root described the second revision:
+today the words reach the management arm,
+which refuses them and writes a lock-holder record
+(replay keep/today-lines.log).
 The refusal costs nothing a sweep needs:
 ZED's start is the no-argument one,
 and a unit always names its mode.
@@ -1098,8 +1377,13 @@ predicate for predicate:
 // package/git-policy/cli/src/native/source_guard/hook_self_invocation_tests.rs
 #[test]
 fn main_reads_the_one_start_name_through_root_mode_names() {
-    let code: Vec<&str> = code_lines(MAIN_SOURCE);
+    let code: Vec<String> = code_lines(MAIN_SOURCE);
     let joined: String = code.join("\n");
+    // A block comment can hide a statement from a stripper that only drops `//` lines, so none stands
+    // in this file, and neither does any macro that pulls another file's text in.
+    for banned in ["/*", "include!", "include_str!", "include_bytes!"] {
+        assert!(!MAIN_SOURCE.contains(banned), "main.rs holds {banned} in its own text, comments included");
+    }
     for forbidden in [
         "args_os().next()",
         "args().next()",
@@ -1116,6 +1400,7 @@ fn main_reads_the_one_start_name_through_root_mode_names() {
         "split_first",
         "current_exe",
         "cmdline",
+        "/proc/self/",
         "file_name",
         "OsStr::new(",
         "OsString::from(",
@@ -1127,12 +1412,29 @@ fn main_reads_the_one_start_name_through_root_mode_names() {
     ] {
         assert!(!joined.contains(forbidden), "main.rs contains {forbidden}");
     }
+    // The environment and the argument vector are reached on two lines and no other, so an alias of
+    // `std::env::args` cannot be slipped in beside them.
+    const COLLECTIONS: [&str; 2] = [
+        "let arguments: Vec<OsString> = std::env::args_os().collect();",
+        "let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();",
+    ];
+    let reaches_the_environment: Vec<&str> = code.iter().map(String::as_str).filter(|line| { return line.contains("env::"); }).collect();
+    assert_eq!(reaches_the_environment.len(), COLLECTIONS.len(), "main.rs reaches `env::` on {} line(s): {reaches_the_environment:?}", reaches_the_environment.len());
+    for line in reaches_the_environment {
+        assert!(COLLECTIONS.contains(&line.trim()), "main.rs reaches `env::` in a line this guard does not name: {line}");
+    }
+    // One allow, and it stands on the collection it excuses; a second allow would excuse a read the
+    // typed ban would otherwise refuse.
+    const THE_ONE_ALLOW: &str = "#[allow(clippy::disallowed_methods)]";
+    let allows: Vec<&str> = code.iter().map(String::as_str).filter(|line| { return line.contains("#[allow("); }).collect();
+    assert_eq!(allows.len(), 1, "main.rs holds {} allow line(s), and only the collection's one may: {allows:?}", allows.len());
+    assert_eq!(allows[0].trim(), THE_ONE_ALLOW, "main.rs's one allow is not the collection's");
     const VECTOR_LINES: [&str; 3] = [
         "let arguments: Vec<OsString> = std::env::args_os().collect();",
         "match root_mode_names::root_mode_start(arguments.as_slice()) {",
         "let handed: &[OsString] = arguments.get(1..).unwrap_or_default();",
     ];
-    let with_the_vector: Vec<&str> = code.iter().copied().filter(|line| { return names_the_argument_vector(line) > 0; }).collect();
+    let with_the_vector: Vec<&str> = code.iter().map(String::as_str).filter(|line| { return names_the_argument_vector(line) > 0; }).collect();
     assert_eq!(with_the_vector.len(), VECTOR_LINES.len(), "main.rs names the argument vector on {} line(s): {with_the_vector:?}", with_the_vector.len());
     for line in with_the_vector {
         assert!(VECTOR_LINES.contains(&line.trim()), "main.rs uses the argument vector in a line this guard does not name: {line}");
@@ -1141,6 +1443,9 @@ fn main_reads_the_one_start_name_through_root_mode_names() {
         let exact: usize = code.iter().filter(|line| { return line.trim() == known; }).count();
         assert_eq!(exact, 1, "main.rs holds {exact} line(s) equal to {known:?}");
     }
+    let collection_at: usize = code.iter().position(|line| { return line.trim() == COLLECTIONS[0]; }).expect("the collection line");
+    let above: Option<&String> = code[..collection_at].iter().rev().find(|line| { return !line.trim().is_empty(); });
+    assert_eq!(above.map(|line| { return line.trim(); }), Some(THE_ONE_ALLOW), "main.rs's allow does not stand directly above the one collection");
     assert_eq!(joined.matches("args_os").count(), 1, "main.rs names args_os once");
     assert_eq!(joined.matches("args_os()").count(), 1, "main.rs reads the argument vector once");
     assert_eq!(joined.matches("root_mode_start(").count(), 1, "main.rs makes one decision call");
@@ -1149,30 +1454,55 @@ fn main_reads_the_one_start_name_through_root_mode_names() {
 }
 ```
 
-with one helper beside it,
-because `mode_arguments` ends in `arguments` and a substring count would read it as a fourth use:
+`names_the_argument_vector` stays as it is,
+because `mode_arguments` ends in `arguments` and a substring count would read it as a fourth use.
+
+`code_lines` moves from this file to `source_guard/mod.rs` as `pub(super)`,
+and it changes shape:
+it returns the lines as `String`,
+because a line after an open block comment is partly code and partly comment.
+A stripper that dropped every line beginning `//` was what the read's `hv7` walked through.
 
 ```rust
-/// How many times one line names the vector itself (`arguments`), not a word that ends in it.
-fn names_the_argument_vector(line: &str) -> usize {
-    const NEEDLE: &str = "arguments";
-    let bytes: &[u8] = line.as_bytes();
-    let mut count: usize = 0;
-    let mut from: usize = 0;
-    while let Some(at) = line[from..].find(NEEDLE) {
-        let index: usize = from + at;
-        let before_is_a_word: bool = index > 0 && (bytes[index - 1].is_ascii_alphanumeric() || bytes[index - 1] == b'_');
-        if !before_is_a_word {
-            count += 1;
+// package/git-policy/cli/src/native/source_guard/mod.rs
+/// The code lines of one source: block comments removed, `//` comments cut, trailing blanks trimmed.
+/// A line after an open `/*` loses only the comment's own bytes, so the code that follows is read.
+pub(super) fn code_lines(source: &str) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut depth: usize = 0;
+    for raw in source.lines() {
+        let mut kept: String = String::new();
+        let mut characters = raw.chars().peekable();
+        while let Some(character) = characters.next() {
+            if depth > 0 {
+                if character == '/' && characters.peek() == Some(&'*') {
+                    characters.next();
+                    depth += 1;
+                } else if character == '*' && characters.peek() == Some(&'/') {
+                    characters.next();
+                    depth -= 1;
+                }
+                continue;
+            }
+            if character == '/' && characters.peek() == Some(&'/') {
+                break;
+            }
+            if character == '/' && characters.peek() == Some(&'*') {
+                characters.next();
+                depth += 1;
+                continue;
+            }
+            kept.push(character);
         }
-        from = index + NEEDLE.len();
+        lines.push(String::from(kept.trim_end()));
     }
-    return count;
+    return lines;
 }
 ```
 
-`code_lines` moves from this file to `source_guard/mod.rs` as `pub(super)`,
-because the names guard needs it too and a second copy would be a second predicate.
+Its two other callers in `hook_self_invocation_tests.rs`,
+which only join the lines,
+take `Vec<String>` without a change of logic.
 
 What this pins,
 and what it does not:
@@ -1182,17 +1512,20 @@ and what it does not:
   so a fourth read,
   a second decision call,
   a stuffed line,
-  or a renamed vector fails on the count or on the equality,
-  which is what each of the read's six variants now trips over;
+  or a renamed vector fails on the count or on the equality;
 - it pins every spelling of the zeroth element the repository's vocabulary has,
   forbids a name comparison's building blocks in `main` (`OsStr::new(`,
   `OsString::from(`,
   `starts_with(`,
   `ends_with(`,
   `contains(`),
-  and forbids the other ways to reach the vector (`std::env::args(`,
+  forbids the other ways to reach the vector (`std::env::args(`,
   a second `args_os`,
-  `cmdline`);
+  `cmdline`,
+  `/proc/self/`),
+  and forbids pulling another file's text in;
+- it pins the environment's two collections and the single allow,
+  which is what closes an alias of `std::env::args` under a second allow;
 - it does not make a denylist complete against arbitrary code,
   and it does not claim to:
   the reviewed three lines are what `main` may do with the vector,
@@ -1215,18 +1548,22 @@ which the crate's other `current_exe` allows are the precedent for:
 - `src/native/push/child_watch_tests.rs:1000`;
 - `src/native/landing/service_durable_tests.rs:241`.
 
-(run keep/clippy-bans.log):
+(replay keep/clippy-bans.log):
 a probe crate carrying those rows and the crate's own file refuses a call through a
 `use std::env::args_os as ...` alias,
 refuses `std::env::args()`,
-and accepts the one statement that carries the allow.)
+and accepts the one statement that carries the allow.
 
 #### The scan rule's second id
 
 `no_self_invocation_rules_tests.rs` keeps its `argv0-dispatch` rule,
 so the four old needles stay unexcused in every file,
-gains `/proc/self/cmdline` as a needle there,
-and gains one rule beside it:
+and gains `/proc/self/` as a needle there,
+which covers `cmdline` and `comm` and any other file of the calling process.
+Its `matches` closure squeezes the whitespace out of the line before it tests the needles,
+so a call split by a space matches too.
+
+Beside it stands one new rule:
 
 ```rust
 // package/git-policy/cli/src/native/source_guard/no_self_invocation_rules_tests.rs
@@ -1234,7 +1571,8 @@ Rule {
     id: "argv-vector-read",
     reason: "reads the argument vector, whose first element is the name the program was started under; the one collection belongs to main, which hands the whole vector to root_mode_names",
     matches: |line, _joined| {
-        return line.contains("args_os()");
+        let squeezed: String = line.chars().filter(|character| { return !character.is_whitespace(); }).collect();
+        return squeezed.contains("args_os()");
     },
 },
 ```
@@ -1249,7 +1587,7 @@ Allowed {
 },
 ```
 
-`/proc/self/cmdline` goes in `argv0-dispatch` rather than here,
+`/proc/self/` goes in `argv0-dispatch` rather than here,
 because that rule has no allows:
 a file that reads the vector through the kernel's copy is a start-name read,
 and `main` may not do it.
@@ -1263,7 +1601,11 @@ The reasons this is the right shape:
   `.nth(0)`,
   `argv[0]`,
   `arg0(`
-  and `/proc/self/cmdline` stay unexcused in `main.rs` and everywhere else;
+  and `/proc/self/`
+  stay unexcused in `main.rs` and everywhere else;
+- the squeezed line is what makes the rule hold for `args_os ()`,
+  which the third revision's exact text let past
+  (run keep/guards-replay-fourth.log);
 - a release file that wants the vector now needs its own row and its own reason,
   which is a diff a reviewer reads;
 - `every_justified_exception_still_matches_code` keeps both rows honest.
@@ -1272,7 +1614,8 @@ The reasons this is the right shape:
   which this change deletes,
   is the other.
 
-`no_self_invocation_tests.rs:191`'s `samples` array gains a seventh pair,
+`no_self_invocation_tests.rs:191`'s `samples` array is `[(&str, &str); 6]`,
+so the seventh pair is written with a `7` on that line,
 `("argv-vector-read", "let arguments = std::env::args_os().collect::<Vec<_>>();")`,
 and `:208`'s `assert_eq!(RULES.len(), samples.len())` carries it without another edit.
 
@@ -1281,15 +1624,12 @@ and `:208`'s `assert_eq!(RULES.len(), samples.len())` carries it without another
 A new sidecar beside the other guards,
 `source_guard/root_mode_name_tests.rs`,
 declared in `source_guard/mod.rs`,
-reads the module and holds it to one name and one comparison:
+reads the module and holds it to its one name and its one comparison:
 
 ```rust
 // package/git-policy/cli/src/native/source_guard/root_mode_name_tests.rs
 /// The one module allowed to read the name this program was started under.
 const NAMES_SOURCE: &str = include_str!("../worktree_clone_mount_handler/root_mode_names.rs");
-
-/// The whole comparison: the start name's last component, against the one constant.
-const COMPARISON: &str = "return start_name.and_then(last_component) == Some(ZEDLET_START_NAME);";
 
 /// Every string literal the module may hold.
 const LITERALS: [&str; 4] = [
@@ -1299,17 +1639,74 @@ const LITERALS: [&str; 4] = [
     "--version",
 ];
 
+/// `root_mode_start`, whole: the order of its three answers.
+const ROOT_MODE_START: [&str; 17] = [
+    "pub fn root_mode_start(arguments: &[OsString]) -> RootModeStart<'_> {",
+    "let (start_name, handed): (Option<&OsStr>, &[OsString]) = split_the_name(arguments);",
+    "if starts_with_the_group_words(handed) {",
+    "let mode_arguments: &[OsString] = &handed[2..];",
+    "if mode_arguments.is_empty() {",
+    "return RootModeStart::Refused(RootModeMisuse::NoModeWordAfterTheGroupWord);",
+    "}",
+    "return RootModeStart::Arguments(mode_arguments);",
+    "}",
+    "if !names_the_zedlet(start_name) {",
+    "return RootModeStart::Wrapper;",
+    "}",
+    "if handed.is_empty() || (handed.len() == 1 && (handed[0] == OsStr::new(\"--help\") || handed[0] == OsStr::new(\"--version\"))) {",
+    "return RootModeStart::Arguments(handed);",
+    "}",
+    "return RootModeStart::Refused(RootModeMisuse::WordUnderTheZedletName(word_that_cannot_be_honoured(handed)));",
+    "}",
+];
+
+/// `starts_with_the_group_words`, whole: the words rule.
+const GROUP_WORDS: [&str; 3] = [
+    "fn starts_with_the_group_words(handed: &[OsString]) -> bool {",
+    "return handed.len() >= 2 && handed[0] == OsStr::new(COMMAND_WORD.current) && handed[1] == OsStr::new(ROOT_GROUP_WORD);",
+    "}",
+];
+
+/// `names_the_zedlet`, whole: the one name and its whole-component comparison.
+const NAMES_THE_ZEDLET: [&str; 3] = [
+    "fn names_the_zedlet(start_name: Option<&OsStr>) -> bool {",
+    "return start_name.and_then(last_component) == Some(ZEDLET_START_NAME);",
+    "}",
+];
+
+/// `last_component`, whole: the whole last path component, decoded or nothing.
+const LAST_COMPONENT: [&str; 3] = [
+    "fn last_component(start_name: &OsStr) -> Option<&str> {",
+    "return Path::new(start_name).file_name().and_then(OsStr::to_str);",
+    "}",
+];
+
+/// `split_the_name`, whole: the program name separated once.
+const SPLIT_THE_NAME: [&str; 6] = [
+    "fn split_the_name(arguments: &[OsString]) -> (Option<&OsStr>, &[OsString]) {",
+    "let Some((start_name, handed)) = arguments.split_first() else {",
+    "return (None, &[]);",
+    "};",
+    "return (Some(start_name.as_os_str()), handed);",
+    "}",
+];
+
 #[test]
 fn the_one_start_name_is_written_in_one_place() {
-    let code: Vec<&str> = code_lines(NAMES_SOURCE);
+    let code: Vec<String> = code_lines(NAMES_SOURCE);
     let joined: String = code.join("\n");
-    let comparisons: usize = code.iter().filter(|line| { return line.trim() == COMPARISON; }).count();
-    assert_eq!(comparisons, 1, "the whole-component comparison is written on {comparisons} line(s), and it is written once, as {COMPARISON:?}");
+    for banned in ["/*", "include!", "include_str!", "include_bytes!"] {
+        assert!(!NAMES_SOURCE.contains(banned), "root_mode_names.rs holds {banned} in its own text, comments included");
+    }
     for forbidden in ["ends_with(", "starts_with(", "contains(", "rsplit"] {
         assert!(!joined.contains(forbidden), "root_mode_names.rs contains {forbidden}");
     }
     for forbidden in ["[\"", "[&str", ".any(", "is_one_of", "matches!(", "format!", "concat!", "push_str", "to_ascii_", "to_lowercase", "r#", "\\\\"] {
         assert!(!joined.contains(forbidden), "root_mode_names.rs contains {forbidden}");
+    }
+    for body in [&ROOT_MODE_START[..], &GROUP_WORDS[..], &NAMES_THE_ZEDLET[..], &LAST_COMPONENT[..], &SPLIT_THE_NAME[..]] {
+        let at: Vec<usize> = positions_of(&code, body);
+        assert_eq!(at.len(), 1, "the body starting {:?} stands on {} place(s), and its whole body is pinned once", body[0], at.len());
     }
     let mut literals: Vec<String> = string_literals(joined.as_str());
     literals.sort();
@@ -1320,14 +1717,31 @@ fn the_one_start_name_is_written_in_one_place() {
     assert_eq!(joined.matches("ZEDLET_START_NAME").count(), 2, "the constant is its declaration and one comparison");
     assert_eq!(joined.matches("file_name()").count(), 1, "the whole last path component is read once");
     assert_eq!(joined.matches("split_first()").count(), 1, "the program name is separated once");
+    assert_eq!(joined.matches("fn names_the_zedlet(").count(), 1, "one function names the zedlet");
 }
 ```
 
-with the literal reader beside it,
+with the two helpers beside it,
+a body finder and the literal reader,
 which is a tripwire rather than a parser,
 and is why the module may hold no escape and no raw string:
 
 ```rust
+/// Where one whole body stands, as consecutive trimmed code lines.
+fn positions_of(code: &[String], body: &[&str]) -> Vec<usize> {
+    let mut found: Vec<usize> = Vec::new();
+    if body.is_empty() || code.len() < body.len() {
+        return found;
+    }
+    for start in 0..=(code.len() - body.len()) {
+        let whole: bool = body.iter().enumerate().all(|(offset, want)| { return code[start + offset].trim() == *want; });
+        if whole {
+            found.push(start);
+        }
+    }
+    return found;
+}
+
 /// Every double-quoted string in the code lines, in order.
 fn string_literals(joined: &str) -> Vec<String> {
     let mut literals: Vec<String> = Vec::new();
@@ -1352,97 +1766,130 @@ The literal set is compared as a set,
 not as a count,
 so the two help words repeated in the extra-word helper are not a second name,
 while any spelling outside the four fails.
-The planted and variant modules show each rule firing on its own:
-a second literal,
-an array of names,
-a name assembled with `concat!`,
-a second constant,
-an inline second name,
-a suffix test and a contains test built from the constant,
-and four of this round's that keep the exact comparison and reach for `ends_with(`,
-`starts_with(`,
-`contains(` and `rsplit` apart from it
-(run keep/guard-replay-revision3.log).
+
+Why whole bodies rather than one comparison line:
+the third revision pinned the comparison alone,
+and five variants kept it while changing the decision.
+Pinning each function's body means any change to the decision is a change to this guard,
+which is what a tripwire is for;
+the cost,
+stated plainly,
+is that a rename inside `root_mode_names.rs` edits two files.
 
 #### Replayed
 
-(run keep/guard-replay-revision3.log),
-from `keep/replay_revision3.rs`,
-which is the three guard bodies of "The hook guard on `main.rs`",
+(run keep/guards-replay-fourth.log),
+from `scratch/guards-fixed/harness.rs`,
+which is the three guard bodies of
+"The hook guard on `main.rs`",
 "The scan rule's second id" and
 "The one-name guard on the names module",
 with one change each so a driver collects a verdict:
-`assert!` becomes a recorded refusal.
-Today's `main.rs` is the positive control for the guard that stands;
-it passes the current guard and fails the new one on four vector lines.
+`assert!` becomes a recorded refusal,
+and `include_str!` becomes a path the driver hands in.
+`scratch/guards-fixed/make_variants.py` rebuilds every variant from the proposal's two texts,
+and `harness-third` is the third read's own copy of the third revision's printed guards,
+which is the before column.
+The module text this document prints is cut out of the document itself and replayed,
+so the text the guard is proved against is the text a reader reads
+(the log's last section).
+
+Today's `main.rs` is the positive control for the guard that stands:
+it fails the new guard on its `args_os().skip(1)` collection line,
+not on a vector count,
+because it skips the program name at the collection.
 
 ```text
-== today's main.rs (the positive control that must fail the new guard)
-FAIL  main: .../src/native/main.rs : main.rs names the argument vector on 4 line(s)
-      scan: 0 finding(s) []
-
-== the proposed main.rs (the positive control that must pass)
+== this revision's guards, the two good texts and the positive control
+FAIL  main: todays_main.rs : main.rs reaches `env::` in a line this guard does not name: let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
 PASS  main: proposed_main.rs
-      scan: 1 finding(s) [("argv-vector-read", 39)]
-
-== the second pass's V3 to V9, each must fail
-FAIL  main: v3_second_name_compared_in_main.rs : main.rs contains "OsStr::new("
-FAIL  main: v4_the_name_passed_to_a_second_function.rs : main.rs contains ".first("
-FAIL  main: v5_arguments_zero_suffix_test.rs : main.rs contains "arguments[0]"
-FAIL  main: v6_first_element_bytes_compared.rs : main.rs contains ".first("
-FAIL  main: v7_std_env_args_next_read.rs : main.rs contains "args().next()"
-FAIL  main: v8_nth_zero_read.rs : main.rs contains ".nth(0)"
-FAIL  main: v9_a_second_decision_call.rs : main.rs names the argument vector on 4 line(s)
-
-== the read's owned bypasses (hv1 to hv6), each must fail
-FAIL  main: hv1_same_line_stuffing.rs : main.rs uses the argument vector in a line this guard does not name: "let handed: &[OsString] = arguments.get(1..).unwrap_or_default(); let _name = arguments.iter().next();"
-FAIL  main: hv2_alias_of_args_os.rs : main.rs names args_os 2 time(s)
-FAIL  main: hv3_proc_cmdline.rs : main.rs contains "cmdline"
-FAIL  main: hv4_iter_next_own_line.rs : main.rs names the argument vector on 4 line(s)
-FAIL  main: hv5_env_args_take.rs : main.rs contains "std::env::args("
-FAIL  main: hv6_second_names_fn.rs : main.rs names root_mode_names 3 time(s): its import and one call
-
-== the proposed names module, which must pass
-PASS  names: root_mode_names.rs
-
-== the proposed names module with this revision's extra-word refusal, which must also pass
 PASS  names: proposed_root_mode_names.rs
+PASS  scan: proposed_main.rs
 
-== the three planted names modules, each for a rule of its own
-FAIL  names: planted_array_of_names.rs : the whole-component comparison is written on 0 line(s)
-FAIL  names: planted_derived_name.rs : root_mode_names.rs contains "concat!"
-FAIL  names: planted_two_literals.rs : root_mode_names.rs holds the string literals ["--help", "--version", "history_event-mount_git_worktree_clone_datasets", "history_event-other", "zfs-root"]
+== the third read's ten main variants, each must FAIL
+FAIL  main: hv1_same_line_stuffing.rs : main.rs uses the argument vector in a line this guard does not name
+FAIL  main: hv2_alias_of_args_os.rs : main.rs reads the environment or the vector on 3 line(s), and only the two collections may
+FAIL  main: hv3_proc_cmdline.rs : main.rs contains cmdline
+FAIL  main: hv4_iter_next_own_line.rs : main.rs names the argument vector on 4 line(s)
+FAIL  main: hv5_env_args_take.rs : main.rs contains std::env::args(
+FAIL  main: hv6_second_names_fn.rs : main.rs names the argument vector on 4 line(s)
+FAIL  main: hv7_comment_closer_hides_a_read.rs : main.rs holds /* in its own text, comments included
+FAIL  main: hv8_include_reads_the_vector_unnamed.rs : main.rs holds include! in its own text, comments included
+FAIL  main: hv9_alias_of_args_under_a_second_allow.rs : main.rs reads the environment or the vector on 3 line(s)
+FAIL  main: hv10_proc_self_comm.rs : main.rs contains /proc/self/
 
-== the read's four names-module variants (mv1 to mv4), each must fail
-FAIL  names: mv1_second_name_other_prefix.rs : the whole-component comparison is written on 0 line(s)
-FAIL  names: mv2_suffix_test_with_the_constant.rs : the whole-component comparison is written on 0 line(s)
-FAIL  names: mv3_inline_second_literal.rs : the whole-component comparison is written on 0 line(s)
-FAIL  names: mv4_contains_test_with_the_constant.rs : the whole-component comparison is written on 0 line(s)
+== this revision's own main witnesses, each must FAIL
+FAIL  main: hw1_alias_without_a_second_allow.rs : main.rs reads the environment or the vector on 3 line(s)
+FAIL  main: hw2_allow_away_from_the_collection.rs : main.rs holds 0 allow line(s)
 
-== this round's own witnesses for the four forbidden comparison spellings
-FAIL  names: w1_suffix_test_beside_the_comparison.rs : root_mode_names.rs contains "ends_with("
-FAIL  names: w2_split_on_rsplit.rs : root_mode_names.rs contains "rsplit"
-FAIL  names: w3_prefix_test_beside_the_comparison.rs : root_mode_names.rs contains "starts_with("
-FAIL  names: w4_contains_test_beside_the_comparison.rs : root_mode_names.rs contains "contains("
+== the third read's five names variants and the second read's four, each must FAIL
+FAIL  names: nv1_case_insensitive_live_check.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: nv2_find_with_the_repeated_literal.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: nv3_comment_closer_hides_a_return.rs : root_mode_names.rs holds /* in its own text
+FAIL  names: nv4_second_name_as_bytes.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: nv5_words_rule_inverted.rs : the body starting "fn starts_with_the_group_words…" stands on 0 place(s)
+FAIL  names: mv1_second_name_other_prefix.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: mv2_suffix_test_with_the_constant.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: mv3_inline_second_literal.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: mv4_contains_test_with_the_constant.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+
+== the third revision's four forbidden-spelling witnesses, each must FAIL on its own ban
+FAIL  names: w1_ends_with_beside_the_comparison.rs : root_mode_names.rs contains ends_with(
+FAIL  names: w2_rsplit_beside_the_comparison.rs : root_mode_names.rs contains rsplit
+FAIL  names: w3_starts_with_beside_the_comparison.rs : root_mode_names.rs contains starts_with(
+FAIL  names: w4_contains_beside_the_comparison.rs : root_mode_names.rs contains contains(
+
+== this revision's own names witnesses, each for one rule
+FAIL  names: nw1_block_comment_in_the_module.rs : root_mode_names.rs holds /* in its own text
+FAIL  names: nw2_include_str_second_name.rs : root_mode_names.rs holds include_str! in its own text
+FAIL  names: nx1_early_true_beside_the_comparison.rs : the body starting "fn names_the_zedlet…" stands on 0 place(s)
+FAIL  names: nx2_split_the_name_returns_the_name_always.rs : the body starting "fn split_the_name…" stands on 0 place(s)
+
+== the same variants through the THIRD revision's printed guards: these PASS it
+PASS  main: hv7_comment_closer_hides_a_read.rs
+PASS  main: hv8_include_reads_the_vector_unnamed.rs
+PASS  main: hv9_alias_of_args_under_a_second_allow.rs
+PASS  main: hv10_proc_self_comm.rs
+PASS  main: hw1_alias_without_a_second_allow.rs
+PASS  main: hw2_allow_away_from_the_collection.rs
+PASS  names: nv1_case_insensitive_live_check.rs
+PASS  names: nv2_find_with_the_repeated_literal.rs
+PASS  names: nv3_comment_closer_hides_a_return.rs
+PASS  names: nv4_second_name_as_bytes.rs
+PASS  names: nv5_words_rule_inverted.rs
+PASS  names: nw1_block_comment_in_the_module.rs
+
+== the scan, before and after, over a release file that is not main.rs
+scan-third scan_whitespace_elsewhere.rs: []
+FAIL  scan: scan_whitespace_elsewhere.rs : the scan reports [("argv0-dispatch", 4), ("argv-vector-read", 4)]
 ```
 
-So each of the second pass's six bypasses fails,
-each of its four module variants fails,
-and every rule has a witness that fails on it alone.
-The full log has every line and every scan finding.
+The log's section "choice 1's option B, as a module" holds both verdicts on one B-shaped module:
+this revision's guard refuses it on the body pin,
+and the third revision's guard passes it,
+because the extra-word helper keeps the two help literals in the module's literal set.
+
+So each of the third read's nine variants and this round's four fails,
+every rule that closes one has a witness that fails on it alone,
+and the log's full text holds each verdict's whole message.
+The third revision's guard lines are shown here without the `bad/` path prefix that driver prints,
+and the long verdict strings are shortened.
+The six-figure verdict strings are shortened here and whole in the log.
 
 The second revision's own replay still passes its text and still fails today's file,
 which is how this round knows the harness reads the guards and not the file names
-(run keep/revision2-harness-over-every-text.log).
+(replay keep/revision2-harness-over-every-text.log).
 
-`SPEC.md:19261` becomes:
+`SPEC.md:19588` becomes
+(it was `:19261` at `f3d81e0910`; the sentence moved with the askpass change):
 
 > Git never starts the wrapper for a hook:
 > the wrapper writes no hook entry,
 > passes no hooks path of a directory it made,
 > and reads the name it was started under in one module only,
 > the installed ZED history event's,
-> where that name selects the clone-mount sweep and nothing else a Git command means.
+> where that name selects the clone-mount sweep and the modes' own `--help` and `--version`,
+> and nothing else a Git command means.
 
 `binary_external_hook_tests.rs:174` keeps proving that every Git hook event's name still behaves as `git`,
 which is now a claim about every name but one.
@@ -1460,12 +1907,12 @@ and a unit's `ExecStart` line,
 an adoption's command and a person's command all read it.
 
 What the modes print does not depend on the word,
-except in the last paragraph of the usage,
+except in the usage's closing sentences,
 so it is printed once here.
 The text is the build's,
 copied from a run of the built handler,
 with the two new modes' lines where they will stand
-(run keep/handler-usage.log):
+(replay keep/handler-usage.log):
 
 ```text
 usage: mount-git-worktree-clone-datasets [mode]
@@ -1491,7 +1938,7 @@ The modes that make requests open /dev/zfs through this repository's binding, ne
 
 The two added lines are this design's (design),
 and no build prints them yet,
-and the last paragraph is the change that makes the words discoverable
+and those closing sentences are the change that makes the words discoverable
 (choice 5 keeps the program's name in the first line and in every refusal).
 Everything else is the build's own text,
 which the second revision's version of this block abbreviated;
@@ -1504,7 +1951,7 @@ so the `decides` line is the fixture's
 27 and 28;
 run keep/dispatch-cases.log),
 and the `prints` line is what the modes print today
-(run keep/handler-usage.log).
+(replay keep/handler-usage.log).
 
 ### Option A: `zfs-root`
 
@@ -1615,9 +2062,11 @@ Pros:
 
 Cons:
 
-- four of the seven modes are clone mounts,
-  while `start-probe`,
-  `holder-scan` and `record-checkout` are not,
+- the noun describes the mounting modes and not the others:
+  `mount-path-descendant` mounts a dataset that is not a clone,
+  and `start-probe`,
+  `holder-scan`,
+  the adoption and `record-checkout` do not mount at all,
   which is the same objection as option B's,
   narrower;
 - the longest of the four to type,
@@ -1634,7 +2083,7 @@ A over D:
 both name the route,
 and A names the privilege the words path exists for,
 which is what a unit's `ExecStart` under root and an adoption under `sudo` are about;
-D names the work and its noun covers four of the seven modes,
+D names the work and its noun covers the mounting modes,
 while A's word covers the modes and the probes by naming where they run.
 D's noun is also the one the record mode's new reader does not use:
 the checkout record is not a mount,
@@ -1663,7 +2112,7 @@ what changes is:
   the nested dataset's unit,
   and the four documents that carry unit lines;
 - the wrapper's management help line in `MANAGEMENT_USAGE` and `MANAGEMENT_HELP`;
-- the modes' usage's last paragraph,
+- the modes' usage's closing sentences,
   and every refusal that names the words:
   the group-word refusal (`refuse_root_mode_misuse`),
   the grammar's unknown-mode message,
@@ -1673,278 +2122,10 @@ what changes is:
 - `SPEC.md`'s sentence about the words;
 - the guest commands in `e2e/start-probe-guest.ts`.
 
-Nothing about the name,
-the layouts or the guards changes.
-
-## The two modes these answers add
-
-Two accepted answers need modes this design did not have when the second revision was written.
-Both are modes of the fold this design makes,
-so their words,
-arguments and refusals are this design's to state
-(record doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md
-and doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md).
-
-### What the grammar promises, and what these two keep
-
-The grammar's principle,
-as the build keeps it
-(source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_arguments.rs:319):
-
-- one leading word names the work,
-  and the words are a closed list whose refusal names every member;
-- every input is `--name <value>`,
-  in the order the help prints,
-  and a missing value,
-  a repeated option or an unreadable argument refuses rather than guesses;
-- an empty argument list is the attaching sweep,
-  which is ZED's own start and nothing else;
-- a mode that did its work answers 0,
-  and every refusal answers 2 (`EXIT_REFUSED`),
-  after a line saying what was not done and every way forward.
-
-Both new modes meet that principle.
-They also meet a rule the old modes did not have to:
-each one reads or writes one root-owned record,
-and the second reads what the first wrote.
-
-### `record-checkout --checkout <path>`
-
-```text
-$ /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets \
-    monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
-recorded: /home/user/Monochromatic is zpcachyos/nosnap/home-user-Monochromatic (GUID 1234567890123456789),
-in pool zpcachyos, beside container zpcachyos/nosnap/clones; the record is <the record's path>
-```
-
-The line's words are this revision's (design).
-`keep/names-starts.log` shows the compiled module hands the grammar exactly
-`["record-checkout", "--checkout", "/home/user/Monochromatic"]` through the words (run),
-and `keep/dispatch-cases.log` cases 27 and 29 show the same for both files.
-
-What it records,
-which is what the step 10 answer names:
-
-- the checkout's path;
-- its dataset's name and GUID,
-  read from the kernel's table and from the dataset's own properties;
-- the container dataset the configuration names,
-  or the one beside the checkout when the configuration leaves it out;
-- the pool,
-  which is the dataset name's first component.
-
-What it proves before it writes:
-
-- `--checkout` is text and an absolute path,
-  or the grammar's own refusals answer;
-- the path is a mount point of a ZFS dataset,
-  and that dataset's `mountpoint` property is the path itself,
-  which is the precondition step 10's design states
-  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
-  "The checkout path must be its dataset's own mount point");
-- the container is a dataset in the same pool,
-  and the checkout's dataset is not inside the container (the route places the container beside it);
-- the caller is root,
-  through the same refusal `start-probe` and the adoption answer a caller with
-  (`handler_mode_dispatch.rs:174`,
-  `adopt_worktree_parent_mode.rs:315`);
-- the record's folder exists,
-  is root's,
-  and is not group- or other-writable;
-- the compatibility gate answers before the first `/dev/zfs` request (`run_behind_at`,
-  `handler_mode_dispatch.rs:317`).
-
-Its refusals,
-each naming what was not done and the way forward:
-
-- `checkout-not-a-mount-point`,
-  because the add's gate would compare the record against a folder rather than a mount;
-- `checkout-not-on-zfs`,
-  because the route serves ZFS and a record for anything else would make the gate pass on a checkout it cannot clone;
-- `container-not-beside-the-checkout`,
-  because a container inside the checkout is the shape the route's layout excludes;
-- `checkout-record-differs`,
-  when the record already exists and a proved field differs,
-  because two checkouts on one machine is the bound the readiness record still has;
-- `checkout-record-unwritable`,
-  when the folder or the file cannot be root's.
-
-A second run over the same checkout replaces the record only when every field is equal,
-so a re-record after a rename refuses and names the field,
-and a person learns that the checkout is not the one the record serves.
-
-The record is written by this mode and by nothing else.
-Its path is one more constant in `handler_install_paths.rs`,
-proposed as `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json`,
-which is the root-owned store folder the slot identities already live in
-(source package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store.rs:44).
-Its format is the reader's:
-the add's gate,
-the sweep and the probe change in step 10's build,
-not in this design's commit,
-and that build owns the field names and the version.
-This design fixes one property and one only:
-the mode is the writer,
-and every reader refuses a record whose proved fields no longer match the kernel's.
-
-### `mount-path-descendant --dataset <name>`
-
-```text
-$ /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets \
-    monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset zpcachyos/nosnap/vm-builder-output
-mounted: zpcachyos/nosnap/vm-builder-output at /home/user/Monochromatic/package/vm-builder/cli/output
-```
-
-```text
-$ … mount-path-descendant --dataset zpcachyos/nosnap/vm-builder-output
-already mounted: zpcachyos/nosnap/vm-builder-output at /home/user/Monochromatic/package/vm-builder/cli/output
-```
-
-No build prints either line (design).
-The dataset and its mountpoint are the ones the step 19 record names
-(record doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md).
-
-What it does:
-
-- reads the checkout's record,
-  and refuses when there is none;
-- reads the dataset's `mountpoint` and `mounted` properties;
-- mounts the dataset at its own mountpoint when it is not mounted,
-  and answers 0 with the `already mounted` line when it is,
-  which is what makes an `ExecStart=` re-run harmless;
-- changes no other dataset,
-  mounts nothing under a dataset it was not given,
-  and unmounts nothing (that is `shutdown-unmount`'s work).
-
-What it refuses:
-
-- `dataset-outside-the-checkout`,
-  which is the refusal the step 19 design names:
-  the dataset is not a descendant of the recorded checkout dataset,
-  or its `mountpoint` is not under the recorded checkout path;
-- `dataset-without-a-mountpoint`,
-  when the property is `none`,
-  `-` or `legacy`,
-  because such a dataset is mounted by someone else's rule and this mode would be guessing;
-- `no-recorded-checkout`,
-  when the record is absent,
-  because without it the mode cannot prove the mountpoint descends from a served checkout;
-- `dataset-already-mounted-elsewhere`,
-  when the kernel shows the dataset mounted at a path other than the one its property names.
-
-It runs behind the gate and as root,
-like every mode that writes.
-
-### The question the step 19 design leaves to this one
-
-That design's "What each part waits on" says the mode needs this design to say
-"whether a mode may change a dataset's state by name at all"
-(`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
-What each part waits on).
-
-The answer is yes,
-bounded by the record:
-
-- a mode may mount one dataset by name when the name is a descendant of the recorded checkout dataset,
-  the dataset's own `mountpoint` is under the recorded checkout path,
-  and the dataset is not the checkout itself;
-- a mode may not unmount,
-  destroy,
-  snapshot or change a property of a dataset by name,
-  and nothing in this design's two modes does;
-- the record is the only thing that makes "descendant of the checkout" a proof rather than a guess,
-  which is why this mode refuses before `record-checkout` has run.
-
-### The conflicts the pair carries
-
-- **`--checkout` on two modes.**
-  `adopt-worktree-parent --checkout <path>` records the replacement `.claude/worktrees` folder's identity;
-  `record-checkout --checkout <path>` records the checkout's route facts.
-  Both name the same path in practice,
-  and the mode word is what says which proof is made.
-  The usage line of each names its own record,
-  and `doctor` prints the adoption's line for an adoption and the record's line for the record,
-  so a person copying the wrong one reads a line about the other job.
-- **`--dataset` on two modes.**
-  `holder-scan --dataset <name>` reports which mount namespaces hold a clone;
-  `mount-path-descendant --dataset <name>` mounts one nested dataset.
-  Both take a full dataset name and both refuse the same malformed names through
-  `ArgumentRefusal::DatasetName`,
-  and each usage line says what it does with the name.
-- **Two sources for the checkout.**
-  The configuration file can still name `cloneMounts.checkout` today
-  (source package/git-policy/cli/src/native/worktree_clone_mount_handler/sweep_configuration.rs).
-  Once the record exists,
-  the record is what the route serves,
-  and a configuration value that disagrees is a refusal naming both,
-  not a silent choice.
-  That reader change is step 10's build's,
-  with the format.
-- **A mode that needs another mode's output.**
-  `mount-path-descendant` refuses until `record-checkout` has run.
-  That is a new ordering between modes,
-  and it is stated in both usage lines and in `doctor`'s output,
-  so a boot that runs the nested dataset's unit before the record exists reads `no-recorded-checkout`
-  rather than mounting a dataset it cannot place.
-
-### Ranking of the record mode's word
-
-The word is the one thing here the answers do not fix,
-so it is posed like choice 2.
-The three candidates are the same command under a different name.
-
-Option A,
-`record-checkout`:
-
-```text
-$ git monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
-   decides: root-mode grammar="record-checkout --checkout /home/user/Monochromatic"
-```
-
-Option B,
-`record-route`:
-
-```text
-$ git monochromatic-git-policy-cli zfs-root record-route --checkout /home/user/Monochromatic
-   decides: root-mode grammar="record-route --checkout /home/user/Monochromatic"
-```
-
-Option C,
-`checkout-record`:
-
-```text
-$ git monochromatic-git-policy-cli zfs-root checkout-record --checkout /home/user/Monochromatic
-   decides: root-mode grammar="checkout-record --checkout /home/user/Monochromatic"
-```
-
-Ranking:
-A > B > C.
-
-A over B:
-A names the thing that is recorded,
-which is what the add,
-the sweep and `mount-path-descendant` read,
-and B names the route,
-which the group word `zfs-root` already said.
-What A delivers is a mode whose word a person can match to the record file's name (design).
-
-B over C:
-both are two words about the route or the record,
-and B reads as a verb and an object,
-while C reads as a noun phrase,
-which the grammar's other words never are (`boot-reconcile`,
-`start-probe`,
-`holder-scan`,
-`adopt-worktree-parent`).
-The difference C costs is the habit a reader already has (design).
-
-The choice is separable:
-the word is one member of `MODE_WORDS`,
-one line of the usage and one of the help,
-one match arm and its refusal texts,
-the step 10 build's reader,
-and `doctor`'s printed line.
-Nothing about the record's shape or the other modes changes.
+Nothing about the one name,
+the layouts or the dispatch's placement changes,
+and the guard's body pins stand because they compare against `ROOT_GROUP_WORD`,
+not against the word's text.
 
 ## Choice 3: what root's install holds
 
@@ -1983,7 +2164,7 @@ reached through links named `git`,
 `monochromatic-git-policy-cli` and `mount-git-worktree-clone-datasets`,
 decides the wrapper in every case,
 and the same file under its own name refuses a bare word
-(run keep/names-starts.log).
+(run keep/names-starts-fourth.log).
 A copy,
 a link or an `exec -a` with another name is outside every name rule's reach,
 and that is true of all four layouts.
@@ -2191,7 +2372,7 @@ a copy of the wrapper's bytes somewhere else,
 started as root under a name of its own,
 runs the whole wrapper
 (cases 20 and the stray other name;
-run keep/dispatch-cases.log and keep/names-starts.log),
+run keep/dispatch-cases.log and keep/names-starts-fourth.log),
 and a start of any of these files under a caller-chosen `argv[0]` that is not the zedlet's
 is the wrapper as that caller.
 An account that can write root's install folder can replace any of these files,
@@ -2230,8 +2411,8 @@ with what a root-mode start does at choice 4's option A for each:
     Skipped:
     the root-mode arm answers first.
 4.  `panic_notice::install_payload_free_panic_hook`.
-    Installed inside the root-mode arm,
-    as "The panic hook a root mode installs" recommends.
+    Installed inside the root-mode arm under every placement,
+    with which hook it is decided in "Choice 10: the panic hook a root mode installs".
 5.  `vars_os` collection.
     Skipped:
     a root mode reads no variable through this collection (`entry`'s own arm would).
@@ -2251,8 +2432,8 @@ with what a root-mode start does at choice 4's option A for each:
     and this is the one that writes:
     today's bytes create `.git/cli-git-lock-holders/` and a marker on every start of every layout,
     `--version` included
-    (run keep/today-installed-name.log).
-9.  `process_resolution_inputs` (`entry.rs:356`):
+    (replay keep/today-installed-name.log).
+9.  `process_resolution_inputs` (`entry.rs:355`):
     `current_exe`,
     `current_dir`,
     `PATH`,
@@ -2350,12 +2531,13 @@ and every start in `keep/today-installed-name.log` that reached `run_process` cr
 Pros:
 
 - reaches none of the other start-time actions,
-  only the first;
-- the same placement the service mode already proves,
-  so the entry keeps one shape for three kinds of mode;
-- nothing of the wrapper's own start can fail before root's work;
+  only the first,
+  so nothing of the wrapper's own start can fail before root's work;
 - the checks are the two the answer names,
-  so no other placement can claim to follow it.
+  so no other placement can claim to follow it;
+- it is where the service mode already stands,
+  which is a consistency with the entry's existing shape rather than a gain of
+  this placement (design).
 
 Cons:
 
@@ -2447,17 +2629,19 @@ $ <the wrapper> monochromatic-git-policy-cli zfs-root boot-reconcile
    .git/cli-git-lock-holders: a marker this start made
 ```
 
-(measured today,
-with the bytes this host has:
+That block is today's output with today's bytes,
+not an option D build:
 the words reach the management arm,
 which refuses them,
-and the start has already written into the repository it stands in,
-(run keep/today-lines.log)
+and the start has already written into the repository it stands in
+(replay keep/today-lines.log).
+Under D the same start would print the mode's own line instead,
+after the actions listed below had run (design).
 
 Pros:
 
-- nothing of `main` or `run_process` changes shape,
-  so no other mode's start moves.
+- `run_process` keeps its signature,
+  so no other caller moves.
 
 Cons:
 
@@ -2466,29 +2650,26 @@ Cons:
   the lock pass,
   the resolution and the started-as-Git check all run first,
   so root writes into whatever repository holds the working directory
-  (run keep/today-installed-name.log);
+  (replay keep/today-installed-name.log);
+- `plan_invocation` reads the arguments after the program name,
+  so the decision needs the program name handed down to it:
+  `main` must pass the vector or the name,
+  which is a fourth line naming the vector,
+  and the hook guard fixes three
+  (source package/git-policy/cli/src/native/invocation/entry.rs:342,
+  and today's `main` fails the new guard on four vector lines,
+  run keep/guards-replay-fourth.log);
 - `git_facts`,
   the configuration read and the forwarded Git are one branch away.
 
-### The panic hook a root mode installs
+### The panic hook is a choice of its own
 
-The wrapper's hook prints one line naming the source location and never the panic's message,
-because the message can hold bytes of a scanned file
-(`invocation/panic_notice.rs`).
-A root mode does not scan,
-but its panic message can hold a dataset name,
-a checkout path,
-or a `ZFS` request's fields,
-and it lands in root's journal under a unit.
-
-- A root mode installs the wrapper's existing hook (recommended):
-  one call inside the arm,
-  no new text,
-  and the notice's hint ("if you were running a Git command") reads oddly from a unit,
-  which is a cost this design accepts rather than keeping a second hook text true.
-- A root mode keeps the default hook:
-  no code,
-  and the panic's payload printed.
+The hook a root-mode start installs is not part of this placement's ranking:
+it is asked on its own in
+"Choice 10: the panic hook a root mode installs",
+which prints both hooks' lines and ranks them.
+Every option here installs whichever hook that choice picks,
+as the arm's first statement.
 
 ### Ranking of choice 4
 
@@ -2497,7 +2678,8 @@ A > B > C > D.
 
 A over B:
 B collects an environment nothing reads,
-and installing the hook inside the arm is one line,
+and the hook is installed inside the arm under every placement
+("Choice 10: the panic hook a root mode installs"),
 so B's only gain is gone.
 
 B over C:
@@ -2514,12 +2696,15 @@ and it is the only option whose cost grows with the caller's working directory.
 
 The choice is separability-limited in one direction and clean in the other.
 A,
-B and C move the call the hook guard pins,
-so each of them rewrites the three lines that guard fixes,
+B and C put the call in `main`,
+so each of them is the three lines the hook guard fixes,
 and the guard text moves with the choice.
-D keeps every pinned line and adds a call after `plan_invocation`'s checks,
-so the guard text does not move for it;
-what D needs instead is a reason the lock pass and the started-as-Git check run for a root start.
+D does not keep those lines either:
+`plan_invocation` is handed the arguments after the program name,
+so a check there needs the program name passed down,
+which is a fourth vector line in `main`,
+and the guard fixes three.
+What D would still need is a reason the lock pass and the started-as-Git check run for a root start.
 
 ## Choice 5: what `--version` and the refusals say
 
@@ -2528,11 +2713,16 @@ its refusals and its version line name the program
 `mount-git-worktree-clone-datasets`
 (`handler_install_paths.rs:28`).
 After the change no root-owned file need carry that name,
-while every check reads those words:
+while these read the words:
 `handlerVersionLine` (`bin/native-install-steps.ts:121`),
+`native:install`'s comparison,
 the release smoke's `grep`,
-`doctor`'s comparison,
-and the modes' own refusal texts.
+the stand-in handler's line,
+the modes' own refusal texts,
+and `doctor`'s check, which reads no version line today
+(run keep/host-facts-fourth.log;
+`rg -- '--version|version_line|handlerVersionLine' src/native/health/` finds nothing,
+and `handler_checks.rs:229` reads owner and mode).
 
 ### Option A: keep the modes' own name
 
@@ -2544,7 +2734,7 @@ mount-git-worktree-clone-datasets 0.6.1-alpha.45
 (The line the built handler prints today:
 `./handler --version` answers `mount-git-worktree-clone-datasets 0.6.1-alpha.45`,
 exit 0,
-(run keep/handler-usage.log);
+(replay keep/handler-usage.log);
 no installed file answers it yet,
 and `keep/today-installed-name.log` shows (run)
 today's bytes answering `--version` with Git's own line instead.)
@@ -2614,9 +2804,10 @@ Cons:
   and each refusal is already two sentences long;
 - `handlerVersionLine`,
   `native:install`'s check,
-  `doctor`'s comparison,
-  the smoke's `grep` and the stand-in handler all change,
-  where A changes none of them.
+  the smoke's `grep`,
+  the stand-in handler and
+  `doctor`'s planned check all change,
+  where A changes none of the four that exist.
 
 ### Ranking of choice 5
 
@@ -2628,17 +2819,15 @@ both are unique lines a check can read,
 and both let a check tell the modes' answer from the wrapper's banner;
 A keeps one short name in every refusal and every existing check,
 where C buys a runnable spelling at the price of a longer name in every message and a new line in
-five checks:
+the four existing checks,
 `handlerVersionLine`,
 `native-install`'s comparison,
-`doctor`'s comparison,
-the release smoke's `grep`,
-and the stand-in handler's line.
+the release smoke's `grep`
+and the stand-in handler's line,
+plus `doctor`'s planned one.
 The design already requires the refusal to print the words and the installed path,
 so a person who needs a command to type has it without the version line's help.
-The cost is a build cost and not what C delivers,
-so it is not why C ranks here;
-what C fails to deliver is a shorter message in the errors a person meets most (design).
+What C fails to deliver is a shorter message in the errors a person meets most (design).
 
 C over B:
 both name something a person runs,
@@ -2648,16 +2837,21 @@ so a check would have to read the second line.
 
 The choice is separable.
 If the owner prefers C,
-`handlerVersionLine` and the five checks change,
+`handlerVersionLine` and the four existing checks change,
+and `doctor`'s planned check is written to C's line,
 and nothing about the dispatch,
 the layouts or the guards does.
 
 ## Choice 6: whether the account's `PATH` keeps a short name
 
-Today a person can type `mount-git-worktree-clone-datasets adopt-worktree-parent …`
-because the toolchain installs the second program.
-After the change the account's toolchain installs one program,
-and a root mode needs the words in any case.
+Before the change the toolchain installed the second program,
+and this host's `PATH` no longer holds it:
+`command -v mount-git-worktree-clone-datasets` prints nothing and exits 1,
+while the control `command -v git` prints the wrapper's own path
+(run keep/host-facts-fourth.log).
+So nothing named there is lost by removing the second program,
+and after the change the account's toolchain installs one program.
+A root mode needs the words in any case.
 
 ### Option A: the installed path and the words, printed by `doctor`
 
@@ -2768,7 +2962,7 @@ which no root mode builds today.
 ZED cannot set any of them:
 it builds the environment from the event and a fixed list,
 and the event's own variables carry the `ZEVENT_` prefix
-(run keep/zed-shape-report.txt).
+(replay keep/zed-shape-report.txt).
 A unit could set them with `Environment=`,
 and so could anyone who edits the unit,
 which is root.
@@ -2839,7 +3033,7 @@ No probe here measures either direction,
 and the design says so rather than claiming a measurement it did not make
 (it shows ZED cannot set one,
 which is neither direction's evidence;
-run keep/zed-shape-report.txt).
+replay keep/zed-shape-report.txt).
 
 The choice is separable,
 in one direction.
@@ -2849,6 +3043,539 @@ Compiling them out is not separable from the guest arms:
 each guest arm sets a switch,
 so B needs `e2e/start-probe-guest.ts` to build and test the feature build instead,
 and the arms' evidence changes from the release's bytes to a second build's.
+
+## The two modes these answers add
+
+Two accepted answers need modes this design did not have when the second revision was written.
+Both are modes of the fold this design makes,
+so their words,
+arguments and refusals are this design's to state
+(record doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md
+and doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md).
+
+### What the grammar promises, and what these two keep
+
+The grammar's principle,
+as the build keeps it
+(source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_arguments.rs:319):
+
+- one leading word names the work,
+  and the words are a closed list whose refusal names every member;
+- every input is `--name <value>`,
+  each option as a pair,
+  in any order,
+  which is what `parse_adoption` and `parse_holder_scan` do
+  (source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_arguments.rs:393
+  and :457),
+  and a missing value,
+  a repeated option or an unreadable argument refuses rather than guesses;
+- an empty argument list is the attaching sweep,
+  which is ZED's own start and nothing else;
+- a mode that did its work answers 0,
+  and every refusal answers 2 (`EXIT_REFUSED`),
+  after a line saying what was not done and every way forward.
+
+Both new modes meet that principle.
+They also meet a rule the old modes did not have to:
+each one reads or writes one root-owned record,
+and the second reads what the first wrote.
+
+### `record-checkout --checkout <path> [--replace]`
+
+```text
+$ /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets \
+    monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
+recorded: /home/user/Monochromatic is <its dataset> (GUID <number>), in pool <pool>,
+beside container <container>; the record is <the record's path>
+```
+
+The line's words are this revision's,
+and no build prints it (proposal).
+What the module decides is measured:
+the words hand the grammar exactly
+`["record-checkout", "--checkout", "/home/user/Monochromatic"]`
+(run keep/names-starts-fourth.log),
+and cases 27 and 28 of the dispatch probe show the same for both files
+(replay keep/dispatch-cases.log).
+
+What it records:
+
+- the checkout's path;
+- its dataset's name and GUID,
+  read from the kernel's table and from the dataset's own properties;
+- the container dataset the configuration names,
+  or the one beside the checkout when the configuration leaves it out;
+- the pool,
+  which is the dataset name's first component;
+- the record format's version,
+  which is this design's one field that step 10's build may change.
+
+So the record is one root-owned JSON object of six fields,
+and the third revision left its fields to "step 10's build".
+The reader still lands in step 10's build,
+which owns the version bump when it adds a field;
+this design owns the meaning of the six above,
+because its mode is the writer.
+
+The file is a root-owned `0644` file,
+which is the mode the step 10 design names
+(source doc/planning/cli-git-zfs-step-10-open-choices.md:613,
+and the reader `read_file_only_root_may_write_owned_by(path, 0)` at its "What E costs").
+Its folder is `/var/lib/monochromatic-git-policy-cli`,
+beside the slot identities (source
+package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store.rs:44),
+which this host does not have yet
+(run keep/host-facts-fourth.log).
+The mode creates the folder `0755`,
+root's,
+when it is absent,
+and refuses a folder that exists and is not root's or is group- or other-writable;
+step 19's setup runs the same `install -d` line before the first record,
+so a host that never runs the mode still has the folder a runbook creates.
+
+What it proves before it writes:
+
+- `--checkout` is text and an absolute path,
+  or the grammar's own refusals answer;
+- the path is a mount point of a ZFS dataset,
+  and that dataset's `mountpoint` property is the path itself,
+  which is the precondition step 10's design states
+  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+  "The checkout path must be its dataset's own mount point");
+- the container is a dataset in the same pool,
+  and neither contains the other:
+  the checkout's dataset is not inside the container,
+  and the container is not inside the checkout
+  (the route places the container beside the checkout,
+  and each direction is proved and refused separately);
+- the caller is root,
+  through the same refusal `start-probe` and the adoption answer a caller with
+  (`handler_mode_dispatch.rs:174`,
+  `adopt_worktree_parent_mode.rs:315`);
+- the record's folder and file are as stated above, or the mode makes the folder;
+- the compatibility gate answers before the first `/dev/zfs` request (`run_behind_at`,
+  `handler_mode_dispatch.rs:317`).
+
+Its refusals,
+each naming what was not done and the way forward:
+
+- `checkout-not-a-mount-point`,
+  because the add's gate would compare the record against a folder rather than a mount;
+- `checkout-not-on-zfs`,
+  because the route serves ZFS and a record for anything else would make the gate pass on a checkout
+  it cannot clone;
+- `container-not-beside-the-checkout`,
+  naming the direction the proof found:
+  a container inside the checkout,
+  or a container that holds the checkout;
+- `checkout-record-differs`,
+  when the record already exists and a proved field differs,
+  naming that field and the flag that replaces the record;
+- `checkout-record-unwritable`,
+  when the folder or the file cannot be root's.
+
+A second run over the same checkout refuses with `checkout-record-differs` and names the field and
+`--replace`;
+with `--replace` it prints every field that changes,
+the old value and the new,
+and writes.
+What the replacement itself is,
+and whether it should need a flag at all,
+is choice 9.
+
+### `mount-path-descendant --dataset <name>`
+
+```text
+$ /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets \
+    monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset zpcachyos/nosnap/vm-builder-output
+mounted: zpcachyos/nosnap/vm-builder-output at /home/user/Monochromatic/package/vm-builder/cli/output
+```
+
+```text
+$ … mount-path-descendant --dataset zpcachyos/nosnap/vm-builder-output
+already mounted: zpcachyos/nosnap/vm-builder-output at /home/user/Monochromatic/package/vm-builder/cli/output
+```
+
+No build prints either line (proposal).
+The dataset and its mountpoint are the ones the step 19 record names
+(record doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md),
+and the host's table shows them as the record does
+(run keep/host-facts-fourth.log).
+
+What it does:
+
+- reads the checkout's record,
+  and refuses when there is none;
+- reads the dataset's `mountpoint` and `mounted` properties;
+- mounts the dataset at its own mountpoint when it is not mounted,
+  and answers 0 with the `already mounted` line when it is,
+  which is what makes an `ExecStart=` re-run harmless;
+- changes no other dataset,
+  mounts nothing under a dataset it was not given,
+  and unmounts nothing (that is `shutdown-unmount`'s work).
+
+What it refuses:
+
+- `dataset-outside-the-checkout`,
+  which is the refusal the step 19 design names
+  (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:1009 to :1013):
+  the dataset's `mountpoint`,
+  canonicalised,
+  is not strictly under the recorded checkout's path,
+  or the dataset is the recorded checkout's own dataset.
+  The refusal names the dataset,
+  as that design asks.
+  The dataset's name is not compared against the recorded dataset's name at all:
+  the step 19 record's dataset is a sibling of the checkout's dataset in the same pool,
+  and a rule that asked for descent by name refused exactly the dataset the owner's answer names;
+- `dataset-in-another-pool`,
+  which this design adds:
+  the dataset's pool is not the record's pool.
+  The checkout and every dataset under it are in one pool,
+  and a foreign pool's dataset mounted under the checkout would put another pool's subtree inside a
+  served checkout.
+  It costs one comparison,
+  and the owner may drop it with one sentence;
+- `dataset-without-a-mountpoint`,
+  when the property is `none`,
+  `-` or `legacy`,
+  because such a dataset is mounted by someone else's rule and this mode would be guessing;
+- `no-recorded-checkout`,
+  when the record is absent,
+  because without it the mode cannot prove the mountpoint descends from a served checkout;
+- `checkout-record-no-longer-matches`,
+  naming the field that differs,
+  when the record's path,
+  dataset or GUID no longer agrees with the kernel,
+  because every reader of the record refuses one that is stale and this mode reads it whole;
+- `dataset-already-mounted-elsewhere`,
+  when the kernel shows the dataset mounted at a path other than the one its property names.
+
+It runs behind the gate and as root,
+like every mode that writes.
+
+### The question the step 19 design leaves to this one
+
+That design's "What each part waits on" says the mode needs this design to say
+"whether a mode may change a dataset's state by name at all"
+(`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
+What each part waits on).
+
+The answer is yes,
+bounded by the record:
+
+- a mode may mount one dataset by name when the dataset's own `mountpoint` lies strictly under the
+  recorded checkout's path,
+  the dataset is not the checkout's own dataset,
+  the dataset is in the record's pool,
+  and the record still matches the kernel;
+- a mode may not unmount,
+  destroy,
+  snapshot or change a property of a dataset by name,
+  and nothing in this design's two modes does;
+- the record is the only thing that makes "under the checkout" a proof rather than a guess,
+  which is why this mode refuses before `record-checkout` has run.
+
+### The conflicts the pair carries
+
+- **`--checkout` on two modes.**
+  `adopt-worktree-parent --checkout <path>` records the replacement `.claude/worktrees` folder's identity;
+  `record-checkout --checkout <path>` records the checkout's route facts.
+  Both name the same path in practice,
+  and the mode word is what says which proof is made.
+  The usage line of each names its own record,
+  and `doctor` prints the adoption's line for an adoption and the record's line for the record,
+  so a person copying the wrong one reads a line about the other job.
+- **`--dataset` on two modes.**
+  `holder-scan --dataset <name>` reports which mount namespaces hold a clone;
+  `mount-path-descendant --dataset <name>` mounts one nested dataset.
+  Both take a full dataset name and both refuse a malformed one through `ArgumentRefusal::DatasetName`,
+  and the refusal's sentence is per mode now,
+  because the shared one said "the clone's full dataset name" while the nested dataset is not a
+  clone
+  (source package/git-policy/cli/src/native/worktree_clone_mount_handler/handler_mode_arguments.rs:239).
+- **Two sources for the checkout.**
+  The configuration file can still name `cloneMounts.checkout` today
+  (source package/git-policy/cli/src/native/worktree_clone_mount_handler/sweep_configuration.rs).
+  Once the record exists,
+  the record is what the route serves,
+  and a configuration value that disagrees is a refusal naming both,
+  not a silent choice.
+  That reader change is step 10's build's,
+  with the format.
+- **A mode that needs another mode's output.**
+  `mount-path-descendant` refuses until `record-checkout` has run.
+  That is a new ordering between modes,
+  and it is stated in both usage lines and in `doctor`'s output,
+  so a boot that runs the nested dataset's unit before the record exists reads `no-recorded-checkout`
+  rather than mounting a dataset it cannot place.
+
+## Choice 8: the word of the mode that records a checkout
+
+The word is the one thing here the answers do not fix,
+so it is posed like choice 2.
+The three candidates are the same command under a different name.
+
+Option A,
+`record-checkout`:
+
+```text
+$ git monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
+   decides: root-mode grammar="record-checkout --checkout /home/user/Monochromatic"
+   prints:  the `recorded:` line of "The two modes these answers add" (proposal)
+```
+
+Option B,
+`record-route`:
+
+```text
+$ git monochromatic-git-policy-cli zfs-root record-route --checkout /home/user/Monochromatic
+   decides: root-mode grammar="record-route --checkout /home/user/Monochromatic"
+   prints:  the same line, with the word `record-route` (proposal)
+```
+
+Option C,
+`checkout-record`:
+
+```text
+$ git monochromatic-git-policy-cli zfs-root checkout-record --checkout /home/user/Monochromatic
+   decides: root-mode grammar="checkout-record --checkout /home/user/Monochromatic"
+   prints:  the same line, with the word `checkout-record` (proposal)
+```
+
+Ranking:
+A > B > C.
+
+A over B:
+A names the thing that is recorded,
+which is what the add,
+the sweep and `mount-path-descendant` read,
+and B names the route,
+which the group word `zfs-root` already said.
+What A delivers is a mode whose word a person can match to the record file's name (design).
+
+B over C:
+both are two words about the route or the record,
+and B reads as a verb and an object,
+while C reads as a noun phrase,
+which the grammar's other words never are (`boot-reconcile`,
+`start-probe`,
+`holder-scan`,
+`adopt-worktree-parent`).
+The difference C costs is the habit a reader already has (design).
+
+The choice is separable:
+the word is one member of `MODE_WORDS`,
+one line of the usage and one of the help,
+one match arm and its refusal texts,
+the step 10 build's reader,
+and `doctor`'s printed line.
+Nothing about the record's shape or the other modes changes.
+
+## Choice 9: the record a legitimate restore replaces
+
+The step 10 design's own reason for the record is that a dataset re-created under the recorded name
+is refused at the GUID comparison,
+and the same sentence admits its price:
+a legitimate restore gives the checkout dataset a new GUID,
+"and E refuses the add until root re-adopts the checkout with the command"
+(source doc/planning/cli-git-zfs-step-10-open-choices.md:578 to :579).
+So the command must be able to replace a record,
+and this choice decides what an operator does to replace one,
+and what the ledger of that act is.
+
+All three options run the same proofs.
+They differ in what the operator types and in what is written down about the swap.
+
+Option A,
+a named replacement,
+`--replace` on the mode this design already adds:
+
+```text
+$ sudo <file> monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
+checkout-record-differs: the record's guid is 1234567890123456789 and the kernel shows 9876543210987654321.
+Nothing was written. Ways forward: run this command again with `--replace` to record this dataset, or
+restore the dataset the record names, which answers the recorded GUID again.
+   the remove-and-re-record was refused, and the refusal names the flag (proposal)
+
+$ sudo <file> monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic --replace
+replaced: /home/user/Monochromatic keeps its path, dataset, container and pool; its GUID was
+1234567890123456789 and is now 9876543210987654321. The record is <the record's path>.
+   every other field equal, the one that changed printed old then new (proposal)
+```
+
+Pros:
+
+- the operator's act is deliberate and named,
+  so a swap and a restore are told apart by what was typed;
+- the refusal names one more word,
+  which is the grammar's own way of naming a way forward;
+- the printed line is the ledger:
+  the journal keeps the old GUID beside the new one,
+  which is what a later reader needs to tell a restore from a re-created dataset.
+
+Cons:
+
+- one option and one arm,
+  and one more line in the usage and the help;
+- a person who restores often types the flag each time.
+
+Option C,
+the same path replaces without a flag:
+
+```text
+$ sudo <file> monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
+replaced: /home/user/Monochromatic keeps its path, dataset, container and pool; its GUID was
+1234567890123456789 and is now 9876543210987654321. The record is <the record's path>.
+   the same line as A's second block, without the flag (proposal)
+```
+
+Pros:
+
+- a restore needs one command, which is the one the step 10 design already names;
+- the line still prints the old GUID beside the new one.
+
+Cons:
+
+- the same command now does two different things depending on what the kernel shows,
+  and `checkout-record-differs` stops existing for every field but the path;
+- the act that admits a different dataset is a re-run of the ordinary command,
+  so a person who re-records after a restore and a person who re-records after a swap type the same
+  thing and read the same line.
+
+Option B,
+remove the file and record again:
+
+```text
+$ sudo rm -- /var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json
+$ sudo <file> monochromatic-git-policy-cli zfs-root record-checkout --checkout /home/user/Monochromatic
+recorded: /home/user/Monochromatic is <its dataset> (GUID <number>), in pool <pool>,
+beside container <container>; the record is <the record's path>
+   no comparison and no old value, because there was no record to compare with (proposal)
+```
+
+Pros:
+
+- nothing to build:
+  the mode keeps the rule that an absent record is written and a differing one refuses.
+
+Cons:
+
+- the operator's step is a file deletion,
+  which no refusal's "ways forward" can name without teaching a root file to be removed by hand;
+- nothing compares the old record with the new dataset,
+  and the printed line holds no old GUID,
+  so the journal cannot tell a restore from a re-created dataset;
+- a person who deletes the file and then fails a proof has destroyed the record and got nothing.
+
+Ranking:
+A > C > B.
+
+A over C:
+both compare and both print the old GUID,
+so both leave the same journal line;
+A makes the admission of a different dataset a distinct act,
+which is what lets `checkout-record-differs` keep its meaning for the GUID as well as the path,
+while C turns the ordinary command into the admitting one.
+The price A pays is one flag in a restore.
+
+C over B:
+C keeps the comparison and the old value;
+B writes the new record with nothing to compare it against,
+and it makes the operator's step an unlogged deletion of a root-owned file.
+
+The choice is separable from the other nine.
+A and C change the record mode's parse,
+its usage line and its refusal,
+and A also changes `record-checkout`'s one command line in the step 19 setup;
+B changes nothing in the code,
+so it would be decided by writing the runbook's deletion line and nothing else.
+The step 10 build's reader does not depend on any of the three:
+it reads whatever record stands.
+
+## Choice 10: the panic hook a root mode installs
+
+The wrapper's hook prints one line naming the source location and never the panic's message,
+because the message can hold bytes of a scanned file
+(source package/git-policy/cli/src/native/invocation/panic_notice.rs:68 to :86).
+A root mode does not scan,
+but its panic message can hold a dataset name,
+a checkout path,
+or a `ZFS` request's fields,
+and it lands in root's journal under a unit.
+
+The choice is what a root-mode start installs before its mode runs.
+
+Option A,
+the wrapper's existing payload-free hook,
+installed inside the root-mode arm:
+
+```text
+$ sudo <file> monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset <a dataset whose read panics>
+monochromatic-git-policy-cli: internal error at <file>:<line>:<col>; its message is not shown because it may
+contain repository content. Hint: if you were running a Git command, run it again; your files are not changed
+by this notice, so `git status` shows where things stand. If it repeats, report this location.
+   the code's own line, which is a pure function of the panic's location (source panic_notice.rs:68 to :86)
+```
+
+Pros:
+
+- no new text and no second hook to keep true;
+- a dataset name,
+  a checkout path or a request's fields never reach root's journal through a panic;
+- one call inside the arm,
+  which is the arm's own first statement.
+
+Cons:
+
+- the hint speaks of a Git command and of `git status`,
+  which reads oddly from a unit,
+  and this design accepts that rather than keep a second hook text true.
+
+Option B,
+the default hook:
+
+```text
+$ sudo <file> monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset <a dataset whose read panics>
+thread 'main' (430836) panicked at panic_default.rs:4:5:
+the mount of zpcachyos/nosnap/vm-builder-output at /home/user/Monochromatic was refused by the kernel
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+   measured with a five-line program whose panic message holds a dataset name and a checkout path
+   (run keep/panic-hook-choice.log)
+```
+
+Pros:
+
+- no code at all,
+  and a panic's message is where a defect's reason usually is.
+
+Cons:
+
+- the message is printed,
+  and it is exactly the text that can hold a dataset name,
+  a checkout path or a request's fields,
+  into root's journal and any log a unit's output reaches;
+- the backtrace note invites a variable a unit does not set.
+
+Ranking:
+A > B.
+
+A over B:
+both print a location,
+and A's line is the same length and shape;
+what separates them is what else is printed,
+and A never prints a payload that can hold a path,
+while B always does.
+B's gain is a panic's reason in the journal,
+which a root mode's refusals already give for every failure it anticipates.
+
+The choice is separable.
+It changes one call inside the root-mode arm,
+and nothing about the dispatch's placement,
+the layouts,
+the modes or the guards;
+installing the hook before `main`'s own work would be choice 4's placement instead,
+and this choice is about what the arm installs.
 
 ## What else the modes keep, and what they lose
 
@@ -2869,9 +3596,10 @@ because the modes are the same code and the same grammar:
 Changed:
 
 - `--version` and `--help` are reached through the one name or the words,
-  and the line is unchanged,
-  so `doctor`'s comparison (step 18) and the release smoke can read it,
-  and `command -v mount-git-worktree-clone-datasets` is already empty on this host;
+  and under choice 5's option A the line stays `mount-git-worktree-clone-datasets <version>`,
+  so `doctor`'s planned check (step 18) and the release smoke can read it,
+  and `command -v mount-git-worktree-clone-datasets` is already empty on this host
+  (run keep/host-facts-fourth.log);
 - `native:install`'s handler check becomes a words check,
   because no family name reaches the account's `PATH`;
 - every message that tells a person to run `mount-git-worktree-clone-datasets ...`
@@ -2882,18 +3610,20 @@ Changed:
 - a root mode no longer passes the lock sweep,
   so a mode started from inside a repository writes nothing into that repository
   (measured in "Every start-time action of today's wrapper");
-- the modes' usage's last paragraph names the words and the one root-owned file;
+- the modes' usage's closing sentences name the words and the one root-owned file;
 - two modes join the list,
   and the checkout record is the one thing they add to what a boot must have.
 
 ### The two programs' sizes, at one commit
 
-Built from the merge commit this round began at,
+Built from the third round's merge commit,
 `package/git-policy/cli/target/release/monochromatic-git-policy-cli` is 29,168,472 bytes
 and `.../mount-git-worktree-clone-datasets` is 3,418,256,
 which is 8.53 times
 (the log also holds the build's own `ls`;
-run keep/handler-usage.log).
+replay keep/handler-usage.log;
+this round built neither program,
+and its merge changed no code).
 
 ### The cold start, measured four ways
 
@@ -3018,47 +3748,59 @@ ratio 2.91
 
 The warm per-event start,
 which the second revision left unmeasured,
-measured this round on this host with the same harness and nothing evicted,
+was measured in the third round on this host with the same harness and nothing evicted,
 120 rounds,
-arms interleaved
-(this round's warm arms,
-`keep/host-warm-wrapper-service-against-handler.txt`,
-`keep/host-warm-spread-handler-against-itself.txt` and `keep/warm-analysis.txt`,
-run).
+arms interleaved,
+and it is re-analysed this round from the same raw files
+(the third round's
+`keep/host-warm-wrapper-service-against-handler.txt` and
+`keep/host-warm-spread-handler-against-itself.txt`,
+re-analysed in keep/warm-reanalysis-fourth.log,
+replay;
+the log states its quantile convention,
+so every number below is recomputable from the two files).
 
 - `w`:
-  median 1.17 ms,
+  median 1.16 ms,
   no major faults;
 - `h`:
-  median 0.65 ms,
+  median 0.64 ms,
   no major faults;
 - `w - h` per round:
   median **+0.48 ms**,
-  range 0.08 to 3.67 ms;
+  5th to 95th percentile 0.19 to 0.80 ms,
+  lower quartile 0.38 and upper 0.64,
+  maximum 1.36 without round 1;
 - `w / h` per round:
   median **1.72**,
-  range 1.09 to 3.26;
+  5th to 95th percentile 1.23 to 2.42;
 - the control,
   `h` against itself:
   median +0.01 ms,
-  ratio 1.02,
-  range 0.50 to 1.83.
+  5th to 95th percentile -0.24 to 0.30 ms,
+  and 66 of its 119 rounds after the first positive.
+- round 1 is not a warm round:
+  it took 416 and 72 major faults,
+  and it is the pair's 3.67 ms maximum.
 
 What that means for the decision:
 
-- a warm per-event start,
+- the method does resolve a gap of about half a millisecond here:
+  the pair's lower quartile, 0.38 ms, stands above the control's 95th percentile, 0.30 ms,
+  and every one of the pair's 120 rounds is positive against 66 of the control's 119;
+- so a warm per-event start,
   which is what each history event pays,
-  costs both programs about a millisecond on this host,
-  and this round does not resolve the gap between them:
-  the pair's 0.48 ms median is smaller than the control's own per-round spread,
-  though every one of the pair's rounds was positive,
-  so the warm gap is at most about half a millisecond,
-  and no figure for the proposed start is claimed from it;
+  costs the wrapper about 0.48 ms more than the handler at the median,
+  with the pair's 5th to 95th percentile stated above;
+  that is a resolved and small difference,
+  and it is not an upper bound;
 - a root start after boot,
   or the first after an eviction,
   is where the difference lives:
-  the wrapper's cold start is about twice the handler's on this host and 1.87 times it in the guest,
-  with the arm's own range stated beside each;
+  the wrapper's cold start is 2.81 times the handler's at the median on this host,
+  with the arm's own range of 1.84 to 5.06 beside it,
+  and 1.87 times it in the guest,
+  whose ratio range the guest's own control overlaps;
 - the start-path cost is the decision's accepted price;
   if it ever bites,
   the fix is a smaller early path,
@@ -3090,13 +3832,18 @@ is the finding.
 
 ## What changes, and in which step
 
-Every path in this section is re-read on `main` at `f3d81e0910` with `rg`,
-and the line numbers are that commit's.
-`rg -c "mount-git-worktree-clone-datasets"` finds 148 lines in 55 files,
+Every path in this section is re-read with `rg`,
+and each line number is given at this branch's base,
+`45ac28ae47`,
+unless it says `f3d81e0910`,
+which is the commit the third revision read and the line has not moved since.
+`rg --hidden -c "mount-git-worktree-clone-datasets"` finds 157 lines in 56 files,
 of which the crate's `doc/` records and one `perf/` measurement are history and stay as they are,
-and this proposal is one of the 55;
-without it the count is 122 lines in 54 files
-(run keep/occurrences.txt).
+and this proposal contributes 29 of the lines;
+without it the count is 128 lines in 55 files
+(run keep/occurrences-fourth.txt).
+A run without `--hidden` skips `.github/workflows/cargo-publish.yml`,
+which is why the third revision's 148 and 122 were each six lines short.
 
 ### One commit: the release ships one program
 
@@ -3110,9 +3857,10 @@ and `toolchain:lock:check` compares the plan and the lock offline:
 - `package/git-policy/cli/src/native/mount_git_worktree_clone_datasets/main.rs`:
   deleted,
   with its folder;
-- `package/git-policy/cli/src/native/lib.rs:415` to `:428`:
+- `package/git-policy/cli/src/native/lib.rs:444` to `:457`:
   the module's doc paragraph,
-  which says "the crate's second executable" (`:421`);
+  which says "the crate's second executable" (`:450` at this base;
+  `:415` to `:428`, "second executable" at `:421`, at `f3d81e0910`);
 - `src/native/source_guard/release_bins_tests.rs`:
   its doc (`:1` to `:22`) and `RELEASED_BINS` (`:31`);
 - `bin/native-release-bins.unit.test.ts`:
@@ -3137,9 +3885,13 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   and the e2e task named for the second program (`:268` to `:270`);
 - `package/git-policy/cli/README.md`:
   `:11`,
+  `:1925`,
+  `:7275`,
+  `:7282` and `:8131`
+  (`:11`,
   `:1912`,
   `:7188`,
-  `:7195` and `:8038`;
+  `:7195` and `:8038` at `f3d81e0910`);
 - `package/git-policy/cli/e2e/README.md`:
   `:833`,
   `:863`,
@@ -3152,9 +3904,12 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   "## The two executables and shipped policies" (`:249`) becomes
   "## The single executable and shipped policies" and says how the root modes are reached;
   `:255` and `:266` name the family through the words or the one file;
-  `:7652`,
-  `:21812` and `:21992` name a mode's command and become the words;
-  `:19261`'s sentence is rewritten as "The guard change,
+  `:7943`,
+  `:22139` and `:22319` name a mode's command and become the words
+  (`:7652`,
+  `:21812` and `:21992` at `f3d81e0910`);
+  the sentence "and the executable does not read the name it was started under" is at `:19588`
+  (`:19261` at `f3d81e0910`) and is rewritten as "The guard change,
   exactly" gives it;
 - `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md`:
   a note under its status that the second program was removed by this decision,
@@ -3191,9 +3946,14 @@ so they land with the release lists:
   including the two the shell cannot spell;
 - `src/native/worktree_clone_mount_handler/mod.rs`:
   `pub mod root_mode_names;` first in the list,
+  `refuse_root_mode_misuse` added to the `pub use handler_mode_dispatch::{…}` line (`:183`,
+  which re-exports `EXIT_DONE`, `EXIT_REFUSED` and `run` today),
   and the top doc's "the second executable" paragraph (`:2` to `:12`) rewritten;
 - `src/native/worktree_clone_mount_handler/handler_mode_arguments.rs`:
   `MODE_WORDS` (`:41`) gains `record-checkout` and `mount-path-descendant`,
+  the `HandlerMode` doc's "no argument names a folder to mount or a dataset to change"
+  (`:112` to `:115`) is rewritten,
+  because the two new modes do both,
   `parse` (`:319`) gains their arms and options,
   the four refusal messages that name the program (`:220`,
   `:223`,
@@ -3201,8 +3961,8 @@ so they land with the release lists:
   `:245`),
   `usage()` (`:265`,
   whose first line at `:267` names it,
-  and whose last paragraph names both
-  installed paths and becomes the one file and the words),
+  and whose closing sentences name both
+  installed paths and become the one file and the words),
   and its tests;
 - `src/native/worktree_clone_mount_handler/handler_install_paths.rs`:
   `SERVICE_INSTALL_PATH` (`:32`) becomes `ROOT_MODE_INSTALL_PATH` and holds the one root-owned file's path,
@@ -3273,7 +4033,12 @@ so they land with the release lists:
   (`invocation/management_arguments_tests.rs`,
   `invocation/entry_command_word_tests.rs:108` and `:113`);
 - `src/native/health/doctor_zfs_route/identity_checks.rs:145` and `:164`:
-  the two messages that tell an administrator to run the old program name;
+  the two messages that tell an administrator to run the old program name,
+  and two release refusal texts that do the same:
+  `worktree_clone_mount_handler/sweep_preconditions.rs:195`
+  (which names `mount-git-worktree-clone-datasets start-probe`) and
+  `worktree_clone_mount/clone_slot_walk_refusals.rs:194`
+  (which names `mount-git-worktree-clone-datasets adopt-worktree-parent`);
 - `src/native/health/doctor_zfs_route/handler_checks.rs`:
   `PLACEHOLDER_EXECUTABLE_PATH` (`:60`) becomes the settled root-mode path,
   `PLACEHOLDER_ZEDLET_PATH` (`:70`) becomes the installed name
@@ -3297,9 +4062,52 @@ the dispatch and the record's writer are one shape,
 and the readers land in step 10's build with the record's format.
 Until then `record-checkout` writes a record nothing reads and
 `mount-path-descendant` refuses `no-recorded-checkout`,
-which is a safe half:
-the plan's step 10 build turns the readers on,
-and the step 19 build changes its nested dataset's unit.
+which is a safe half.
+
+### The order the nested dataset's unit changes in
+
+The step 19 record's answer is that the nested dataset's unit is replaced by
+`mount-path-descendant` "once the mode exists"
+(record doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md),
+and the step 19 design says the unit "runs `/usr/bin/zfs mount` now and the wrapper's
+`mount-path-descendant` mode once it exists"
+(source doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md:2382 to :2386).
+The mode's existence is necessary and not sufficient,
+and the order is this:
+
+1.  the checkout migration of plan step 19 runs,
+    which is the act that makes the checkout a dataset of its own.
+    On this host the checkout is a subtree of `zpcachyos/ROOT/cos/home` today,
+    with no dataset mounted at `/home/user/Monochromatic`
+    (run keep/host-facts-fourth.log),
+    and the step 10 record says so before the migration
+    (record doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md,
+    "What the owner was told first").
+    The same step's setup runs the `canmount=noauto` change on the nested dataset,
+    which is the owner's act on an existing dataset in the step 19 record,
+    and the property is `on` and the dataset mounted today
+    (run keep/host-facts-fourth.log);
+2.  `record-checkout --checkout /home/user/Monochromatic` runs as root.
+    It cannot run before the migration:
+    it refuses `checkout-not-a-mount-point` for a path that is not a dataset's own mount point,
+    which is the precondition step 10's design states;
+3.  only then does the nested dataset's unit's `ExecStart=` become one line naming the mode,
+    replacing `/usr/bin/zfs mount <dataset>`:
+    `ExecStart=<root-owned file> monochromatic-git-policy-cli zfs-root mount-path-descendant --dataset <dataset>`.
+    The unit's `[Unit]` block and its ordering after the gate stay as step 19 wrote them,
+    and the swap is that one line.
+
+Where this rests:
+on the mode's `no-recorded-checkout` refusal,
+which is this design's,
+and on the record's own precondition,
+which is step 10's design's.
+The cost of doing it in the other order is a boot whose nested unit fails with
+`no-recorded-checkout` and leaves the nested dataset unmounted,
+because a unit that refuses has no fallback.
+
+So the step 19 build changes that unit only after both earlier acts,
+and this design's own commit lands the mode that refuses until the second has run.
 
 ### The same commit: what `native:install` and the release smoke check instead
 
@@ -3338,7 +4146,7 @@ so a release cannot ship with either dispatch broken
 (`.github/workflows/cargo-publish.yml:2671` to `:2680`):
 
 ```yaml
-    - name: Smoke-run the executable
+    - name: Smoke-run the binaries
       shell: bash
       env:
         TARGET: ${{ matrix.target }}
@@ -3347,7 +4155,7 @@ so a release cannot ship with either dispatch broken
         wrapper="package/git-policy/cli/target/${TARGET}/release/monochromatic-git-policy-cli"
         help=$("$wrapper" monochromatic-git-policy-cli --help)
         printf '%s\n' "$help" | grep -q '^Usage: git monochromatic-git-policy-cli'
-        links=$(mktemp -d)
+        links=$(mktemp -d "${RUNNER_TEMP}/root-modes.XXXXXX")
         ln -s "$PWD/$wrapper" "$links/history_event-mount_git_worktree_clone_datasets"
         "$links/history_event-mount_git_worktree_clone_datasets" --version | grep -q '^mount-git-worktree-clone-datasets '
         "$wrapper" monochromatic-git-policy-cli zfs-root --version | grep -q '^mount-git-worktree-clone-datasets '
@@ -3416,14 +4224,16 @@ in one place:
   and a missing one prints the `install -d -o root -g root -m 0755` command that creates it
   (`/usr/libexec` is missing on this host today:
   `ls -d /usr/libexec` answers `No such file or directory`,
-  (`keep/apparmor-and-folders.txt`,
-  run);
+  run keep/host-facts-fourth.log);
 - the installed file's `--version` names the same version as the build `doctor` runs from,
   and a mismatch prints both and the lock row's version;
-- the checkout's record exists,
-  names a dataset and GUID the kernel agrees with,
-  and its container is under the same pool,
+- the checkout's record exists at its one path,
+  is root-owned and `0644`,
+  names a path,
+  dataset and GUID the kernel agrees with,
+  and names a container in the same pool that is neither inside the checkout nor holds it,
   because every later step that names a checkout reads it;
+  a missing record prints `record-checkout`'s line and names the folder the mode creates;
 - its findings say what a broken or missing name costs (a sweep that never runs)
   and print the command that recreates it,
   through the root-owned path and never through the account's `git`;
@@ -3434,6 +4244,10 @@ in one place:
 
 Step 19 prints the one file and its name,
 and its guest arm starts a unit by that path with the words and reads `--version` through it.
+Its runbook carries the order "The order the nested dataset's unit changes in" states:
+the migration,
+then `record-checkout`,
+then the nested dataset's one `ExecStart=` line.
 It says where the bytes come from and who runs it:
 
 - the bytes are the lock row's `artifacts.<target>.url`,
@@ -3453,8 +4267,9 @@ What that file must hold,
 and why the design cannot leave it implicit:
 
 - this host has no `local/zed` yet
-  (`keep/apparmor-and-folders.txt`,
-  run),
+  (run keep/host-facts-fourth.log,
+  and the profile's lines are in the third round's `keep/apparmor-and-folders.txt`,
+  replayed),
   and `/etc/apparmor.d/zed` ends with `include if exists <local/zed>`,
   so every rule the hook needs is one this step adds;
 - the profile gives `/etc/zfs/zed.d/{,*} r,` and no execute permission,
@@ -3469,8 +4284,8 @@ and why the design cannot leave it implicit:
   `capability dac_read_search`,
   and the mount rules for `/home/user/Monochromatic` and the clone container,
   because ZED's profile holds `capability sys_admin` and `/dev/zfs rw` already
-  (`keep/apparmor-and-folders.txt` shows both lines,
-  run);
+  (replay keep/apparmor-and-folders.txt,
+  which shows both lines);
 - the file's name and the rule's target move together with choice 3,
   so a later layout change is one line in two files,
   and `doctor`'s step 18 check reads whether the rule names the file that exists.
@@ -3485,9 +4300,11 @@ and why the design cannot leave it implicit:
   working directory,
   descriptors and built environment,
   by a replay of the source's own child step
-  (run keep/zed-shape-report.txt);
-- a transient user service's and a user scope's `argv[0]`
-  (run keep/unit-argv0.log);
+  (replay keep/zed-shape-report.txt);
+- a transient user service's and a user scope's `argv[0]`,
+  both printing the path as `ExecStart` wrote it,
+  and no unit left behind
+  (run keep/unit-argv0-fourth.log);
 - the three dispatch rules' decisions on thirty-five starts,
   including ZED's own,
   a unit's line,
@@ -3507,30 +4324,49 @@ and why the design cannot leave it implicit:
   a caller-chosen `argv[0]`,
   an empty `argv[0]`,
   and the two vectors a shell cannot spell
-  (run keep/dispatch-cases.log);
+  (replay keep/dispatch-cases.log,
+  which this round re-ran to the same verdicts);
 - the compiled names module under real starts by path,
   through links,
   with `exec -a`,
   through the ZED child step,
-  with a non-UTF-8 and an empty `argv[0]`
-  (run keep/names-starts.log);
-- the three revised guards against today's `main.rs`,
+  with an empty `argv[0]`,
+  and with a vector a shell cannot spell,
+  each decision printed by the start itself
+  (run keep/names-starts-fourth.log;
+  the ZED child step is in it too,
+  read back from the file the child appended to,
+  because ZED's descriptors 1 and 2 are `/dev/null`);
+- the same module with option B's rule compiled in,
+  refusing `--version` and `--help` under the installed name
+  (run keep/names-starts-fourth.log,
+  the section "option B's rule, compiled");
+- a start whose name is not UTF-8,
+  made with `exec -a` because this host cannot hold such a file name
+  (run keep/non-utf8-starts-fourth.log,
+  beside the name rule the host sets in keep/host-facts-fourth.log);
+- the three guards of this revision against today's `main.rs`,
   this revision's `main`,
-  seven edits of `main`,
-  the read's six bypasses,
   the names module,
-  three planted modules,
-  the read's four module variants and four of this round's own,
-  with every variant failing and each rule having its own witness
-  (run keep/guard-replay-revision3.log);
+  the third read's ten main variants,
+  its five names variants,
+  the second read's four,
+  this revision's four witnesses,
+  and one B-shaped module,
+  with every variant failing on the rule it names and each new rule having a witness of its own
+  (run keep/guards-replay-fourth.log);
+- the third revision's printed guards over the same files,
+  passing six main variants and five names variants that this revision refuses,
+  which is the before column of that log
+  (run keep/guards-replay-fourth.log);
 - the typed bans in a probe crate carrying the crate's own `clippy.toml` and the two new rows,
   through a `use ... as` alias and a direct `std::env::args()`
-  (run keep/clippy-bans.log);
+  (replay keep/clippy-bans.log);
 - today's bytes under the installed name in a throwaway repository,
   with the status of each start and the marker the lock pass leaves
-  (run keep/today-installed-name.log);
+  (replay keep/today-installed-name.log);
 - a copy named `holder-scan` answering `unknown option: --dataset` and exit 129
-  (run keep/holder-scan-name.log);
+  (replay keep/holder-scan-name.log);
 - both programs' cold starts on this host with the command each arm ran,
   page-cache-cold and ARC-warm,
   with the method's own spread measured in the same way
@@ -3538,16 +4374,29 @@ and why the design cannot leave it implicit:
   replay);
 - both programs' warm starts on this host,
   nothing evicted,
-  with the same spread control
-  (`keep/host-warm-*.txt` and `keep/warm-analysis.txt`,
-  run);
+  with the same spread control,
+  re-analysed this round with the quantiles its conclusion needs
+  (replay the third round's `keep/host-warm-*.txt`,
+  analysed in keep/warm-reanalysis-fourth.log);
 - both programs' cold starts in an Ubuntu 24.04 guest,
   the whole page cache dropped before every run,
   with the same spread control,
   and the guest destroyed through `mvm`
   (replay keep/guest-*.txt);
-- the two programs' sizes in this round's build,
-  and `readelf --version-info`'s glibc floor for each.
+- the two programs' sizes in the third revision's build,
+  and `readelf --version-info`'s glibc floor for each
+  (replay keep/handler-usage.log and keep/cold-start-analysis-rerun.txt);
+- the two hooks a root-mode start can install,
+  the default one with a panic message holding a dataset name and a path,
+  and the wrapper's line as its source writes it
+  (run keep/panic-hook-choice.log);
+- the host facts every choice above rests on:
+  the dataset table,
+  the absence of a dataset at the checkout's path,
+  the home dataset's name rules,
+  the nested dataset's properties,
+  and the three paths and one name that do not exist here
+  (run keep/host-facts-fourth.log).
 
 ### Not shown
 
@@ -3558,17 +4407,20 @@ and why the design cannot leave it implicit:
   The environment and descriptor values come from the replay's own `execle`,
   not from a running ZED;
 - a system unit start:
-  this round measured a transient user service and a user scope,
-  so a system manager's `argv[0]` is the same `ExecStart` parse and not measured here;
+  this round measured a transient user service and a user scope under the user manager,
+  so a system manager's `argv[0]` is asserted from the shared `ExecStart` parse and not measured here;
 - any mode touching ZFS:
-  this round ran no guest arm that mounts,
+  this round created no guest and ran no arm that mounts,
   unmounts or adopts,
   so the modes' own work is unchanged code and is not exercised here;
   the two new modes do not exist,
-  so their lines and refusals are this design's words;
+  so their lines and refusals are this design's words (proposal);
 - the checkout record's readers and format:
   they land in step 10's build,
-  and nothing here has read or written one;
+  and nothing here has read or written one.
+  Its fields are this design's list,
+  and its file is not on this host
+  (run keep/host-facts-fourth.log);
 - the proposed root-mode start's cold or warm cost:
   no arm runs it,
   and this design claims no figure for it;
@@ -3588,17 +4440,27 @@ and why the design cannot leave it implicit:
 - the root-mode refusal's and the two new modes' exact texts:
   `refuse_root_mode_misuse`,
   `record_checkout_mode` and `mount_path_descendant_mode` do not exist yet,
-  so their wording is this design's,
-  not a build's.
+  so their wording is this design's (proposal),
+  not a build's;
+- `record-checkout --replace` and the two other replacement shapes:
+  no build answers the flag,
+  and choice 9's three blocks are this design's wording;
+- a system manager's start of a unit:
+  this round measured the user manager's service and a scope only,
+  so the two managers' shared `ExecStart` parse is read from systemd's documentation,
+  not measured (design).
 
 ## The choices this proposal puts to the owner
 
-Each is separable,
-and each is ranked in its own section.
-Item 1 is where the answer's two clauses meet,
-and the design recommends it;
+Each is ranked in its own section,
+with a reason for every adjacent pair by what each option delivers,
+and each section says what it is separable from.
+Item 1 is where the answer's two clauses meet;
 items 2 to 7 are the second revision's other choices;
-item 8 is the word of the mode the step 10 answer adds.
+item 8 is the word of the mode the step 10 answer adds;
+items 9 and 10 are this revision's two new questions,
+posed because a legitimate restore needs a replacement path (the third read's M1)
+and because the panic hook was a list item inside choice 4.
 
 1.  What selects a root mode:
     the words on any file,
@@ -3630,11 +4492,11 @@ item 8 is the word of the mode the step 10 answer adds.
     A),
     after the panic hook and the environment (B),
     at the top of `run_process` (C),
-    or inside `plan_invocation` (D),
-    with the panic hook installed inside the arm (the recommendation).
+    or inside `plan_invocation` (D).
     B and C rank on where the code lives,
     not on start-time work:
     they cost the same.
+    What the arm installs is item 10.
 5.  What `--version` and the refusals say:
     the modes' own name (choice 5,
     A),
@@ -3650,103 +4512,146 @@ item 8 is the word of the mode the step 10 answer adds.
     A),
     or compile them out (B).
 8.  The words of the mode that records a checkout:
-    `record-checkout` (the record mode's ranking,
+    `record-checkout` (choice 8,
     A),
     `record-route` (B),
     or `checkout-record` (C).
+9.  What a legitimate restore does to the record (choice 9):
+    `--replace` on the mode,
+    refused without it (A);
+    the same path replaced by the ordinary command, printing the old GUID (C);
+    or the record file deleted by hand and recorded again (B).
+10. The panic hook a root-mode start installs (choice 10):
+    the wrapper's payload-free hook (A),
+    or the default hook, which prints the panic's message (B).
 
-This proposal's own ranking is A in every one of them.
+This proposal's own ranking is A in all ten.
+The closest pair is choice 1's A over B,
+because B is the owner's own literal text and A adds two accepted spellings.
 
 ## Appendix: where the probe transcripts are
 
-Round folder `/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/keep/`:
+This round's folder,
+`/home/user/temp/agent/zfs-root-modes-fourth-revision-2026-11-24/keep/`:
 
 - `state-so-far.md`:
   what the round did,
   in order,
   and what it could not do;
-- `dispatch-cases.log`,
-  from `dispatch_probe.rs`:
-  the three rules on thirty-five starts,
-  with cases 1 to 26 identical to the second revision's twenty-six;
-- `kept-first-78.txt` and `mine-decided.txt`:
-  the two decision lists the case-by-case comparison reads;
-- `zed-shape-report.txt`,
-  from `zed_replay.c` and `replay_fixture.rs`:
-  ZED's child step,
-  replayed;
-- `names-starts.log`,
-  from the compiled `root_mode_names.rs` and `run_mine.sh`:
-  real starts by path,
-  through links,
+- `guards-replay-fourth.log`:
+  this revision's three guards over today's `main.rs` (the positive control that must fail),
+  the proposal's `main`,
+  the names module,
+  the third read's ten main variants and five names variants,
+  the second read's four module variants,
+  the third revision's four forbidden-spelling witnesses,
+  this revision's own witnesses,
+  and one B-shaped module,
+  then the third revision's printed guards over the same files,
+  which pass six main and five names variants that this revision refuses,
+  and then the scan before and after over a file that reads the vector through a space;
+- `names-starts-fourth.log`:
+  the compiled `root_mode_names` module under real starts by path,
+  through links named `git`, the wrapper and the family,
   with `exec -a`,
   through the ZED child step,
-  and with an empty argument;
-- `guard-replay-revision3.log`,
-  from `replay_revision3.rs`:
-  the three guards of this revision over every `main` text and every names module;
-- `revision2-harness-over-every-text.log`,
-  from `guard_replay_revision2.rs`:
-  the second revision's own predicates,
-  replayed to check the harness;
-- `clippy-bans.log`,
-  with `clippy.toml` and `clippy-probe-main.rs`:
-  the two typed bans in a probe crate carrying the crate's `clippy.toml`;
-- `today-lines.log`,
-  `today-installed-name.log` and
-  `holder-scan-name.log`:
-  today's bytes in a throwaway repository,
-  under the installed name and under a copy named `holder-scan`;
-- `handler-usage.log`:
-  the built handler's `--help`,
-  `--version` and sizes;
-- `unit-argv0.log`:
-  a transient user service's and a scope's `argv[0]`;
-- `apparmor-and-folders.txt`:
-  the AppArmor profile lines this design depends on,
-  and `/usr/libexec`'s absence;
-- `host-wrapper-service-against-handler.txt`,
-  `host-spread-handler-against-itself.txt` and
-  `host-wrapper-words-against-handler.txt`:
-  the second revision's host cold-start arms,
-  replayed;
-- `guest-disk-cold-wrapper-service-against-handler.txt`,
-  `guest-disk-cold-spread-handler-against-itself.txt` and
-  `guest-page-cache-warm-wrapper-service-against-handler.txt`:
-  the second revision's Ubuntu guest arms,
-  replayed;
-- `host-warm-wrapper-service-against-handler.txt` and
-  `host-warm-spread-handler-against-itself.txt`:
-  this round's warm arms;
-- `cold-start-analysis-rerun.txt`:
-  the second revision's arms,
-  re-analysed;
-- `warm-analysis.txt`:
-  this round's warm arms,
-  analysed;
-- `occurrences.txt`:
-  the `mount-git-worktree-clone-datasets` counts;
-- `proposed_main.rs`,
-  `root_mode_names.rs` and
-  `proposed_root_mode_names.rs`:
-  the three texts the guards are proved against;
-- `variants/`:
-  the read's six bypasses (hv1 to hv6) and four module variants (mv1 to mv4),
-  and this round's four forbidden-spelling witnesses (w1 to w4);
-- `dispatch_probe.rs`,
-  `exec_empty_argv.c` and `argv_view.c`:
-  the sources every dispatch case rebuilds from;
-- `zed_replay.c`,
-  `replay_fixture.rs`,
-  `run_mine.sh`,
-  `coldstart_drop.c` and
-  `analyse_cold_start.ts`:
-  the harnesses the logs above came from.
+  with an empty `argv[0]`,
+  with a vector a shell cannot spell,
+  and with option B's rule compiled,
+  each line the start's own;
+- `non-utf8-starts-fourth.log`:
+  starts whose name holds an invalid byte,
+  made with `exec -a` because this host cannot hold such a file name;
+- `unit-argv0-fourth.log`:
+  a transient user service's and a user scope's `argv[0]`,
+  the service's output read through `--wait --pipe`,
+  and the list of units afterwards;
+- `warm-reanalysis-fourth.log`:
+  the warm pair and its control recomputed from the third round's raw files,
+  with the quantile convention stated;
+- `host-facts-fourth.log`:
+  the dataset table,
+  the absence of a dataset at the checkout's path,
+  the home dataset's name rules,
+  the nested dataset's properties,
+  the three absent paths,
+  and the two `command -v` answers;
+- `panic-hook-choice.log`:
+  the default hook's line from a program whose panic message holds a dataset name and a path,
+  and the wrapper's line as its source writes it;
+- `occurrences-fourth.txt`:
+  the second program's name counted with and without `--hidden`;
+- `citations-at-this-rounds-base.txt`:
+  every `path:line` the proposal cites,
+  printed with the line it names at this branch's base;
+- `sources/`:
+  the harnesses and fixtures every log above came from,
+  `guards-harness.rs`,
+  `make-variants.py`,
+  `scan-third.rs`,
+  `names-probe.rs`,
+  `names-probe-option-b.rs`,
+  `root-mode-names-option-b.rs`,
+  `zed_replay.c`,
+  `argv_view.c`,
+  `exec_empty_argv.c` and
+  `panic_default.rs`.
 
-The round's `scratch/` folder held the compiled guards,
-the fixtures and the throwaway repository,
+The third revision's folder,
+`/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/keep/`,
+holds the logs this round replays,
+and each is cited as a replay where it is used:
+`dispatch-cases.log` (thirty-five starts),
+`kept-first-78.txt` and `mine-decided.txt`,
+`zed-shape-report.txt` (ZED's child step replayed),
+`revision2-harness-over-every-text.log`,
+`clippy-bans.log` and `clippy.toml`,
+`today-lines.log`,
+`today-installed-name.log`,
+`holder-scan-name.log`,
+`handler-usage.log`,
+`apparmor-and-folders.txt`,
+`host-wrapper-service-against-handler.txt`,
+`host-spread-handler-against-itself.txt`,
+`host-wrapper-words-against-handler.txt`,
+`guest-disk-cold-wrapper-service-against-handler.txt`,
+`guest-disk-cold-spread-handler-against-itself.txt`,
+`guest-page-cache-warm-wrapper-service-against-handler.txt`,
+`cold-start-analysis-rerun.txt`,
+`host-warm-wrapper-service-against-handler.txt`,
+`host-warm-spread-handler-against-itself.txt`,
+`proposed_main.rs`,
+`proposed_root_mode_names.rs`,
+`replay_revision3.rs`,
+`dispatch_probe.rs`,
+`zed_replay.c`,
+`replay_fixture.rs`,
+`run_mine.sh`,
+`coldstart_drop.c` and
+`analyse_cold_start.ts`.
+
+The third read's folder,
+`/home/user/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/keep/`,
+holds its file and the logs this revision's before column reproduces:
+its own copy of the printed guards (`src/printed_guards.rs`),
+`main-variants-printed-guard.log`,
+`names-variants-printed-guard.log`,
+`variants-behaviour.log`,
+`scan-whitespace-elsewhere.log`,
+`hidden-read-compiled-runs.log`,
+`clippy-second-allow-runs.log`,
+`proc-self-comm-run.log`,
+`service-argv0-by-the-third-read.log`,
+`zed-child-step-through-the-compiled-module.txt`,
+`non-utf8-and-helper-starts.log`,
+`warm-arms-reanalysis.txt`,
+`provenance-and-counts.log` and
+`files-naming-the-second-program.txt`.
+
+This round's `scratch/` folder held the compiled harnesses,
+the variant fixtures and the throwaway binaries,
 and was removed when the round ended;
-the kept sources rebuild every log.
-No guest was created this round:
-the Ubuntu guest's logs are the second revision's,
-replayed here with an identical analysis.
+the kept sources in `sources/` rebuild every log.
+No guest was created this round,
+and no container gate was run,
+because this round changes no code and merges do not wait for one.
