@@ -156,6 +156,67 @@ are in their own section below.
 
 ## Method
 
+Every guest in this round is a throwaway `mvm` libvirt guest on the Ubuntu template,
+started only through `mvm`,
+and destroyed through `mvm` as soon as its readings are saved.
+One guest runs at a time,
+and no guest starts unless the round note's test holds:
+`MemAvailable` plus the ARC's `size` minus its `c_min` is at least 16 GiB and memory pressure's `avg10` is not above `avg60`.
+Each create's gate reading is in `keep/memory-gate-log.txt` in the round folder.
+
+For each guest the round reads,
+before its arm,
+during it and after it:
+
+- `/proc/meminfo`'s `MemTotal`,
+  `MemAvailable`,
+  `Shmem`,
+  `AnonPages`,
+  `Cached` and `SwapFree`;
+- the session daemon's unit `memory.current` and the `memory.stat` fields `shmem`,
+  `anon`,
+  `file`,
+  `active_file` and `inactive_file`;
+- memory pressure's `some` and `full` lines;
+- the guest's own QEMU process: `smaps_rollup`'s `Rss`,
+  `Pss`,
+  `Shared_Clean`,
+  `Shared_Dirty`,
+  `Private_Dirty`,
+  `Anonymous` and `Swap`,
+  the description and flags of its largest mapping,
+  and how many of its mappings carry the mergeable flag;
+- KSM's `run`,
+  `pages_shared`,
+  `pages_sharing`,
+  `pages_scanning`,
+  `pages_to_scan` and `sleep_millisecs`.
+
+The load in each guest is one real build of the wrapper,
+run the way the rounds' arms run it:
+`CARGO_BUILD_JOBS=1 cargo build --release --tests --locked` in a 4-vCPU guest with a 6 GiB swap file,
+from the repository's own wrapper snapshot,
+started detached so the guest agent cannot lose a long command's answer.
+The snapshot helper is `package/git-policy/cli/bin/native-wrapper-snapshot.ts`,
+whose tarball is 12.6 MB.
+The host samples every 10 seconds while the build runs.
+The sampler,
+the guest scripts and every reading are under `keep/` in the round folder.
+
+Two measurements need a domain attribute or a smaller memory than `mvm`'s constants allow,
+and `mvm` has no flag for either.
+For those probe guests only,
+the worktree's `package/mvm/cli/src/domain-xml.ts` and `package/mvm/cli/src/file-transfer-route.ts`
+carry a temporary block that reads `MVM_MEMORY_PROBE`
+(`reporting`,
+`memory4g`,
+`agent`),
+run through `mise run //package/mvm/cli:run -- ...`,
+which is `mvm` from source;
+the block is reverted before any commit and its diff is `keep/probe-patch-for-the-measurement.diff`.
+No other code and no constant is changed,
+and the guests those probes create are ordinary throwaway guests.
+
 ## Results
 
 (None recorded yet.)
@@ -163,3 +224,77 @@ are in their own section below.
 ## Ranking
 
 (None yet: it follows the measurements.)
+
+## Options considered and not measured
+
+### Turning KSM on
+
+KSM cannot be turned on in a round like this one.
+`/sys/kernel/mm/ksm/run` is owned by the system's root account,
+this round runs no command as root,
+and the host read `0` before and during every arm here,
+so no page on this machine was ever a merge candidate.
+That leaves the guest-agent route's saving unmeasured:
+what a private guest's RAM would give back once two guests of one template have identical pages merged
+is the owner's call,
+and it needs a host change outside any agent's reach.
+
+### Ballooning the guest down from the host
+
+`virsh setmem` (libvirt's balloon) would make the guest give pages back on the host's command.
+It reaches the same discard path as free page reporting
+(`balloon_inflate_page` calls `ram_block_discard_range`),
+so it would work with the shared backing too,
+but it needs the guest's own balloon driver to find the pages,
+it leaves the inflated pages unusable to the guest until they are deflated,
+and `mvm` exposes no command that would carry it:
+a probe would have to run `virsh` itself,
+which this round does not do.
+Free page reporting reaches the same place without asking the guest to surrender pages it might use.
+
+### Huge pages for the guest
+
+`<memoryBacking><hugepages>` would make the guest's RAM 2 MiB pages.
+QEMU's discard path handles huge pages with `fallocate` as well,
+and the host would then have to hold a preallocated huge-page pool,
+which is memory held for guests that no other process can use.
+Not measured, and the direction is away from the goal.
+
+### Spreading the ARC instead of the guests
+
+The ARC was already at its floor when this document's first reading was taken
+(`size` 2,019,672,416 against `c_min` 2,069,377,152),
+so there was nothing in it to give,
+and the round note's own sum treats the ARC's floor as unavailable memory.
+Not a lever for guest memory.
+
+### Swapping guest memory out under pressure
+
+The host already does this:
+one of the four guests had 5.36 GiB of its RAM in the zram swap device.
+It is not an option among the others because it is not free:
+it costs zram's compression CPU and the guests' latency,
+it happens only under pressure,
+and it left 22.8 GiB held anyway.
+`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md` records what that costs this machine.
+
+## What shipping either choice would change in mvm
+
+Nothing here is done by this round.
+Both changes are small and both are decisions for the owner.
+
+- Free page reporting is one element in the domain XML:
+written by `package/mvm/cli/src/domain-xml.ts` beside `sharedMemoryBacking()`.
+If it were unconditional,
+every new guest would have it and every existing guest would have it from its next create.
+If it were a flag,
+it would be a new option on `mvm create`,
+a field in `meta.json`,
+and a line in the package README's VM defaults.
+- The smaller guest is a different memory constant,
+and it is only a safe default together with the reporting above or with the build moved off the guest,
+because one in-guest build of the wrapper peaks at 7.45 GiB of the guest's 7.75 GiB
+(`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`).
+The guest's memory is `DEFAULT_MEMORY_MIB` in `package/mvm/cli/src/config.ts`,
+read by `domain-xml.ts`;
+a per-guest value would need a flag and a `meta.json` field too.
