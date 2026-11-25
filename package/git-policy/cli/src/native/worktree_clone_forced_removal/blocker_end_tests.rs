@@ -119,7 +119,18 @@ fn the_endability_read_tells_the_states_apart() {
     assert!(endable_from('S'));
     assert!(endable_from('R'));
     let (_blocker, mut child) = start_child("exec sleep 30");
-    match endability_of(i32::try_from(child.id()).expect("a number")) {
+    let pid: i32 = i32::try_from(child.id()).expect("a number");
+    // A child settling into its first exec passes through states this act refuses, so the control waits,
+    // bounded, for the state the task will hold for its life.
+    let mut settled: Endability = endability_of(pid);
+    for _attempt in 0..400 {
+        if matches!(settled, Endability::Endable(_)) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        settled = endability_of(pid);
+    }
+    match settled {
         Endability::Endable(blocker) => assert!(blocker.started > 0),
         other => panic!("a live task is endable, not {other:?}"),
     }
