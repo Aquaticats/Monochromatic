@@ -237,6 +237,10 @@ and
 The gate's image installs it:
 `bin/build-git-test-image.ts` lists
 it among the tools the tests start.
+This host has installed it since later that day
+(`pacman -Q strace` answers `strace 7.3-1`, 2026-11-25),
+so the arms that prove the rule above reach the absence through a fixture `PATH`
+rather than through the host's own program.
 
 ### The cause
 
@@ -301,24 +305,32 @@ includes `real_git_lfs_the_run_requires.rs`).
 - The holder runs the absolute path that answer gives,
   so the fixture's own `PATH` no longer decides whether the cut can
 be made.
-- A control whose machine has no tracer prints one line naming itself and passes,
-  as the btrfs and real-tool controls
-do,
-  and `--success-output=final` brings that line into a green gate's log:
+- A run without the tracer fails each control that needs it,
+  with both ways forward,
+  and a control prints one line naming itself and passes only when that run
+states the absence is known
+  (`CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED`);
+  an acknowledged run's line, which `--success-output=final` brings into a green gate's log, reads:
 
 ```text
-STRACE CONTROL NOT RUN: stop-lock-push-slow-cleanup (no strace on PATH)
+STRACE CONTROL NOT RUN: stop-lock-push-slow-cleanup (no strace on PATH, and CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED states that this run has none; the container gate image installs strace)
 ```
 
-- A run that must have the tracer fails instead of passing with controls unchecked:
-  `CLI_GIT_REQUIRE_STRACE`,
-  which the
-gate image sets (`bin/native-test-containerfile.ts`),
-  names the variable and the program.
+  The shape here was changed on 2026-11-25
+  (`doc/decision/cli-git-strace-controls-fail-unless-the-absence-is-acknowledged.md`,
+  "Fail unless acknowledged"):
+  this section first recorded the other shape,
+  a line and a pass on every run without the tracer unless
+  `CLI_GIT_REQUIRE_STRACE` (which only the gate image set) made the control fail.
+  Every control that needs `strace` now reads the one rule in
+  `src/native/testing/strace_the_controls_run_under.rs`,
+  and that variable was removed from the gate image and from this crate.
 
-The three controls passed here in 0.00 s each,
-printing that line
-(`keep/green-lock-controls-alone-without-a-tracer.log`).
+  The three controls passed here in 0.00 s each,
+  printing such a line in a run that acknowledged the absence
+  (`keep/green-lock-controls-alone-without-a-tracer.log`).
+  The host itself now installs `strace` 7.3 (`pacman -Q strace`, 2026-11-25),
+  so the arms that prove the rule use a fixture `PATH` that holds no program of that name rather than removing the host's.
 
 ### What is not claimed
 
