@@ -512,6 +512,25 @@ pub mod worktree_clone_mount_handler;
 #[cfg(target_os = "linux")]
 pub mod clone_holder_scan;
 
+/// The forced arm of a ZFS worktree clone's removal:
+///  who the command's caller and its session are,
+///  the protected set a forced removal never ends,
+///  what it may do to each kind of holder and what it refuses,
+///  the reads it makes before its first act and change,
+///  and every word it answers with.
+/// Plan step 17 builds it ahead of the removal's cut, so no person's command
+///  reaches it and no sentence offers the flag,
+///  and its waits ship with no value until the owner decides one or step 22's
+///  measurement sizes them.
+/// It is Linux only,
+/// like the `/proc` reads, the pidfds and the mount calls it would make.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_forced_removal;
+
+/// The same re-export for `worktree_clone_forced_removal`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_forced_removal::*;
+
 /// The mount-namespace read two of the wrapper's scans share:
 ///  every live task grouped by the kernel's own namespace identity,
 ///  one mount table read per namespace,

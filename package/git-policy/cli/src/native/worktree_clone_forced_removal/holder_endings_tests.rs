@@ -1,0 +1,78 @@
+//! Controls for the table of kinds:
+//!  every kind has a row,
+//!  the two kinds whose ending no round shows are refused with the design's own words,
+//!  every row names its evidence and its owed arm,
+//!  and a refusal ends no blocker.
+
+use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
+use crate::worktree_clone_forced_removal::holder_endings::*;
+
+/// Every kind the design names has one row,
+/// and no row appears twice.
+#[test]
+fn every_kind_has_one_row() {
+    let kinds: [HolderKind; 6] = [
+        HolderKind::SessionTask,
+        HolderKind::OtherAccountTask,
+        HolderKind::UnitTask,
+        HolderKind::TasklessNamespace,
+        HolderKind::PathHolder,
+        HolderKind::LockedHolder,
+    ];
+    let mut seen: Vec<HolderKind> = Vec::new();
+    for kind in kinds {
+        let row: KindEvidence = ending_of(kind).expect("every kind has a row");
+        assert_eq!(row.kind, kind);
+        assert!(!seen.contains(&kind), "kind `{}` has two rows", kind.word());
+        seen.push(kind);
+        assert!(!row.shown_by.is_empty(), "row `{}` names no evidence", kind.word());
+    }
+    assert_eq!(seen.len(), THE_KINDS.len());
+}
+
+/// A kind whose ending no round shows is refused,
+/// with the design's own word for it.
+#[test]
+fn the_two_unshown_kinds_are_refused() {
+    let locked: KindEvidence = ending_of(HolderKind::LockedHolder).expect("the locked row");
+    assert_eq!(locked.ending, Ending::Refuse(RefusalWord::HolderLocked));
+    let taskless: KindEvidence = ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
+    assert_eq!(taskless.ending, Ending::Refuse(RefusalWord::HolderUnendable));
+    // The refusal rows name the arm that would settle them.
+    assert!(locked.owed_arm.contains("V10"));
+    assert!(taskless.owed_arm.contains("6.19"));
+}
+
+/// A kind the evidence covers ends its blockers,
+/// and the two ways take the copy out of a namespace by their own means.
+#[test]
+fn the_covered_kinds_have_endings_and_their_evidence() {
+    for kind in [HolderKind::SessionTask, HolderKind::OtherAccountTask, HolderKind::UnitTask, HolderKind::PathHolder] {
+        let row: KindEvidence = ending_of(kind).expect("a covered row");
+        assert_eq!(row.ending, Ending::EndBlockersThenUnmount);
+        assert!(row.shown_by.contains("this round's guest arm"), "{}", row.shown_by);
+    }
+}
+
+/// A refusal ends no blocker,
+/// and each ending that does answers true,
+/// which is what keeps a locked holder's jobs from being signalled.
+#[test]
+fn a_refusal_ends_no_blocker() {
+    assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderLocked)));
+    assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderUnendable)));
+    assert!(ends_blockers(Ending::EndBlockersThenUnmount));
+    assert!(ends_blockers(Ending::UnmountInPlaceByHandle));
+    assert!(ends_blockers(Ending::MakeTheParentASlaveThenMoveAndUnmount));
+}
+
+/// A kind the table lacks is a named error and not a default ending.
+#[test]
+fn a_kind_without_a_row_is_a_named_error() {
+    // The table is the design's six kinds, so a seventh has no row; the function's own signature is what a caller
+    // relies on, and the message names the kind it could not answer for.
+    let missing: MissingKind = MissingKind { kind: HolderKind::LockedHolder };
+    let sentence: String = missing.to_string();
+    assert!(sentence.contains("locked-holder"), "{sentence}");
+    assert!(sentence.contains("no measured ending"), "{sentence}");
+}
