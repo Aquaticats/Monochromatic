@@ -392,7 +392,7 @@ fn reason_name(why: Unanswered) -> &'static str {
 /// process.stderr.write(bytes); // handed to the thread that writes it
 /// ```
 fn write_stderr_bytes(bytes: &[u8]) {
-    let mut stream: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(bytes);
     let _ = stream.flush();
 }
