@@ -228,13 +228,10 @@ const TLS_CALLS: usize = 2;
 /// so a tool that never ends would hold the control at the runner's stop;
 ///  this names the command and the figure instead.
 fn run_openssl(directory: &std::path::Path, arguments: &[&str]) -> std::process::ExitStatus {
-    let mut child: std::process::Child = std::process::Command::new("openssl")
-        .args(arguments)
-        .current_dir(directory)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .expect("start openssl");
+    let mut command: std::process::Command = std::process::Command::new("openssl");
+    command.args(arguments).current_dir(directory).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    // Owned, so a tool that never ends is ended with the test thread instead of at the runner's stop.
+    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("start openssl");
     let began: Instant = Instant::now();
     loop {
         match child.try_wait().expect("ask how openssl ended") {

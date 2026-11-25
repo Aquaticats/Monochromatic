@@ -198,6 +198,22 @@ which the fallback would have to clear first:
   (one restart per real edit, no restart on byte-identical or metadata-only writes, clean shutdown on SIGTERM),
   and the atomic-save watcher test is skipped after failing about 1 run in 5 in isolation.
 
+## The Mac client, probed read-only over `ssh m1` (2026-11-25T18:50:01-05:00)
+
+- macOS 27.2 on arm64;
+  `kern.maxfiles: 122880`,
+  `kern.maxfilesperproc: 61440`,
+  `launchctl limit maxfiles` soft 256 and hard unlimited,
+  `ulimit -n` 256.
+  directory-watcher's kqueue backend needs about 11786 descriptors for a tree the size of this PC's `~/Plain`:
+  under the per-process ceiling,
+  far over the default soft limit,
+  so a LaunchAgent for it would have to raise its own soft limit.
+- `~/Plain` exists there,
+  and `launchctl list` shows `cat.aquati.rclone-bisync-garage` loaded with last exit status 7,
+  the status bisync exits with when it aborts;
+  not investigated.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),

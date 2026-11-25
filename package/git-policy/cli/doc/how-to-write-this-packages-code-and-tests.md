@@ -94,3 +94,12 @@ and take no lock where atomic rename, `O_EXCL` or one owner per item will do (NL
 A guard counts once it is shown failing without its code:
 commit the control, take the guarded line out, run, restore (`AGENTS.md`'s GFP).
 A green run counts only when its output names the expected tests (TRV).
+
+The two rules above are enforced, not only written down:
+`source_guard/test_children_owned_tests.rs` fails on a test file that starts a child
+which neither `spawn_owned` nor `own_group` owns,
+and on any signal whose target is `getpid()`, `getpgrp()`, `std::process::id()` or `0`.
+The sites the tree still holds are one line each in
+`source_guard/test_children_not_yet_owned.txt`, with why each is not moved yet,
+so moving a site means deleting its line there,
+and a new site fails until it is moved or entered with its reason.
