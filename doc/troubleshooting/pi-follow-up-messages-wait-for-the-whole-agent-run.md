@@ -4,8 +4,9 @@ Status:
 incomplete and unapproved.
 Diagnosed by a Claude Code session on 2026-11-25T18:05:00-05:00
 from Pi's installed source, bash-poke's own log, its spool files, and the live session file.
+bash-poke now steers its poke into a busy agent (commit `6795da19a6`);
+the busy-agent probe in "Busy-agent probe" shows the change.
 Not yet done:
-a busy-agent reproduction in a throwaway agent directory,
 hosted-source permalinks for the Pi citations,
 and an exercised check of the Escape behaviour in "Escape discards the queued pokes".
 
@@ -55,9 +56,10 @@ with the user's later messages steered into it.
 
 ## Root cause
 
-### bash-poke sends the poke as a follow-up
+### bash-poke sent the poke as a follow-up
 
-`package/pi-plugin/bash-poke/src/poke-delivery.ts` sends:
+Before commit `6795da19a6`,
+`package/pi-plugin/bash-poke/src/poke-delivery.ts` sent:
 
 ```ts
 // package/pi-plugin/bash-poke/src/poke-delivery.ts
@@ -198,6 +200,33 @@ rg --count 'bashExecution|"bash-poke"' ~/.pi/agent/sessions/--home-user-Monochro
   sent at 2026-11-25T17:03:53-05:00 and 2026-11-25T17:04:52-05:00,
   were still undelivered at 2026-11-25T18:04:56-05:00 while the run continued.
 
+### Busy-agent probe
+
+A disposable,
+credential-free Pi 1.6.0 host in RPC mode loads the built bash-poke artifact
+and a guarded fixture extension.
+The fixture registers a `fauxProvider` that scripts six `wait_step` tool calls of 400 ms each,
+then `RUN_COMPLETE`, then spares.
+After the first `tool_execution_start`,
+the runner sends `{ "type": "bash", "command": "printf poked" }`.
+The control arm is the same bundle with only `deliverAs:\`steer\`` rewritten to `followUp`.
+Harness files,
+kept outside the repository with the run outputs:
+`~/temp/agent/bash-poke-steer-delivery-check-2026-11-25/scratch/run-busy-agent-arm.ts`
+and `busy-agent-fixture.ts` beside it.
+
+Results on 2026-11-25:
+
+- Follow-up control:
+  the poke's `message_end` came after `RUN_COMPLETE`,
+  with seven assistant messages before it,
+  and the run then took one more turn (`AFTER_POKE`).
+- Steer, first build:
+  the poke landed right after the first tool result,
+  with one assistant message before it and `RUN_COMPLETE` after it.
+- Steer, final build after the lint fixes in commit `181cb07a36`:
+  the same order as the first steer run.
+
 ## Verified workarounds
 
 None are verified by an exercised reproduction yet.
@@ -211,12 +240,14 @@ each with its tradeoff:
   Pi's own foreground path runs it at once and streams into the pending area while the agent works
   (`dist/modes/interactive/interactive-mode.js:6080-6095`, source reading);
   the output is excluded from model context.
-- Change bash-poke's busy-agent delivery to `deliverAs: "steer"`,
+- Applied in commit `6795da19a6` by the owner's choice on 2026-11-25:
+  bash-poke's busy-agent delivery is `deliverAs: "steer"`,
   as `@aliou/pi-processes` does.
-  The poke then lands after the current tool batch;
+  The poke lands after the current tool batch;
   it interrupts the model's plan the way a typed message does,
   and a tool call that itself waits (a long `sleep`) still delays it.
-  This is an owner decision and is not applied.
+  The owner chose no extra on-screen signal at job exit.
+  A Pi process started before the change keeps the old code until `/reload` or a restart.
 
 ## What does not work
 
