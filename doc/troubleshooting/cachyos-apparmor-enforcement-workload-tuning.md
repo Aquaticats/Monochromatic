@@ -1975,3 +1975,53 @@ owner @{HOME}/.jbcontext/bin/ r,
 and `git help --all` afterwards exited 0 with no `git` denial in the kernel log.
 The same window's `umount` request for `dac_override` stays refused,
 as the ninth batch decided.
+(Note of 2026-11-25: the eleventh batch allows it, by the owner's "Always widen apparmor.")
+
+## Eleventh batch: carving swap from the old NVMe, and the owner's rule to always widen, 2026-11-25
+
+The owner,
+on 2026-11-25 while this session worked around a denial instead of widening the profile:
+"Always widen apparmor."
+So a denial the work meets is answered by a rule that allows it,
+written to the profile's `local/` file and reloaded,
+never by moving the work somewhere the profile happens to allow.
+
+The denials,
+read from `/var/log/audit/audit.log` between 2026-11-25T14:20:00-05:00 and 14:32:00-05:00,
+while the session unlocked and shrank the old NVMe's filesystem for a swap partition:
+
+- `pacman-key` and `gpg` opening `/var/cache/pacman/pkg/linux-cachyos-7.3.5-2-x86_64_v4.pkg.tar.zst.sig` for read,
+  so `sudo pacman-key --verify` printed `gpg: can't open ... Permission denied` even as root.
+- `kmod` (`modinfo`, `insmod`) opening `dm-crypt.ko.zst` outside `/usr/lib/modules`.
+- `cryptsetup` opening and creating a LUKS header backup under `~/temp/agent/`
+  (`Cannot create header backup file`).
+- `btrfs` reading `/sys/devices/virtual/block/dm-0/queue/zoned`,
+  opening the mount folder of the filesystem it maintains,
+  and asking `dac_read_search` and `dac_override`.
+
+Applied,
+one `local/` file each,
+each under a comment naming its denial and the owner's words:
+
+```text
+# /etc/apparmor.d/local/pacman-key, /etc/apparmor.d/local/pacman-key_gpg, /etc/apparmor.d/local/gpg
+/var/cache/pacman/pkg/** r,
+# /etc/apparmor.d/local/kmod
+/**.ko{,.gz,.xz,.zst} r,
+# /etc/apparmor.d/local/cryptsetup
+@{HOME}/temp/agent/** rwk,
+# /etc/apparmor.d/local/btrfs
+capability dac_read_search,
+capability dac_override,
+/sys/devices/virtual/block/*/queue/** r,
+/** r,
+# /etc/apparmor.d/local/umount
+capability dac_override,
+```
+
+`apparmor_parser --replace` exited 0 for `pacman-key`, `gpg`, `kmod`, `cryptsetup`, `btrfs` and `umount`.
+Afterwards `sudo pacman-key --verify` on that package printed
+`gpg: Good signature from "CachyOS <admin@cachyos.org>" [full]`,
+and `btrfs filesystem usage -T` read the mounted filesystem.
+The `umount` rule ends the ninth batch's refusal of `dac_override`,
+which every gate window since has logged (for example the gate at `7ed5ec0b34`).

@@ -119,6 +119,15 @@ pub(crate) mod ticker_beside_a_wait;
 #[cfg(test)]
 pub(crate) mod real_git_lfs_the_run_requires;
 
+/// `strace`,
+/// which the controls that trace a wrapped command run it under,
+/// and what a control does in a run that has none;
+/// never part of the release executable,
+/// and included by path in the binary controls' own crate,
+/// which cannot reach this one.
+#[cfg(test)]
+pub(crate) mod strace_the_controls_run_under;
+
 /// The controls of the decision above;
 /// never part of the release executable.
 #[cfg(test)]
