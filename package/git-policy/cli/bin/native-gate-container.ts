@@ -82,7 +82,11 @@ function containerRemoval({
 
  @param identity - the name and label every person and every listing proves this container against
 
- @param args - complete `podman run` arguments after the program name and the container's identity
+ @param limits - the bound every container of this gate runs under, which the gate's own limit options and the person's
+   `--memory`, `--cpus` and `--pids-limit` become (`bin/native-gate-container-limits.ts`); this function takes it as its
+   own argument so a container cannot be started without one
+
+ @param args - complete `podman run` arguments after the program name, the container's identity and its limits
 
  @param capture - whether to capture output instead of streaming it
 
@@ -103,7 +107,8 @@ function containerRemoval({
  const suite = await runGateContainer({
    cidFile: join(evidence, 'suite.cid'),
    identity: gateContainerIdentityOf({ runId, role: 'suite' }),
-   args: [...limits, image],
+   limits,
+   args: [image],
    deadlineMilliseconds,
  });
  ```
@@ -111,6 +116,7 @@ function containerRemoval({
 export async function runGateContainer({
   cidFile,
   identity,
+  limits,
   args,
   capture = false,
   allowFailure = false,
@@ -120,6 +126,7 @@ export async function runGateContainer({
 }: {
   readonly cidFile: string;
   readonly identity: GateContainerIdentity;
+  readonly limits: readonly string[];
   readonly args: readonly string[];
   readonly capture?: boolean;
   readonly allowFailure?: boolean;
@@ -150,6 +157,7 @@ export async function runGateContainer({
       '--cidfile',
       cidFile,
       ...gateContainerArgumentsOf({ identity, },),
+      ...limits,
       ...args,
     ],
     capture,
