@@ -101,12 +101,17 @@ fn unmerged_paths_equal_git() {
     let root: PathBuf = fixture("quiet-unmerged");
     let repo: PathBuf = committed(root.as_path(), "repo");
     let blob = |text: &str| -> String {
-        let mut child = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().expect("start");
+        let mut command = std::process::Command::new(crate::test_support::REAL_GIT);
+        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        // Owned, so a control that fails while it writes leaves no Git waiting for input.
+        let mut child = crate::test_support::spawn_owned(&mut command).expect("start");
         std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), text.as_bytes()).expect("write");
         return String::from_utf8(child.wait_with_output().expect("output").stdout).expect("UTF-8").trim_end().to_string();
     };
     let lines_in: String = format!("100644 {} 1\tuntouched.txt\n100644 {} 2\tuntouched.txt\n100644 {} 3\tuntouched.txt\n", blob("1"), blob("2"), blob("3"));
-    let mut child = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(&repo).args(["update-index", "--index-info"]).stdin(std::process::Stdio::piped()).spawn().expect("start");
+    let mut command = std::process::Command::new(crate::test_support::REAL_GIT);
+    command.current_dir(&repo).args(["update-index", "--index-info"]).stdin(std::process::Stdio::piped());
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("start");
     std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), lines_in.as_bytes()).expect("write");
     assert!(child.wait().expect("wait").success());
     assert_eq!(all_answer_for(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--"]), 1);

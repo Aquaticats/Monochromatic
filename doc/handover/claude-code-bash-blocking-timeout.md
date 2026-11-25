@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T18:25:46-05:00.
+State recorded 2026-11-25T18:43:44-05:00.
 Owner acceptance is not recorded.
 The user approved the design and authorized implementation on 2026-11-25T18:02:17-05:00.
 
@@ -53,12 +53,24 @@ A read-only DeepSeek second pass found no blocker and verified the tracked bundl
 Its earned in-scope findings are fixed.
 The post-review plugin rebuild produced no bundle diff,
 and the changed Markdown rendered successfully again.
+A fresh normal `claude --print` session without `--plugin-dir` applied the live user-level Bash hook:
+a 1.5-second command returned native background task ID `bw23gwxe0`.
+The plugin is not installed through `claude plugin list`.
+
+## Live configuration gap
+
+`/home/user/.claude/settings.json` registers the rebuilt bundle only for `PreToolUse Bash`.
+It has no bash-output-filter `SessionStart` entry,
+so the new disabled-background warning is not wired into normal sessions.
+The existing project `SessionStart` entry runs `ccssh`,
+not this plugin.
+Changing user settings requires explicit owner authorization.
 
 ## Open work
 
 - Owner review and acceptance are not recorded.
+- The owner can authorize adding the startup-only bundle invocation to user settings.
 
 ## Next step
 
-The owner can review the committed implementation and verification evidence.
-No agent-open implementation item remains.
+The owner can review the committed implementation and decide whether to wire the startup warning into normal sessions.
