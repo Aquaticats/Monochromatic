@@ -464,6 +464,28 @@ That separate observation does not change the four completed tool-result measure
 and is not diagnosed as a notification defect.
 The valid measurements are in `duration-interactive-measurements.jsonl`.
 
+### Built plugin consumer verification
+
+The rebuilt tracked bundle passed real `claude --plugin-dir` probes:
+
+- `printf builtQuick` returned synchronously with `timeout: 1000` injected.
+- A valid slow Node command returned `1500` with a background task ID and later exited 0.
+- `xxd --version` stayed unwrapped,
+  received `timeout: 1000`,
+  and returned successfully.
+- Explicit background preserved `timeout: 500`.
+- Explicit foreground received `timeout: 1000`.
+- Bare `sleep .5` remained exempt.
+- Caller `timeout: 600000` survived.
+- Native subagent output filtering remained with no execution fields added,
+  while the `--agent` main session received the timeout.
+- Startup emitted the full warning when enabled,
+  and the disabled-policy startup and command stayed without the warning or default timeout.
+
+An initial slow-fixture quoting error and `xxd --help` exiting 1 were probe-fixture issues,
+not hook failures.
+They were rerun with valid successful commands as described in this section.
+
 ## Verification still owed
 
 The final fresh Claude Sonnet reviewer read this record,
