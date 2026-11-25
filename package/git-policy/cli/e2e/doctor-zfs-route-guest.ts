@@ -179,7 +179,11 @@ async function build(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --locked --bins --tests > /root/doctor-route-build.log 2>&1',
+    // The lib test binary is built without optimisation: one release-mode rustc compiling the whole crate's tests was
+    // killed with SIGKILL inside this guest's 7.75 GiB, and the removal lines' arm needs that harness, not its speed.
+    'cargo build --release --locked --bins > /root/doctor-route-build.log 2>&1',
+    'cargo build --release --locked --test native_binary >> /root/doctor-route-build.log 2>&1',
+    'cargo test --locked --lib --no-run >> /root/doctor-route-build.log 2>&1',
     'tail --lines=3 /root/doctor-route-build.log',
   ].join('\n');
   guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
@@ -201,8 +205,8 @@ function arm(chosen: Options): void {
     'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
-    'if /root/.cargo/bin/cargo nextest run --release --locked --lib --no-capture --status-level all ' +
-      '--filterset "test(zfs_doctor_removal_lines_guest)" > /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
+    'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest ' +
+      '> /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
     'cat /root/doctor-removal-arm.log',
     'if test $status -ne 0; then exit $status; fi',
     'exit $removal',
