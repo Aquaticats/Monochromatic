@@ -371,6 +371,58 @@ The two builds took 34 minutes 13 seconds and 33 minutes 32 seconds,
 under different host pressure,
 so this round draws no speed conclusion from them.
 
+### A guest without the share: private memory KSM could merge
+
+Guest `mem-c` was `mvm`'s guest-agent route,
+which is what a host without `virtiofsd` gets:
+no `filesystem` device and no `memoryBacking`,
+`meta.json` reading `"fileTransfer": "guest-agent"`.
+QEMU then holds the guest's RAM as `memory-backend-ram` instead of the memfd.
+
+What the host sees is different in kind:
+
+- the guest's RAM mapping is `rw-p`,
+  anonymous and private,
+  where the shared guests' is `rw-s` on `/memfd:memory-backend-memfd`;
+- it carries the mergeable flag:
+  `VmFlags` included `mg` on that mapping,
+  and 7 of the process's 816 mappings carried it
+  (the memfd guests:
+  6,
+  never the RAM mapping);
+- the session unit charged its bytes to `memory.stat` `anon` (2.68 GiB) rather than `shmem`.
+
+That flag is the whole of what KSM needs,
+and it is as far as this round could measure:
+`/sys/kernel/mm/ksm/run` read 0 and `pages_sharing` 0 throughout,
+and turning KSM on means writing a root-owned file in the host's kernel,
+which this round does not do.
+So what the option would return once two guests of one template have identical pages
+is **not measured here**,
+and the owner would have to turn KSM on before any round could measure it.
+
+What was measured is the price and the shape,
+at the preparation stage where all three guests have a
+reading:
+
+- 0.89 GiB charged 75 seconds after create,
+  3.07 GiB after the same preparation the others ran (2.67 GiB resident,
+  0.40 GiB swapped),
+  and 3.08 GiB after the guest dropped its own page cache.
+  The default guest was charged 2.99 GiB and the reporting guest 2.30 GiB at that same stage.
+  Private memory is not free memory:
+  it is the same bytes,
+  accounted differently,
+  and dropping the guest's cache returned nothing here either.
+- `mvm push` of the 12.6 MB snapshot took 11 seconds through the guest agent
+  where the same file took 3 seconds through virtiofs,
+  and the guest has no `/mnt/shared` at all.
+  The rounds' arms push scripts and the wrapper snapshot to `/mnt/shared` and read their logs from it
+  (`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
+  `guestStart` and `guestFinish`),
+  so this route asks every one of them to change where their files live.
+- `mvm create` took 13 seconds and `mvm destroy` 10 seconds.
+
 ## Ranking
 
 (None yet:
