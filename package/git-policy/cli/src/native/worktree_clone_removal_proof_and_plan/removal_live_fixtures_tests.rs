@@ -229,8 +229,14 @@ impl LivePoolFixture {
         }
     }
 
-    /// Tear the fixture down,
-    /// whatever the arms left.
+    /// What:
+    ///  Tear the whole fixture down,
+    ///  whatever the arm left.
+    /// Why:
+    ///  An arm that rebuilds the pool must also rebuild the add's records:
+    ///  a repository left from an earlier arm holds that arm's registration and its destruction
+    ///  plan,
+    ///  and a control that counted the plan folder would then count another clone's plan.
     pub(crate) fn teardown(&self) {
         let _ = Command::new("zpool")
             .args(["destroy", "-f", self.pool.as_str()])
@@ -238,6 +244,8 @@ impl LivePoolFixture {
             .output();
         let image: PathBuf = self.root.join("pool.img");
         let _ = std::fs::remove_file(image.as_path());
+        let repository: PathBuf = self.root.join("repo");
+        let _ = std::fs::remove_dir_all(repository.as_path());
     }
 
     /// The clone's full name.
