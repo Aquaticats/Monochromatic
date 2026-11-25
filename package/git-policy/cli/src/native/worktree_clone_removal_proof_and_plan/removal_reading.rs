@@ -10,7 +10,8 @@
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 //!  section 3's list and "The removal intent").
 //!  This release has no snapshot batch,
-//!  head destroy, origin cleanup or Git settle,
+//!  head destroy,
+//! origin cleanup or Git settle,
 //!  so a command that filed the intent,
 //!  unmounted the clone and wrote the plan would leave a person with an unmounted clone and a plan
 //!  no command of this release can finish or cancel

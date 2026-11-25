@@ -98,7 +98,8 @@ fn the_tree(root: &Path) -> Vec<(String, Option<Vec<u8>>)> {
     return found;
 }
 
-/// One folder's entries, each with its own contents.
+/// One folder's entries,
+/// each with its own contents.
 fn walk(root: &Path, folder: &Path, found: &mut Vec<(String, Option<Vec<u8>>)>) {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return;

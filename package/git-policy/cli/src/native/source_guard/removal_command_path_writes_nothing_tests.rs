@@ -38,8 +38,10 @@ const THE_REMOVAL_FOLDER: &str = "worktree_clone_removal_proof_and_plan/";
 const THE_WRITING_ENTRY: &str = "enter_the_removal";
 
 /// The call this release's removal command makes instead.
-/// The opening parenthesis is part of it, because an import names it too:
-/// the check is about the call the command path makes, not the name in a `use` line.
+/// The opening parenthesis is part of it,
+/// because an import names it too:
+/// the check is about the call the command path makes,
+/// not the name in a `use` line.
 const THE_READING_CALL: &str = "read_the_removal(&";
 
 /// The removal's command path.

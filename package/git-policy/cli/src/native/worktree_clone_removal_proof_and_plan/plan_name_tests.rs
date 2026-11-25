@@ -1,7 +1,8 @@
 //! What:
 //!  The controls of the two name shapes a plan's values rest on:
 //!  a dataset's name and a snapshot's.
-//!  The file's GUID name is the binding record's check, controlled beside it.
+//!  The file's GUID name is the binding record's own check,
+//!  controlled beside it.
 //! Why:
 //!  A name that carried a newline or an `=` would forge a line,
 //!  and a file named by anything but the clone's canonical GUID could not be found by the removal
