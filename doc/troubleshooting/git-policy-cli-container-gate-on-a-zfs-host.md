@@ -2985,3 +2985,67 @@ and the record's state at every look of the service,
 with the process of that look.
 The wait's own step can print that listing (`run_before_each_folder_read`),
 and it is the line that decides whether the wait returned early.
+
+## Cause O: a carry control's save landed in the millisecond Git's own write took (issue 6461)
+
+### The symptom this host's reader saw
+
+`merge::merge_isolation_carry_apply::tests::a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_layer`,
+run alone in its own process at `49029c6828`, failed in 0.23 s:
+
+```text
+panicked at src/native/merge/merge_isolation_carry_apply_tests.rs:510:5:
+assertion `left == right` failed: the carry says the path was written after the capture and leaves it
+  left: []
+ right: [[97, 46, 116, 120, 116]]
+```
+
+of the round `lock-kill-controls-that-fail-alone-on-this-host-2026-11-25` (`keep/red-merge-carry-save-alone.log`). The same
+commit passes it in the container gate.
+
+### What the assertion needed
+
+`landed_of` reads the entry standing at the path once Git's own update has finished, and the control then writes the
+person's save with one `std::fs::write` of the bytes it just read. The carry tells the merge's own file from that save by
+the entry alone (`the_file_git_landed` over `LandedFile`): the device, the inode, the size, the mode, the modification time
+and the change time. A save of the same bytes changes none of the first four, so the assertion needs the last two to move.
+
+### The cause
+
+This host's file-system clock moves in steps of a millisecond, so two writes inside one step carry the same modification
+and change times, and the save is then indistinguishable from the write Git made. The carry rightly reads such a file as
+Git's own (`merge_isolation_carry_landed.rs`, "What Git's own two-way update left at each path"), and the control's
+expectation that the newer save stands is what fails.
+
+That is the same family as Cause L above: a control that needed two writes to be ordered in time, on a clock whose step is
+far longer than the work between them.
+
+### The reproduction and what it measured
+
+Eight runs of the one control, instrumented to print both entries (`keep/merge-carry-same-tick-repetitions.log` and
+`keep/merge-carry-identity-measurement.log`):
+
+- six runs printed the same `modified_nanos` for the landed entry and the entry after the save (for example
+  `855806081` and `855806081`, `247802396` and `247802396`), and every one of the six failed with `changed: []`;
+- two runs printed a step between them (`247802396` and `248802393`, `209799849` and `210799846`), and both passed.
+
+So the failure follows the entry and not the clock reading: the same control passes whenever the step moved between Git's
+write and the save.
+
+### The fix
+
+`save_as_a_later_write` writes the save and reads the entry back, and writes again until the entry is provably not the
+landed one, one clock step apart, bounded by `CLOCK_MOVES_WITHIN`. A file system whose clock never moves fails the control
+with words that name the clock instead of leaving a save untested. Eight runs of eight passed after the change
+(`keep/green-merge-carry-save-alone-repetitions.log`), and the whole `merge::merge_isolation_carry_apply` module passes
+(`keep/merge-carry-module-after-the-fix.log`).
+
+### What the fix does not change
+
+The production rule stays as it was: where nothing proves the file standing at a path is Git's own, the carry keeps the
+person's bytes and leaves the file alone, and the sibling control `a_save_that_lands_before_the_reading_keeps_both_sides`
+pins that. This cause is a control's assumption about time, not a defect of the carry.
+
+The ten-minute wait this control's report once named is not this control's: `OBJECT_STEP_CEILING` ended the watched stop-lock
+control on the same host, whose cause is recorded in
+`doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`, "A machine without the tracer".
