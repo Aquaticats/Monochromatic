@@ -1,7 +1,9 @@
 /**
- Unit tests for the template's cloud-init user-data: a guest whose SELinux
- policy confines the QEMU guest agent must get the drop-in that starts the
- agent through `/usr/bin/env`, and a guest without such a policy must not.
+ Unit tests for the template's cloud-init user-data: every systemd guest gets
+ the drop-in that keeps an out-of-memory kill of one command from stopping the
+ agent, a guest whose SELinux policy confines the QEMU guest agent also gets the
+ drop-in that starts the agent through `/usr/bin/env`, and a guest without such
+ a policy must not.
  No virtual machine is started.
  
  @module

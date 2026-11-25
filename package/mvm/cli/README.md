@@ -375,6 +375,29 @@ Push and pull read and write the guest's own files through the QEMU guest agent:
 - A status request that the guest agent does not answer is asked again.
   mvm gives up when the domain is gone or when requests stay unanswered for five minutes.
 - A command a signal ended reports exit status 128 plus the signal number.
+- A command runs as a child of the guest agent,
+  in the agent's systemd unit `qemu-guest-agent.service`,
+  so the guest kernel's out-of-memory killer ends it there when the guest runs out of memory.
+  systemd's default `OOMPolicy=stop` then stops that unit,
+  which kills the agent and the command with it,
+  and the agent holds every started command's process ID and captured output in memory only,
+  so every command started before the stop loses its result,
+  and `guest-exec-status` answers that the process ID does not exist.
+  mvm's Linux guests carry
+  `/etc/systemd/system/qemu-guest-agent.service.d/mvm-command-oom.conf`,
+  which sets `OOMPolicy=continue`:
+  the kernel's kill ends the one process and not the agent,
+  the command keeps its own result,
+  and a command a signal ended reports 128 plus the signal number.
+  The file is written when an image's template is baked,
+  so a template baked by an earlier mvm keeps the default
+  until it is baked again with `mvm update`,
+  or by deleting `~/.local/share/mvm/images/template-ubuntu.qcow2`
+  once no running guest's disk is backed by it.
+  `doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md` in the repository root
+  holds the readings,
+  the source lines,
+  and what the setting cannot do.
 - One result may hold about 3 MiB of standard output and standard error together,
   because libvirt hands over at most 4194304 characters per answer.
   A command with more output fails with an error saying so,
