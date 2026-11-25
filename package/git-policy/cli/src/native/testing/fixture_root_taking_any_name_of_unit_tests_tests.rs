@@ -48,8 +48,10 @@ const NAMESPACE_ROOT_UID: libc::uid_t = 0;
 ///  so a fixture's Git asks the kernel for no capability it would then hold,
 ///  and the answer it gets is the one an ordinary account's Git is given.
 ///  A run whose fixture root already takes such a name starts no program in a namespace of its own,
-///  and this control then reads an ordinary account's child,
-///  which holds none either.
+///  and it must run as an ordinary account,
+///  whose programs gain no capability across exec;
+///  a run there as root holds every capability in its child and fails this control,
+///  which is the state the fixture refuses.
 #[test]
 fn a_program_started_from_the_any_name_root_holds_no_capability() {
     if !in_a_fixture_root_taking_any_name(
