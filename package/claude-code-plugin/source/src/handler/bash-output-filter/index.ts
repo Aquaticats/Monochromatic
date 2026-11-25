@@ -1,11 +1,19 @@
 import type {
+  SessionStartInput,
+  SessionStartOutput,
   BashToolInput,
   PreToolUseInput,
-  PreToolUseOutput,
+  PreToolUseOutput
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
-import { shouldForceBackground, } from './force-background.ts';
+import {
+  BLOCKING_TIMEOUT_MS,
+  DISABLE_BACKGROUND_TASKS_ENV,
+  disabledBackgroundTasksWarning,
+  isBlockingTimeoutEnabled,
+  shouldApplyBlockingTimeout,
+} from './blocking-timeout.ts';
 import {
   isAllowed,
   shouldSkip,
@@ -20,80 +28,74 @@ import {
 
 /**
  Type guard that narrows a generic tool input to {@link BashToolInput}.
- 
+
  @param input - tool input to check
- 
+
  @returns `true` when `input` has a string `command` property
- 
- @example
- ```ts
- isBashToolInput({ command: 'ls' }); // true
- isBashToolInput({ file_path: 'x' }); // false
- ```
  */
 function isBashToolInput(input: Readonly<Record<string, unknown>>,): input is BashToolInput {
   return (typeof input.command) === 'string';
 }
 
 /**
- Output returned by the bash-output-filter handler. Either a {@link PreToolUseOutput}
- carrying a rewritten `updatedInput.command` that pipes the original command
- through the filter script, or the pass-through `{}` (when the command is
- non-Bash, malformed, disallowed, or skipped). Every {@link PreToolUseOutput} field
- is optional, so `{}` is itself a valid {@link PreToolUseOutput}.
+ Output returned for either supported hook event.
  */
-type BashOutputFilterOutput = PreToolUseOutput;
+type BashOutputFilterOutput = PreToolUseOutput | SessionStartOutput;
 
 /**
- Rewrites the Bash command to pipe its merged stdout/stderr through the
- filter script. The filter script lives next to the bundled hook entry:
- `import.meta.dirname` resolves at runtime to the bundle's directory,
- which is `bundle/node/`, where `filter.mjs` is a sibling output of
- the same multi-entry tsdown build.
- 
- Decision tree:
- 
- 1. **Tool gate**: non-Bash tools or malformed Bash inputs return `{}`.
- 2. **Allowlist**: commands not matching the safe-prefix allowlist return `{}`.
- 3. **Denylist**: commands matching any skip pattern (binary tools, redirects,
-    background processes, command substitutions, shell builtins) return `{}`.
- 4. **Rewrite**: the surviving command becomes:
-    `set -o pipefail && <cmd> 2>&1 | node <filterPath> && true`.
-    The trailing `&& true` absorbs the sandbox's `< /dev/null` append (see
-    `bash-output-filter/TROUBLESHOOTING.md`) and lets pipefail surface the
-    original command's exit code while keeping the filter's exit code (always 0)
-    out of the way.
- 
- @param event - parsed {@link PreToolUseInput} event from Claude Code
- 
- @returns rewritten output when the command should be filtered, otherwise `{}`
- 
+ Input accepted from the plugin's PreToolUse and SessionStart registrations.
+ */
+type BashOutputFilterInput = PreToolUseInput | SessionStartInput;
+
+/**
+ Handles the startup warning and Bash PreToolUse rewrites.
+
+ SessionStart returns one warning when native background tasks are disabled while the timeout policy is enabled.
+ PreToolUse composes two independent behaviors:
+ the existing output-filter rewrite and the default foreground timeout.
+ Native subagents retain output filtering but never receive execution-field changes.
+
+ @param event - parsed {@link BashOutputFilterInput} event from Claude Code
+
+ @returns startup warning, rewritten Bash input, or pass-through output
+
  @example
  ```ts
- bashOutputFilterHandler({ tool_name: 'Bash', tool_input: { command: 'ls' }, ... });
+ bashOutputFilterHandler({ hook_event_name: 'SessionStart', source: 'startup', ... });
  ```
  */
-function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOutputFilterOutput {
+function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): BashOutputFilterOutput {
+  if (event.hook_event_name === 'SessionStart') {
+    if ((event.source === 'startup')
+      && isBlockingTimeoutEnabled(process.env,)
+      && (process.env[DISABLE_BACKGROUND_TASKS_ENV] === '1')) {
+      return { systemMessage: disabledBackgroundTasksWarning, };
+    }
+    return {};
+  }
+
   if ((event.tool_name
     !== 'Bash') || (!isBashToolInput(event.tool_input,)))
     return {};
 
-  /**
-   Narrowed Bash tool input; refined from `event.tool_input` by {@link isBashToolInput}.
-   */
+  /** Narrowed Bash input refined from the event by {@link isBashToolInput}. */
   const bashInput = event.tool_input;
 
   /**
-   Whether this main-agent call is rewritten to run as a background task.
+   Whether this main-agent call needs the default foreground timeout.
    */
-  const forceBackground = shouldForceBackground({
+  const applyBlockingTimeout = shouldApplyBlockingTimeout({
     ...(event.agent_id === undefined ? {} : { agentId: event.agent_id, }),
+    ...(bashInput.run_in_background === undefined
+      ? {}
+      : { runInBackground: bashInput.run_in_background, }),
+    ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
     command: bashInput.command,
     env: process.env,
   },);
 
   if ((!isAllowed(bashInput.command,)) || shouldSkip(bashInput.command,)) {
-    if (!forceBackground)
+    if (!applyBlockingTimeout)
       return {};
 
     return {
@@ -101,7 +103,7 @@ function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOut
         hookEventName: 'PreToolUse',
         updatedInput: {
           ...bashInput,
-          run_in_background: true,
+          timeout: BLOCKING_TIMEOUT_MS,
         },
       },
     };
@@ -120,7 +122,7 @@ function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOut
     : `${import.meta.dirname}/filter.ts`;
 
   /**
-   Rewritten command pipeline that streams the original command's merged output through the filter.
+   Rewritten command pipeline that streams merged output through the filter.
    */
   const wrappedCommand =
     `set -o pipefail && ${bashInput.command} 2>&1 | node ${filterPath} && true`;
@@ -131,33 +133,19 @@ function bashOutputFilterHandler(event: ReadonlyDeep<PreToolUseInput>,): BashOut
       updatedInput: {
         ...bashInput,
         command: wrappedCommand,
-        ...(forceBackground ? { run_in_background: true, } : {}),
+        ...(applyBlockingTimeout ? { timeout: BLOCKING_TIMEOUT_MS, } : {}),
       },
     },
   };
 }
 
 /**
- Parses raw stdin as a {@link PreToolUseInput}.
- 
- Input is trusted; it comes from Claude Code's hook dispatch system.
- 
- @example
- ```ts
- const event = bashOutputFilterParser(await text(process.stdin));
- ```
+ Parses raw stdin as a supported hook event.
  */
-const bashOutputFilterParser: Parser<PreToolUseInput> = makeHookInputParser<PreToolUseInput>();
+const bashOutputFilterParser: Parser<BashOutputFilterInput> = makeHookInputParser<BashOutputFilterInput>();
 
 /**
- Serializes the bash-output-filter output for stdout.
- 
- No trailing newline; matches Claude Code's wire convention.
- 
- @example
- ```ts
- process.stdout.write(bashOutputFilterWriter({}));
- ```
+ Serializes the handler output for stdout without a trailing newline.
  */
 const bashOutputFilterWriter: JsonWriter<BashOutputFilterOutput> = makeJsonWriter<BashOutputFilterOutput>();
 
