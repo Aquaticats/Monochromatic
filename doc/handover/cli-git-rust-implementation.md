@@ -337,9 +337,16 @@ an operator's lock keeps refusing removal and a single `--force` (guest arm),
 and the release stays unreached;
 its mounted proof compares the mount's dataset name where the lock design says `cloneGuid=`,
 so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-proof-compares-the-clone-guid`, since 2026-11-24T20:30-05:00);
-step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
-held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
-and runs the proof read-only inside the refusal;
+step 14's wiring merged as `fea922f6aa` (report `keep/report-pi-zfs-step-14-wire-the-removal-proof.md` in `~/temp/agent/zfs-step-14-wire-the-removal-proof-2026-11-24/`):
+a removal of a bound clone runs the lineage proof, the inventory and the bookmark rule read-only inside its refusal and prints what a removal would lose,
+held to the merge bar by the `source_guard` scan `removal_command_path_writes_nothing_tests.rs`, which step 16 deletes when it calls `enter_the_removal`;
+its arms ran through the built wrapper on a file-backed pool in a guest (healthy, promoted, reverse promotion, live and stale bookmarks, same-name replacement);
+on the merged result `source_guard` gave 88 of 88, the removal module 108 with its guest arm ignored, the route 9 and the binding record 75;
+step 15's wiring runs since 2026-11-24T23:50-05:00 (`pi-zfs-step-15-wire-the-deferred-origin-checks`, brief `~/temp/agent/zfs-step-15-wire-the-deferred-origin-checks-2026-11-24/prompt.md`),
+placing its checks in the writing path behind that cut, with the plan's mark-between-the-checks measurement in a guest through the library path;
+the root modes' eleven choices are answered (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`),
+and the seventh revision writes them in (`pi-zfs-root-modes-seventh-revision`, brief `~/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/prompt.md`),
+after which the one-program build starts from it;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
 and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
