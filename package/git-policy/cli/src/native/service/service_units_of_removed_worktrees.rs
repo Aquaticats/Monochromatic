@@ -232,7 +232,8 @@ fn journal_records(journal: &Path) -> Vec<PathBuf> {
 fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
     let journal: PathBuf = state_dir.join(SERVICE_UNIT.current).join("service").join(instance);
     for record in journal_records(journal.as_path()) {
-        let Ok(text) = std::fs::read_to_string(&record) else { continue };
+        // A journal record that is a named pipe answers as unreadable at once, where a plain read would wait for a writer.
+        let Ok(text) = crate::plain_file::read_plain_text(&record) else { continue };
         // A line of this release names the bytes of the directory, which is the only spelling that keeps a path that is not
         //  text; a line of an earlier release names its plain text.
         let mut plain: Option<PathBuf> = None;
@@ -276,7 +277,9 @@ fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
 /// worktreeOf(folders, instance) // { known: gitDir } or unmapped
 /// ```
 pub fn worktree_of(folders: &UnitFolders<'_>, instance: &str) -> UnitWorktree {
-    if let Ok(text) = std::fs::read_to_string(note_path(folders.runtime_dir, instance))
+    // The note is this program's own record of whose units these are, so a note that is a named pipe names nobody and answers
+    // at once instead of holding the command that asks.
+    if let Ok(text) = crate::plain_file::read_plain_text(&note_path(folders.runtime_dir, instance))
         && let Some(found) = named_for(instance, text.as_str())
     {
         return UnitWorktree::Known(found);

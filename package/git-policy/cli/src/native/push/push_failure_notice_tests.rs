@@ -746,3 +746,20 @@ fn a_skip_record_whose_replacement_is_refused_keeps_the_record_it_replaces() {
     assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
     remove(root.as_path());
 }
+
+/// A failed-push notice that is a named pipe is taken as nothing,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and every command of the worktree shows these records (issue 6415).
+#[test]
+fn a_notice_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("push-notice-named-pipe");
+    let directory: PathBuf = root.join(NOTICE_DIRECTORY);
+    std::fs::create_dir_all(directory.as_path()).expect("the notice folder");
+    crate::subvolume_sync_attrs::make_fifo(directory.join("notice").as_path(), 0o600).expect("a named pipe where a notice goes");
+    let inside: PathBuf = root.clone();
+    let answered = crate::test_support::finished_within(move || return take_push_failures(inside.as_path()));
+    let Some(texts) = answered else { panic!("a notice that is a named pipe held the command") };
+    assert!(texts.is_empty(), "a pipe is no notice");
+    remove(root.as_path());
+}

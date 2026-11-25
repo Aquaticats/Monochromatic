@@ -386,3 +386,20 @@ fn a_later_worktree_at_the_same_path_does_not_answer_for_an_earlier_records_noti
     assert_eq!(drain.len(), 1, "the notice does not wait where a command of the adding worktree reads it: {drain:?}");
     remove(root.as_path());
 }
+
+/// A relink notice that is a named pipe is taken as nothing,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and every command of the worktree shows these notices (issue 6415).
+#[test]
+fn a_notice_that_is_a_named_pipe_is_answered_at_once() {
+    let root: PathBuf = fixture("relink-notice-named-pipe");
+    let directory: PathBuf = root.join(NOTICE_DIRECTORY);
+    std::fs::create_dir_all(directory.as_path()).expect("the notice folder");
+    crate::subvolume_sync_attrs::make_fifo(directory.join("notice").as_path(), 0o600).expect("a named pipe where a notice goes");
+    let inside: PathBuf = root.clone();
+    let answered = crate::test_support::finished_within(move || return take_notices(inside.as_path()).len());
+    let Some(count) = answered else { panic!("a notice that is a named pipe held the command") };
+    assert_eq!(count, 0, "a pipe is no notice");
+    remove(root.as_path());
+}

@@ -22051,6 +22051,35 @@ because running it would settle the wrong work under the name.
 A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
 since this release's names for it would not fit.
 
+Every file this wrapper reads from its own record folders is opened as a plain file
+(`foundation/plain_file.rs`):
+without blocking and without following a link,
+refused when the open handle is not a regular file,
+and never read past `SMALL_FILE_LIMIT` (1 MiB).
+That covers the queue's `pending`,
+`held`,
+`claimed`,
+`recovering`,
+`done`,
+`failed` and `blocked` entries,
+the `removals-begun`,
+`around-removals-begun` and `recorded-destroys` records,
+the kept-worktree,
+left-in-place,
+failed-push,
+orphan-notice and relink-notice folders,
+the owed index records,
+the service's `<instance>.git-dir` notes and its journal records,
+the kept-reference records,
+and the `.git` pointer that a removal or a snapshot request reads.
+A named pipe at one of those names is a record this command cannot read rather than a wait:
+opening a pipe for reading waits for a writer that may never come,
+which held every wrapped command in such a repository for ever (issue 6415).
+An entry of the queue that is not a plain file is moved to `failed` with a line naming it,
+where nothing runs it again.
+`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
+and reads with a call that can wait.
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;
