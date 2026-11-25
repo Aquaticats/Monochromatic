@@ -38,8 +38,8 @@ use std::path::Path;
 ///  whose drop gives the slot back on every path out;
 ///  the control arm creates nothing,
 ///  so the command's decisions are provable without a repository.
-///  One enum keeps the live claim's only reader, its own drop, from being a field no code
-///  names.
+///  One enum keeps the live claim's only reader from being a field no code names,
+///  which is its own drop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
