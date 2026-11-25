@@ -21,7 +21,10 @@
 use super::adopt_worktree_parent_mode;
 use super::attaching_sweep_mode::{self, SweepPlaces};
 use super::boot_reconcile_mode::{self, ReconcilePlaces};
-use super::handler_mode_arguments::{self, HandlerMode};
+use super::handler_mode_arguments::{self, MODE_WORDS, HandlerMode};
+use super::mount_path_descendant_mode;
+use super::record_checkout_mode;
+use super::root_mode_names::RootModeMisuse;
 use super::holder_scan_mode;
 use super::root_mode_caller::NotRootRefusal;
 use super::shutdown_unmount_mode;
@@ -268,6 +271,39 @@ impl DispatchPlaces {
 }
 
 /// What:
+///  Refuse a start the words or the one name could not honour,
+///  before the modes' grammar sees it.
+/// Why:
+///   A person who typed a word under the installed name reads why that name
+///  answers no word but its own,
+///  and a person who typed the group word alone reads which mode word it needs;
+///  the usage follows either refusal,
+///  and the status is the one every refusal answers,
+///  so no argument vector at that path reaches Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.exit(refuseRootModeMisuse({ kind: 'word-under-the-zedlet-name', word: 'boot-reconcile' }));
+/// ```
+pub fn refuse_root_mode_misuse(misuse: RootModeMisuse<'_>) -> i32 {
+    let named: String = super::handler_install_paths::root_modes_name();
+    let sentence: String = match misuse {
+        RootModeMisuse::NoModeWordAfterTheGroupWord => format!(
+            "{named}: `{}` needs a mode word after it. Nothing was done. The modes are {}, and running the installed file with no argument at all runs the clone-mount sweep the ZED event starts. Ways forward: run `{named} --help` for the modes this build accepts.",
+            super::root_mode_names::ROOT_GROUP_WORD,
+            MODE_WORDS.join(", ")
+        ),
+        RootModeMisuse::WordUnderTheZedletName(word) => format!(
+            "{named}: `{}` is an argument this start does not take: under this file's own name only no argument, `--help` and `--version` are answered. Nothing was done. Ways forward: run the file with no argument for the clone-mount sweep, with `--help` for the modes' usage, or with `--version` alone; every mode is reached through the words, as `{named} <mode>`.",
+            word.to_string_lossy()
+        ),
+    };
+    say(sentence.as_str());
+    say(handler_mode_arguments::usage().as_str());
+    return EXIT_REFUSED;
+}
+
+/// What:
 ///  Read one invocation and run it.
 /// Why:
 ///   The argument grammar is the only way in:
@@ -329,7 +365,7 @@ pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, argumen
             EXIT_DONE
         }
         HandlerMode::Version => {
-            report_line(handler_mode_arguments::version_line().as_str());
+            report_line(super::handler_install_paths::version_line().as_str());
             EXIT_DONE
         }
         HandlerMode::AttachingSweep => report(behind_the_gate(gate, || return attaching_sweep_mode::run_at(&places.sweep))),
@@ -340,6 +376,8 @@ pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, argumen
         })),
         HandlerMode::HolderScan(invocation) => report(behind_the_gate(gate, || return holder_scan_mode::run(&invocation))),
         HandlerMode::AdoptWorktreeParent(request) => report(adopt_worktree_parent_mode::run(&request).map_err(|failure| return failure.message())),
+        HandlerMode::RecordCheckout(request) => report(behind_the_gate(gate, || return record_checkout_mode::run(&request).map_err(|failure| return failure.message()))),
+        HandlerMode::MountPathDescendant(request) => report(behind_the_gate(gate, || return mount_path_descendant_mode::run(&request).map_err(|failure| return failure.message()))),
     };
 }
 

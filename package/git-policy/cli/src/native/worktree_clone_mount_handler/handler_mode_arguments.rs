@@ -1,14 +1,16 @@
 //! What:
-//!  The words one invocation of the handler is read as:
+//!  The words one invocation of the root modes is read as:
 //!  no argument for the clone-mount sweep the installed ZED event starts,
 //!  `boot-reconcile`,
 //!  `start-probe`,
 //!  `shutdown-unmount`,
-//!  `holder-scan` with the dataset and the checkout it reads,
+//!  `holder-scan` with the dataset the scan reports on,
 //!  `adopt-worktree-parent` with the replacement's device and inode,
+//!  `record-checkout` with the checkout it records,
+//!  `mount-path-descendant` with the nested dataset it mounts,
 //!  and the two words that print what this build is.
 //! Why:
-//!  The design names the binary and its modes and no argument
+//!  The design names the modes and no argument
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit",
 //!  "The administrator's adoption"),
@@ -18,27 +20,32 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Where the design is silent:
 //! this plan's suggestions").
-//!  Nothing here reads a path,
-//!  a dataset name or a mount flag out of the request beyond the administrator's own
-//!  identification of the replacement:
-//!  a mode is a word,
+//!  This grammar is reached through the wrapper's own executable now, so every
+//!  mode is named after the words `monochromatic-git-policy-cli zfs-root`
+//!  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+//!  choice 2),
+//!  and every refusal opens with those words:
+//!  the family name is printed nowhere.
+//!  A mode is a word,
 //!  never a command line the caller composes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const mode = parse(process.argv.slice(2)); // { kind: 'attaching-sweep' } | { kind: 'boot-reconcile' } | ...
+//! const mode = parse(words); // { kind: 'attaching-sweep' } | { kind: 'boot-reconcile' } | ...
 //! ```
 
+use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::start_probe::probe_source_name::check_dataset_name;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_mount_handler::handler_install_paths::{SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
+use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
+use crate::worktree_clone_mount_handler::root_mode_names::{ROOT_GROUP_WORD, ZEDLET_START_NAME};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// The mode words this build accepts,
 /// in the order the help lists them.
-pub const MODE_WORDS: [&str; 5] = ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent"];
+pub const MODE_WORDS: [&str; 7] = ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent", "record-checkout", "mount-path-descendant"];
 
 /// The word that prints the help.
 pub const HELP_WORD: &str = "--help";
@@ -60,6 +67,10 @@ pub const DATASET_OPTION: &str = "--dataset";
 
 /// The option that carries the nonce one holder scan answers under.
 pub const NONCE_OPTION: &str = "--nonce";
+
+/// The option that replaces a recorded checkout's GUID with the one the kernel
+/// shows now.
+pub const REPLACE_OPTION: &str = "--replace";
 
 /// What:
 ///  The administrator's identification of the replacement folder an adoption judges.
@@ -107,12 +118,55 @@ pub struct HolderScanInvocation {
 }
 
 /// What:
+///  The checkout one `record-checkout` invocation records,
+///  and the GUID it admits when a legitimate restore changed the record's.
+/// Why:
+///   The checkout is the folder whose dataset the route serves,
+///  and the replacement is the kernel's own GUID and no other value,
+///  so a command cannot admit a dataset without naming the number it read
+///  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
+///  choice 9).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RecordCheckout = { checkout: '/home/user/Monochromatic', replace: '9876543210987654321' | undefined };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecordCheckoutRequest {
+    /// The checkout whose route facts are recorded.
+    pub checkout: PathBuf,
+    /// The kernel's GUID when this run replaces a record a restore moved.
+    pub replace: Option<String>,
+}
+
+/// What:
+///  The nested dataset one `mount-path-descendant` invocation mounts.
+/// Why:
+///   The dataset names the work and the record names the checkout it is placed
+///  under,
+///  so the mode takes no path: a path a caller gave would be a mountpoint
+///  nothing proved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MountPathDescendant = { dataset: 'zpcachyos/nosnap/vm-builder-output' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MountPathDescendantRequest {
+    /// The nested dataset's full name.
+    pub dataset: String,
+}
+
+/// What:
 ///  What one invocation asks this build to do.
 /// Why:
 ///   A mode is chosen by a leading word and nothing else,
-///  and no argument names a folder to mount or a dataset to change:
+///  and the only arguments a mode takes are the identities its proofs need:
 ///  the sweep reads the durable intent,
-///  and an adoption takes only the replacement's own identity.
+///  an adoption takes the replacement's own identity,
+///  `record-checkout` takes the checkout and the GUID a replace admits,
+///  and `mount-path-descendant` takes the dataset it places under the recorded
+///  checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,6 +192,13 @@ pub enum HandlerMode {
     /// `adopt-worktree-parent`:
     /// the administrator's decision to record a replacement parent folder.
     AdoptWorktreeParent(AdoptRequest),
+    /// `record-checkout`:
+    /// the record of the checkout's path, dataset, GUID, container and pool.
+    RecordCheckout(RecordCheckoutRequest),
+    /// `mount-path-descendant`:
+    /// one nested dataset mounted at its own mountpoint beneath the recorded
+    /// checkout.
+    MountPathDescendant(MountPathDescendantRequest),
     /// `--help`.
     Help,
     /// `--version`.
@@ -189,8 +250,13 @@ pub enum ArgumentRefusal {
         /// What the parse answered.
         reason: String,
     },
-    /// The dataset a holder scan names is no dataset name this route reads.
+    /// The dataset a mode names is no dataset name this route reads.
     DatasetName {
+        /// The mode that named it.
+        mode: &'static str,
+        /// What that mode's dataset is,
+        /// as the phrase after the mode's name.
+        what: &'static str,
         /// The name as typed.
         name: String,
         /// Why it is no dataset name.
@@ -213,36 +279,39 @@ pub enum ArgumentRefusal {
 
 impl ArgumentRefusal {
     /// The refusal in words,
-    /// naming the argument and every way forward.
+    /// naming the argument and every way forward,
+    /// and opening with the words every root mode is reached through.
     pub fn message(&self) -> String {
+        let named: String = root_modes_name();
+        let prefix: String = format!("{named}: ");
         return match self {
             ArgumentRefusal::NotText { place } => format!(
-                "argument {place} of mount-git-worktree-clone-datasets is not text, and every argument this program reads is UTF-8 text. Nothing was done. Ways forward: give the mode word and the adoption's numbers as text; a checkout path that is not valid UTF-8 cannot be named here, so name a checkout whose path is text."
+                "{prefix}argument {place} is not text, and every argument the root modes read is UTF-8 text. Nothing was done. Ways forward: give the mode word and the adoption's numbers as text; a checkout path that is not valid UTF-8 cannot be named here, so name a checkout whose path is text."
             ),
             ArgumentRefusal::UnknownMode { word } => format!(
-                "`{word}` is not a mode of mount-git-worktree-clone-datasets. Nothing was done. The modes are {}, and running the program with no argument at all runs the clone-mount sweep the installed ZED event starts. Ways forward: run `mount-git-worktree-clone-datasets --help` for the words this build accepts.",
+                "{prefix}`{word}` is not a mode. Nothing was done. The modes are {}, and running the command with no mode word after `{ROOT_GROUP_WORD}` is refused rather than run. Ways forward: run `{named} --help` for the modes this build accepts.",
                 MODE_WORDS.join(", ")
             ),
             ArgumentRefusal::MissingValue { option } => format!(
-                "`{option}` is the last argument and has no value. Nothing was done. Ways forward: give `{option}` its value, as `{option} <value>`, and run the command again."
+                "{prefix}`{option}` is the last argument and has no value. Nothing was done. Ways forward: give `{option}` its value, as `{option} <value>`, and run the command again."
             ),
             ArgumentRefusal::RepeatedOption { option } => format!(
-                "`{option}` was given more than once, and two values would compete. Nothing was done. Ways forward: give `{option}` once, then run the command again."
+                "{prefix}`{option}` was given more than once, and two values would compete. Nothing was done. Ways forward: give `{option}` once, then run the command again."
             ),
             ArgumentRefusal::MissingOption { option } => format!(
-                "this invocation needs `{option}`, and it was not given. Nothing was done. Ways forward: run `mount-git-worktree-clone-datasets --help` for the options the mode takes and give every one of them; `adopt-worktree-parent` takes `--checkout <path> --device <count> --inode <count>`, and `holder-scan` takes `--dataset <name>` and, only when the caller names one, `--nonce <32 hex digits>`."
+                "{prefix}this invocation needs `{option}`, and it was not given. Nothing was done. Ways forward: run `{named} --help` for the options the mode takes and give every one of them; `adopt-worktree-parent` takes `{CHECKOUT_OPTION} <path> {DEVICE_OPTION} <count> {INODE_OPTION} <count>`, `holder-scan` takes `{DATASET_OPTION} <name>` and, only when the caller names one, `{NONCE_OPTION} <32 hex digits>`, `record-checkout` takes `{CHECKOUT_OPTION} <path>` and, only when it replaces a record a restore moved, `{REPLACE_OPTION} <the kernel's guid>`, and `mount-path-descendant` takes `{DATASET_OPTION} <name>`."
             ),
             ArgumentRefusal::Nonce { reason } => format!(
-                "the nonce is not one this route carries: {reason}. Nothing was done. Ways forward: give `--nonce` exactly {} lowercase hexadecimal digits, as the wrapper's own request carries them, or leave the option out and the scan makes its own.", crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS
+                "{prefix}the nonce is not one this route carries: {reason}. Nothing was done. Ways forward: give `{NONCE_OPTION}` exactly {} lowercase hexadecimal digits, as the wrapper's own request carries them, or leave the option out and the scan makes its own.", crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS
             ),
-            ArgumentRefusal::DatasetName { name, reason } => format!(
-                "`{name}` is not a dataset name this route reads: {reason}. Nothing was done. Ways forward: give `--dataset` the clone's full dataset name, as `zfs list -H -o name` prints it, with no snapshot part."
+            ArgumentRefusal::DatasetName { mode, what, name, reason } => format!(
+                "{prefix}`{name}` is not a dataset name this route reads: {reason}. Nothing was done. Ways forward: give `{mode}`'s `{DATASET_OPTION}` {what}."
             ),
             ArgumentRefusal::OptionNotACount { option, text } => format!(
-                "`{option} {text}` is not a decimal count. Nothing was done. Ways forward: give the number `stat --format=%d` (device) or `stat --format=%i` (inode) prints for the intended replacement, as decimal digits without a sign or a prefix."
+                "{prefix}`{option} {text}` is not a decimal count. Nothing was done. Ways forward: give the number `stat --format=%d` (device) or `stat --format=%i` (inode) prints for the intended replacement, as decimal digits without a sign or a prefix."
             ),
             ArgumentRefusal::UnexpectedArgument { word } => format!(
-                "`{word}` is an argument this invocation does not take. Nothing was done. Ways forward: run `mount-git-worktree-clone-datasets --help` for the modes and their arguments; a mode takes only the words the help lists beside it."
+                "{prefix}`{word}` is an argument this invocation does not take. Nothing was done. Ways forward: run `{named} --help` for the modes and their arguments; a mode takes only the words the help lists beside it."
             ),
         };
     }
@@ -250,13 +319,15 @@ impl ArgumentRefusal {
 
 /// What:
 ///  The whole usage text,
-///  naming the modes,
-///  the two installed paths,
+///  naming the modes the words reach,
+///  the one root-owned file,
 ///  and the device the modes that make requests will open.
 /// Why:
-///   A person meeting the program at either installed path reads what it is and what this build refuses;
-///  naming the second installed path says the same build answers a ZED event,
-///  and naming the device says a change of it is a change of one constant.
+///   A person meeting the modes reads what they are and what this build refuses,
+///  and every line names a spelling that works:
+///  the words for every mode,
+///  the file root's units start,
+///  and the device a change of which is a change of one constant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -264,7 +335,7 @@ impl ArgumentRefusal {
 /// ```
 pub fn usage() -> String {
     return [
-        String::from("usage: mount-git-worktree-clone-datasets [mode]"),
+        format!("usage: {} {ROOT_GROUP_WORD} [mode]", COMMAND_WORD.current),
         String::from("  (no argument)        run the clone-mount sweep the installed ZED event starts"),
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
@@ -273,26 +344,19 @@ pub fn usage() -> String {
         String::from("                       report which mount namespaces hold that clone, and every read the scan could not complete"),
         String::from("  adopt-worktree-parent --checkout <path> --device <count> --inode <count>"),
         String::from("                       record an administrator-identified replacement .claude/worktrees folder"),
+        String::from("  record-checkout --checkout <path> [--replace <the kernel's guid, which the refusal prints>]"),
+        String::from("                       record this checkout's path, dataset, GUID, container and pool for the route;"),
+        String::from("                       `--replace`, given the GUID the kernel shows now, replaces a record whose GUID"),
+        String::from("                       a legitimate restore changed"),
+        String::from("  mount-path-descendant --dataset <name>"),
+        String::from("                       mount one nested dataset at its own mountpoint, under the recorded checkout"),
         String::from("  --help               print this text"),
         String::from("  --version            print this build's version"),
-        format!("The same build is installed at {SERVICE_INSTALL_PATH} for service calls and at {ZEDLET_INSTALL_PATH} for ZED events."),
+        format!("Every root mode is reached through the words `{} <mode>`,", root_modes_name()),
+        format!("and the build is installed as {ROOT_MODE_INSTALL_PATH}."),
+        format!("ZED starts the same file by the name {ZEDLET_START_NAME}."),
         format!("The modes that make requests open {DEVICE_PATH} through this repository's binding, never a CDDL library and never the zfs program."),
     ].join("\n");
-}
-
-/// What:
-///  The line `--version` prints:
-///  the program's own name and the release it was built from.
-/// Why:
-///   An install that moved the archive asks this one command where the second executable is,
-///  and the line names the release so a lockfile's row can be checked against it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const version = `${PROGRAM_NAME} ${packageVersion}`;
-/// ```
-pub fn version_line() -> String {
-    return format!("{} {}", crate::worktree_clone_mount_handler::handler_install_paths::PROGRAM_NAME, env!("CARGO_PKG_VERSION"));
 }
 
 /// What:
@@ -353,6 +417,8 @@ pub fn parse(arguments: &[OsString]) -> Result<HandlerMode, ArgumentRefusal> {
         },
         "holder-scan" => parse_holder_scan(&words[1..]).map(HandlerMode::HolderScan),
         "adopt-worktree-parent" => parse_adoption(&words[1..]).map(HandlerMode::AdoptWorktreeParent),
+        "record-checkout" => parse_record_checkout(&words[1..]).map(HandlerMode::RecordCheckout),
+        "mount-path-descendant" => parse_mount_path_descendant(&words[1..]).map(HandlerMode::MountPathDescendant),
         other => Err(ArgumentRefusal::UnknownMode { word: other.to_string() }),
     };
 }
@@ -471,7 +537,12 @@ fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRef
             if dataset.is_some() {
                 return Err(ArgumentRefusal::RepeatedOption { option });
             }
-            check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName { name: String::from(value), reason: refusal.message() })?;
+            check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName {
+                mode: "holder-scan",
+                what: "the clone's full dataset name, as `zfs list -H -o name` prints it, with no snapshot part",
+                name: String::from(value),
+                reason: refusal.message(),
+            })?;
             dataset = Some(String::from(value));
         } else {
             if nonce.is_some() {
@@ -485,6 +556,97 @@ fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRef
         return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
     };
     return Ok(HolderScanInvocation { dataset: given_dataset, nonce });
+}
+
+/// What:
+///  Read a record mode's checkout and its optional replacement token,
+///  each option given once and in any order.
+/// Why:
+///   The checkout is the folder whose dataset the route serves and the token is
+///  the GUID the kernel shows now,
+///  so the checkout must be an absolute path and a repeated option would leave
+///  which one was meant;
+///  the token is only text here because the mode compares it with the kernel's
+///  own GUID and refuses `replace-token-differs` when they differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = parseRecordCheckout(['--checkout', '/home/user/Monochromatic', '--replace', digits]);
+/// ```
+fn parse_record_checkout(words: &[&str]) -> Result<RecordCheckoutRequest, ArgumentRefusal> {
+    let mut checkout: Option<PathBuf> = None;
+    let mut replace: Option<String> = None;
+    let mut index: usize = 0;
+    while index < words.len() {
+        let option: &str = match words[index] {
+            CHECKOUT_OPTION => CHECKOUT_OPTION,
+            REPLACE_OPTION => REPLACE_OPTION,
+            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+        };
+        let Some(value) = words.get(index + 1).copied() else {
+            return Err(ArgumentRefusal::MissingValue { option });
+        };
+        if option == CHECKOUT_OPTION {
+            if checkout.is_some() {
+                return Err(ArgumentRefusal::RepeatedOption { option });
+            }
+            checkout = Some(PathBuf::from(value));
+        } else {
+            if replace.is_some() {
+                return Err(ArgumentRefusal::RepeatedOption { option });
+            }
+            if value.is_empty() {
+                return Err(ArgumentRefusal::MissingValue { option });
+            }
+            replace = Some(String::from(value));
+        }
+        index += 2;
+    }
+    let Some(given_checkout) = checkout else {
+        return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
+    };
+    return Ok(RecordCheckoutRequest { checkout: given_checkout, replace });
+}
+
+/// What:
+///  Read a mount mode's dataset.
+/// Why:
+///   The dataset names the work and the record names the checkout it is placed
+///  under,
+///  so the mode takes no second option and no path,
+///  and a name the kernel would refuse is refused here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = parseMountPathDescendant(['--dataset', 'zpcachyos/nosnap/vm-builder-output']);
+/// ```
+fn parse_mount_path_descendant(words: &[&str]) -> Result<MountPathDescendantRequest, ArgumentRefusal> {
+    let mut dataset: Option<String> = None;
+    let mut index: usize = 0;
+    while index < words.len() {
+        let option: &str = match words[index] {
+            DATASET_OPTION => DATASET_OPTION,
+            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+        };
+        let Some(value) = words.get(index + 1).copied() else {
+            return Err(ArgumentRefusal::MissingValue { option });
+        };
+        if dataset.is_some() {
+            return Err(ArgumentRefusal::RepeatedOption { option });
+        }
+        check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName {
+            mode: "mount-path-descendant",
+            what: "the nested dataset's full name, as `zfs list -H -o name` prints it, with no snapshot part",
+            name: String::from(value),
+            reason: refusal.message(),
+        })?;
+        dataset = Some(String::from(value));
+        index += 2;
+    }
+    let Some(given_dataset) = dataset else {
+        return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
+    };
+    return Ok(MountPathDescendantRequest { dataset: given_dataset });
 }
 
 /// What:

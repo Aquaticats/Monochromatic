@@ -284,13 +284,13 @@ fn create(context: RawFd, source: &str) -> Result<(), AttachRefusal> {
     return if created == 0 { Ok(()) } else { Err(refused(AttachCall::Create, source, std::io::Error::last_os_error())) };
 }
 
-/// Make the mount descriptor with the two enforced attributes.
+/// Make the mount descriptor with the attributes the caller resolved.
 ///
 /// # Errors
 /// `fsmount` refused.
-fn make_mount(context: RawFd, source: &str) -> Result<OwnedFd, AttachRefusal> {
+fn make_mount(context: RawFd, source: &str, attributes: u64) -> Result<OwnedFd, AttachRefusal> {
     // SAFETY: the context descriptor is the caller's and has been created; the returned descriptor is owned once.
-    let mount: c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, ATTACH_CLOSE_ON_EXEC.1, ATTACH_FSMOUNT_ATTRIBUTES) as c_int };
+    let mount: c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, ATTACH_CLOSE_ON_EXEC.1, attributes) as c_int };
     if mount < 0 {
         return Err(refused(AttachCall::MountDescriptor, source, std::io::Error::last_os_error()));
     }
@@ -315,7 +315,30 @@ fn make_mount(context: RawFd, source: &str) -> Result<OwnedFd, AttachRefusal> {
 /// Every call's own refusal,
 /// with the step a person must look at.
 pub fn attach_the_clone(source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
-    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, &mount_id_of);
+    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, ATTACH_FSMOUNT_ATTRIBUTES, &mount_id_of);
+}
+
+/// What:
+///  Place one dataset at the folder a descriptor holds,
+///  with the `fsmount` attributes the caller resolved.
+/// Why:
+///  The clone attach fixes its two attributes because every clone has the same
+///  pair,
+///  while a dataset mounted at its own mountpoint carries whatever its own
+///  properties resolve to,
+///  so the attribute set is the caller's and the four calls are the same one
+///  sequence: `fsopen`, `fsconfig` twice, `fsmount`, `move_mount`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placed = attachWithAttributes('pool/nested', held.target, MOUNT_ATTR_NOATIME);
+/// ```
+///
+/// # Errors
+/// Every call's own refusal,
+/// with the step a person must look at.
+pub fn attach_with_attributes(source: &str, target: &std::fs::File, attributes: u64) -> Result<AttachedMount, AttachRefusal> {
+    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, attributes, &mount_id_of);
 }
 
 /// What:
@@ -338,14 +361,14 @@ pub fn attach_the_clone(source: &str, target: &std::fs::File) -> Result<Attached
 ///
 /// # Errors
 /// Every call's own refusal.
-fn attach_with<ReadMountNumber>(filesystem: &str, source: &str, target: &std::fs::File, read_mount_number: &ReadMountNumber) -> Result<AttachedMount, AttachRefusal>
+fn attach_with<ReadMountNumber>(filesystem: &str, source: &str, target: &std::fs::File, attributes: u64, read_mount_number: &ReadMountNumber) -> Result<AttachedMount, AttachRefusal>
 where
     ReadMountNumber: Fn(&std::fs::File) -> std::io::Result<u64>,
 {
     let context: OwnedFd = open_context(filesystem, source)?;
     set_source(context.as_raw_fd(), source)?;
     create(context.as_raw_fd(), source)?;
-    let mount: OwnedFd = make_mount(context.as_raw_fd(), source)?;
+    let mount: OwnedFd = make_mount(context.as_raw_fd(), source, attributes)?;
     drop(context);
     // The mount descriptor is owned as a file so the same reader the rest of the route uses can read its number and
     // the move can name it; a descriptor keeps naming this mount after the move.

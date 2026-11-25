@@ -17,11 +17,11 @@
 //! ```
 
 use super::{
-    ArgumentRefusal, CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, HolderScanInvocation, INODE_OPTION, MODE_WORDS, NONCE_OPTION, VERSION_WORD, parse, usage,
-    version_line,
+    ArgumentRefusal, CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, HolderScanInvocation, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION, VERSION_WORD, parse, usage,
 };
+use crate::worktree_clone_mount_handler::handler_install_paths::version_line;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_mount_handler::handler_install_paths::{PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
+use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -57,7 +57,7 @@ fn every_mode_word_reads_as_its_mode() {
     assert_eq!(parse(&arguments(&["shutdown-unmount"])), Ok(HandlerMode::ShutdownUnmount));
     assert_eq!(parse(&arguments(&[HELP_WORD])), Ok(HandlerMode::Help));
     assert_eq!(parse(&arguments(&[VERSION_WORD])), Ok(HandlerMode::Version));
-    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent"]);
+    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent", "record-checkout", "mount-path-descendant"]);
 }
 
 /// The holder scan reads its dataset and its optional nonce,
@@ -94,6 +94,44 @@ fn the_holder_scan_reads_its_dataset_and_its_nonce() {
     assert_eq!(parse(&arguments(&["holder-scan", "--force", "/a"])), Err(ArgumentRefusal::UnexpectedArgument { word: String::from("--force") }));
 }
 
+/// The record mode reads its checkout and its optional replacement token,
+/// and the mount mode reads one dataset,
+/// each option once and in any order.
+#[test]
+fn the_two_new_modes_read_their_options() {
+    let recorded = HandlerMode::RecordCheckout(super::RecordCheckoutRequest { checkout: PathBuf::from("/home/user/Monochromatic"), replace: None });
+    assert_eq!(parse(&arguments(&["record-checkout", CHECKOUT_OPTION, "/home/user/Monochromatic"])), Ok(recorded));
+    let replacing = HandlerMode::RecordCheckout(super::RecordCheckoutRequest {
+        checkout: PathBuf::from("/home/user/Monochromatic"),
+        replace: Some(String::from("9876543210987654321")),
+    });
+    assert_eq!(parse(&arguments(&["record-checkout", REPLACE_OPTION, "9876543210987654321", CHECKOUT_OPTION, "/home/user/Monochromatic"])), Ok(replacing));
+    assert_eq!(
+        parse(&arguments(&["record-checkout", REPLACE_OPTION, "1"])),
+        Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION })
+    );
+    assert_eq!(
+        parse(&arguments(&["record-checkout", CHECKOUT_OPTION, "/a", CHECKOUT_OPTION, "/b"])),
+        Err(ArgumentRefusal::RepeatedOption { option: CHECKOUT_OPTION })
+    );
+    assert_eq!(parse(&arguments(&["record-checkout", CHECKOUT_OPTION])), Err(ArgumentRefusal::MissingValue { option: CHECKOUT_OPTION }));
+    assert_eq!(parse(&arguments(&["record-checkout", "--force", "/a"])), Err(ArgumentRefusal::UnexpectedArgument { word: String::from("--force") }));
+    let mounted = HandlerMode::MountPathDescendant(super::MountPathDescendantRequest { dataset: String::from("zpcachyos/nosnap/vm-builder-output") });
+    assert_eq!(parse(&arguments(&["mount-path-descendant", DATASET_OPTION, "zpcachyos/nosnap/vm-builder-output"])), Ok(mounted));
+    assert_eq!(parse(&arguments(&["mount-path-descendant"])), Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION }));
+    assert_eq!(
+        parse(&arguments(&["mount-path-descendant", DATASET_OPTION, "a", DATASET_OPTION, "b"])),
+        Err(ArgumentRefusal::RepeatedOption { option: DATASET_OPTION })
+    );
+    assert_eq!(parse(&arguments(&["mount-path-descendant", CHECKOUT_OPTION, "/a"])), Err(ArgumentRefusal::UnexpectedArgument { word: String::from(CHECKOUT_OPTION) }));
+    let pool: ArgumentRefusal = parse(&arguments(&["mount-path-descendant", DATASET_OPTION, "pool/one@snapshot"])).expect_err("a snapshot is no dataset name");
+    let ArgumentRefusal::DatasetName { mode, .. } = &pool else {
+        panic!("a snapshot is no dataset name: {pool:?}");
+    };
+    assert_eq!(mode, &"mount-path-descendant");
+    assert!(pool.message().contains("the nested dataset's full name"), "the sentence is the mode's own: {}", pool.message());
+}
+
 /// The adoption's three options read as one request,
 /// in the order the help gives them and in another order.
 #[test]
@@ -117,15 +155,16 @@ fn the_usage_names_the_modes_the_paths_and_the_device() {
     for word in MODE_WORDS {
         assert!(text.contains(word), "the usage names {word}: {text}");
     }
-    assert!(text.contains(SERVICE_INSTALL_PATH), "{text}");
+    assert!(text.contains(ROOT_MODE_INSTALL_PATH), "{text}");
+    assert!(text.contains(&root_modes_name()), "the usage opens with the words: {text}");
     assert!(text.contains(ZEDLET_INSTALL_PATH), "{text}");
     assert!(text.contains(DEVICE_PATH), "{text}");
 }
 
 /// The version line names the program and this build's release.
 #[test]
-fn the_version_line_names_the_program_and_the_release() {
-    assert_eq!(version_line(), format!("{PROGRAM_NAME} {}", env!("CARGO_PKG_VERSION")));
+fn the_version_line_names_the_words_and_the_release() {
+    assert_eq!(version_line(), format!("{} {}", root_modes_name(), env!("CARGO_PKG_VERSION")));
 }
 
 /// A leading word that is no mode is refused as that word,

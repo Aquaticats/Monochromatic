@@ -1,23 +1,27 @@
 //! What:
-//!  The root-run clone-mount handler of the ZFS worktree route:
-//!  the second executable `mount-git-worktree-clone-datasets`,
-//!  its mode grammar,
-//!  the two paths it is installed at,
+//!  The root modes of the one wrapper executable:
+//!  the words `monochromatic-git-policy-cli zfs-root <mode>`,
+//!  the name the installed ZED history event selects,
+//!  the paths one root-owned build serves,
 //!  the modes whose plan steps have not landed,
 //!  the administrator's parent adoption,
+//!  the checkout record and the nested dataset the route places under it,
 //!  and the refusal both root modes answer a caller that is not root with.
 //! Why:
-//!  The design keeps the clone mount out of the Git wrapper:
-//!  a root-installed program the ZED event and the boot and shutdown units start
+//!  The owner answered "One program only, ever", so the release holds one
+//!  executable and the root modes are modes of the wrapper
+//!  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
+//!  A root-owned program the ZED event and the boot and shutdown units start
 //!  owns attachment,
 //!  unmount and the recorded folder identities,
-//!  and it shares the binding and the compatibility gate with the wrapper without
-//!  becoming a package of its own
+//!  and it shares the binding and the compatibility gate with the wrapper
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Binding crate and compatibility",
 //!  "ZED reconciliation and mount safety";
 //!  the build order is `doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  step 5).
+//!  step 5,
+//!  and how the modes are reached is
+//!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`).
 //!  Each mode refuses until the plan step that builds it lands,
 //!  except the modes whose steps are in:
 //!  the default sweep,
@@ -29,13 +33,18 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `root_mode_names.rs`:
+//!   the one start name and the group word,
+//!   and the decision each start is read as.
 //! - `handler_install_paths.rs`:
-//!   the two installed paths,
-//!   the configuration's path and the program's own name.
+//!   the paths one root-owned build serves,
+//!   the checkout record's path,
+//!   the words and the version line.
 //! - `handler_mode_arguments.rs`:
 //!   the mode words,
 //!   the adoption's three options,
-//!   the refusals and the usage and version lines.
+//!   the replacement a record admits,
+//!   the refusals and the usage.
 //! - `mode_awaiting_its_step.rs`:
 //!   the refusal of a mode whose plan step has not landed.
 //! - `root_mode_caller.rs`:
@@ -62,6 +71,13 @@
 //! - `adopt_worktree_parent_mode.rs`:
 //!   the administrator's adoption,
 //!   decided by step 4's table and recorded here.
+//! - `record_checkout_mode.rs`:
+//!   the checkout's path, dataset, GUID, container and pool,
+//!   recorded under root control,
+//!   and the GUID a legitimate restore replaces.
+//! - `mount_path_descendant_mode.rs`:
+//!   one nested dataset mounted at its own mountpoint beneath the recorded
+//!   checkout.
 //! - `per_slot_root_claim.rs`:
 //!   the root-owned directory of one claim file per slot,
 //!   and the exclusive lock a sweep holds while it acts.
@@ -71,14 +87,19 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! process.exit(worktreeCloneMountHandler.run(process.argv.slice(2)));
+//! process.exit(worktreeCloneMountHandler.run(words));
 //! ```
 
-/// The two installed paths,
-/// the configuration beside them and the program's own name.
+/// The one start name and the group word,
+/// and the decision each start is read as.
+pub mod root_mode_names;
+
+/// The paths one root-owned build serves,
+/// the checkout record's path,
+/// the words and the version line.
 pub mod handler_install_paths;
 
-/// The mode words and the adoption's options.
+/// The mode words, the adoption's options and the replacement a record admits.
 pub mod handler_mode_arguments;
 
 /// The refusal of a mode whose step has not landed.
@@ -162,22 +183,38 @@ pub mod holder_scan_mode;
 /// The administrator's adoption of a replacement parent folder.
 pub mod adopt_worktree_parent_mode;
 
+/// The checkout's path, dataset, GUID, container and pool,
+/// and the GUID a legitimate restore replaces.
+pub mod record_checkout_mode;
+
+/// One nested dataset mounted beneath the recorded checkout.
+pub mod mount_path_descendant_mode;
+
 /// The per-slot claim every sweep takes before it acts on a clone.
 pub mod per_slot_root_claim;
 
 /// The command line and the statuses.
 pub mod handler_mode_dispatch;
 
-/// The installed paths and the program's name.
-pub use handler_install_paths::{CONFIGURATION_PATH, PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
+/// The one start name's decisions,
+/// which read the module the pin holds line for line,
+/// so the module itself carries no test declaration.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "root_mode_names_tests.rs"]
+mod root_mode_names_tests;
+
+/// The paths one root-owned build serves,
+/// the checkout record's path,
+/// the words and the version line.
+pub use handler_install_paths::{CHECKOUT_RECORD_PATH, CONFIGURATION_PATH, ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name, version_line};
 /// The mode grammar,
-/// its refusal and the request an adoption takes.
-pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode, HolderScanInvocation};
+/// its refusal and the requests the modes take.
+pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode, HolderScanInvocation, MountPathDescendantRequest, RecordCheckoutRequest};
 /// The refusal of a mode whose step has not landed.
 pub use mode_awaiting_its_step::AwaitingItsStep;
 /// The administrator's adoption and why it recorded nothing.
 pub use adopt_worktree_parent_mode::AdoptFailure;
 /// The per-slot claim and its refusal.
 pub use per_slot_root_claim::{ClaimRefusal, HeldSlotClaim, SLOT_CLAIM_DIRECTORY, SlotClaimDirectory};
-/// The command line and the two statuses.
-pub use handler_mode_dispatch::{EXIT_DONE, EXIT_REFUSED, run};
+/// The command line, the two statuses and the refusal a root-mode misuse answers.
+pub use handler_mode_dispatch::{EXIT_DONE, EXIT_REFUSED, refuse_root_mode_misuse, run};
