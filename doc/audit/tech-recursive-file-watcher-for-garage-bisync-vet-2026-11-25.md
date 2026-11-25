@@ -854,7 +854,8 @@ whether one more run starts after a busy run ends (the owner's mid-run requireme
 - Capabilities from primary docs and source:
   runs the command without killing it unless `--kill` is passed;
   `--delay` and Chokidar's `awaitWriteFinish` shape bursts;
-  `--exclude` takes globs and has defaults for `.git`, `node_modules` and similar;
+  `--exclude` takes globs, and the default excluded set is exactly `**/node_modules/**` and `**/.git/**`
+  (`src/index.ts:175-177`);
   watch-limit exhaustion is not documented;
   hidden files are matched unless excluded.
 - Round-3 mid-run change: met natively.
@@ -892,8 +893,8 @@ whether one more run starts after a busy run ends (the owner's mid-run requireme
   it watches directory trees by include and exclude patterns.
 - Capabilities from primary docs and source:
   prep commands run in order and the block waits for them;
-  it batches changes "until there is a lull in filesystem activity" (default 500 ms class of behaviour);
-  `@exclude` and pattern syntax provide exclusions;
+  it batches changes "until there is a lull in filesystem activity", with `lullTime` at 100 ms (`modd.go:20`);
+  `!`-prefixed patterns exclude paths (`**/*.go !**/*_test.go` in the README);
   watch-limit exhaustion is not documented;
   hidden files are matched by default.
 - Round-3 mid-run change: met natively.
