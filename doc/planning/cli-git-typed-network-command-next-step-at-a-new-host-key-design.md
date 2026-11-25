@@ -108,8 +108,8 @@ all four effects measured this round
 
 Two of those are removable by a shipped K (the doubled carriage return, by clearing the terminal's output
 processing), and K2 removes all four for anyone who captures output.
-A person who captures output and wants plain Git's bytes back can have them:
-with `--no-progress`, K's transcript is plain Git's, byte for byte (run, same log, `BYTES ... identical=yes`).
+A shipped K that clears that processing also lets the person have plain Git's bytes back:
+with `--no-progress`, its transcript is plain Git's, byte for byte (run, same log, `BYTES ... identical=yes`).
 
 ## What this revision changed
 
@@ -1079,10 +1079,11 @@ On the typed path it is `+1.05 ms`, positive 17 of 24, inside that harness's flo
 
 Pros: everything C gives, and it keeps the progress display and the security-key touch notice at a terminal
 (measured for the display; source for the notice);
-a person who captures output can have plain Git's bytes back, because `--no-progress` with the terminal's output
-processing cleared writes exactly plain Git's bytes (measured, `BYTES ... identical=yes`).
+a person who captures output can have plain Git's bytes back, because a shipped K that clears the terminal's output
+processing writes exactly plain Git's bytes with `--no-progress` (measured, `BYTES ... identical=yes`).
 Cons: the four effects listed under "The measurements" on every captured stream, of which one is removable by the
-wrapper and the rest are the price of the terminal; the wrapper owns the pty's life and the child's wait, as C owns the pipe's;
+wrapper and the rest are the price of the terminal;
+the wrapper owns the pty's life and the child's wait, as C owns the pipe's;
 and a `-q` transcript still yields nothing.
 
 ### K2. K when the wrapper's own standard error is a terminal, C's pipe otherwise
@@ -1110,8 +1111,9 @@ the words are C's, chosen from the transcript, and the strict sentence has its o
 one `isatty` call is all it adds to C's cost;
 it has none of K's redirected-stream effects, and none of C's terminal loss.
 Cons: it is two shapes to build, test and explain, and both of them must be controlled;
-the decision is per process, so a wrapper whose standard error is a terminal but whose Git's is redirected by a hook
-still gets the pseudo-terminal (the hook then sees a terminal, which is what K's own con describes);
+the decision is made once per process on the wrapper's own stream, and every descendant then sees that answer, so a
+program that would have used a pipe's answer gets a terminal's whenever the person's stream is a terminal, which is
+K's trade applied only where a terminal is there;
 it keeps C's other cons, the wait, the signal and the `-q` blindness.
 
 ### C2. Git kept as a child with the same streams, and a sentence after exit 128
@@ -1445,6 +1447,9 @@ Each item says what would go wrong without it, and the measurement or the source
 - A signal and a window change are not forwarded by the relay.
   The wrapper must not take the child's signals from the person's terminal,
   and `SIGWINCH` after the start does not reach the pty, as it does not reach a pipe.
+  The interactive LFS upload already relays a signal sent to the wrapper and holds no deadline of its own
+  (`doc/planning/cli-git-no-self-invocation.md`, the note beginning "Not changed: the interactive upload has no
+  deadline of its own"), which is the precedent for the shape.
   A shipped option says so wherever it documents what it changes.
 - The tail the detectors read is bounded.
   A clone prints megabytes of progress; the tail holds what the words need.
@@ -1512,6 +1517,9 @@ Each item says what would go wrong without it, and the measurement or the source
     (`merge/pull_isolation.rs`, "the fetch of a pull that merges runs, then the merge goes through the isolated
     merge"), so a `pull`'s network step never passes the top-level forwarding arm;
   - the LFS upload and the push record already read a child's output and keep their own sentences.
+
+  Which of those a given typed command reaches was not traced end to end;
+  what is read here is that a single entry point does not cover them.
 
   `run_real_git` is not K's shape:
   its documented contract is that the child "shares the caller's terminal and streams directly; nothing is
@@ -1864,8 +1872,9 @@ with the control at 126.92 ms and the same command run twice at 127.56 ms.
 - Every figure is a loopback round trip inside a two-CPU container on this machine.
   A person's network dominates all of them, so the numbers say what the wrapper adds, not what a command takes.
 - The figures do not transfer to another machine, another container, or another release of Git or OpenSSH.
-  The fourth revision's typed path was seven times noisier than this round's on the same image,
-  which is why every figure here is quoted against a twin measured in its own rounds.
+  Even two rounds on this image disagree: the fourth revision's typed-path floor was median `+1.59 ms` with a range
+  of `-8.23` to `+18.15`, and this round's is `+0.11 ms` with `-6.18` to `+7.93`.
+  That is why every figure here is quoted against a twin measured in its own rounds.
 
 ## What the probes did not show
 
@@ -1910,7 +1919,8 @@ Its findings, with the evidence against the ones that did not hold:
 
 1.  B's transcript was not the run's bytes.  The round that followed re-ran every B arm with the kept stand-in and
    printed the bytes.
-2.  The owner's self-start rule was not quoted, and B and E meet it.  The rule is quoted under "What the recorded rules leave open";
+2.  The owner's self-start rule was not quoted, and B and E meet it.
+    The rule is quoted under "What the recorded rules leave open";
    the owner then answered "Never" for both.
 3.  The rotation was not a rotation and the noise test was empty.  The timings were re-run in a balanced Latin
    square, and the test became a sign in every round plus a median larger than a same-command twin.
