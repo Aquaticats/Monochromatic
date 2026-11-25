@@ -234,6 +234,25 @@ under systemd as PID 1 in the `docker.io/cachyos/cachyos:latest` container:
 So a start request made while any run is going (the timer's or the watcher's) is absorbed by that run,
 and a change that lands mid-run needs a new start request after the run ends.
 
+Measured at 2026-11-25T17:57:35-05:00 under systemd 262 (`262.2-1-arch`) in the same container image,
+with an 8-second stand-in oneshot for the sync
+and a trigger oneshot ordered `After=` it whose only step is `systemctl start` of the stand-in:
+
+- a trigger requested 2 seconds into a running sync waited for that sync to end,
+  then started a fresh one:
+  two syncs ran,
+  and the trigger request returned after the second;
+- a trigger requested with no sync running started one sync;
+- a second trigger requested while the first trigger was still running joined it:
+  one sync ran,
+  and both requests returned together.
+- killing a blocking `systemctl start` client with SIGTERM (it exited 143) left the run going (`activating`),
+  and the run ended normally.
+
+So on Linux a trigger unit ordered after the sync unit covers a change that lands during a timer run without custom code,
+a watcher that queues its own runs covers a change that lands during a run it started,
+and no watcher can kill a sync it starts through `systemctl`.
+
 So a settle pass narrows the window in which a save makes a conflict copy
 from "until the next run" to the length of the upload pass plus the gap before the settle pass,
 and it closes the deleted-file-comes-back case;
