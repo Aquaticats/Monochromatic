@@ -91,3 +91,9 @@ pub use the_pass_seams::FinishPass;
 #[cfg(test)]
 #[path = "pass_fixtures_tests.rs"]
 pub(crate) mod pass_fixtures;
+
+/// The guest arm of this folder's piece,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "pass_guest_arm_tests.rs"]
+mod pass_guest_arm_tests;
