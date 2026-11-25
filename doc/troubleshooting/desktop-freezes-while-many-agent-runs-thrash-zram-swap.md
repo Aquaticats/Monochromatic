@@ -1075,15 +1075,31 @@ read on 2026-11-25 with OpenZFS `2.4.4-1` (`/sys/module/zfs/version`),
   so `MemAvailable` leaves the ARC out,
   and a guard that reads `MemAvailable` alone sees less room than there is.
 
-The reading of these numbers,
-which is this document's inference and not a measured cause:
-the kernel starts reclaiming at its own watermarks
-(low 855 MiB and high 1,645 MiB at `watermark_scale_factor` 125, measured in this document),
-and the ARC starts shrinking on its own only below `arc_sys_free`,
-so both begin only once free memory is under about 2.2 GiB,
-and at `vm.swappiness` 150 the kernel's share of that reclaim goes to swap.
-An ARC that keeps more memory free shrinks first,
-before the kernel's watermarks are reached.
+The reading first drawn from these numbers was that the kernel and the ARC both began reclaiming
+only once free memory was under about 2.2 GiB,
+so the kernel's share went to swap while the ARC still held cache.
+That reading was wrong as a cause of the swapping, and the readings after the change disproved it:
+
+- Between 2026-11-25T13:23:43-05:00 and 13:37:01-05:00, `pswpout` rose by 8069492 pages (30.8 GiB)
+  while the ARC was down to 3.1 GiB and `MemFree` read 37.9 GiB.
+- Over 120 seconds from 13:38:08-05:00 (`date +%s` 1795631888 to 1795632008),
+  17.41 GiB went out to swap and 10.64 GiB came back,
+  the ARC held 2.2 to 3.7 GiB,
+  and `memory.events` `max` of `user.slice` did not move (7948604 both times),
+  so no capped cgroup was reclaiming against its own limit either.
+- Over 30 seconds at about 13:42-05:00,
+  `pgsteal_kswapd` rose by 1213853 pages (4.63 GiB) and `pgsteal_direct` by 12,
+  with `MemFree` at 36.5 GiB:
+  the background reclaim thread did nearly all of it.
+
+The Normal zone then held 9196486 free pages against a `high` watermark of 408439,
+and `/proc/buddyinfo` showed no free block of order 9 or 10 (2 MiB and up).
+That points at transparent hugepages instead;
+see "Transparent hugepage defrag and proactive compaction, 2026-11-25".
+The ARC setting stays,
+by the owner's answer "Keep 8 GiB (Recommended)",
+as room for one guest to start from free memory,
+not as a fix for the swapping.
 
 Applied at runtime at 2026-11-25T13:24:47-05:00 and read back:
 
