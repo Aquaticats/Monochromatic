@@ -418,9 +418,9 @@ fn stage(name: &str) -> Stage {
 /// (`can_arrange_the_cut`).
 fn held_before_the_pid_file_goes(tracer: &Path, hold: Duration) -> String {
     let microseconds: u128 = hold.as_micros();
-    let tracer: String = crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(tracer.as_os_str()));
+    let quoted: String = crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(tracer.as_os_str()));
     return format!(
-        "{tracer} -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
+        "{quoted} -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
          -e inject=unlink:delay_exit={microseconds}:when=1 -e inject=unlinkat:delay_exit={microseconds}:when=1 /usr/bin/git"
     );
 }
