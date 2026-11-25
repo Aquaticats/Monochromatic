@@ -47,18 +47,19 @@ fn helper_entry() {
     let directory: PathBuf = PathBuf::from(
         std::env::var_os(DIR_VAR).expect("helper directory is set with the mode"),
     );
-    let mode: String = mode.to_string_lossy().into_owned();
+    // The mode as owned text, so the guard scenarios below read one value however it arrived.
+    let helper_mode: String = mode.to_string_lossy().into_owned();
     // A body of a control the tests above run here answers its sentences; the guard scenarios answer `None`.
-    if let Some(failures) = moved_body(mode.as_str()) {
+    if let Some(failures) = moved_body(helper_mode.as_str()) {
         // The exit status says the same as the file, so a parent that read only one of them still learns the answer.
         std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), failures));
     }
-    if mode == "service" {
+    if helper_mode == "service" {
         leave_signals_to_the_service();
     }
     let guard: SignalGuard = SignalGuard::install().expect("guard installs");
     std::fs::write(directory.join("installed"), b"").expect("installed marker");
-    let mut command: Command = helper_command(mode.as_str(), directory.as_path());
+    let mut command: Command = helper_command(helper_mode.as_str(), directory.as_path());
     let outcome: ChildOutcome = guard.run_child(&mut command).expect("guarded child runs");
     std::fs::write(directory.join("outcome"), describe(outcome)).expect("outcome record");
     drop(guard);

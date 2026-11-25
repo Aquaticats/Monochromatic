@@ -107,12 +107,12 @@ pub(crate) fn settle_after_a_helper(mut helper: Child, root: &Path) -> Vec<Strin
         std::thread::sleep(LOOK_EVERY);
     }
     let text: String = std::fs::read_to_string(verdict.as_path()).expect("the verdict");
-    let begun: Instant = Instant::now();
+    let ending_from: Instant = Instant::now();
     let status: std::process::ExitStatus = loop {
         if let Some(status) = helper.try_wait().expect("the helper's status") {
             break status;
         }
-        assert!(begun.elapsed() < HELPER_STEP_TIMEOUT, "the helper did not end");
+        assert!(ending_from.elapsed() < HELPER_STEP_TIMEOUT, "the helper did not end");
         std::thread::sleep(LOOK_EVERY);
     };
     let mut failures: Vec<String> = text.lines().map(String::from).collect();

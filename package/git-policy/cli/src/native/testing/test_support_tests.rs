@@ -529,12 +529,12 @@ const PARENT_DEATH_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 /// ```ts
 /// const process = spawnOwned(binary, ['--exact', thisTest], { env: { VARIABLE: root } })
 /// ```
-fn spawn_a_waiting_process(variable: &str, root: &PathBuf) -> Child {
+fn spawn_a_waiting_process(variable: &str, root: &std::path::Path) -> Child {
     let binary: PathBuf = this_test_binary().expect("this test binary");
     let mut command: Command = Command::new(binary);
     command
         .args(["--exact", "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it", "--test-threads=1"])
-        .env(variable, root.as_path())
+        .env(variable, root)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
@@ -586,6 +586,8 @@ fn a_child_dies_with_the_test_process_that_started_it() {
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
+        // The middle is killed outright, so this child is never waited on: the control is that it goes without one.
+        #[allow(clippy::zombie_processes, reason = "the control ends the middle with SIGKILL, so its child is never reaped by it")]
         let child: Child = spawn_owned(&mut command).expect("the child starts");
         std::fs::write(directory.join("child"), child.id().to_string()).expect("the child's number");
         std::thread::sleep(WAITING_PATIENCE);
@@ -606,9 +608,9 @@ fn a_child_dies_with_the_test_process_that_started_it() {
     let killed: libc::c_int = unsafe { libc::kill(libc::pid_t::try_from(middle.id()).expect("a middle pid fits"), libc::SIGKILL) };
     assert_eq!(killed, 0, "the middle is killed");
     let _status: std::io::Result<std::process::ExitStatus> = middle.wait();
-    let begun: std::time::Instant = std::time::Instant::now();
+    let watched_from: std::time::Instant = std::time::Instant::now();
     while running(number) {
-        assert!(begun.elapsed() < PARENT_DEATH_PATIENCE, "the child {number} outlived the process that started it");
+        assert!(watched_from.elapsed() < PARENT_DEATH_PATIENCE, "the child {number} outlived the process that started it");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     remove(root.as_path());

@@ -155,9 +155,7 @@ pub(super) fn is_code(text: &str) -> Vec<bool> {
             let hashes: usize = starts_a_raw_text(bytes, index).unwrap_or(0);
             // The opening `r`, its hashes and its `"` are all part of the text, so none of them is code.
             let after_opening: usize = index + hashes + 2;
-            for marked in index..after_opening {
-                code[marked] = false;
-            }
+            code[index..after_opening].fill(false);
             raw_hashes = hashes;
             place = Place::RawText;
             index = after_opening;
