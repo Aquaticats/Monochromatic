@@ -78,3 +78,15 @@ pub use settling_refusal::SettlingStop;
 pub use settling_request::{SettlingRequest, parse_settling_arguments};
 pub use settling_steps::{SettlingStep, TheOrderFacts, WHEN_A_CHECKOUT_HAS_BEGUN, WHEN_NO_CHECKOUT_HAS_BEGUN, the_steps};
 pub use settling_words::{CONFIRM_GUID_FLAG, CONFIRM_REMOVAL_FLAG, GUID_DIGITS_SHOWN, carries_a_placeholder, the_last_four_digits, the_usage_line};
+
+/// The folder and record fixtures every control of this module starts from,
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "settling_fixtures_tests.rs"]
+pub(crate) mod settling_fixtures;
+
+/// The guest arm of this module's piece,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "settling_guest_arm_tests.rs"]
+mod settling_guest_arm_tests;

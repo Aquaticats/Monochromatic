@@ -127,8 +127,8 @@ fn the_cleanup_line(cleanup: Option<&OriginCleanupRecord>) -> String {
 }
 
 /// The line naming a standing plan and the names it recorded as destroyed.
-fn the_plan_line(plan: Option<&DestructionPlan>) -> String {
-    let Some(plan) = plan else {
+fn the_plan_line(standing: Option<&DestructionPlan>) -> String {
+    let Some(plan) = standing else {
         return String::from("no destruction plan stands for this clone, so no cancelled removal left a loss for this command to print.");
     };
     let names: Vec<String> = crate::worktree_clone_record_settling::settling_standing_records::the_names_the_plan_lost(plan);

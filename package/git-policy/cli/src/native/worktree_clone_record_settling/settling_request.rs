@@ -134,32 +134,32 @@ pub fn parse_settling_arguments(arguments: &[OsString]) -> Result<SettlingReques
         let Some(value) = rest.next() else {
             return Err(SettlingStop::Usage { said: format!("`{text}` is the last argument and carries no value") });
         };
-        let value: String = as_text(value)?;
+        let typed: String = as_text(value)?;
         if text == CONFIRM_REMOVAL_FLAG {
             if confirmed.is_some() {
                 return Err(SettlingStop::Usage { said: format!("`{CONFIRM_REMOVAL_FLAG}` stands twice") });
             }
-            confirmed = Some(a_slot_name(value)?);
+            confirmed = Some(a_slot_name(typed)?);
         } else {
             if digits.is_some() {
                 return Err(SettlingStop::Usage { said: format!("`{CONFIRM_GUID_FLAG}` stands twice") });
             }
-            if carries_a_placeholder(value.as_str()) {
-                return Err(SettlingStop::PlaceholderLeft { flag: String::from(CONFIRM_GUID_FLAG), value });
+            if carries_a_placeholder(typed.as_str()) {
+                return Err(SettlingStop::PlaceholderLeft { flag: String::from(CONFIRM_GUID_FLAG), value: typed });
             }
-            if value.is_empty() {
+            if typed.is_empty() {
                 return Err(SettlingStop::Usage { said: format!("`{CONFIRM_GUID_FLAG}` carries no digits") });
             }
-            digits = Some(value);
+            digits = Some(typed);
         }
     }
-    let (Some(slot), Some(confirmed), Some(digits)) = (slot, confirmed, digits) else {
+    let (Some(given_slot), Some(given_confirmed), Some(given_digits)) = (slot, confirmed, digits) else {
         return Err(SettlingStop::Usage { said: String::from("the command needs a slot, `--confirm-removal-of` and `--confirm-clone-guid`") });
     };
-    if slot != confirmed {
-        return Err(SettlingStop::TheSlotIsNamedTwice { asked: slot, confirmed });
+    if given_slot != given_confirmed {
+        return Err(SettlingStop::TheSlotIsNamedTwice { asked: given_slot, confirmed: given_confirmed });
     }
-    return Ok(SettlingRequest { slot, confirmed_slot: confirmed, digits });
+    return Ok(SettlingRequest { slot: given_slot, confirmed_slot: given_confirmed, digits: given_digits });
 }
 
 /// Controls stay out of the release executable.

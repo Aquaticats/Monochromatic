@@ -93,7 +93,9 @@ pub fn a_standing_origin_cleanup(common_dir: &Path, recorded: &RecordedBinding) 
         (String::from("originSnapshotGuid"), record.origin_snapshot_guid.file_name()),
         (String::from("originSnapshotCreatetxg"), record.origin_snapshot_createtxg.to_string()),
     ];
-    refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, recorded, standing| return SettlingStop::TheOriginCleanupDisagrees { field, recorded, standing })?;
+    refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, binding_value, standing_value| {
+        return SettlingStop::TheOriginCleanupDisagrees { field, recorded: binding_value, standing: standing_value };
+    })?;
     return Ok(Some(record));
 }
 
@@ -166,7 +168,9 @@ fn refuse_the_plans_identities(recorded: &RecordedBinding, plan: &DestructionPla
         (String::from("originSnapshotGuid"), plan.facts.origin_snapshot_guid.file_name()),
         (String::from("originSnapshotCreatetxg"), plan.facts.origin_snapshot_createtxg.to_string()),
     ];
-    return refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, binding, plan| return SettlingStop::ThePlanDisagrees { field, binding, plan });
+    return refuse_a_disagreement(the_five_origin_fields(recorded), standing, |field, binding_value, plan_value| {
+        return SettlingStop::ThePlanDisagrees { field, binding: binding_value, plan: plan_value };
+    });
 }
 
 /// The first of five fields in which a standing record and the binding disagree.

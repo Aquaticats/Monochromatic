@@ -23,7 +23,7 @@
 //! ```
 
 use crate::lock::single_owner_claim::OwnerClaim;
-use crate::worktree_clone_binding_record::lock_words::{LockStanding, is_unattributable_prefix, lock_file_bytes, lock_standing_of};
+use crate::worktree_clone_binding_record::lock_words::{LockStanding, lock_file_bytes, lock_standing_of};
 use crate::worktree_clone_binding_record::registration_home::{binding_name, claim_prefix, clone_inventory_name, home_folder, origin_inventory_name, plans_folder};
 use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, RecipeRefusal, ToClear, clear_registration};
 use crate::worktree_clone_mount_protocol::RequestNonce;
@@ -134,26 +134,42 @@ pub fn the_registration_name(registration: &Path) -> Result<OsString, SettlingSt
 fn write_the_lost_lock(registration: &Path, nonce: &RequestNonce) -> Result<bool, SettlingStop> {
     let path: PathBuf = registration.join(LOCK_NAME);
     let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
+        // A lock that is not there is the one this command writes again; every other state is read below.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return write_the_lock_sentence(path.as_path(), nonce),
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(SettlingStop::TheRecipeStopped { said: format!("the registration's lock {} could not be read ({error})", path.display()) }),
     };
     match lock_standing_of(bytes.as_slice(), nonce) {
         LockStanding::Verified => return Ok(false),
-        // A proper prefix of this add's sentence is a killed write, and bytes too short to attribute are the empty
-        // file Git's own `worktree lock` leaves. Both end in the one truncating write below.
-        LockStanding::CutShort { .. } => {}
-        LockStanding::Foreign => {
-            if !is_unattributable_prefix(bytes.as_slice()) {
-                return Err(SettlingStop::TheLockIsNotThisAdds { path });
-            }
-        }
+        // A proper prefix of this add's sentence is a killed write, which the next run completes (the lock design's
+        // S2), and it is the only short form this command writes over.
+        LockStanding::CutShort { .. } => return write_the_lock_sentence(path.as_path(), nonce),
+        // Anything else is a person's own words, the reasonless lock Git's `worktree lock` leaves included, and a
+        // removal refuses it until `git worktree unlock` (the lock design's S3).
+        LockStanding::Foreign => return Err(SettlingStop::TheLockIsNotThisAdds { path }),
     }
+}
+
+/// What:
+///  The whole sentence written over the lock's name in one truncating write.
+/// Why:
+///  A staging rename would leave the registration unprotected,
+///  and the command holds the slot and has proved the registration,
+///  so one write is what both the lost lock and a cut-short one need.
+///
+/// # Throws
+/// The file that could not be written or synced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeTheLockSentence(path, nonce);
+/// ```
+fn write_the_lock_sentence(path: &Path, nonce: &RequestNonce) -> Result<bool, SettlingStop> {
     let mut file: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(path.as_path())
+        .open(path)
         .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the lock {} could not be written ({error})", path.display()) })?;
     file.write_all(lock_file_bytes(nonce).as_slice())
         .map_err(|error| return SettlingStop::TheRecipeStopped { said: format!("the lock {} could not be written ({error})", path.display()) })?;
