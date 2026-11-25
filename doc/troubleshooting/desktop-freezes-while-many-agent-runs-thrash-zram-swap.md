@@ -1379,6 +1379,19 @@ That compile peak is the limit:
 memory the compiler needs at once, which swap cannot stand in for without slowing the build,
 and zram's own RAM (5.73 GiB on zram0, which gets no backing device until a reboot, and 4.16 GiB on zram1) is the most writeback can return.
 
+The largest holder is neither builds nor zram.
+At 2026-11-25T15:52-05:00 `/proc/meminfo` read `Shmem: 26250 MiB` while every visible tmpfs held about 380 MiB and SysV
+segments 0.02 GiB;
+the cgroups' `memory.stat` `shmem` field put 26.28 GiB of it in `user@1000.service/app.slice/mvm-libvirt-session.service`,
+and `mvm` listed four guests, each of a live round.
+A guest gets 8 GiB (`package/mvm/cli/README.md`), a guest with a virtiofs shared directory gets shared memory backing
+(the same README),
+and the rounds build the wrapper inside the guest (a 7.45 GiB build peak, the round guest note),
+so each guest held about 6.57 GiB of the host for its round's whole life.
+What would return it is measured by its own round (`pi-mvm-guest-memory-held-for-a-rounds-life`):
+free page reporting, dropping the guest's cache after an arm, smaller guests running a host-built binary,
+guests without virtiofs so KSM could merge pages, and destroying guests between arms.
+
 ### What AppArmor would have stopped
 
 Two refusals in the `zram-generator` profile would each have left the next boot with no zram swap,
