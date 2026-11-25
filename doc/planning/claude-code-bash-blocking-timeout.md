@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:40:27-05:00.
+State recorded 2026-11-25T17:44:36-05:00.
 
 ## Requirement as stated
 
@@ -94,10 +94,13 @@ An eligible main-agent command starts in the foreground.
 If it finishes within one second,
 it returns its normal synchronous result.
 If it remains running,
-Claude Code moves it to the background and returns the native task ID and output path.
+Claude Code can move it to the background and return the native task ID and output path.
+The configured foreground timeout is `1000` milliseconds,
+but the final review found later result arrival and completion races in the probe logs.
+Whether an approximately two-second native floor is consistent requires controlled timing probes.
 The timeout is not intended as a general execution-lifetime limit.
-A successful foreground `cd` can now persist when the command finishes before the threshold.
-A `cd` in a command that moves to the background still does not persist.
+A successful `cd` can now persist when the command returns in the foreground.
+A `cd` in a command that returns as a background task does not persist.
 This timing-dependent working-directory behavior differs from the old always-background policy
 and requires an explicit consumer-boundary probe.
 The user accepted this consequence in `Q2 A`,
@@ -237,7 +240,13 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-The design frontier is empty again.
+One timing question reopened after the final Sonnet review:
+
+- `observed-blocking-floor`:
+  accept and document result arrival beyond the nominal one-second timeout,
+  or treat one second of actual blocking as a hard requirement that needs another mechanism.
+
+The answer waits for controlled wrapped and unwrapped duration probes in headless and interactive sessions.
 
 The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
 which production accepts.
@@ -270,7 +279,11 @@ which the review worktree did not contain.
 Its sleep-termination and cwd questions were already covered by `Q6 B` and `Q2 A`.
 Those answers and the accepted consequences are now explicit in this record.
 Its new output-buffering and startup-registration findings are folded in.
-A fresh cross-vendor re-review of the final record and probe evidence remains required before confirmation.
+A final Claude Sonnet review examined the record and raw probe evidence.
+It returned not ready because nominal `1000` millisecond timeouts did not always produce results at one second.
+Several commands returned full output with a background notice after completion.
+The review had not established a native floor,
+so controlled duration probes are required before the user answers the timing question.
 
 ## Rejected recommendations
 
@@ -298,10 +311,14 @@ The chained `printf` never ran.
 
 The identical command through the real output-filter wrapper also received `timeout: 1000`,
 but the executed command began with `set -o pipefail`.
-Claude Code moved it to background task `blhskwhvo` at one second.
+Claude Code returned background task `blhskwhvo` with `timedOutAfterMs: 1000`.
 The native result explicitly said no output had been read when it moved.
-The task later exited 0,
-and its output file contained `done`.
+The final review calculated a later result arrival,
+so this evidence does not establish a one-second return.
+The task later exited 0.
+A retained copy of its output at
+`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/wrapped-chained-sleep.output`
+contains `done`.
 This proves the accepted filter-dependent termination versus auto-background divergence.
 
 ### Timeout input matrix
@@ -326,7 +343,7 @@ Every rewrite preserved the caller's `description`.
 A quick `cd .../cwd-quick && pwd` received `timeout: 1000`,
 finished synchronously,
 and the next `pwd` returned `cwd-quick`.
-A subsequent `cd ../cwd-moved && node ...` moved to the background at its timeout.
+A subsequent `cd ../cwd-moved && node ...` returned full output with a background task ID.
 Its own output showed `cwd-moved`,
 while the native result said session cwd remained `cwd-quick`.
 The next `pwd` confirmed `cwd-quick`.
@@ -393,8 +410,10 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Obtain the fresh final review,
-fold in any earned findings,
-then present the assembled contract for explicit shared-understanding confirmation.
+Measure controlled command durations and result arrival in wrapped and unwrapped,
+headless and interactive sessions.
+Record the timing distribution,
+then ask the user whether the observed native behavior is acceptable
+before requesting final shared-understanding confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background

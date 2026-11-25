@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:40:27-05:00.
+State recorded 2026-11-25T17:44:36-05:00.
 This work is incomplete and unapproved.
 
 ## Current state
@@ -35,13 +35,15 @@ The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q
 
 ## Open work
 
-- Obtain a fresh cross-vendor review of the final record and probe evidence.
-- Fold in any findings that earn changes.
+- Measure controlled command durations and result arrival in wrapped and unwrapped,
+  headless and interactive sessions.
+- Ask the user whether result arrival beyond the nominal one-second timeout is acceptable.
+- Obtain any fresh review needed by the timing evidence.
 - Present the final assembled contract for explicit shared-understanding confirmation.
 - Implement only after that confirmation.
 
 ## Next step
 
-Request the final review,
-record its verdict in the planning document,
-and commit before asking for confirmation.
+Run the controlled timing matrix,
+record it in the planning document,
+and commit before asking the timing question.
