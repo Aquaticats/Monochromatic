@@ -606,37 +606,12 @@ fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> 
 }
 
 /// What:
-///  Ask the commit service of this repository for one snapshot ahead of this add,
-/// and wake it.
-/// Why:
-///   The request is what fills the pool for the add after this one,
-/// and its record outlives the command.
-/// A record that cannot be written is a reason,
-/// never the add's failure:
-/// the add takes its
-///  own snapshot and says why.
-/// The id it answers is the record's,
-/// so the add that waits for it can see the service give it up.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// askForOne({ context, source }) // enqueue(request); wake(commonDir); the record's id
-/// ```
-pub fn ask_for_one(context: &GitContext, source: &SnapshotSource) -> Result<Option<String>, String> {
-    let pool: PathBuf = pool_folder(source.git_dir.as_path());
-    let asked: WorkItem = ask_with(source.git_dir.as_path(), source.root.as_path(), pool.as_path())?;
-    wake_the_service(context, source.git_dir.as_path())?;
-    return Ok(Some(asked.id()));
-}
-
-/// What:
 ///  The record of one request for a snapshot ahead,
 /// which the caller wakes the service for.
 /// Why:
 ///   The record is written before the service is told,
 /// so a control asserts the record without a service,
-/// and
-///  `ask_for_one` wakes the service after it and answers its id.
+/// and the caller answers under the id it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

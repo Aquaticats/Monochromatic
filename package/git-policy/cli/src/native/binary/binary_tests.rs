@@ -360,6 +360,12 @@ mod merge_carries_edits_moved;
 #[path = "binary_merge_lock_after_the_clear_tests.rs"]
 mod merge_lock_after_the_clear;
 
+/// The branch moving between a merge's preparation and its landing, while another command holds the index:
+/// the merge refuses instead of saving itself,
+/// and the next run lands it on the branch as it is now.
+#[path = "binary_merge_the_branch_moved_before_its_save_tests.rs"]
+mod merge_the_branch_moved_before_its_save;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.

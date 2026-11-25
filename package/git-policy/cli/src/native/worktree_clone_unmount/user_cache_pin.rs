@@ -27,7 +27,7 @@
 
 use crate::fs_beneath::{open_directory_crossing_one_mount, open_root};
 use crate::fs_beneath_mount_facts::mount_id_of;
-use crate::fs_mount_options::{MountFacts, parse_mount_table};
+use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::mount_facts_of;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -349,12 +349,6 @@ pub fn cache_mount_facts(cache: &std::fs::File) -> Result<MountFacts, PinRefusal
 pub fn check_live_pin(cache: &std::fs::File, pin: &UserCachePin) -> Result<(), PinRefusal> {
     let facts: MountFacts = cache_mount_facts(cache)?;
     return check_pin(cache, pin, &facts);
-}
-
-/// The mount table as text,
-/// which a control hands in so it reads no host mount.
-pub fn mount_table_facts(text: &str) -> Vec<MountFacts> {
-    return parse_mount_table(text.as_bytes());
 }
 
 /// Controls stay out of the release executable.

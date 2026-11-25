@@ -159,13 +159,6 @@ impl ProbeVerdict {
         };
     }
 
-    /// The arm a blocked verdict names.
-    pub fn named_arm(self) -> Option<ProbeArm> {
-        return match self {
-            ProbeVerdict::Blocked { arm } => Some(arm),
-            ProbeVerdict::Passed | ProbeVerdict::Failed { .. } | ProbeVerdict::TimedOut { .. } | ProbeVerdict::Skipped { .. } => None,
-        };
-    }
 }
 
 /// What:

@@ -29,7 +29,7 @@ use crate::earlier_name_moved_to_current_in_place::{existing_kept_name, kept_nam
 use crate::rename_that_never_replaces::rename_noreplace;
 /// The fold of a name that exists under both spellings,
 /// and the surroundings its look reads.
-use crate::earlier_names_folded_into_current::{FoldSurroundings, KeptKind, KeptName, fold_and_tell, fold_kept_names_and_tell};
+use crate::earlier_names_folded_into_current::{FoldSurroundings, KeptKind, KeptName, fold_kept_names_and_tell};
 /// The steps a fold reports through,
 /// and the ones a command that stops for nothing uses.
 use crate::earlier_log_lines_added_to_current_log::{FoldSteps, NeverStopped};
@@ -171,13 +171,6 @@ fn rename_common_directory_names(common_dir: &Path) {
     }
 }
 
-/// Settle the names kept in a worktree's own Git directory:
-///  for a command that learned only that directory.
-pub fn settle_worktree_directory_names(git_dir: &Path) {
-    rename_worktree_directory_names(git_dir);
-    fold_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS);
-}
-
 /// What:
 ///  A path below a Git directory that is spelled with the current data folder in front
 ///  (`monochromatic-git-policy-cli/work`),
@@ -272,32 +265,6 @@ pub fn relative_paths_for_reading(directory: &Path, relative: &str) -> Vec<Strin
         paths.push(format!("{prefix}{rest}"));
     }
     return paths;
-}
-
-/// What:
-///  The relative path below a Git directory a reader must use for `relative`,
-/// under the current data
-///  folder,
-/// or under the earlier one when only that exists.
-/// Why:
-///   A reader that visits one folder and never both is answered here;
-/// a reader that must not miss a folder uses
-///  `relative_paths_for_reading`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function relativePathForReading(directory: string, relative: string): string;
-/// ```
-pub fn relative_path_for_reading(directory: &Path, relative: &str) -> String {
-    let prefix: String = format!("{}/", DATA_FOLDER.current);
-    let Some(rest) = relative.strip_prefix(prefix.as_str()) else {
-        return relative.to_string();
-    };
-    let folder: PathBuf = data_folder_for_reading(directory);
-    let Some(name) = folder.file_name().and_then(std::ffi::OsStr::to_str) else {
-        return relative.to_string();
-    };
-    return format!("{name}/{rest}");
 }
 
 #[cfg(test)]

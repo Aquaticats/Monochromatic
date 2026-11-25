@@ -157,21 +157,6 @@ fn suffixed(moved_name: &OsStr, attempt: usize) -> PathBuf {
 }
 
 /// What:
-///  The name of the file one record is moved under,
-/// which is the record's own name in every case but a stage's registration record.
-/// Why:
-///   A moved record keeps the name that says what it was,
-/// so the person who opens the folder reads the record the notice named.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const movedName = (record) => basename(record);
-/// ```
-pub fn moved_name_of(record: &Path) -> OsString {
-    return record.file_name().map_or_else(OsString::new, OsStr::to_os_string);
-}
-
-/// What:
 ///  The path one moved record would be moved to,
 /// which no caller needs but a control that checks the folder.
 /// Why:

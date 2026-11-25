@@ -454,19 +454,6 @@ pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &RefName)
 }
 
 /// What:
-///  Reads the ref storage backend.
-/// Why:
-///   A Git that cannot report it (before 2.45) is the files backend.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await resolveRefFormat({ gitPath, cwd });
-/// ```
-pub fn resolve_ref_format(context: &GitContext, cwd: &Path) -> Result<RefFormat, GitFailure> {
-    return resolve_ref_format_with(context, cwd, None);
-}
-
-/// What:
 ///  Reads the ref storage backend,
 /// from the configuration snapshot when it proves `files`.
 /// Why:

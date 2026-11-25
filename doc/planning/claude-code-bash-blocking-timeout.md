@@ -3,11 +3,13 @@
 Purpose:
 the design tree for replacing forced immediate backgrounding in the Claude Code Bash hook
 with a one-second foreground timeout.
-Grilling is in progress.
-This record is unapproved,
-and no implementation is authorized until the user confirms a shared understanding.
+Grilling is complete.
+The user confirmed shared understanding on 2026-11-25T18:02:17-05:00
+and authorized implementation.
+The accepted contract is recorded in
+`doc/decision/claude-code-bash-blocking-timeout.md`.
 
-State recorded 2026-11-25T17:48:01-05:00.
+State recorded 2026-11-25T18:00:40-05:00.
 
 ## Requirement as stated
 
@@ -95,9 +97,11 @@ If it finishes within one second,
 it returns its normal synchronous result.
 If it remains running,
 Claude Code can move it to the background and return the native task ID and output path.
-The configured foreground timeout is `1000` milliseconds,
-but the final review found later result arrival and completion races in the probe logs.
-Whether an approximately two-second native floor is consistent requires controlled timing probes.
+The configured foreground timeout is `1000` milliseconds.
+The user accepted in `Q21 A` that native results can arrive around two seconds
+and that commands finishing between the nominal timeout and native handoff
+can return complete output with a background notice.
+The configured value is not a strict one-second result-delivery guarantee.
 The timeout is not intended as a general execution-lifetime limit.
 A successful `cd` can now persist when the command returns in the foreground.
 A `cd` in a command that returns as a background task does not persist.
@@ -145,7 +149,7 @@ A command such as `sleep 30` receives no new default timeout.
 Output filtering remains independent,
 so a filtered sleep can still be wrapped in the pipeline that starts with `set -o pipefail`.
 The exemption therefore must not be described as proof that native Claude Code sees a leading `sleep`.
-Its real wrapped and unwrapped behavior remains a required probe.
+Its real wrapped and unwrapped behavior is recorded under native probe evidence.
 A chained command such as `sleep 2 && make` is eligible when its timeout is absent.
 The user accepted in `Q6 B` that chained sleeps can terminate.
 Because filtering can change the leading command seen by Claude Code,
@@ -240,13 +244,9 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-One timing question reopened after the final Sonnet review:
-
-- `observed-blocking-floor`:
-  accept and document result arrival beyond the nominal one-second timeout,
-  or treat one second of actual blocking as a hard requirement that needs another mechanism.
-
-The answer waits for controlled wrapped and unwrapped duration probes in headless and interactive sessions.
+The design frontier is empty.
+The user accepted the measured native result timing in `Q21 A`.
+Immediate backgrounding and a custom strict one-second runner were presented and not chosen.
 
 The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
 which production accepts.
@@ -255,9 +255,13 @@ but implementation tests must use the production predicate and include those dif
 The scratch wrapper probes exercise the real filter executable,
 not production allowlist and denylist composition.
 
-A fresh substantive cross-vendor review of the final record and probe evidence remains required
-before the user is asked to confirm shared understanding.
-Implementation stays unauthorized until that confirmation.
+The final fresh Claude Sonnet acceptance review returned **READY** on 2026-11-25.
+It found no design blocker,
+missing user decision,
+or critical untested mechanism.
+Its only correction was a missing derived unwrapped measurement file,
+now created from the raw log.
+Implementation stays unauthorized until the user confirms shared understanding.
 
 ## Review record
 
@@ -282,8 +286,8 @@ Its new output-buffering and startup-registration findings are folded in.
 A final Claude Sonnet review examined the record and raw probe evidence.
 It returned not ready because nominal `1000` millisecond timeouts did not always produce results at one second.
 Several commands returned full output with a background notice after completion.
-The review had not established a native floor,
-so controlled duration probes are required before the user answers the timing question.
+The controlled duration probes then confirmed that one-second result delivery is not guaranteed.
+The user accepted those measurements and the native behavior in `Q21 A`.
 
 ## Rejected recommendations
 
@@ -432,37 +436,86 @@ Wrapped results were:
 
 The measurement files are `duration-unwrapped-measurements.jsonl`
 and `duration-wrapped-measurements.jsonl` in the probe evidence folder.
-The interactive arm is still required before the user answers the timing question.
 
-## Verification still owed
+### Controlled interactive durations
 
-A fresh cross-vendor reviewer must read this final record and the probe evidence
-before the user is asked to confirm shared understanding.
+The interactive wrapped arm used a positional prompt and a disposable HOME.
+Earlier PTY driver attempts that never submitted the prompt were discarded as evidence.
+The valid session produced these results:
 
-After acceptance,
-implementation verification must cover the filter-skipped composition branch,
-both existing `run_in_background` rewrite sites,
-legacy-variable ignoring,
-exact lowercase false-like values,
-case-sensitive non-matches,
-and the actual output-filter bundle.
-The wrapper's share of the one-second budget needs an interleaved unwrapped control;
-absolute wrapper timing alone is not a finding.
+- Duration 1200:
+  1322 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  1875 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 2500:
+  1959 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Duration 5000:
+  1848 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
 
-The existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND` sweep currently finds only implementation,
-tests,
-the old README,
-and this planning record outside bundles.
-After acceptance,
-the old owner decision in `package/claude-code-plugin/bash-output-filter/README.md`
-must be superseded in place and all implementation and documentation references updated together.
+The shorter-timeout control ran only in the headless arms.
+After the 5000 ms task completed,
+the interactive model did not start the control turn,
+so the probe was stopped rather than treating model inactivity as a native timing measurement.
+That separate observation does not change the four completed tool-result measurements above
+and is not diagnosed as a notification defect.
+The valid measurements are in `duration-interactive-measurements.jsonl`.
+
+### Built plugin consumer verification
+
+The rebuilt tracked bundle passed real `claude --plugin-dir` probes:
+
+- `printf builtQuick` returned synchronously with `timeout: 1000` injected.
+- A valid slow Node command returned `1500` with a background task ID and later exited 0.
+- `xxd --version` stayed unwrapped,
+  received `timeout: 1000`,
+  and returned successfully.
+- Explicit background preserved `timeout: 500`.
+- Explicit foreground received `timeout: 1000`.
+- Bare `sleep .5` remained exempt.
+- Caller `timeout: 600000` survived.
+- Native subagent output filtering remained with no execution fields added,
+  while the `--agent` main session received the timeout.
+- Startup emitted the full warning when enabled,
+  and the disabled-policy startup and command stayed without the warning or default timeout.
+
+An initial slow-fixture quoting error and `xxd --help` exiting 1 were probe-fixture issues,
+not hook failures.
+They were rerun with valid successful commands as described in this section.
+
+## Implementation review
+
+The final fresh Claude Sonnet design reviewer returned **READY**.
+A read-only DeepSeek second pass then reviewed the implementation diff,
+ran the focused checks,
+and executed the tracked bundle over 30 hook payloads.
+It found no blocker and confirmed the accepted eligibility and startup-warning behavior.
+
+The earned in-scope findings are fixed:
+
+- The Codex troubleshooting precedent now describes a foreground timeout instead of forced backgrounding.
+- Handler assertions derive from `BLOCKING_TIMEOUT_MS`.
+- Test helpers use one object parameter and the predicate suites are nested under one empty-name suite.
+- Filter-skipped caller-timeout and explicit-background pass-through cases are locked by tests.
+- Numeric predicate examples and logical source regions are documented.
+- Plugin metadata and the README name the timeout and SessionStart warning.
+
+The unrelated `bash-poke` documentation finding was left to its owning concurrent work.
+Corrective comments were posted on commits `bf59b3e994` and `c25ae3ad59` without amending them.
+The post-review plugin rebuild passed and produced no bundle diff.
+The changed Markdown rendered successfully again through `pandoc`.
+
+## Verification limitation
+
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
+The locked repository linter was not compiled ad hoc.
 
 ## Next action
 
-Measure controlled command durations and result arrival in wrapped and unwrapped,
-headless and interactive sessions.
-Record the timing distribution,
-then ask the user whether the observed native behavior is acceptable
-before requesting final shared-understanding confirmation.
+Owner review and acceptance are not recorded.
+No agent-open implementation item remains.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background

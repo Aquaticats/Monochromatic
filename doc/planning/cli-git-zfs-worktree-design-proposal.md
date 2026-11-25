@@ -348,7 +348,8 @@ Do not assume those snapshots protect against that account or put unrelated ZFS 
 
 The `mount` grant is an ioctl prerequisite, not Linux mount-namespace authority. Do not grant `mountpoint`,
 `canmount`, `setuid`, `devices`, `rename`, `promote`, `receive` (including `receive:append`) or permissions over the
-whole home tree. The removal threat boundary relies on the absence of lineage-changing grants (reasoning from
+whole home tree. Amended 2026-11-25: do not grant `allow` either, which would let the account hand its grants to another
+account (`doc/decision/cli-git-zfs-delegation-forbids-allow.md`). The removal threat boundary relies on the absence of lineage-changing grants (reasoning from
 [VM items 11][vm-promote] and [12][vm-replacement], to be checked in the product).
 OpenZFS `zfs-2.4.4` sources: `man/man8/zfs-allow.8:110` to `:120`,
 `module/zfs/dsl_deleg.c:574` to `:582`, and `module/zfs/zfs_ioctl.c:826` to `:832`, `:1005` to `:1037` and

@@ -1,7 +1,7 @@
 # bash-output-filter
 
-Claude Code PreToolUse hook that pipes Bash tool output through a text filter
-to strip wasteful patterns before the model sees them.
+Claude Code plugin whose PreToolUse hook filters Bash output and applies a one-second foreground timeout,
+and whose SessionStart hook warns when native background tasks are disabled.
 
 ## Problem
 
@@ -104,64 +104,111 @@ Commands matching these patterns are **not** filtered:
 
 ## Setup
 
-The plugin is registered via `.claude-plugin/plugin.json` and hooks into `PreToolUse`
-with a `Bash` matcher.
- No manual configuration needed beyond installing the plugin.
+The plugin is registered via `.claude-plugin/plugin.json`.
+It hooks into `PreToolUse` with a `Bash` matcher
+and `SessionStart` with a `startup` matcher.
+No manual configuration is needed beyond installing the plugin.
 
-## Force background
+## Blocking timeout
 
-Every Bash call the main agent makes gets `run_in_background: true` by default,
- even when the tool input supplies `run_in_background: false`,
- because the hook's `updatedInput` rewrite sets the flag after spreading the original input.
+The hook supplies `timeout: 1000` for eligible main-agent Bash calls that have no caller-supplied timeout.
+It no longer forces `run_in_background: true`.
+A quick command returns synchronously.
+A longer command uses Claude Code's native auto-background result with a task ID and output path.
 
-### Owner decision (2026-10-21)
+### Accepted decision
 
-Blanket default-on backgrounding is an owner decision confirmed on 2026-10-21,
- not an accidental default to narrow back to commands expected to exceed a minute.
- Relying on Claude to identify which calls will block leaves that same failure mode in control of the choice,
- so the forcing covers every main-agent Bash call.
- The motivating report is foregrounding work that should background,
- such as watching a GitHub Actions run with `gh run watch 123456789012 --exit-status` while independent work waits.
- That report is observed usage,
- not a controlled model-prevalence evaluation.
+The 2026-11-25 decision in
+[`doc/decision/claude-code-bash-blocking-timeout.md`](../../../doc/decision/claude-code-bash-blocking-timeout.md)
+supersedes the blanket forced-background decision of 2026-10-21.
+The value comes from the owner's request,
+not a workload measurement.
 
-### Scope
+Native delivery is not guaranteed at one second.
+Controlled headless and interactive probes on Claude Code 2.1.332 returned some commands around two seconds.
+Commands finishing between the nominal timeout and native handoff can return complete output
+with a background notice.
+The owner accepted that behavior.
 
-The forcing is broader than the long-command procedure in
- [`doc/handover/cli-git-rust-implementation.md`](../../../doc/handover/cli-git-rust-implementation.md)
- [section removed on 2026-11-03 under rule H0P and kept in commit `e10b8186bc`],
- which backgrounds only tests,
- clippy,
- mutation,
- and commands that may exceed a minute.
- That procedure is narrower,
- and it does not bound this hook's policy.
- Setting `MONOCHROMATIC_BASH_FORCE_BACKGROUND` to `off` in the session environment disables the forcing;
- any other value,
- or an unset variable,
- keeps it on.
- Two kinds of call stay in the foreground:
+### Eligibility and caller intent
 
-- Subagent calls stay in the foreground,
-   because the hook input carries `agent_id` only inside a subagent,
-   and a subagent waiting on a command's output would otherwise lose its synchronous result.
-- A bare numeric sleep stays in the foreground,
-   because backgrounding a pure delay returns nothing to wait on;
-   the whole command is exactly `sleep <number>`,
-   with a plain numeric duration and no unit suffix,
-   chaining,
-   redirects,
-   or extra arguments.
+The default applies only when every condition holds:
 
- Backgrounding is independent of the output-filter denylist:
- commands the denylist skips still run in the background,
- just without the output filter.
+- The event has no `agent_id`.
+- `run_in_background` is not `true`.
+- The caller did not supply `timeout`.
+- The command is not a bare numeric sleep under the existing production predicate.
+- The policy is enabled.
+
+A bare numeric sleep still passes through output filtering,
+so the executed command begins with the filter wrapper rather than `sleep`.
+It keeps the exemption from the default timeout.
+
+Explicit background calls preserve their flag and their present or absent timeout.
+Every caller-supplied timeout is preserved,
+including `0`,
+`500`,
+and `600000`.
+`run_in_background: false` receives the default only when timeout is absent.
+
+Native subagent execution fields remain untouched,
+but output filtering still applies to subagents.
+A main session started with `--agent` has `agent_type` without `agent_id`
+and remains in scope.
+Separate `spawn-claude` child sessions are main sessions in their own processes and remain in scope.
+PowerShell is unchanged.
+
+### Output filtering and buffering
+
+Timeout eligibility is independent of the output-filter allowlist and denylist.
+A filter-skipped command retains its original command text and still receives the timeout when eligible.
+All rewrites preserve the complete original input,
+including `description`.
+
+The filter reads stdin to EOF before emitting filtered text.
+A moved filtered command therefore has no filtered interim output,
+and a filtered command terminated at its foreground timeout can lose buffered diagnostics.
+The owner explicitly accepted this limitation.
+
+### Configuration
+
+`MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` controls the policy.
+Exact lowercase `0`,
+`false`,
+and `off` disable it.
+Unset and every other value enable it.
+The duration is fixed,
+not a configurable setting.
+
+`MONOCHROMATIC_BASH_FORCE_BACKGROUND` has no effect.
+Sessions using the old `off` setting return to the enabled default unless they migrate.
+
+### Disabled native background tasks
+
+When `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and the timeout policy is enabled,
+a synchronous `SessionStart` handler emits one `systemMessage` at startup.
+It does not re-warn on resume or clear.
+No warning appears when the timeout policy is disabled.
+
+The warning does not change the command,
+timeout,
+or background mode.
+A timeout can therefore terminate the command when native auto-backgrounding is unavailable.
+Bare mode has the same termination risk without a promised warning.
+Interactive warning visibility is verified.
+Headless evidence is structured hook output,
+not a claim that every output surface displays the message.
 
 ### Results and working directory
 
-A backgrounded call returns a task ID and an output file path instead of an immediate synchronous result,
- and the agent reads the output with `Read` once the exit notification arrives.
- A `cd` inside a backgrounded command does not carry over to later calls.
+A moved command returns a task ID and output path.
+The agent reads output with `Read` after the exit notification arrives.
+Claude Code's native result is sufficient;
+the hook adds no second completion notice.
+
+A successful `cd` in a foreground result can persist.
+A `cd` in a command returning as a background task does not persist.
+The owner accepted this timing-dependent behavior.
 
 ### Follow-through
 
@@ -174,5 +221,12 @@ Backgrounding does not finish the work:
 
 ### Verification
 
-A real `claude --print` session with this hook returned `Command running in background with ID ...`
- and then the filtered output (`git version 2.56.0`) through the output file.
+Real Claude Code 2.1.332 probes verified quick and moved commands,
+caller values,
+explicit flags,
+wrapped and unwrapped sleeps,
+`agent_id` versus `agent_type`,
+working-directory persistence,
+and startup-warning behavior.
+The full evidence and final **READY** review are recorded in
+[`doc/planning/claude-code-bash-blocking-timeout.md`](../../../doc/planning/claude-code-bash-blocking-timeout.md).
