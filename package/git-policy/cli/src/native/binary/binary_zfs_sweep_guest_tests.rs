@@ -263,12 +263,60 @@ fn record_line<'a>(record: &'a str, key: &str) -> Option<&'a str> {
     return record.lines().find(|line| return line.starts_with(prefix.as_str())).map(|line| return &line[prefix.len()..]);
 }
 
+/// The words a sweep's report begins its line about one clone with,
+/// which are the words `CloneOutcome::line` prints before the dataset.
+pub(super) const ANSWER_WORDS: [&str; 7] = ["attached", "unmounted", "reattached", "refused", "nothing", "failed", "held"];
+
+/// Whether one printed line is the sweep's line about this dataset,
+/// which the line names as a field of its own.
+/// The dataset is the line's second field,
+/// so a longer dataset holding this one as its prefix is another line's clone,
+/// and a refusal whose message names this dataset is still a line about another clone.
+pub(super) fn printed_line_about(line: &str, dataset: &str) -> bool {
+    let mut fields = line.split(' ');
+    let Some(word) = fields.next() else {
+        return false;
+    };
+    return ANSWER_WORDS.contains(&word) && fields.next() == Some(dataset);
+}
+
 /// The line the sweep printed about one dataset,
 /// or nothing when it printed none.
 pub(super) fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
-    return said.lines().find(|line| {
-        return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("unmounted ") || line.starts_with("reattached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held "));
-    });
+    return said.lines().find(|line| return printed_line_about(line, dataset));
+}
+
+/// What:
+///  The lookup of one clone's line in what a sweep printed,
+///  over the two shapes that fooled it in the guest:
+///  a slot whose name is a prefix of a longer slot's,
+///  and a refusal whose message names another clone.
+/// Why:
+///  The guest run of 2026-11-25 asked about `.../c64` and was answered with the line
+///  about `.../c643`,
+///  because the name was matched as a substring of the longer one.
+///  The printed line puts the dataset in a field of its own,
+///  so a lookup that matches that field cannot confuse the two.
+#[test]
+fn a_clones_line_is_found_by_its_whole_name_and_never_by_a_longer_name_that_holds_it() {
+    let base: &str = "git-policy-cli-store/step8-stale/monochromatic-git-worktree-clone-datasets";
+    let asked: String = format!("{base}/c64");
+    let longer: String = format!("{base}/c643");
+    // The guest's own two lines, in the order the failing run printed them.
+    let said: String = format!(
+        "attached {longer} slot=c643 mount=525 at=/root/sweep-stale-checkout/.claude/worktrees/c643\nrefused {asked} slot=c64 step=flags: the mount's enforced flags changed\n"
+    );
+    let found: &str = line_about(said.as_str(), asked.as_str()).expect("the lookup finds the line about the clone it was asked about");
+    assert!(found.starts_with("refused "), "the lookup answers with the line about {asked} rather than {longer}'s: {found}");
+    // The positive control: the lookup does find a line, so the assertion beside it is not satisfied by a lookup that finds nothing.
+    let other: &str = line_about(said.as_str(), longer.as_str()).expect("the lookup finds the longer name's own line");
+    assert!(other.starts_with("attached "), "the lookup answers with the line about {longer}: {other}");
+    // A refusal's message may name another clone, and a line about one clone is not a line about the clone its message names.
+    let named_in_the_message: String = format!(
+        "refused {base}/c640 slot=c640 step=clone-origin: the clone's origin is {asked}\nrefused {asked} slot=c64 step=flags: the mount's enforced flags changed\n"
+    );
+    let answered: &str = line_about(named_in_the_message.as_str(), asked.as_str()).expect("the lookup finds the line about the clone it was asked about");
+    assert!(answered.contains(" slot=c64 "), "the lookup answers with the line whose own name field is {asked}: {answered}");
 }
 
 /// Write the handler configuration the sweep reads.
