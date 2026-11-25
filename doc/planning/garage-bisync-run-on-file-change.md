@@ -103,6 +103,38 @@ two things need measuring on a disposable Garage before the design settles:
   the failure alert,
   and systemd's one-run-at-a-time guarantee for a unit.
 
+## Owner answers, round 3 (2026-11-25T17:38:21-05:00)
+
+- Mid-run edits:
+  a hard requirement.
+  When a change lands while a sync runs,
+  one more sync starts after that run ends,
+  by the watcher itself or by a small wrapper around the command it runs.
+- Settle pass:
+  every run of the unit runs bisync twice,
+  the second pass straight after the first
+  (on Linux a second `ExecStart=` line in `rclone-bisync-garage.service`),
+  accepting one more bucket listing per run,
+  including the 5-minute timer runs.
+- Upstream:
+  research whether rclone already tracks or fixed the baseline mtime behaviour,
+  and draft a report for the owner to review;
+  nothing is posted upstream without the owner's approval of the wording.
+
+## Design consequences still to settle
+
+- A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
+  so a watcher that queues its own runs still misses a change that lands during a timer run
+  unless something starts one more run after it.
+  Two shapes meet the round 3 requirement:
+  a wrapper that starts the unit again when it was already running at the time of the request,
+  or making the watcher the only thing that starts the unit,
+  with the 5-minute timer reaching it through a file the watcher watches.
+  This waits for the watcher pick.
+- The reasoning in `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` that `--conflict-resolve newer`
+  cannot let a stale remote copy win assumes one writer;
+  it needs rechecking once other clients write to the bucket on change.
+
 ## Facts gathered for round 2
 
 - systemd path units do not recurse:
@@ -158,8 +190,9 @@ The pod was removed afterwards.
   two save cycles,
   each followed by a run and a settle pass,
   added no new `.conflictN` file.
-- A save made while a run was uploading was not seen by that run;
-  the next run uploaded it without a conflict.
+- A save of `main.kdbx` made while a run was uploading a different file was not seen by that run;
+  the next run uploaded it without a conflict,
+  because `main.kdbx` carried no phantom then.
   So a change that lands mid-run needs one more run after the current one ends.
 - A download from the bucket writes `<name>.<8 hex digits>.partial`
   (create, modify, close, attribute change),
@@ -168,6 +201,46 @@ The pod was removed afterwards.
   Downloaded objects get no phantom.
 - A save done as "write a temporary file, rename it over the original" shows a create and writes on the temporary name,
   then the rename.
+
+Second round on the same pod (2026-11-25T17:34:03-05:00),
+for the cases the settle pass might not cover:
+
+- Deletion,
+  positive control:
+  a new file uploaded by one run,
+  then deleted locally before any other run,
+  came back from the bucket on the next run,
+  as `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` records.
+- Deletion with a settle pass between the upload and the delete:
+  the next run deleted the object,
+  and the file was gone on both sides.
+- A second save of the same file while its upload was running:
+  the next run raised a conflict and left `.conflict1` on both sides;
+  the settle pass after it did not help.
+- A second save between the upload pass and the settle pass (53 ms apart in the log):
+  the settle pass itself raised the conflict and left `.conflict1` on both sides.
+
+What `systemctl start` does while the unit runs,
+measured on a oneshot unit that sleeps 8 seconds,
+under systemd as PID 1 in the `docker.io/cachyos/cachyos:latest` container:
+
+- a second `systemctl start` sent 2 seconds into the run joined that run:
+  the unit ran once,
+  and both callers returned when it ended,
+  each with exit status 0;
+- a `systemctl start --no-block` sent during the run also joined it;
+- a start sent after the run ended started a new run.
+
+So a start request made while any run is going (the timer's or the watcher's) is absorbed by that run,
+and a change that lands mid-run needs a new start request after the run ends.
+
+So a settle pass narrows the window in which a save makes a conflict copy
+from "until the next run" to the length of the upload pass plus the gap before the settle pass,
+and it closes the deleted-file-comes-back case;
+it does not remove the window.
+The root cause stays the rclone behaviour the troubleshooting doc names:
+after an upload,
+bisync records the source mtime in its baseline but compares the object's `LastModified` next time.
 
 ## Owner answers, round 2 (2026-11-25T17:19:41-05:00)
 

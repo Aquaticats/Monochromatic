@@ -224,7 +224,8 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     // A replay writes what the first landing wrote, and a batch built again under its own number replaces the commit it names: an
     //  identical record is left as it is and anything else goes before the new one is published.
     let text: String = encode(owed);
-    let unchanged: bool = match std::fs::read_to_string(path.as_path()) {
+    // A record that is a named pipe is not the record this batch wrote, and it answers at once rather than waiting on.
+    let unchanged: bool = match crate::plain_file::read_plain_text(path.as_path()) {
         Ok(existing) => existing == text,
         Err(_) => false,
     };
@@ -339,7 +340,7 @@ pub fn records_and_unreadable(git_dir: &Path) -> (Vec<Owed>, usize) {
             }
             _ => continue,
         }
-        match std::fs::read_to_string(path.as_path()).map(decode_text) {
+        match crate::plain_file::read_plain_text(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
             Ok(Err(reason)) => {
                 crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display());

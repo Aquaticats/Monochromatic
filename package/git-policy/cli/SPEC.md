@@ -10366,6 +10366,8 @@ and never the wait;
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
+and that thread writes the standard error descriptor itself rather than the standard library's shared handle,
+whose one lock for the whole process a held write would keep the command's own notes waiting on,
 a line that cannot be handed over is dropped and counted (`linesDropped`),
 `finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
 (twice `LOOK_INTERVAL`),
@@ -19264,6 +19266,30 @@ by the names Git's summary lines carry:
 `monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
 Several builds that did not land are joined with commas and `and`.
 A commit that was not built again prints no note.
+That note,
+and every other note the commit path writes on standard error (issue 6421:
+the policy events of the landing and of the gate,
+the stop's message,
+Git's own words for a refused form,
+the warning about a committed conflict marker,
+the line about an operation left open,
+the note on a rebuilt commit,
+the note about a commit held behind a reference lock,
+and the hand-off's notices),
+is handed to the thread that writes standard error
+(`foundation/standard_error_off_the_calling_thread.rs`)
+and is never written by the commit's own thread:
+a reader that stopped draining costs the first such note the `WARNING_WRITE_CEILING` of
+`service/wait_ceilings.rs` (250 ms) and every later note nothing,
+the lines wait in a bounded queue and reach the reader when it reads again,
+and a queue that is full drops its lines and counts them rather than growing.
+They are lines a person can live without:
+the exit status already carries the result,
+and the one stream a commit's own last words keep blocking is its standard output,
+which carries Git's summary and the wrapper's summary line as Git writes them.
+A control runs a commit whose standard error is a pipe filled to its capacity and never read,
+and expects the command to return with the commit on the branch and the pipe still full
+(`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
@@ -22082,6 +22108,35 @@ because running it would settle the wrong work under the name.
 A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
 since this release's names for it would not fit.
 
+Every file this wrapper reads from its own record folders is opened as a plain file
+(`foundation/plain_file.rs`):
+without blocking and without following a link,
+refused when the open handle is not a regular file,
+and never read past `SMALL_FILE_LIMIT` (1 MiB).
+That covers the queue's `pending`,
+`held`,
+`claimed`,
+`recovering`,
+`done`,
+`failed` and `blocked` entries,
+the `removals-begun`,
+`around-removals-begun` and `recorded-destroys` records,
+the kept-worktree,
+left-in-place,
+failed-push,
+orphan-notice and relink-notice folders,
+the owed index records,
+the service's `<instance>.git-dir` notes and its journal records,
+the kept-reference records,
+and the `.git` pointer that a removal or a snapshot request reads.
+A named pipe at one of those names is a record this command cannot read rather than a wait:
+opening a pipe for reading waits for a writer that may never come,
+which held every wrapped command in such a repository for ever (issue 6415).
+An entry of the queue that is not a plain file is moved to `failed` with a line naming it,
+where nothing runs it again.
+`source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
+and reads with a call that can wait.
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;
@@ -22381,8 +22436,8 @@ the two costs measured wherever they fell
 `stderrMs`:
 time spent removing scratch trees,
 how many of those removals ended without finishing within their ceiling,
-and time spent writing to standard error,
-which waits for whoever reads it;
+and time spent handing the command's notes to the thread that writes standard error,
+which is the bound of the first note a reader did not take and nothing after it;
 each of them lies inside whichever phase it fell in,
 and inside `otherMs` when no phase covers it),
 and `prepareParts`

@@ -22,6 +22,8 @@
 
 /// The command being run.
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
+/// Standard error as a stream whose lines a thread of their own writes.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 /// The prepared commit and what it came to.
 use crate::service_prepare::{NativeInputs, Ready};
 /// The commit the service built from the request,
@@ -229,7 +231,11 @@ pub(crate) fn the_held_ending(context: &GitContext, cwd: &Path, held: &Held) -> 
     let short: String = crate::landed_summary::short_name(context, cwd, objects.as_path(), None, held.new.as_str());
     let waiting: usize = held_commit_record::list(held.git_dir.as_path()).0.len();
     let words: String = held_commit_words::answer(held, short.as_str(), waiting);
-    let _written = writeln!(std::io::stderr(), "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
+    // What: The held commit's words go to the thread that writes standard error.
+    // Why:  The exit status already says the result, and a reader that stopped draining must not
+    //       keep the commit's own answer from returning.
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let _written = writeln!(notes, "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
     return ServiceCommit { result: TransactionResult { events: Vec::new(), exit_code: 0, landed_oid: None, uses_lfs: false }, handoff: None };
 }
 

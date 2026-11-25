@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:14:27-05:00.
+State recorded 2026-11-25T17:44:36-05:00.
 This work is incomplete and unapproved.
 
 ## Current state
@@ -15,36 +15,35 @@ Do not restore,
 stash,
 or revert them.
 
+## Completed validation
+
+DeepSeek and Claude Sonnet reviewed earlier design snapshots.
+Their earned findings are folded into the planning record.
+Real Claude Code 2.1.332 probes now cover bare and chained sleeps,
+quick and slow foreground commands,
+caller-supplied timeouts,
+explicit background and foreground flags,
+cwd persistence,
+native subagent versus `--agent` main-session boundaries,
+and startup,
+resume,
+policy-disabled,
+and background-disabled warning behavior.
+An interactive PTY probe confirmed that the startup warning is visible,
+while noninteractive text mode exposes it only through structured hook output.
+The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q20 A`.
+
 ## Open work
 
-- Obtain a fresh cross-vendor review of the complete design and fold in findings that earn changes.
-- Run the real Claude Code 2.1.332 probes for quick and slow foreground commands,
-  caller-supplied timeouts,
-  explicit background calls,
-  wrapped and unwrapped sleep forms,
-  native subagent execution-field pass-through,
-  and the startup warning.
+- Measure controlled command durations and result arrival in wrapped and unwrapped,
+  headless and interactive sessions.
+- Ask the user whether result arrival beyond the nominal one-second timeout is acceptable.
+- Obtain any fresh review needed by the timing evidence.
 - Present the final assembled contract for explicit shared-understanding confirmation.
-
-## Start constraint
-
-At 2026-11-25T17:14:27-05:00,
-`systemctl --user list-units --no-legend --plain --state=active 'pi-*.service'`
-reported 19 active Pi units.
-One other Claude agent was also running,
-filling the current starting level.
-Start one new local Claude reviewer only after the active Pi count falls below 19,
-and keep the reviewer and native probe sequential.
-
-The stop condition for the wait is an active Pi count below 19.
-The wait has a ten-minute deadline.
-If it expires,
-reassess the current agent count and report the blocker rather than exceeding the starting level.
+- Implement only after that confirmation.
 
 ## Next step
 
-Run the independent review while the local slot wait proceeds.
-When a slot is available,
-run the Claude Sonnet gate review and then the native probe,
-record their evidence in the planning document,
-and commit before asking for confirmation.
+Run the controlled timing matrix,
+record it in the planning document,
+and commit before asking the timing question.

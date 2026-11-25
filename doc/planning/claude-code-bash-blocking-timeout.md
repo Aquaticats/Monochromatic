@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:30:26-05:00.
+State recorded 2026-11-25T17:48:01-05:00.
 
 ## Requirement as stated
 
@@ -94,10 +94,13 @@ An eligible main-agent command starts in the foreground.
 If it finishes within one second,
 it returns its normal synchronous result.
 If it remains running,
-Claude Code moves it to the background and returns the native task ID and output path.
+Claude Code can move it to the background and return the native task ID and output path.
+The configured foreground timeout is `1000` milliseconds,
+but the final review found later result arrival and completion races in the probe logs.
+Whether an approximately two-second native floor is consistent requires controlled timing probes.
 The timeout is not intended as a general execution-lifetime limit.
-A successful foreground `cd` can now persist when the command finishes before the threshold.
-A `cd` in a command that moves to the background still does not persist.
+A successful `cd` can now persist when the command returns in the foreground.
+A `cd` in a command that returns as a background task does not persist.
 This timing-dependent working-directory behavior differs from the old always-background policy
 and requires an explicit consumer-boundary probe.
 The user accepted this consequence in `Q2 A`,
@@ -219,8 +222,11 @@ The rewrite spreads the complete original Bash input so `description` and unrela
 The output-filter script reads stdin to EOF before emitting filtered text.
 A moved filtered command therefore has no filtered output available mid-run,
 and a filtered command terminated at its foreground timeout can lose output buffered in the filter.
-This is an accepted limitation of retaining the existing filter under the chosen timeout policy,
-not a reason to invent a streaming-filter redesign in this change.
+The user explicitly accepted this limitation in `Q20 A`,
+which was returned with the label `Q28 A` and interpreted as the only open question's option A.
+The filter retains read-to-EOF behavior.
+The interim-output and termination-loss consequences must be documented,
+and no streaming-filter redesign belongs to this change.
 
 Only `agent_id` identifies a native subagent for this boundary.
 A main session started with `--agent` can carry `agent_type` without `agent_id` and remains in scope.
@@ -234,11 +240,23 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-The design frontier is empty.
-No behavior remains silently assumed from the answered branches.
+One timing question reopened after the final Sonnet review:
 
-A cross-vendor review and native runtime probes remain required before the user is asked
-to confirm shared understanding.
+- `observed-blocking-floor`:
+  accept and document result arrival beyond the nominal one-second timeout,
+  or treat one second of actual blocking as a hard requirement that needs another mechanism.
+
+The answer waits for controlled wrapped and unwrapped duration probes in headless and interactive sessions.
+
+The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
+which production accepts.
+The tested `sleep 3` evidence remains valid,
+but implementation tests must use the production predicate and include those differential cases.
+The scratch wrapper probes exercise the real filter executable,
+not production allowlist and denylist composition.
+
+A fresh substantive cross-vendor review of the final record and probe evidence remains required
+before the user is asked to confirm shared understanding.
 Implementation stays unauthorized until that confirmation.
 
 ## Review record
@@ -261,7 +279,11 @@ which the review worktree did not contain.
 Its sleep-termination and cwd questions were already covered by `Q6 B` and `Q2 A`.
 Those answers and the accepted consequences are now explicit in this record.
 Its new output-buffering and startup-registration findings are folded in.
-A fresh cross-vendor re-review of the final record and probe evidence remains required before confirmation.
+A final Claude Sonnet review examined the record and raw probe evidence.
+It returned not ready because nominal `1000` millisecond timeouts did not always produce results at one second.
+Several commands returned full output with a background notice after completion.
+The review had not established a native floor,
+so controlled duration probes are required before the user answers the timing question.
 
 ## Rejected recommendations
 
@@ -289,10 +311,14 @@ The chained `printf` never ran.
 
 The identical command through the real output-filter wrapper also received `timeout: 1000`,
 but the executed command began with `set -o pipefail`.
-Claude Code moved it to background task `blhskwhvo` at one second.
+Claude Code returned background task `blhskwhvo` with `timedOutAfterMs: 1000`.
 The native result explicitly said no output had been read when it moved.
-The task later exited 0,
-and its output file contained `done`.
+The final review calculated a later result arrival,
+so this evidence does not establish a one-second return.
+The task later exited 0.
+A retained copy of its output at
+`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/wrapped-chained-sleep.output`
+contains `done`.
 This proves the accepted filter-dependent termination versus auto-background divergence.
 
 ### Timeout input matrix
@@ -317,7 +343,7 @@ Every rewrite preserved the caller's `description`.
 A quick `cd .../cwd-quick && pwd` received `timeout: 1000`,
 finished synchronously,
 and the next `pwd` returned `cwd-quick`.
-A subsequent `cd ../cwd-moved && node ...` moved to the background at its timeout.
+A subsequent `cd ../cwd-moved && node ...` returned full output with a background task ID.
 Its own output showed `cwd-moved`,
 while the native result said session cwd remained `cwd-quick`.
 The next `pwd` confirmed `cwd-quick`.
@@ -340,35 +366,85 @@ is the correct execution-policy boundary.
 With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and the policy enabled,
 the synchronous `SessionStart:startup` hook returned the expected `systemMessage`
 through the real Claude Code hook stream.
-Resume and policy-disabled probes remain.
+A resumed session emitted no SessionStart hook event,
+consistent with matcher `startup`.
+With the policy also disabled,
+the startup hook ran and returned `{}`.
+
+A slow unwrapped command with native background tasks disabled and our policy enabled
+still received `timeout: 1000` after the startup warning.
+It returned exit code 143 with `Command timed out after 1s`,
+confirming the accepted no-fallback termination behavior.
+Clear and compact exclusion follows from the `startup` matcher;
+only startup and resume received live event probes.
+
+Noninteractive text output did not display the warning and returned only `ok`.
+An interactive PTY session using a disposable HOME did display
+`SessionStart:startup says: Claude Code background tasks are disabled ...`
+with the full consequence and remedies.
+The evidence therefore supports interactive warning visibility and headless structured-hook output,
+not a claim that every output surface renders `systemMessage`.
+
+### Controlled headless durations
+
+Each command wrote its own start time.
+`resultAfterMs` below is the interval from that marker to the tool result's timestamp,
+not a claim about every stage of native delivery.
+The measurements are single samples per arm,
+so they establish that one-second blocking is not guaranteed but do not establish an exact native floor.
+
+Unwrapped results were:
+
+- Duration 1200:
+  1277 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  1829 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 2500:
+  1953 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Duration 5000:
+  1836 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Caller timeout 500 with duration 5000:
+  1953 ms,
+  `timedOutAfterMs: 500` and a message rounded to `1s`.
+
+Wrapped results were:
+
+- Duration 1200:
+  1297 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  924 ms,
+  `timedOutAfterMs: 1000`.
+  This timestamp anomaly is retained rather than explained away.
+- Duration 2500:
+  1949 ms,
+  `timedOutAfterMs: 1000`.
+- Duration 5000:
+  1924 ms,
+  `timedOutAfterMs: 1000`.
+- Caller timeout 500 with duration 5000:
+  1969 ms,
+  `timedOutAfterMs: 500` and a message rounded to `1s`.
+
+The measurement files are `duration-unwrapped-measurements.jsonl`
+and `duration-wrapped-measurements.jsonl` in the probe evidence folder.
+The interactive arm is still required before the user answers the timing question.
 
 ## Verification still owed
 
-Before shared understanding,
-the Claude Sonnet gate review must return and any earned findings must fold into this record.
-A real hooked Claude Code 2.1.332 session must then prove these critical mechanisms:
+A fresh cross-vendor reviewer must read this final record and the probe evidence
+before the user is asked to confirm shared understanding.
 
-- A hook-injected `timeout: 1000` returns a quick command normally
-  and moves a still-running command to a native background task.
-- Wrapped and unwrapped sleep forms exhibit their actual behavior;
-  no behavior is inferred from the original command text alone.
-- A filter-skipped command keeps its command text and receives the eligible execution rewrite.
-- Caller timeouts `500`,
-  `600000`,
-  and `0` survive unchanged.
-- Explicit `run_in_background: true` keeps its original mode and absent or supplied timeout.
-- `agent_id` suppresses execution-field changes,
-  while `agent_type` without `agent_id` does not.
-- The startup-only `systemMessage` renders once with the policy enabled,
-  does not render with it disabled,
-  and does not reappear on resume or clear.
-- A quick foreground `cd` and a moved `cd` demonstrate their different persistence rules.
-
-Implementation verification must also cover both existing `run_in_background` rewrite sites,
+After acceptance,
+implementation verification must cover the filter-skipped composition branch,
+both existing `run_in_background` rewrite sites,
 legacy-variable ignoring,
 exact lowercase false-like values,
 case-sensitive non-matches,
-filter-wrapped sleep,
 and the actual output-filter bundle.
 The wrapper's share of the one-second budget needs an interleaved unwrapped control;
 absolute wrapper timing alone is not a finding.
@@ -383,8 +459,10 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Finish the independent review and critical native probes,
-record their evidence,
-then present the assembled contract for explicit shared-understanding confirmation.
+Measure controlled command durations and result arrival in wrapped and unwrapped,
+headless and interactive sessions.
+Record the timing distribution,
+then ask the user whether the observed native behavior is acceptable
+before requesting final shared-understanding confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background

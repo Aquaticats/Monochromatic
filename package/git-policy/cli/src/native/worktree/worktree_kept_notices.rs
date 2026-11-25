@@ -244,7 +244,8 @@ pub fn kept_worktree_notices(common_dir: &Path) -> Vec<Notice> {
 /// const parsed = parsedFile(path); // [worktree, branch, why] | undefined
 /// ```
 fn parsed_file(path: &Path) -> Option<(PathBuf, String, String)> {
-    let text: String = std::fs::read_to_string(path).ok()?;
+    // A named pipe at a notice's name answers as unreadable at once instead of holding the command that shows notices.
+    let text: String = crate::plain_file::read_plain_text(path).ok()?;
     return parse_record(text.as_str());
 }
 
@@ -261,7 +262,7 @@ fn parsed_file(path: &Path) -> Option<(PathBuf, String, String)> {
 /// const notice = noticeAt(claimed); // Notice | undefined
 /// ```
 fn notice_at(claimed: &Path) -> Option<Notice> {
-    let text: String = std::fs::read_to_string(claimed).ok()?;
+    let text: String = crate::plain_file::read_plain_text(claimed).ok()?;
     let (worktree, branch, why) = parse_record(text.as_str())?;
     let record: PathBuf = claimed.with_file_name(record_of_claim(claimed.file_name()?.to_string_lossy().as_ref())?);
     return Some(Notice { record, claim: claimed.to_path_buf(), text: words_of(worktree.as_path(), branch.as_str(), why.as_str()) });

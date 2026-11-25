@@ -420,6 +420,33 @@ which `owed_push` passed on this host). Both complain that a scratch directory n
 `cli-git-lock-holders` is left behind. They fail with the fixture root on tmpfs as well, so no mount
 change touches them, and they are not this host's doing.
 
+### Cause H diagnosed, and fixed, on 2026-11-25
+
+The gate on `main` at `64a71a4c9b` failed both again (issues 6466 and 6468). Two causes, both in the
+controls, and neither needs a mount fact:
+
+- Every wrapper command writes `<common-git-dir>/cli-git-lock-holders/<pid>.<digest>` before it starts
+  any Git since `74b1a8c0a0`, and a later command's pass removes the record once every process it names
+  is gone (`lock/lock_holder_records.rs`, `lock_holder_record_reads.rs`'s `sweep`). Both controls read
+  the whole `.git` directory after one command, so both read that record; the crate had already decided
+  it says nothing about what a command did to a repository, in
+  `binary_commit_form_refusal_tests.rs`'s `everything_under`, which skips the same folder. Reproduced on
+  this host: one `log` in a fixture repository leaves the folder with one `self` line, a second `log`
+  leaves its own, and the refused commit of the `service_no_manager` control leaves one with the `self`
+  line alone.
+- The naming control also compared `git count-objects -v`'s whole text, and its `size` field sums the
+  `st_blocks` of the loose objects. On this host's ZFS dataset a file reports one 512-byte block until
+  the pool's transaction group commits and its real blocks afterwards: seven unchanged 40-to-50-byte
+  files measured `1` block each and `9` blocks each a moment later, which moved the `size` of seven
+  loose objects between `3` and `31` with no process touching them. `sync` did not settle it reliably
+  (three rounds unchanged), so the control now compares the facts a commit elsewhere can change and
+  leaves those fields out.
+
+Both controls now pass on this host, and the modules around them were run threaded afterwards
+(`repository_naming_commit::` seven tests and `service_no_manager::` two, both `test result: ok`). The
+record itself still stays in a repository until a later command sweeps it, which is what `SPEC.md`'s
+"The record" describes; that is not a change either control was measuring.
+
 ## Verification
 
 Versions: the image above (rustc 1.100.0, git 2.56.1, cargo-nextest 0.9.151), podman 6.2.0,
@@ -875,7 +902,9 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
 
 ### What these changes do not cover
 
-- The two standing failures (cause H) still fail, and no mount change touches them.
+- The two standing failures (cause H) still failed when this section was written, and no mount change
+  touched them; the section "Cause H diagnosed, and fixed, on 2026-11-25" holds their two causes and the
+  controls that changed.
 - The memory bound the gate gives each check also bounds its image build: `buildLimitArguments` with the
   gate's own limits (`bin/container-limits.ts`, whose implementation lives in the mutation-test package,
   called at `bin/test-native-container.ts:234`) turns that bound into the build's `--memory`. The image

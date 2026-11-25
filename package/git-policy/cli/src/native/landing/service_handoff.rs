@@ -439,7 +439,8 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
         let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
         // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
         //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
-        let text: Option<String> = std::fs::read_to_string(entry.path()).ok();
+        //  A named pipe at its name answers as unreadable at once (`crate::plain_file::read_plain_text`) instead of waiting on.
+        let text: Option<String> = crate::plain_file::read_plain_text(&entry.path()).ok();
         let item: Option<WorkItem> = text.clone().and_then(work_item_of);
         let branch: String = item.as_ref().map_or_else(String::new, branch_of);
         if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There {
@@ -627,7 +628,7 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &
         // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and
         //  a record with no branch has no upstream to ask about.
         let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(name.as_str());
-        let (commit, reference): (String, String) = match std::fs::read_to_string(path).ok().and_then(work_item_of) {
+        let (commit, reference): (String, String) = match crate::plain_file::read_plain_text(&path).ok().and_then(work_item_of) {
             Some(item) => (item.oid, item.branch_ref),
             None => match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
                 Some(commit) => (commit.to_string(), String::new()),
