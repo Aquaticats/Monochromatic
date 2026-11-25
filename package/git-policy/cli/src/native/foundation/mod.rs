@@ -245,6 +245,10 @@ pub mod blocking_jobs_within_the_budget;
 /// for the controls that start the executable under limits.
 pub mod runtime_probe;
 
+/// The one read of every test-only switch,
+/// which a build the release ships holds not at all.
+pub mod test_only_switches;
+
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
 

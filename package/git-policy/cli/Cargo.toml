@@ -80,6 +80,12 @@ measurement-routes = []
 # release and the control are told apart by the manifest and never by a variable
 # (doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md, choice 11).
 start-probe-raised-deadline = []
+# Every `CLI_GIT_TEST_ONLY_*` variable the release code reads is compiled out of the release, because a variable that arms
+# a fault can kill or stall the commit service and a unit's `Environment=` line can set one. Every read goes through
+# `foundation/test_only_switches.rs`, which answers nothing without this feature; the controls that arm a variable, and
+# the gate that runs them, build with it, so the release and the controls are told apart by the manifest and never by a
+# variable (doc/decision/cli-git-test-only-switches-compiled-out-of-release.md).
+test-only-switches = []
 
 [dependencies]
 # The handler's typed /dev/zfs requests, and the ABI gate the wrapper and its root modes run before their first ioctl, are this
