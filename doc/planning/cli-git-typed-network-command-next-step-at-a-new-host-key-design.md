@@ -1667,9 +1667,10 @@ A concrete case.
 The person's setup: `git clone ssh://target/work/served.git` typed in a shell,
 `target` in `~/.ssh/config` with `HostName localhost`, `Port 2222` and two `IdentityFile` lines,
 the first key's passphrase held by no agent and the second key without one,
-and a `ProxyCommand` in the same file.
+and the connection going through a `ProxyCommand` the arm passes with `-o`.
 What the person sees at a new host key, with K in place
-(run, `keep/run-1-behaviour.log`, arm `f-newkey-proxycommand-c-pty`; the sentence is the one in "The words"):
+(run, `keep/run-1-behaviour.log`, arm `f-newkey-proxycommand-c-pty`; the sentence is the one in "The words",
+whose address is the stand-in's fixed text and not filled from the transcript):
 
 ```text
 # git clone ssh://target/work/served.git
