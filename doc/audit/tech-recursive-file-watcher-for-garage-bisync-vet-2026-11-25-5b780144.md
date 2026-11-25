@@ -1461,6 +1461,50 @@ A candidate whose source shows a native queue the docs do not mention returns to
 The libraries stay barred by the existing-tools rule while ready-to-use tools pass.
 `watch-restart`'s exit (it restarts a long-running child) now matches the treatment of the restart-style tools above.
 
+## Repository precedent missed by discovery (2026-11-25T18:16:16-05:00)
+
+The owner pointed out,
+after screening,
+that this repository had already judged `watchexec` and built its own replacement.
+Source class 4 recorded both facts as neutral context;
+it missed the verdicts:
+
+- `package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507`
+  (commit `eb40277d13`, 2026-05-11T17:38:01-04:00) rates `watchexec` for the editord dev loop
+  "Fit: rejected",
+  citing the `-j` SIGINT hang and process-tree signal loss
+  (`doc/troubleshooting/mise-watch.md`, "Bug 5" and "Bug 4", measured on watchexec 2.5.0 and 2.5.1).
+- The same handover, `:718-723`, states the constraint
+  "We cannot adopt a tool whose async runtime we cannot inspect."
+- The same handover, `:143-160` and "Can we just use watchman?",
+  rates Watchman "would work, but not justified for this case":
+  a long-lived daemon meant to serve many tools and folders,
+  where one tool watches one folder.
+- `doc/audit/pitchfork-jdx.md` (2026-06-21) ranks watch-restart over watchexec for one watched long-running child,
+  and keeps watchexec for "portable, stateless command running with rich event/filter modes".
+- `package/watch-restart/cli` is the repository's own owner of "watch files and run a command"
+  (Chokidar, a content-hash filter that skips byte-identical writes by default,
+  process-group signalling);
+  it exited screening here because it restarts its child,
+  but `AGENTS.md` rule `RCI` asks to extend an owner that already exists
+  before adopting a new one,
+  so extending it with a run-to-completion queue mode is a candidate this report did not consider.
+
+The owner decided at 2026-11-25T18:18:47-05:00
+(design record, "Owner answers, round 5"):
+"Vet 3p, no watchexec.
+Only going back to watch-restart if nothing works,
+because watch-restart has its own critical problems we'd need to fix if we use it."
+So `watchexec` exits on the owner's decision and the recorded rejection;
+Watchman stays,
+with its "not justified" verdict recorded as counterevidence;
+extending `watch-restart` is the fallback only if every remaining candidate fails.
+
+Whether these verdicts transfer to this job
+(no `-j` filter, queue mode, a one-level `systemctl` child on Linux)
+is unverified;
+the owner decides how to proceed (design record, "Owner answers").
+
 ## Evidence records
 
 Every record below was read on 2026-11-25 between 17:22 and 17:41 -05:00.

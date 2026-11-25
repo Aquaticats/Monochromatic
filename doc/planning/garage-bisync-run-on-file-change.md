@@ -151,6 +151,34 @@ The reproduction fix (start from a seed file) is in
 `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`;
 nothing is posted upstream.
 
+## Repository precedent the owner pointed out (2026-11-25T18:16:16-05:00)
+
+The owner:
+"I believe we have already audited watchexec much earlier and found it unsatisfactory?"
+and "We wrote a custom watchexec replacement too. A whole package!"
+Both are on record:
+`package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507` rates `watchexec` "Fit: rejected"
+and `:718-723` says "We cannot adopt a tool whose async runtime we cannot inspect";
+`package/watch-restart/cli` is the replacement.
+The vet had carried watchexec as a candidate and exited watch-restart as restart-only;
+see the vet report section "Repository precedent missed by discovery".
+
+## Owner answers, round 5 (2026-11-25T18:18:47-05:00)
+
+- Watcher pick:
+  "Vet 3p, no watchexec.
+  Only going back to watch-restart if nothing works,
+  because watch-restart has its own critical problems we'd need to fix if we use it."
+  So watchexec leaves the vet,
+  the third-party vet goes on with Watchman, onchange, modd and directory-watcher,
+  and extending `package/watch-restart/cli` is the fallback only if every one of them fails.
+- Skill fix:
+  tighten source class 4 of `.claude/skills/choosing-technology/SKILL.md`
+  (search every candidate's name across `doc/` and package docs,
+  record every verdict found as counterevidence,
+  and enter a repository package that owns the responsibility as a candidate to extend);
+  the owner sees the diff before it is committed.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),

@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T18:02:17-05:00.
+State recorded 2026-11-25T18:11:37-05:00.
 This work is incomplete.
 The user approved the design and authorized implementation at that timestamp.
 
@@ -39,20 +39,22 @@ The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q
 The canonical contract is `doc/decision/claude-code-bash-blocking-timeout.md`.
 Implementation is authorized.
 
+## Implementation evidence
+
+Implementation and the tracked bundle are committed.
+Source formatting,
+both type checks,
+the full source-package unit suite,
+and real built-plugin consumer probes all pass.
+The unit output includes every new predicate and handler suite by name.
+All five changed Markdown documents rendered to HTML through an isolated `mise` task using `pandoc`.
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
+
 ## Open work
 
-- Replace forced backgrounding with the accepted default-timeout policy and startup warning.
-- Update tests,
-  README decisions and anchors,
-  and the tracked bundle.
-- Run package type and unit checks,
-  then verify the installed plugin in real Claude Code sessions.
-- Record that `mise run lint:monochromatic-lint` could not run because
-  `monochromatic-lint: command not found`;
-  the locked repository linter must not be compiled ad hoc.
-  A rendered Markdown check remains before documentation completion.
+- Complete the DeepSeek second-pass review and address any earned findings.
 
 ## Next step
 
-Implement the accepted handler and registration changes,
-then run the package verification sequence.
+Run the DeepSeek second-pass review,
+then finish documentation checks and cleanup.
