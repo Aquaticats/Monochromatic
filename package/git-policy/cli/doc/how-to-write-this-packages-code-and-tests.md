@@ -9,6 +9,12 @@ a test's stand-in child outlived its test and held the run's output open for 45 
 and a test's signal reached its own test binary.
 The owner, that day: "So pay the debt."
 
+This guide adds to the repository's skill for writing code in a language other than TypeScript,
+`.agents/skills/dum-dum-non-ts/SKILL.md`,
+which sets the code's shape (the simplest constructs) and its comments (the What, Why and Gotcha template the crate uses);
+load that skill before your first Rust edit, then write by both.
+What follows is what that skill does not cover: how this crate's tests and children behave.
+
 ## Tests hold as threads of one process
 
 `cargo test --lib` runs a module's tests as threads of one process, and that is how rounds run them on this host.
