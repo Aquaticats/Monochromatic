@@ -242,7 +242,8 @@ Stop at completion or an external blocker.
 
 PXQ:
  "Completion" means the queue:
- tracked work left -> start the next item unasked.
+ start every ready tracked item unasked,
+ not only the next.
 Never end a turn on a status report the user must answer with "continue";
  low context is no reason to stop.
 

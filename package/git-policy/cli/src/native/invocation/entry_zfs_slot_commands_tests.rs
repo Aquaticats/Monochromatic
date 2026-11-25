@@ -185,6 +185,41 @@ fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
     remove(bound.root.as_path());
 }
 
+/// What:
+///  A move of a plain registered worktree that shares a bound slot's last name
+///  is left to Git,
+///  and the bound slot's own move is still refused.
+/// Why:
+///  The record is keyed by the slot's last name,
+///  so the slot path the record names is what says which of the two worktrees
+///  it belongs to;
+///  Git's own list names the other worktree at its own path,
+///  so refusing that move protects a slot nothing about it endangers
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+///  "Moving a plain worktree that shares a bound slot's last name").
+#[test]
+fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
+    let bound: Slot = slot("command-same-leaf-move");
+    let registration: PathBuf = bound.common.join("worktrees").join("one");
+    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    let other: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
+    git(bound.root.join("repository").as_path(), &["worktree", "add", "--quiet", "--no-checkout", other.to_str().expect("utf-8"), "HEAD"]);
+    let plain: Option<Action> = move_refusal_of(
+        &command_of(&["worktree", "move", other.to_str().expect("utf-8"), "../moved"]),
+        Some(bound.common.as_path()),
+        Some(std::path::Path::new("/")),
+    );
+    assert!(plain.is_none(), "a plain worktree with the bound slot's last name was refused: {plain:?}");
+    let the_slot: Option<Action> = move_refusal_of(
+        &command_of(&["worktree", "move", bound.slot.to_str().expect("utf-8"), "../moved"]),
+        Some(bound.common.as_path()),
+        Some(std::path::Path::new("/")),
+    );
+    assert!(the_slot.is_some(), "the bound slot's own move must stay refused");
+    remove(bound.root.as_path());
+}
+
 /// The slot's pointer gone, as an account that deleted it leaves it, whatever an earlier arm of a control wrote.
 fn leave_the_pointer_gone(pointer: &Path) {
     if pointer.exists() {

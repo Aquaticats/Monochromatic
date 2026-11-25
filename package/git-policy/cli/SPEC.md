@@ -5329,8 +5329,11 @@ then a new add where the work belongs,
 which this release has no command for,
 so the clone and its record stay until it has one.
 A record filed under the slot's name that cannot be read refuses too,
-and one that names another path refuses,
-because nothing then proves the move would not rename a managed clone's slot.
+and one that names another path refuses only when Git's own worktree list names no worktree at the move's source,
+because a record is keyed by the slot's last name and a plain worktree that shares that name is a worktree of its own:
+refusing its move would protect a slot nothing about that move endangers,
+while the slot's own move stays refused,
+whether the command or the record spells the slot's path another way.
 
 `git worktree remove` is refused for a slot whose record proves a whole worktree,
 which is the two states `mounted managed clone` and `known unmounted clone`,
