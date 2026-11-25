@@ -23,7 +23,11 @@
 //!  The destruction step is step 15's checks and the batch together,
 //!  and the completion is the whole removal from that batch to the report,
 //!  so the same cut holds all three:
-//!  no release file outside the removal's own folder names any of them.
+//!  no release file outside the removal's own folder names any of them,
+//!  nor the plan folder's own type,
+//!  whose every writer is a method on it,
+//!  nor the unmount request the entry sends,
+//!  nor the snapshot batch's request.
 //!  The round that switches the command path on is the change that names them,
 //!  and it removes this check in the same commit,
 //!  listing it in its round's report.
@@ -42,25 +46,79 @@ use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source
 /// whose files are the ones allowed to name the writing functions.
 const THE_REMOVAL_FOLDER: &str = "worktree_clone_removal_proof_and_plan/";
 
-/// One function a release file outside the removal's folder may not name,
-/// and the file that must still declare it.
+/// One name a release file outside the removal's folder may not hold,
+/// the file that must still declare it,
+/// and the text that proves the declaration is there.
 struct WritingName {
-    /// The function's name,
-    /// as a call or an import spells it.
-    name: &'static str,
+    /// The text a release file outside the folder may not hold:
+    /// a function's name as a call or an import spells it,
+    /// or the one type every writer of the plan folder is a method on.
+    banned: &'static str,
     /// The file that declares it,
-    /// which the check reads to prove the name is a name in the tree.
+    /// and which the check reads to prove the name is a name in the tree.
     declaring_file: &'static str,
-    /// What the function does,
+    /// The declaration the declaring file must still hold.
+    declaration: &'static str,
+    /// The files whose job is to publish the name besides its declaration:
+    /// a module that re-exports it names it without calling it.
+    publishing_files: &'static [&'static str],
+    /// What the name does,
     /// in the sentence the check fails with.
     what: &'static str,
 }
 
-/// The functions that wait for the steps which can finish or cancel what they start.
-const THE_WRITING_NAMES: [WritingName; 3] = [
-    WritingName { name: "enter_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_entry.rs", what: "files the intent, unmounts the clone and writes the destruction plan" },
-    WritingName { name: "destroy_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_destruction.rs", what: "sends the snapshot batch and destroys what it planned" },
-    WritingName { name: "complete_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_completion.rs", what: "destroys the snapshots and the head, attempts the origin cleanup, settles the registration and removes the records" },
+/// The names that wait for the steps which can finish or cancel what they start:
+/// the removal's three writing entries,
+/// the plan folder's own type,
+/// whose every writer is a method on it,
+/// the unmount request,
+/// and the snapshot batch's request.
+/// The snapshot batch's request is the one the batch's own module re-exports,
+/// and a re-export is no call,
+/// so that module is named beside its declaration.
+const THE_WRITING_NAMES: [WritingName; 6] = [
+    WritingName {
+        banned: "enter_the_removal",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_entry.rs",
+        declaration: "fn enter_the_removal(",
+        publishing_files: &[],
+        what: "files the intent, unmounts the clone and writes the destruction plan",
+    },
+    WritingName {
+        banned: "destroy_the_removal",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_destruction.rs",
+        declaration: "fn destroy_the_removal(",
+        publishing_files: &[],
+        what: "sends the snapshot batch and destroys what it planned",
+    },
+    WritingName {
+        banned: "complete_the_removal",
+        declaring_file: "worktree_clone_removal_proof_and_plan/removal_completion.rs",
+        declaration: "fn complete_the_removal(",
+        publishing_files: &[],
+        what: "destroys the snapshots and the head, attempts the origin cleanup, settles the registration and removes the records",
+    },
+    WritingName {
+        banned: "PlanFolder",
+        declaring_file: "worktree_clone_removal_proof_and_plan/plan_publication.rs",
+        declaration: "pub struct PlanFolder",
+        publishing_files: &[],
+        what: "makes the destruction plan's folder and writes a plan into it",
+    },
+    WritingName {
+        banned: "request_the_unmount",
+        declaring_file: "worktree_clone_removal_proof_and_plan/unmount_request.rs",
+        declaration: "fn request_the_unmount(",
+        publishing_files: &[],
+        what: "sends the unmount request to the handler",
+    },
+    WritingName {
+        banned: "send_request",
+        declaring_file: "worktree_clone_snapshot_batch/snapshot_batch_send.rs",
+        declaration: "fn send_request(",
+        publishing_files: &["worktree_clone_snapshot_batch/mod.rs"],
+        what: "sends one verified snapshot request to the pool",
+    },
 ];
 
 /// The call this release's removal command makes instead.
@@ -110,11 +168,11 @@ fn code_of(root: &Path, path: &str) -> Result<String, String> {
 /// const scan = scanTheReleaseTree(root, roots);
 /// ```
 struct Scan {
-    /// The release files that name a writing function from outside the folder.
+    /// The release files that hold a banned name from outside the folder.
     callers: Vec<String>,
     /// Whether the removal's command path calls the read-only reading.
     the_command_path_reads: bool,
-    /// The writing functions whose declaring file still holds them.
+    /// The banned names whose declaring file still holds their declaration.
     declared: Vec<&'static str>,
 }
 
@@ -129,11 +187,13 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
         }
         let code: String = code_of(root, file.path.as_str())?;
         for writing in THE_WRITING_NAMES {
-            if file.path == writing.declaring_file && code.contains(&format!("fn {}(", writing.name)) {
-                declared.push(writing.name);
+            if file.path == writing.declaring_file && code.contains(writing.declaration) {
+                declared.push(writing.banned);
             }
-            if !file.path.starts_with(THE_REMOVAL_FOLDER) && code.contains(writing.name) {
-                callers.push(format!("{} names {}", file.path, writing.name));
+            // A declaration is no call, and neither is the re-export a batch's own module publishes.
+            let publishes: bool = file.path == writing.declaring_file || writing.publishing_files.contains(&file.path.as_str());
+            if !publishes && !file.path.starts_with(THE_REMOVAL_FOLDER) && code.contains(writing.banned) {
+                callers.push(format!("{} names {}", file.path, writing.banned));
             }
         }
         if file.path == THE_COMMAND_PATH && code.contains(THE_READING_CALL) {
@@ -160,16 +220,16 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
     let scan: Scan = scan_the_release_tree(root.as_path(), real_roots().as_slice()).expect("the crate's release source tree reads");
     for writing in THE_WRITING_NAMES {
         assert!(
-            scan.declared.contains(&writing.name),
+            scan.declared.contains(&writing.banned),
             "positive control: `{}` still declares `{}`, so the name this check bans is a name in the tree",
             writing.declaring_file,
-            writing.name
+            writing.declaration
         );
     }
     assert!(scan.the_command_path_reads, "`{THE_COMMAND_PATH}` must call `{THE_READING_CALL}…)`: this release's removal proves its lineage read-only and writes nothing");
     assert!(
         scan.callers.is_empty(),
-        "no release file outside `{THE_REMOVAL_FOLDER}` may name a function that writes or destroys until the round that switches the command path on, and these do: {:?}",
+        "no release file outside `{THE_REMOVAL_FOLDER}` may name a function that writes or destroys, nor the plan folder's own type, until the round that switches the command path on, and these do: {:?}",
         scan.callers
     );
 }
@@ -184,6 +244,6 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
 #[test]
 fn every_banned_name_says_what_it_does() {
     for writing in THE_WRITING_NAMES {
-        assert!(!writing.what.is_empty(), "`{}` names what it does for a reader of a failure", writing.name);
+        assert!(!writing.what.is_empty(), "`{}` names what it does for a reader of a failure", writing.banned);
     }
 }
