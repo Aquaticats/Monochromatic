@@ -344,68 +344,75 @@ Executed commands and their exit status are in "Evidence records" section "Provi
 - New candidates: `hwatch`, `viddy`, `sasqwatch`, `dwatch`.
 - New screening survivors: none (all are periodic output watchers, category mismatch).
 
-#### Q9. crates.io, `file watcher`, pages 1 to 3
+#### Q9. crates.io, `file watcher`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=file+watcher&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API, User-Agent `watcher-vet-discovery`.
-- Include filters: relevance query; page 2 and 3 filtered on `watch|notify|inotify|fsevent|change|entr|lsync`
+- Include filters: relevance query; pages 2 to 4 filtered on `watch|notify|inotify|fsevent|change|entr|lsync`
   for reading, with the unfiltered counts recorded here.
 - Exclude filters: none applied to the request.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3 of 50; provider total 1677 crates.
-- Result count: 150 rows read of 1677.
-- New candidates: `funzzy`, `watcher` (crates), `file-watcher`, `filesentry`, plus many per-project watcher crates.
+- Page or cursor: pages 1 to 4 of 50; provider total 1677 crates.
+- Result count: 200 rows read of 1677.
+- New candidates: `funzzy`, `watcher` (crates), `file-watcher`, `filesentry`, plus many per-project watcher crates;
+  page 4 added only project-specific crates (`keel-server`, `scankit`, `hadome`).
 - New screening survivors: `funzzy`; the rest are libraries, project scaffolding, or single-purpose crates.
+- Saturation: pages 3 and 4 added no screening survivor, so the page rule is met.
 
-#### Q10. crates.io, `watch command`, pages 1 to 3
+#### Q10. crates.io, `watch command`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=watch+command&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API.
 - Include filters: as Q9.
 - Exclude filters: none.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3; provider total 6166.
-- Result count: 150 rows read of 6166.
-- New candidates: `viddy`, `cargo-watch`, `watchexec-cli`, `watchexec` (library), `xtask-watch`.
-- New screening survivors: `watchexec`, via `watchexec-cli` 2.8.0 on page 2.
+- Page or cursor: pages 1 to 4; provider total 6166.
+- Result count: 200 rows read of 6166.
+- New candidates: `viddy`, `cargo-watch`, `watchexec-cli`, `watchexec` (library), `xtask-watch`;
+  page 4 added only `hot-lib-reloader`, a library for Rust library reloading.
+- New screening survivors: `watchexec`, via `watchexec-cli` 2.8.0 on page 2; pages 3 and 4 added none.
 
-#### Q11. crates.io, `run command on change`, pages 1 to 3
+#### Q11. crates.io, `run command on change`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=run+command+on+change&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API.
 - Include filters: as Q9.
 - Exclude filters: none.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3; provider total 28395.
-- Result count: 150 rows read of 28395.
+- Page or cursor: pages 1 to 4; provider total 28395.
+- Result count: 200 rows read of 28395.
 - New candidates: none beyond Q10.
-- New screening survivors: none new.
+- New screening survivors: none; pages 3 and 4 added none.
 
-#### Q12. npm, `file watcher cli`, pages 1 to 3
+#### Q12. npm, `file watcher cli`, pages 1 to 4
 
 - Literal query: `https://registry.npmjs.org/-/v1/search?text=file%20watcher%20cli&size=50&from=N`.
 - Provider or registry: npm registry search.
 - Include filters: none on the request; rows filtered on `watch|notify|inotify|change` when reading.
 - Exclude filters: none.
 - Sort order: provider relevance.
-- Page or cursor: `from` 0, 50, 100; provider total 880251.
-- Result count: 150 rows read.
+- Page or cursor: `from` 0, 50, 100, 150; provider total 880251.
+- Result count: 200 rows read.
 - New candidates: `chokidar`, `chokidar-cli`, `sane`, `watchpack`, `@parcel/watcher`, `nsfw`, `watcher`, `filewatcher`,
-  `node-watch`, `glob-watcher`, `simple-watcher`, `cheap-watch`, `watch`, `wt`.
-- New screening survivors: `chokidar-cli`; `chokidar` and the other libraries are recorded separately.
+  `node-watch`, `glob-watcher`, `simple-watcher`, `cheap-watch`, `watch`, `wt`;
+  page 4 added only libraries (`metawatch`, `ignoring-watcher`).
+- New screening survivors: `chokidar-cli`; `chokidar` and the other libraries are recorded separately;
+  pages 3 and 4 added no survivor.
 
-#### Q13. npm, `watch run command`, pages 1 to 3
+#### Q13. npm, `watch run command`, pages 1 to 4
 
 - Literal query: `https://registry.npmjs.org/-/v1/search?text=watch%20run%20command&size=50&from=N`.
 - Provider or registry: npm registry search.
 - Include filters: as Q12.
 - Exclude filters: none.
 - Sort order: provider relevance.
-- Page or cursor: `from` 0, 50, 100; provider total 892540.
-- Result count: 150 rows read.
+- Page or cursor: `from` 0, 50, 100, 150; provider total 892540.
+- Result count: 200 rows read.
 - New candidates: `onchange`, `watch-run`, `watchlist`, `run-when-changed`, `@lerna-lite/watch`, `watch-cli`,
-  `npm-watch`, `node-dev`, `nodemon`, `@bazel/ibazel`, `hash-runner`, `light-server`.
-- New screening survivors: `onchange`, `watch-run`, `watchlist`, `run-when-changed`.
+  `npm-watch`, `node-dev`, `nodemon`, `@bazel/ibazel`, `hash-runner`, `light-server`;
+  page 4 added only task-specific watchers (`flow-watch`, `tape-watch`).
+- New screening survivors: `onchange`, `watch-run`, `watchlist`, `run-when-changed`;
+  pages 3 and 4 added no survivor.
 
 #### Q14. Homebrew formulae, `file watcher`
 
