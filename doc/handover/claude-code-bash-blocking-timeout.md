@@ -47,14 +47,12 @@ both type checks,
 the full source-package unit suite,
 and real built-plugin consumer probes all pass.
 The unit output includes every new predicate and handler suite by name.
+All five changed Markdown documents rendered to HTML through an isolated `mise` task using `pandoc`.
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
 
 ## Open work
 
 - Complete the DeepSeek second-pass review and address any earned findings.
-- Record that `mise run lint:monochromatic-lint` could not run because
-  `monochromatic-lint: command not found`;
-  the locked repository linter must not be compiled ad hoc.
-  A rendered Markdown check remains before documentation completion.
 
 ## Next step
 
