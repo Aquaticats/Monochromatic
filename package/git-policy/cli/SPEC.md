@@ -5593,7 +5593,8 @@ A release at the last step that cannot rewrite its file is printed in the report
 swallowed,
 with the same consequence named.
 
-Steps 1 to 4 write no removal record and unmount nothing.
+Steps 1 to 4 write no removal record and unmount nothing,
+and the only thing among them that writes at all is step 1's claim file.
 This release's removal command runs their reads through the read-only reading,
 which takes no claim,
 because a claim is a write and this release removes nothing.
