@@ -168,7 +168,7 @@ and nowhere else:
 
 Three facts about the two pinned files are outside any pin of their text,
 so this revision guards them where they stand (the fifth read's M2,
-answered below):
+answered in "M2. The pins held two files"):
 the declaration that makes `root_mode_names.rs` the compiled module,
 the manager's own name the module's first word is taken from,
 and the `[[bin]]` `path` that makes `main.rs` the program.
@@ -459,7 +459,7 @@ and each is answered where it lives:
 - the ledger text said the fourth revision's lists "failed" seven `main` and five module variants,
   which they passed,
   and called the sixth module variant a control that must pass,
-  while the log and the text below say it fails the comment rule.
+  while the log and "The one-name guard on the names module" say it fails the comment rule.
   The sentence now says what the fifth read's `guards-replay-this-read.log` shows:
   the lists passed the variants that were not changed lines and failed every changed one,
   which is exactly the count the fifth revision's own paragraph gives;
@@ -4709,7 +4709,7 @@ and what each did:
 No arm is the proposed start.
 A root-mode start runs `w`'s dispatch and then `h`'s mode,
 and this round did not build that start,
-so the pairs and ratios in this section are what two programs cost,
+so the pairs and ratios in "The cold start, measured four ways" are what two programs cost,
 never a bound or an estimate of the third.
 The arithmetic that would make them one is what the second revision stated,
 and this revision withdrew it (design).
@@ -4805,7 +4805,7 @@ and it is re-analysed this round from the same raw files
 re-analysed in keep/warm-reanalysis-fourth.log,
 replay;
 the log states its quantile convention,
-so every number in this section is recomputable from the two files).
+so every number in the warm-start list is recomputable from the two files).
 
 - `w`:
   median 1.16 ms,
@@ -4883,7 +4883,7 @@ is the finding.
 
 ## What changes, and in which step
 
-Every path in this section is re-read with `rg`,
+Every path under "What changes, and in which step" is re-read with `rg`,
 and each line number is given at `5f904d9fbd`,
 this round's base,
 unless it says `f3d81e0910`,
@@ -4902,7 +4902,7 @@ These cannot be separated,
 because the guard reads the manifest and the release lists in one test,
 and `toolchain:lock:check` compares the plan and the lock offline.
 `rg --hidden -c "mount-git-worktree-clone-datasets"` is not the only key:
-the sites below that count executables without naming the second one move in the same commit,
+the sites that count executables without naming the second one move in the same commit,
 and the fifth read found them missing from this list.
 They are
 `SPEC.md:251`, `:262` and `:290` (under "## The two executables and shipped policies"),
@@ -5846,7 +5846,7 @@ This round's folder,
 - `occurrences-sixth.txt`:
   the second program's name counted, with and without `--hidden`, for the change list's count;
 - `sources/`:
-  every file a log above was made from,
+  every file a log in this appendix was made from,
   named for what it is:
   `cut_fences.py` (the fence cutter, one file per printed text),
   `assemble_probe.py` (the probe crate, whose substitutions are listed at its head),
@@ -5855,7 +5855,14 @@ This round's folder,
   `make_variants.py` (the fifth round's variant maker, kept beside the log, with this round's
   `nm6` added),
   `variants/` (every variant and every scan fixture),
-  and `fixtures/` (the wiring and manifest fixtures the wiring assertions are shown on).
+  `fixtures/` (the wiring and manifest fixtures the wiring assertions are shown on),
+  `citations.py` (the citation dump),
+  `stripper_probe_main.rs` and `stripper_probe_mod.rs` (the round's own probe for the stripper log:
+  the fifth revision's printed stripper beside this revision's, both copied into one crate with the
+  crate's classifier),
+  and `stub_crate_lib.rs`, `stub_crate_Cargo.toml` and `stub_crate_clippy.toml`
+  (the stub crate the printed `main.rs` and module are compiled and linted in,
+  whose `lib.rs` is the fifth read's stub with the third argument and the start directory added).
 
 The rounds this one replays hold the logs it cites,
 and each is cited as a replay where it is used:
