@@ -88,6 +88,19 @@ fn a_gone_pool_is_a_finding_in_the_whole_report() {
     assert!(pool.found(), "{}", pool.line());
 }
 
+/// The snapshot-directory lines follow the dataset lines they report on,
+/// so a person reads one dataset and the property this step adds about it.
+#[test]
+fn each_snapdir_line_follows_its_dataset() {
+    let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
+    let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
+    let at = |wanted: &str| {
+        return names.iter().position(|name| return *name == wanted).unwrap_or_else(|| panic!("{wanted} is in the report: {names:?}"));
+    };
+    assert_eq!(at("checkout-snapdir"), at("checkout-dataset") + 1, "{names:?}");
+    assert_eq!(at("container-snapdir"), at("container-dataset") + 1, "{names:?}");
+}
+
 /// A checkout dataset that lost its `snapdir` moves exactly the snapdir line,
 /// so the setting this step adds is judged on its own and not folded into the
 /// dataset check.
