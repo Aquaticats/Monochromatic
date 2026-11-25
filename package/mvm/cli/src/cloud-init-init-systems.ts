@@ -55,15 +55,62 @@ function guestAgentUnconfinedDropInEntry(): string {
 
 //endregion Guest agent under a confining SELinux policy
 
+//region Guest agent's survival of a command the kernel's OOM killer ends
+
+/**
+ Path of the systemd drop-in that keeps the guest agent running when the
+ kernel's out-of-memory killer ends a command `mvm` started.
+ */
+export const GUEST_AGENT_COMMAND_OOM_DROP_IN_PATH =
+  '/etc/systemd/system/qemu-guest-agent.service.d/mvm-command-oom.conf';
+
+/**
+ Write-files entry that sets `OOMPolicy=continue` on the guest agent.
+
+ Every command `mvm exec` starts is a child of the agent,
+ so it lives in the agent's own unit, `qemu-guest-agent.service`,
+ and the kernel's out-of-memory killer ends it there when the guest runs out
+ of memory: a release build's `rustc` reached 5.4 GB in a guest of 8 GiB.
+ systemd's default `OOMPolicy=stop` for a service then stops the whole unit,
+ which kills the agent too, and the distro unit's `Restart=always` starts a
+ new one.
+ The agent keeps every started command's process ID and captured output in
+ memory only (`qga/commands.c`, `guest_exec_state`),
+ so the stop loses the result of every command started before it:
+ `guest-exec-status` then answers that the PID does not exist.
+ `OOMPolicy=continue` keeps the agent, which reports the command the kernel
+ ended as a signalled exit, 128 plus the signal number.
+
+ @returns The `write_files` list entry, already indented for cloud-init
+
+ @example
+ ```ts
+ guestAgentCommandOomDropInEntry();
+ // => '  - path: /etc/systemd/system/qemu-guest-agent.service.d/mvm-command-oom.conf\n    content: |\n      [Service]\n      OOMPolicy=continue'
+ ```
+ */
+function guestAgentCommandOomDropInEntry(): string {
+  return `  - path: ${GUEST_AGENT_COMMAND_OOM_DROP_IN_PATH}
+    content: |
+      [Service]
+      OOMPolicy=continue`;
+}
+
+//endregion Guest agent's survival of a command the kernel's OOM killer ends
+
 //region Systemd user-data helpers
 
 /**
- Generates runcmd entries for enabling qemu-guest-agent on systemd distros.
- For a guest whose SELinux policy confines the agent,
- the same user-data first writes the drop-in that starts the agent through
- `/usr/bin/env`,
+ Generates write_files and runcmd entries for enabling qemu-guest-agent on
+ systemd distros.
+ Every systemd guest gets the drop-in that keeps an out-of-memory kill of one
+ command from stopping the agent,
+ and a guest whose SELinux policy confines the agent also gets the drop-in
+ that starts the agent through `/usr/bin/env`,
  so the first agent process already runs where it may read the virtiofs share
  and write and execute the guest's files.
+ Both files are in place before `systemd` loads the unit's first start, so no
+ running agent has to be restarted to read them.
  
  @param guestAgentIsSelinuxConfined - Whether this guest confines the agent
 
@@ -71,17 +118,20 @@ function guestAgentUnconfinedDropInEntry(): string {
  
  @example
  ```ts
- templateRuncmdSystemd(false); // => 'runcmd:\n  - systemctl enable --now qemu-guest-agent\n'
+ templateRuncmdSystemd(false);
+ // => 'write_files:\n  - path: /etc/systemd/system/qemu-guest-agent.service.d/mvm-command-oom.conf\n…'
  ```
  */
 function templateRuncmdSystemd(guestAgentIsSelinuxConfined: boolean,): string {
-  if (!guestAgentIsSelinuxConfined) {
-    return `runcmd:
-  - systemctl enable --now qemu-guest-agent
-`;
-  }
+  /**
+   Drop-ins the guest agent's unit reads when it first starts.
+   */
+  const dropIns = [
+    ...(guestAgentIsSelinuxConfined ? [guestAgentUnconfinedDropInEntry(),] : []),
+    guestAgentCommandOomDropInEntry(),
+  ];
   return `write_files:
-${guestAgentUnconfinedDropInEntry()}
+${dropIns.join('\n',)}
 runcmd:
   - systemctl daemon-reload
   - systemctl enable --now qemu-guest-agent
