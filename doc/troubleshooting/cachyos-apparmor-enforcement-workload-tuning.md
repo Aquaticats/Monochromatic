@@ -1560,7 +1560,7 @@ Recorded 2026-11-25T07:55:39-05:00 by the round
 on branch `fix/git-policy-cli-any-name-fixture-root-git-without-capabilities`.
 Not approved and not final.
 This corrects the attribution of the two capability families as far as the `git` one goes,
-and the ordering the batch above states for the two capability checks.
+and the ordering the section `## Ninth batch: the gate at 8519c599d0` states for the two capability checks.
 
 The `SYSCALL` record beside each of these denials names the call:
 `syscall=86 success=yes` with `/usr/bin/git commit --quiet --allow-empty --message=initial`
