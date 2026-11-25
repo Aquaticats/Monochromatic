@@ -269,7 +269,7 @@ await describe({
             expect(sent.message.customType, ).toBe(constants.POKE_CUSTOM_TYPE);
             expect(sent.message.display, ).toBe(true);
             expect(sent.message.content, ).toBe('[bash finished] $ true (exit 0)');
-            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'followUp', });
+            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'steer', });
           },
         }, ),
         it({

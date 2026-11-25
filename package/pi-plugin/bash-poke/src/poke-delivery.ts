@@ -42,8 +42,11 @@ type PokeDelivery =
  
  A custom message rather than a user message keeps the transcript honest: Pi
  renders it through this package's renderer instead of showing text that looks
- typed. Turn scheduling is the same, immediate when idle and queued behind
- current work otherwise.
+ typed. When the agent is idle, Pi starts a turn at once and ignores the
+ delivery mode. While it works, the poke is a steer, which Pi delivers after the
+ current batch of tool calls; a follow-up would wait for the whole run to end,
+ which held two pokes for over an hour in the incident recorded in
+ `doc/troubleshooting/pi-follow-up-messages-wait-for-the-whole-agent-run.md`.
  
  @param pi - Pi extension API owning message delivery
  
@@ -86,7 +89,7 @@ function deliverPoke(
       },
       {
         triggerTurn: true,
-        deliverAs: 'followUp',
+        deliverAs: 'steer',
       },
     );
     l.debug(`delivered poke for: ${details.command}`, );
