@@ -1227,8 +1227,14 @@ the audit log, read across all three rotated files, shows two `git` denials befo
 and the one-program fixes `88f5fff28c` (M3, M4, L1 to L7);
 the gate on `main` at `df7d464a6c` (step 16 and the 6448 fix) gave `11236 tests run: 11234 passed (6 slow), 2 failed, 45 skipped`, the cause-H pair, with only `umount`'s three `dac_override`;
 a denial read must cover `audit.log.2`, `audit.log.1` and `audit.log` together once the log rotates, and in zsh a window's two times must be passed as two words (`for from to in ...`);
-the ZFS route fixes wait on their merged-tree check; the askpass and commit-push round (brief `~/temp/agent/askpass-false-and-commit-push-pass-fixes-2026-11-25/prompt.md`) waits on a rising memory stall;
-the round for the root-mode usage wording, the rollback floor and the same-leaf move follows the ZFS route merge, whose files it touches;
+the ZFS route fixes merged as `7ed5ec0b34` (every spelling of a bound slot's `git worktree remove` refused, `-f -f` included, naming `git worktree unlock <slot>` as the one working step;
+texts name only commands this release has; the repair report ignores a same-leaf plain worktree; a prune is a dry run by Git's own option parser;
+the cut's guard bans six names; the removal refusal's host controls take a scripted intent reader, so they no longer open `/dev/zfs`;
+the reads that need no record are gone, proven by controls whose mount table fails if read; its one deliberate red run sent one read-only stats request to `/dev/zfs`);
+on the merged tree check, Clippy, `source_guard` 100 and the touched modules passed;
+running since about 13:05: `pi-askpass-false-and-commit-push-pass-fixes` (`false` back in `SSH_ASKPASS` with a proxy control, the 20-character mask, the sweep's two lines, two doc lows),
+`pi-root-usage-rollback-floor-and-same-leaf-move` (the root usage's full spelling and "no release installs it yet", the `native:install` floor below alpha.46, the move refusal only for the slot itself),
+and the gate on `main` at `7ed5ec0b34`;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
