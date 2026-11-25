@@ -1440,8 +1440,8 @@ A candidate whose source shows a native queue the docs do not mention returns to
   exits on "queues one more run of its command natively";
   the discovery run's ledger entry reads: not documented; assume a wrapper.
 - watchexec-simple (0.2.0 on crates.io, repository last pushed 2023-10-24):
-  goes on to targeted evidence;
-  the discovery run read its docs as queueing natively (needs a wrapper.).
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper.
 - godemon:
   exits on "queues one more run of its command natively";
   the discovery run's ledger entry reads: not documented; assume a wrapper.
