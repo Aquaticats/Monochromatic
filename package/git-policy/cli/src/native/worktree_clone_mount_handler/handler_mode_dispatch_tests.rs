@@ -173,6 +173,20 @@ fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
     assert!(ran.get(), "a passing gate did not call the mode");
 }
 
+/// A refused gate answers a refusal that opens with the words,
+/// because the gate's own sentence names the compatibility check and nothing
+/// ties it to the modes.
+#[test]
+fn a_refused_gate_opens_with_the_words() {
+    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
+    let answer: Result<String, String> = behind_the_gate(&RefusingGate, || return Ok(String::new()));
+    let Err(line): Result<String, String> = answer else {
+        panic!("a refused gate ran the mode");
+    };
+    assert!(line.starts_with(&format!("{named}: ")), "the gate's refusal opens with the words: {line}");
+    assert!(line.contains("the start-time ZFS compatibility gate refused"), "the gate's own line stays: {line}");
+}
+
 /// A refused gate answers the refusal status,
 /// and the mode's own work is never called:
 /// the closure that stands for a mode records that it ran,
@@ -273,6 +287,7 @@ fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
 #[test]
 fn a_start_probe_that_is_not_root_is_refused_before_the_gate_or_any_write() {
     let root: PathBuf = fixture("start-probe-not-root");
+    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     let configuration: PathBuf = root.join("handler.jsonc");
     std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
@@ -281,6 +296,10 @@ fn a_start_probe_that_is_not_root_is_refused_before_the_gate_or_any_write() {
         panic!("a caller that is not root started the probe: {answer:?}");
     };
     assert!(line.contains("the start-probe mode runs as root"), "{line}");
+    assert!(
+        line.starts_with(&format!("{named}: ")),
+        "the caller's refusal opens with the words every root-mode refusal opens with: {line}"
+    );
     assert!(line.contains("effective user is 1000"), "{line}");
     assert!(!line.contains("compatibility gate"), "the refusal is the caller's, not the gate's: {line}");
     assert!(!place.result().exists(), "the refused caller wrote a record");

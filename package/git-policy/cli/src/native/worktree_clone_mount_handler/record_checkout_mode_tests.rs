@@ -223,6 +223,13 @@ fn a_caller_that_is_not_root_is_refused_first() {
     let mountpoint: PathBuf = fixture.checkout();
     let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), &fixture.request(), false).expect_err("an account may not record the checkout");
     assert_eq!(failure, RecordCheckoutFailure::NotRoot { effective_user: 1_000 });
+    assert!(
+        failure
+            .message()
+            .starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        "the refusal opens with the words: {}",
+        failure.message()
+    );
     assert!(!fixture.record().exists(), "nothing was written");
 }
 

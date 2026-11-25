@@ -1,6 +1,7 @@
 //! What:
 //!  The controls of the sentence a root mode refuses a caller that is not root
 //!  with:
+//!  the words every root mode is reached through,
 //!  the mode,
 //!  the effective user,
 //!  what was untouched,
@@ -9,8 +10,12 @@
 //! Why:
 //!  The sentence is the whole answer such a caller gets,
 //!  so a phrase that falls out of it leaves a person with a refusal that names
-//!  no next step
-//!  (`root_mode_caller`).
+//!  no next step,
+//!  and a sentence that opens with no words leaves root's journal with a
+//!  refusal nothing ties to the modes
+//!  (`root_mode_caller`;
+//!  `package/git-policy/cli/SPEC.md`,
+//!  "the modes' refusals and lines open with the words").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,6 +23,7 @@
 //! ```
 
 use super::NotRootRefusal;
+use crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name;
 
 /// The sentence names the mode,
 /// the effective user,
@@ -34,6 +40,7 @@ fn the_sentence_names_the_mode_the_user_and_the_way_forward() {
         effective_user: 1000,
     };
     let sentence: String = refusal.sentence();
+    assert!(sentence.starts_with(&format!("{}: ", root_modes_name())), "the sentence opens with the words every root-mode refusal opens with: {sentence}");
     assert!(sentence.contains("the start-probe mode runs as root"), "{sentence}");
     assert!(sentence.contains("effective user is 1000"), "{sentence}");
     assert!(sentence.contains("Nothing was read, mounted or recorded"), "{sentence}");
