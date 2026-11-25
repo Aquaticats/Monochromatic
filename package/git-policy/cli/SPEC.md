@@ -4955,7 +4955,17 @@ and every step reads the state a kill at the step before it leaves:
   the sentence is recomposed from the record's `nonce=`,
   the file's bytes on disk are compared with it,
   and the slot's own folder is compared by identity while nothing covers it,
-  or by the clone's dataset name while a mount of that clone stands at the slot.
+  or by the clone's dataset name and its GUID while a mount of that clone stands at the slot.
+  The name comes from the mount table's source,
+  and the GUID is read through the add route's own identity read
+  (`DatasetGuidReads`, implemented for `add_zfs::OpenedDevice`),
+  because a dataset made again under the same name answers another GUID.
+  A pool that does not answer the GUID,
+  a record that names no `cloneGuid=`,
+  and an answer that differs each refuse,
+  and every refusal states what happened,
+  what is kept,
+  and the next safe command.
 - A complete registration whose lock is gone has it written again,
   by this command,
   which holds the slot's claim and has just proved the registration,
