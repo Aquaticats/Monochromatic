@@ -4,7 +4,10 @@
 //!  at every phase,
 //!  a slot with no record is left to Git,
 //!  a record no reader may act on refuses without naming a phase,
-//!  a record naming another path refuses,
+//!  a record naming another path refuses when Git's list names no worktree at
+//!  the move's source,
+//!  that record's slot move is still refused when it names the same folder by
+//!  another spelling,
 //!  a path no record can be keyed by is left to Git,
 //!  and the sentence says the slot is fixed.
 
@@ -77,7 +80,8 @@ fn an_unreadable_record_refuses_with_its_reason() {
 }
 
 /// A record filed under the same leaf name for another path refuses too,
-/// because the two statements disagree.
+/// because the two statements disagree and Git's list names no worktree at the
+/// move's source.
 #[test]
 fn a_record_naming_another_path_refuses() {
     let root: PathBuf = fixture("move-refusal-another-path");
@@ -90,6 +94,29 @@ fn a_record_naming_another_path_refuses() {
         found => panic!("expected the other-path cause, got {found:?}"),
     }
     assert!(refusal.sentence.contains("/other/repo/.claude/worktrees/topic"), "{}", refusal.sentence);
+}
+
+/// What:
+///  A record that names this very slot through a symbolic link refuses as the
+///  slot's move,
+///  not as another path's.
+/// Why:
+///  The record holds one spelling of the slot folder and a move may name
+///  another,
+///  so reading the second spelling as another path would let the slot's own move
+///  through the allowance a plain same-leaf worktree has,
+///  which the answer keeps refused.
+#[test]
+fn a_record_naming_the_slot_through_a_link_still_refuses_as_the_slot() {
+    let root: PathBuf = fixture("move-refusal-linked-slot");
+    let common: PathBuf = root.join(".git");
+    let real: PathBuf = root.join("slots/topic");
+    std::fs::create_dir_all(real.as_path()).expect("the slot folder");
+    let linked: PathBuf = root.join("linked-topic");
+    std::os::unix::fs::symlink(real.as_path(), linked.as_path()).expect("the link");
+    publish(common.as_path(), &record_at(Phase::Filled, linked.as_path()), "topic");
+    let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), real.as_path()).expect("the slot's own move refuses");
+    assert!(matches!(refusal.cause, ManagedMoveRefusalCause::Bound { .. }), "the other spelling is still the slot: {:?}", refusal.cause);
 }
 
 /// A source whose last component is no plain slot name cannot hold a record,

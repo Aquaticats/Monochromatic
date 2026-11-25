@@ -9,6 +9,7 @@ use crate::merge_isolation_carry::{capture_work, keep_capture};
 use crate::merge_isolation_carry_parts::Capture;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// The identifier a merge of a fixture names itself by,
 /// which every private name a control's clear,
@@ -310,6 +311,59 @@ fn files_that_hold(repository: &Path, bytes: &[u8]) -> Vec<PathBuf> {
     return found;
 }
 
+/// One step of this host's file-system clock,
+/// measured at a millisecond on 2026-11-25:
+/// two writes a millisecond apart carried modification times a millisecond apart,
+/// and two writes inside one step carried the same one.
+const CLOCK_STEP: Duration = Duration::from_millis(1);
+
+/// How long a control waits for that clock to move past Git's own write,
+/// which is a thousand of its steps:
+/// a host that never moves it has a defect of its own,
+/// and the control says so instead of waiting.
+const CLOCK_MOVES_WITHIN: Duration = Duration::from_secs(1);
+
+/// What:
+///  Write `bytes` at `location`,
+///  again until the entry standing there is provably not the one `landed` names.
+/// Why:
+///   The carry tells a person's save from Git's own write by the entry alone:
+/// the device,
+/// the inode,
+/// the size,
+/// the mode,
+/// the modification time and the change time.
+/// This host's clock moves in steps of a millisecond,
+/// so a save written inside the step Git's own write took leaves that entry unchanged,
+/// and the carry rightly reads it as Git's own
+/// (measured 2026-11-25:
+/// six runs of eight wrote the save inside Git's step and every one failed this control,
+/// while the two whose entry moved passed;
+/// `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+/// "Cause O").
+/// The control therefore makes the difference it needs and checks it,
+/// rather than betting that the host is slow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const saveAsALaterWrite = (landed, location, bytes) => { for (;;) { write(location, bytes); if (!sameEntry(landedFileAt(location), landed)) return; sleep(1); } };
+/// ```
+fn save_as_a_later_write(landed: &LandedFile, location: &Path, bytes: &[u8]) {
+    let began: Instant = Instant::now();
+    loop {
+        std::fs::write(location, bytes).expect("the save");
+        let standing: LandedFile = crate::merge_isolation_carry_landed::landed_file_at(location, landed.path.as_slice());
+        if standing != *landed {
+            return;
+        }
+        assert!(
+            began.elapsed() < CLOCK_MOVES_WITHIN,
+            "the file system's clock did not move past the entry Git's write made within {CLOCK_MOVES_WITHIN:?}, so a save here cannot be told from it: landed {landed:?}"
+        );
+        std::thread::sleep(CLOCK_STEP);
+    }
+}
+
 /// What:
 ///  A save that arrives through a descriptor opened before the take is kept in the file that was set aside,
 ///  and named.
@@ -505,7 +559,7 @@ fn a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_lay
     let landed: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
     let saved: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
     // The editor saves its buffer, which holds the merge's version and no longer the person's older line.
-    std::fs::write(location.as_path(), saved.as_slice()).expect("the save");
+    save_as_a_later_write(&landed[0], location.as_path(), saved.as_slice());
     let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, landed.as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
     assert_eq!(report.changed, vec![b"a.txt".to_vec()], "the carry says the path was written after the capture and leaves it");
     assert_eq!(std::fs::read(location.as_path()).expect("a.txt"), saved, "the newer save stands");

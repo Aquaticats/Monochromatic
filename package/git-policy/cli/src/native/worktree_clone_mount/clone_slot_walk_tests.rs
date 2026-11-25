@@ -144,6 +144,31 @@ fn the_first_observation_walk_still_compares_the_parent() {
 }
 
 /// What:
+///  The parent refusal's way forward runs the adoption after the root-owned
+///  file's path,
+///  and says who installs that file and when.
+/// Why:
+///  A refusal is the first thing a person meets,
+///  and pointing at "the installed ZED event's file" sends them to a path no
+///  release installs;
+///  the answer that fixed the usage fixed this sentence the same way
+///  (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+///  "How the root modes' usage reads").
+#[test]
+fn the_parent_refusal_says_who_installs_the_root_owned_file() {
+    let built: Fixture = fixture_slot("clone-walk-parent-refusal-words");
+    let recorded: CloneFolderIdentity = built.parent_identity();
+    built.record("one", &CloneFolderIdentity { inode: recorded.inode + 1, ..recorded.clone() }, &built.slot_identity());
+    let refused: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("the parent differs");
+    let words: String = refused.message();
+    assert!(words.contains("adopt-worktree-parent"), "{words}");
+    assert!(words.contains("after the root-owned file's path"), "{words}");
+    assert!(words.contains("Plan step 19's setup installs"), "{words}");
+    assert!(words.contains("no release installs it yet"), "{words}");
+    remove(built.checkout.parent().expect("root"));
+}
+
+/// What:
 ///  A store whose parent record differs in one field is refused,
 ///  and the sentence names that field.
 /// Why:
