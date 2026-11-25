@@ -42,6 +42,10 @@ const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 const ARM_TIMEOUT_MS = 1_200_000;
 /** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
+/** How often the host asks the guest whether a detached script has finished, in milliseconds. */
+const POLL_INTERVAL_MS = 15_000;
+/** The swap file the guest adds, in gibibytes, so one rustc at five gigabytes does not exhaust its memory. */
+const SWAP_GIB = '6G';
 
 /** The environment the arm reads, so it never opens the host's device. */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_LINEAGE_GUEST';
@@ -167,6 +171,73 @@ function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; re
 }
 
 /**
+ Start one long guest script detached, so it cannot lose its answer, and leave its log in the shared folder.
+
+ The guest's crate build ran for ten minutes and the two compiling jobs of the first runs exhausted the guest's memory,
+ where the agent lost the command's process and the reason with it. The script therefore runs under `setsid nohup`,
+ writes its log where the host can read it, and ends by appending `DONE=<status>` to that log.
+
+ @param chosen - the run's options
+
+ @param script - the shell script
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the script may take inside the guest
+
+ @throws Error when the guest cannot be asked to start it
+ */
+function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): void {
+  const seconds = Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS;
+  const inner = [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`,].join('\n');
+  const command = `test "$(hostname)" = ${chosen.name} && setsid nohup sh -ec ${shellQuote(inner)} < /dev/null > /dev/null 2>&1 &`;
+  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', command,], {
+    stdio: 'ignore',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  if (result.error !== undefined)
+    throw result.error;
+}
+
+/**
+ Wait for one detached script's own `DONE=` line, pull its log, and refuse a status other than zero.
+
+ @param chosen - the run's options
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the host waits before giving up
+
+ @returns the pulled log
+
+ @throws Error naming the status the script ended with, or the wait that ended
+ */
+function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; readonly log: string; readonly timeout: number; }): string {
+  const path = `/mnt/shared/${log}`;
+  const deadline = Date.now() + timeout;
+  let finished = false;
+  while (Date.now() < deadline) {
+    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', `tail --lines=1 ${path} 2>/dev/null || true`,], {
+      encoding: 'utf8',
+      timeout: HOST_COMMAND_TIMEOUT_MS,
+    });
+    if ((answer.stdout ?? '').trim().startsWith('DONE=')) {
+      finished = true;
+      break;
+    }
+    spawnSync('sleep', [String(POLL_INTERVAL_MS / 1000),], { timeout: POLL_INTERVAL_MS * 2, });
+  }
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, path, join(chosen.logDir, log),], log: `host-pull-${log}`, });
+  const pulled = readFileSync(join(chosen.logDir, log), 'utf8');
+  if (!finished)
+    throw new Error(`${log}: the guest script did not finish inside ${String(timeout)} ms; see ${log}`);
+  const status = /^DONE=(?<status>\d+)$/m.exec(pulled)?.groups?.status;
+  if (status !== '0')
+    throw new Error(`${log}: the guest script ended ${status ?? 'without a status'}; see ${log}`);
+  return pulled;
+}
+
+/**
  Run one step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
 
  @param chosen - the run's options
@@ -229,17 +300,17 @@ async function run(chosen: Options): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     'df --human-readable / /mnt/shared',
-    'free --mebytes',
-    // Two compiling jobs: the guest has four cores, and a linking test binary of this crate needs more than a
-    // gigabyte, so an out-of-memory kill here would look like a compile failure. The log is copied to the shared
-    // folder whatever the build answered, so a guest's death still leaves the reason on the host.
-    'if cargo build --release --tests --locked --jobs 2 > /root/removal-lineage-build.log 2>&1; then status=0; else status=$?; fi',
-    'cp /root/removal-lineage-build.log /mnt/shared/removal-lineage-build.log',
-    'tail --lines=5 /root/removal-lineage-build.log',
-    'test "$status" = 0',
+    // `free` with no option, because the guest's procps has no `--mebytes` and `set -e` would end the build there.
+    'free',
+    // One rustc for a crate this size wants more than five gigabytes, and the guest has eight: the first runs compiled
+    // two at a time, both together exhausted the guest's memory, and the kernel killed one of them, which looked like
+    // a compile failure. One job and a swap file are what make the build fit.
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    'free',
+    'cargo build --release --tests --locked --jobs 1',
   ].join('\n');
-  guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/removal-lineage-build.log', join(chosen.logDir, 'removal-lineage-build.log'),], log: 'host-pull-build.log', });
+  guestStart({ chosen, script: build, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'removal-lineage-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
   const arm = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}:/root/.cargo/bin:$PATH`,
@@ -271,7 +342,8 @@ async function run(chosen: Options): Promise<void> {
     `zpool destroy -f ${POOL} 2>/dev/null || true`,
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
   ].join('\n');
-  guest({ chosen, script: arm, log: 'guest-removal-lineage.log', timeout: ARM_TIMEOUT_MS, });
+  guestStart({ chosen, script: arm, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/removal-lineage-arm.log', join(chosen.logDir, 'removal-lineage-arm.log'),], log: 'host-pull-arm.log', });
   const pulled = readFileSync(join(chosen.logDir, 'removal-lineage-arm.log'), 'utf8');
   for (const marker of EXPECTED_MARKERS) {

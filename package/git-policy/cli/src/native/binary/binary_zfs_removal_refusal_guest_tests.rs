@@ -199,9 +199,9 @@ fn write_the_origin_inventory(place: &Place, sbin: &str) -> InventoryRecord {
             name: String::from(name.split_once('@').expect("a snapshot names its dataset").1),
         });
     }
-    let (ok, listed, error): (bool, String, String) = zfs(sbin, "zfs", &["list", "-H", "-p", "-o", "name,guid,createtxg", "-t", "bookmark", "-r", place.checkout_dataset.as_str()], None);
-    assert!(ok, "the checkout's bookmarks list: {listed}{error}");
-    for line in listed.lines() {
+    let (bookmarks_ok, bookmarks, bookmarks_error): (bool, String, String) = zfs(sbin, "zfs", &["list", "-H", "-p", "-o", "name,guid,createtxg", "-t", "bookmark", "-r", place.checkout_dataset.as_str()], None);
+    assert!(bookmarks_ok, "the checkout's bookmarks list: {bookmarks}{bookmarks_error}");
+    for line in bookmarks.lines() {
         let mut fields = line.split('\t');
         let (Some(name), Some(guid), Some(createtxg)) = (fields.next(), fields.next(), fields.next()) else {
             continue;
@@ -350,6 +350,8 @@ fn zfs_removal_refusal_guest() {
 
     // Arm 2: an administrator promotes the clone, and the next removal refuses before any delete with every protected
     // snapshot and bookmark still there.
+    // The recorded tuple is read before the promotion, because a promotion moves the origin snapshot under the clone.
+    let recorded_tuple: (u64, u64) = identity_of(sbin.as_str(), origin_snapshot.as_str());
     let protected: Vec<String> = protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]);
     assert!(protected.len() >= 3, "the arm read the checkout's snapshot and the clone's own: {protected:?}");
     zfs_ok(sbin.as_str(), &["promote", clone.as_str()]);
@@ -366,20 +368,27 @@ fn zfs_removal_refusal_guest() {
     // tuple unchanged, which is item 13's measurement and what the host controls refuse as inherited history.
     let transferred: String = format!("{clone}@{ORIGIN_PREFIX}{NONCE}");
     let (transferred_guid, transferred_group): (u64, u64) = identity_of(sbin.as_str(), transferred.as_str());
-    let (origin_guid, origin_group): (u64, u64) = identity_of(sbin.as_str(), origin_snapshot.as_str());
-    assert_eq!((transferred_guid, transferred_group), (origin_guid, origin_group), "a promotion moves the origin snapshot's tuple under the clone without changing it");
+    assert_eq!((transferred_guid, transferred_group), recorded_tuple, "a promotion moves the origin snapshot's tuple under the clone without changing it");
     assert!(transferred_group <= createtxg_of(sbin.as_str(), clone.as_str()), "the transferred snapshot is older than the clone, which is how the proof tells it from the clone's own");
     zfs_ok(sbin.as_str(), &["bookmark", transferred.as_str(), format!("{clone}#from-origin").as_str()]);
-    assert_eq!(identity_of(sbin.as_str(), format!("{clone}#from-origin").as_str()), (origin_guid, origin_group), "a bookmark made from a transferred snapshot carries that snapshot's tuple");
+    assert_eq!(identity_of(sbin.as_str(), format!("{clone}#from-origin").as_str()), recorded_tuple, "a bookmark made from a transferred snapshot carries that snapshot's tuple");
     let inherited: String = the_refusal(checkout.as_path(), slot.as_path());
     assert!(inherited.contains("the removal's own checks stopped it before anything was written"), "{inherited}");
-    assert_eq!(protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]).len(), protected.len() + 1, "the arm's bookmark is the only object added, and the refusal destroyed nothing");
+    // The bookmark carries the transferred snapshot's GUID, so a set of identities cannot grow by it: what the arm can
+    // show is that every identity it read before the promotion is still there, which is what "every protected object
+    // survives" means.
+    let after: Vec<String> = protected_guids(sbin.as_str(), [checkout_dataset.as_str(), clone.as_str()]);
+    for identity in &protected {
+        assert!(after.contains(identity), "`{identity}` survived the refusal, and the pool now lists {after:?}");
+    }
     assert_eq!(the_plan_folder_holds(common.as_path()), 0);
-    println!("REMOVAL-ARMS inherited-tuple=measured guid={origin_guid} group={origin_group} refused=before-any-write");
+    println!("REMOVAL-ARMS inherited-tuple=measured guid={transferred_guid} group={transferred_group} refused=before-any-write");
 
     // Arm 4: the reverse promotion restores the recorded lineage, and the removal proves again.
+    // The bookmarks follow the snapshot they were made from, so the reverse promotion puts the transferred one back
+    // under the checkout.
     zfs_ok(sbin.as_str(), &["promote", checkout_dataset.as_str()]);
-    zfs_ok(sbin.as_str(), &["destroy", format!("{clone}#from-origin").as_str()]);
+    zfs_ok(sbin.as_str(), &["destroy", format!("{checkout_dataset}#from-origin").as_str()]);
     let reversed: String = the_refusal(checkout.as_path(), slot.as_path());
     assert!(reversed.contains("the lineage proof a removal makes passed without writing anything"), "{reversed}");
     assert!(reversed.contains(&format!("descends from the origin snapshot `{origin_snapshot}`")), "{reversed}");
@@ -408,7 +417,7 @@ fn zfs_removal_refusal_guest() {
     zfs_ok(sbin.as_str(), &["destroy", clone.as_str()]);
     zfs_ok(sbin.as_str(), &["clone", origin_snapshot.as_str(), clone.as_str()]);
     let replaced: String = the_refusal(checkout.as_path(), slot.as_path());
-    assert!(replaced.contains(&format!("the clone `{clone}` answers with cloneGuid")), "{replaced}");
+    assert!(replaced.contains(&format!("`{clone}` answers with cloneGuid")), "{replaced}");
     assert!(replaced.contains("not the one the add made"), "{replaced}");
     assert_eq!(the_binding_bytes(common.as_path()), recorded, "the refusal never rewrites a record to match the pool");
     assert_eq!(the_plan_folder_holds(common.as_path()), 0);
