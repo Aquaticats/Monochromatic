@@ -67,6 +67,11 @@
 //! - `holder_preflight.rs`:
 //!   the reads a forced removal makes before it ends anything,
 //!   and the refusal each incomplete or unusable answer is.
+//! - `blocker_end.rs`:
+//!   the signal stage:
+//!   `SIGTERM` through a pin,
+//!   a wait,
+//!   then `SIGKILL` to the survivors while the caller still lives.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -103,6 +108,9 @@ pub mod holder_endings;
 
 /// The reads before the first act, and their refusals.
 pub mod holder_preflight;
+
+/// The signal stage.
+pub mod blocker_end;
 
 /// Every word this arm writes or answers.
 pub use forced_removal_words::{
@@ -143,3 +151,8 @@ pub use holder_endings::{
 };
 /// The reads before the first act, and their refusals.
 pub use holder_preflight::{ForcedPlan, ForcedRefusal, PreflightReads, Route, plan_the_forced_removal};
+/// The signal stage.
+pub use blocker_end::{
+    ASK, Blocker, EndResult, Endability, KILL, MOST_BLOCKERS_ONE_ACT_HOLDS, SignalStage, end_the_blockers,
+    endability_of, endable_from,
+};
