@@ -190,7 +190,8 @@ by name.
   The hazard it names is measured there.
   A clone was mounted at a path inside the checkout before the checkout's own mount,
   so the checkout's later mount covered it.
-  The clone was then unreachable by path, and it blocked the pool's export.
+  The clone was then unreachable by path,
+  and it blocked the pool's export.
 - `canmount`:
   the record gives no separate reason.
   It falls under the module's shared sentence about what a mount exposes,
@@ -440,8 +441,9 @@ and the container at `mountpoint=legacy`,
 `canmount=off`,
 `setuid=off`,
 `devices=off`.
-Its logs are `mountpoint-arm-2026-11-25.log` and `mountpoint-arm-two-2026-11-25.log` in this round's `keep/` folder,
-beside the fixture's own `create` and `prepare` logs.
+Its logs are `mountpoint-arm-2026-11-25.log` and `mountpoint-arm-two-2026-11-25.log`.
+They sit in this round's `keep/guest-logs/` folder,
+alongside the fixture's own `create` and `prepare` logs.
 The lines the rest of this document rests on follow.
 
 ### The setup, before any clone
