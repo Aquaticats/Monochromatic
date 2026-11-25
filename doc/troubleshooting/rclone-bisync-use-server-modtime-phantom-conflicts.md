@@ -510,8 +510,13 @@ both states unless noted:
    and it fixes a different listing-modtime rule.
 - `bisync LastModified`:
    0 hits.
-- `bisync "server-modtime"` and `bisync "server modtime"`:
-   0 hits each.
+- `bisync "server-modtime"`:
+   7 hits,
+   the same three as above plus #10236,
+   #10163,
+   #8886 and #7282,
+   all backend proposals or feature threads where the flag's name appears in a comment,
+   none a report of this behaviour.
 - `"use-server-modtime" in:title`:
    2 hits,
    #3629 (a 2019 docs fix) and #2214 (the flag's introduction in 2018).
@@ -553,7 +558,7 @@ to catch reports that never use the flag's name:
   with `bisync` in the title (71) was downloaded whole,
   `number`, `title`, `state` and `body`: 77 distinct items.
   None of the 77 contains `server-modtime` in its body,
-  so no bisync report has yet named the flag,
+  so no bisync report names the flag in its own text,
   and none describes a file reading back as changed after bisync uploads it.
   Four of the 77 mention `baseline`,
   `time (newer)` or `phantom` at all:
