@@ -5175,10 +5175,10 @@ command that settles it,
 and the add writes nothing.
 Three decided permissions are not the add's,
 because no step of it destroys or mounts a checkout snapshot:
-`destroy` on the container's descendants, which a removal uses to destroy a
-clone,
-and `mount` and `destroy` on the checkout's descendants, which a removal uses to
-clear an origin snapshot.
+`destroy` on the container's descendants,
+which a removal uses to destroy a clone,
+and `mount` and `destroy` on the checkout's descendants,
+which a removal uses to clear an origin snapshot.
 When one of those is missing the add prints one line naming the `zfs allow`
 command,
 says the add will finish,
