@@ -71,13 +71,19 @@ pub fn value(_variable: &str) -> Option<OsString> {
 /// function text(variable: string): string | undefined { return value(variable)?.toStringIfText(); }
 /// ```
 pub fn text(variable: &str) -> Option<String> {
-    // `Option<OsString>` is the raw value above: either the bytes the variable holds or nothing.
-    let raw: Option<OsString> = value(variable);
-    // `let Some(raw) = raw else { ... }` takes the value out when there is one and runs the block when there is none;
-    // the block returns, so `raw` is the value from here on.
-    let Some(raw) = raw else {
-        return None;
-    };
+    // What:     The `?` after `value(variable)` takes the value out of the `Option` when there is one, and returns
+    //           `None` from this function at once when there is not: in a build without the feature it is the whole
+    //           body that runs.
+    // Why:      One line says "a switch that is not set has no text", which is the answer a release build gives for
+    //           every switch.
+    // Gotcha:   `?` here is not a truth test: it short-circuits the function, so everything after it runs only when a
+    //           value was there.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const raw = value(variable); if (raw === undefined) return undefined;
+    // ```
+    let raw: OsString = value(variable)?;
     // `.ok()` turns the `Result<String, _>` of "these bytes are text" into an `Option<String>`, dropping a value that
     // is not text rather than failing the run.
     return raw.into_string().ok();
