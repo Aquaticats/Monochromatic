@@ -336,7 +336,13 @@ issue 6322's fix (`pi-fix-removal-keeps-journals-of-gone-worktrees`),
 since a removal keeps the commit service's journal for `rules-repository` or a `claim-watch` naming only the removed worktree,
 which has left 595 journals of removed worktrees among 663 (56 MB) in the service state folder;
 after it merges, `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` clears them on this machine;
-the gate on `main` at `a467773fbf` (`gate-on-main-at-a467773fbf`) runs for step 12's merge;
+the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
+the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
+which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
+its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
+the round that makes that control hold without `/dev/zfs` has its brief at `~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/prompt.md`
+and waits, with issue 6455's, for the machine-wide memory stall to fall
+(at 2026-11-24T19:45-05:00 it sat in the root cgroup alone, no service's);
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
 the round that measures the build and sizes its bound waits for that stall to fall,
