@@ -401,6 +401,25 @@ pub mod worktree_clone_origin_cleanup;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_origin_cleanup::*;
 
+/// The settling command a state a resume meets names and this release does not have yet:
+///  its grammar and the two values a person confirms,
+///  its six reads in the design's order,
+///  its two modes over the records and the registration,
+///  and its refusal.
+/// Built ahead of the plan's order and unwired:
+/// no path from a `git` command,
+/// `doctor`,
+/// the mount handler or a boot unit
+/// calls it until the round that switches removal on adds it to the grammar.
+/// It is Linux only,
+/// like the record modes and the pool reads it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_record_settling;
+
+/// The same re-export for `worktree_clone_record_settling`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_record_settling::*;
+
 /// What one worktree-clone slot is,
 ///  read without changing anything:
 ///  a known unmounted clone,
@@ -511,6 +530,25 @@ pub mod worktree_clone_mount_handler;
 /// like the `/proc` files it reads.
 #[cfg(target_os = "linux")]
 pub mod clone_holder_scan;
+
+/// The forced arm of a ZFS worktree clone's removal:
+///  who the command's caller and its session are,
+///  the protected set a forced removal never ends,
+///  what it may do to each kind of holder and what it refuses,
+///  the reads it makes before its first act and change,
+///  and every word it answers with.
+/// Plan step 17 builds it ahead of the removal's cut, so no person's command
+///  reaches it and no sentence offers the flag,
+///  and its waits ship with no value until the owner decides one or step 22's
+///  measurement sizes them.
+/// It is Linux only,
+/// like the `/proc` reads, the pidfds and the mount calls it would make.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_forced_removal;
+
+/// The same re-export for `worktree_clone_forced_removal`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_forced_removal::*;
 
 /// The mount-namespace read two of the wrapper's scans share:
 ///  every live task grouped by the kernel's own namespace identity,

@@ -5198,7 +5198,8 @@ What this release does not yet do:
   (`git checkout-index --force -u --stdin` for the paths a conversion reaches)
   is not built,
   so the paths the reset does not rewrite keep the snapshot's bytes
-  (plan step 11's remainder, issue 6323).
+  (plan step 11's remainder,
+  issue 6323).
 - A source the restore cannot prove is declined before the claim,
   not swept up after it:
   an untracked Git repository of the source's own,
@@ -5230,16 +5231,21 @@ What this release does not yet do:
 - A failed proof or a failed restore does not finish the add with Git's own
   checkout,
   and nothing is destroyed or unmounted by it:
-  the claim, the slot, the locked registration, the clone and the snapshot stay
+  the claim,
+  the slot,
+  the locked registration,
+  the clone and the snapshot stay
   as they were,
   the add prints the failure and the next add at the slot resumes it.
   The settle that destroys what the add made and finishes with Git's own
   checkout needs the origin cleanup record's writer,
-  which is plan step 14's, and is not built.
+  which is plan step 14's,
+  and is not built.
 - Nothing prints the pending worktree's text or `doctor`'s line for it,
   because no step of this release leaves that state;
   the withdrawal of an unmount request,
-  the obligation record and the settling command are the settle's own, above.
+  the obligation record and the settling command are the settle's own,
+  above.
 - The warning above the measured count of changed paths is not printed:
   the count is measurement M4's,
   which has not been run,
@@ -5736,6 +5742,71 @@ What this release does not do:
 - It adopts no plan from a command;
   a removal that finds one adopts it and continues,
   and no release command runs one.
+
+#### The settling command, built and reachable from no command
+
+Design:
+`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"The settling command" and its veto entries V21 and V23;
+`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+"A slot whose recorded clone is gone and cannot be proved gone".
+The code is `src/native/worktree_clone_record_settling/`.
+
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing
+the next add,
+and the project chose a command that removes the record once a person confirms it.
+The command is
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
+and it is built ahead of the plan's order:
+
+- No management grammar admits it,
+  no `git` command reaches it,
+  `doctor`,
+  the mount handler and the boot units do not either,
+  and the round that switches removal on adds it to the grammar and to every sentence that names it.
+- Its confirmation is three values the record supplies and the person types:
+  the slot twice,
+  and the last four decimal digits of the record's own `cloneGuid=`.
+  A printed line carries both as placeholders,
+  so a blind paste fails either comparison,
+  and the command never prompts.
+- Its six reads run in one order:
+  the slot's claim under the per-slot claim file,
+  the binding record,
+  the pinned clone parent's children for the clone's GUID and its name,
+  the slot's `.git` and the registration's identity,
+  a standing origin cleanup record,
+  and a standing destruction plan.
+  A live claim,
+  an unreadable record,
+  a record holding no clone,
+  a clone that stands or whose name or GUID answers elsewhere,
+  a mount at the slot,
+  a pointer naming another registration,
+  a registration of another identity,
+  a person's own lock,
+  a cleanup record or a plan naming other objects,
+  and a plan whose head is `gone` each refuse by name and change nothing.
+  A refused or partial pool listing is not a refusal:
+  the state the command exists for is exactly that,
+  so the listing's words are printed as the evidence the person confirms.
+- With no checkout begun it writes a lost lock again,
+  runs step 10's recipe over the registration,
+  prints the lost names of a standing plan and removes it,
+  then removes the two inventories,
+  then the binding,
+  and releases the claim last.
+- With a checkout begun it removes the plan and the three records,
+  leaves the registration,
+  the pointer and the person's files,
+  writes no lock,
+  and names `git worktree remove <slot>`.
+- It prints the record it confirmed,
+  the slot's entries,
+  the pool's answer,
+  the cleanup record and the plan it found,
+  the exact removals in order,
+  and one sentence that afterwards the wrapper can no longer prove which clone the slot held.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -9329,7 +9400,8 @@ Every Git and `git-lfs` child gets one list,
 `no_prompt_overlay` in `src/native/invocation/child_environment.rs`:
 `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS` set to one sentence that answers nothing and names what a person does instead,
+`SSH_ASKPASS` set to `false`,
+the standard program that answers nothing,
 and `SSH_ASKPASS_REQUIRE=force`.
 The service's children take it through `service_child_overlay`,
 which `service_work.rs` uses for the service's landing and upkeep context and for each push's environment,
@@ -9360,47 +9432,35 @@ a start that fails leaves no answer (`readpass.c:179-181`),
 and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
 (`sshconnect2.c:1549-1558`).
 `ssh_askpass` starts that value with `execlp` (`readpass.c:77`),
-and the value is not a program.
-It is one sentence, `NO_ANSWER_SENTENCE` in `src/native/invocation/child_environment.rs`,
-which the owner chose on 2026-11-24
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-"J: the sentence in SSH_ASKPASS"):
-a name that long cannot be started,
-and OpenSSH prints its own failure with the sentence inside it
-(`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`),
-so the person reads
-`ssh_askpass: exec(monochromatic-git-policy-cli: ...): File name too long`
-before OpenSSH's own refusal.
-No program starts,
-so nothing has to be installed on `PATH`
-and no confinement has to allow an execute in place of a person.
-The sentence names no host key and no certificate outside single quotes and holds none of the login words,
-because a transcript that holds it is still judged by `reads_as_unknown_host_key` and by the two login readings
-(`the_wrappers_sentence_for_openssh_turns_no_reading_on` in `src/native/lfs/lfs_pre_push_tests.rs`).
-That is also why the wrapper's own sentence for an unknown host key still prints below the program's words:
-the upload's explanation and the service's push record read the same transcript
-(`an_upload_refused_for_an_unknown_host_key_reads_words_that_hold_the_wrappers_askpass_line`,
-`a_record_of_a_push_refused_for_an_unknown_key_reads_words_that_hold_the_wrappers_askpass_line`).
-A person meets the line at both refusals this rule causes,
-measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
-`git clone` and `git fetch` print it before `Host key verification failed.` at an unknown host key,
-and before `Permission denied (publickey).` at a key whose passphrase nobody can give,
-each ending 128 with Git's own lines below
-(`a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-`a_typed_fetch_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refusal`,
-`a_typed_clone_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal` and
-`a_typed_fetch_over_ssh_at_a_key_nobody_can_unlock_prints_the_sentence_before_the_refusal`
+and `false` is a program that prints nothing and exits 1,
+so the question is answered with nothing and no program of the desktop's starts.
+The value has to be one OpenSSH can start:
+a value it cannot start makes the failing child send SIGHUP to the `ProxyCommand` the connection runs through
+(`sshconnect.c:305-312` at `V_10_6_P2`),
+which ends such a connection where `false` ends 0.
+One release put a sentence there instead,
+and that is why it went
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+the answer "Put `false` back"):
+behind a `ProxyCommand` or a `ProxyJump`,
+a connection whose first accepted key had a passphrase no agent held ended 255 where alpha.45's `false` ended 0.
+A control against a throwaway `sshd` proves the ending this release gives that connection:
+the protected key is offered before one that works,
+the connection runs through a `ProxyCommand`,
+and the clone ends 0
+(`a_key_nobody_can_unlock_is_skipped_for_one_that_works_behind_a_proxy_command`
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
-The line also prints where nothing failed:
-with `AddKeysToAgent=ask` and an agent that does not hold the key yet,
-and with a key whose passphrase nobody can give skipped for one that works,
-the command ends 0 and the line is on standard error anyway
-(`a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_with_the_sentence`,
-and the `AddKeysToAgent=ask` arm in
-`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
-The sentence's last clause says so,
-and that is the cost of one generic text:
-it cannot say which question it was printed for.
+The wrapper adds no words of its own where a question was asked:
+the program it names answers nothing and prints nothing.
+This release therefore names no next step at a new host key,
+and how such a text reaches a person is the project's next choice
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
+the record that chose the delivery this release removed).
+A person meets OpenSSH's own refusals at both questions this rule answers with nothing,
+measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
+`Host key verification failed.` at an unknown host key,
+and `Permission denied (publickey).` at a key whose passphrase nobody can give,
+each ending 128 with Git's own lines below and no line of the wrapper's among them.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -10694,7 +10754,7 @@ The refusal that follows a login failure says what the wrapper did about prompti
 and every refusal says the wrapper never lets a command ask for a credential,
 with `GIT_ASKPASS` set to the empty string,
 `GIT_TERMINAL_PROMPT=0`,
-`SSH_ASKPASS` set to the sentence that answers nothing and `SSH_ASKPASS_REQUIRE=force`,
+`SSH_ASKPASS` set to `false` and `SSH_ASKPASS_REQUIRE=force`,
 whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
@@ -15634,7 +15694,7 @@ The step:
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
   which ends at the last `@` of its authority;
-  every path segment of more than `LONGEST_PLAIN_WORD` characters,
+  every path segment of `MASKED_SEGMENT_LENGTH` characters or more,
   and every path segment that carries a percent encoding or another punctuation mark,
   a segment being a plain label while it is the letters `a` to `z` and `A` to `Z`,
   the digits and the separators `-`,
@@ -15646,7 +15706,7 @@ The step:
   `info`,
   `Org` and `Repo.git` are,
   so a capital and a digit are shown and a longer segment is hidden
-  (`LONGEST_PLAIN_WORD` in `src/native/lfs/lfs_output_mask.rs`);
+  (`MASKED_SEGMENT_LENGTH` in `src/native/lfs/lfs_output_mask.rs`);
   and every value of its query and of its fragment,
   with a key kept only while it is a plain label,
   as the incident's `lfs.<url>.locksverify` key name was not.
@@ -15657,7 +15717,7 @@ The step:
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  A path segment of `LONGEST_PLAIN_WORD` characters or fewer with no percent encoding
+  A path segment shorter than `MASKED_SEGMENT_LENGTH` characters with no percent encoding
   and no other punctuation mark prints as written and is not hidden,
   which the owner accepted when choosing this rule on 2026-11-24
   (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
@@ -15668,7 +15728,7 @@ The step:
   and a short token in a path now prints,
   which the option the owner chose named.
   The length is the segment's and not a word's inside it,
-  so a folder name of short words is hidden once the whole segment passes the limit,
+  so a folder name of short words is hidden with the segment around it,
   where the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only")
   hid a segment only when it held an unbroken run of 20 lowercase letters.
   A query or fragment key of that shape is not hidden either:
@@ -16915,13 +16975,29 @@ by the Git directory of a record of a batch that landed,
 or by a note of the instance's claim watch,
 each only when the text hashes to the instance:
 a removal that kept a journal took the note and the socket file with it,
-so a survey that read only the note and the socket file never saw the folder again, and the journals of removed
+so a survey that read only the note and the socket file never saw the folder again,
+and the journals of removed
 worktrees stayed for ever
 (issue 6322).
 An instance whose socket file and note are both gone has no unit the manager could start again,
 so the command asks the manager nothing about it and decides the journal alone.
+An instance that maps to nothing is counted as one that cannot be matched only while its socket file or its note stands:
+those two files are what make a unit possible,
+and without them the journal is all that is left,
+so the command says so with a sentence of its own,
+names the folder the journals are in,
+and says a person can remove one by hand after looking.
+`doctor` says the same in its note,
+in place of a number that no command could lower
+(M1 of the alpha.46 commit,
+push and LFS release pass:
+seven such journals on one machine were counted on every run).
 The command names every journal it removed with its folder,
-and every journal it kept with the entry that kept it and the command that removes it once that work is over.
+and every journal it kept with the entry that kept it and the command that removes it once that work is over,
+on standard error,
+and on standard output it names the worktree and the folder of each journal it kept as it names a removed one,
+so a run that kept a journal never prints that no unit or journal belongs to a removed worktree
+(M2 of the same pass).
 A batch's copy of the conclusion state it removed (`<batch>.cleanup`,
 `src/native/landing/conclusion_state_copy.rs`)
 is one of them no longer:
@@ -22856,7 +22932,9 @@ held until its owed cost measurement runs.
 
 #### The start probe beside the gate
 
-`monochromatic-git-policy-cli zfs-root start-probe`, run as root, is the functional probe the
+`monochromatic-git-policy-cli zfs-root start-probe`,
+run as root,
+is the functional probe the
 kernel-release answer asks for,
 run as `ExecStartPre=-` of the boot unit.
 It proves the running kernel and module can make the route's calls,
