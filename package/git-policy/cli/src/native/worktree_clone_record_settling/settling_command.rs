@@ -212,10 +212,10 @@ pub fn settle_the_records_of_a_slot(common_dir: &Path, request: &SettlingRequest
     if let Some(stop) = presence.stop_sentence() {
         return Err(stop);
     }
-    let cleanup: Option<OriginCleanupRecord> = a_standing_origin_cleanup(common_dir, &record.recorded)?;
-    let plan: Option<DestructionPlan> = a_standing_plan(common_dir, &record.recorded)?;
     let registration: PathBuf = registration_path(common_dir, &record);
     let slot: TheSlot = read_the_slot(record.recorded.slot_path.as_path(), registration.as_path(), record.recorded.registration_identity, reads.mounts)?;
+    let cleanup: Option<OriginCleanupRecord> = a_standing_origin_cleanup(common_dir, &record.recorded)?;
+    let plan: Option<DestructionPlan> = a_standing_plan(common_dir, &record.recorded)?;
     let facts: TheOrderFacts = TheOrderFacts { checkout_begun: slot.a_checkout_has_begun(), plan_stands: plan.is_some() };
     let steps: Vec<SettlingStep> = the_steps(facts);
     let to: RemovalsToMake<'_> = RemovalsToMake {
