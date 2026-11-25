@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T17:44:36-05:00.
+State recorded 2026-11-25T17:56:46-05:00.
 This work is incomplete and unapproved.
 
 ## Current state
@@ -44,6 +44,6 @@ The user explicitly accepted the filter's read-to-EOF buffering limitation in `Q
 
 ## Next step
 
-Run the controlled timing matrix,
-record it in the planning document,
-and commit before asking the timing question.
+Ask whether the measured native result timing is acceptable,
+record the answer,
+then obtain the final review before requesting confirmation.
