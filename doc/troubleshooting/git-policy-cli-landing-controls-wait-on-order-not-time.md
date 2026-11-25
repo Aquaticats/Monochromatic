@@ -138,6 +138,42 @@ and with the flag set by the plain statement the test binary was still spinning 
 with 20.9 s of system time in the renewing thread,
 when it was killed.
 
+## The count a threaded run read from another control
+
+A run of `cargo test --locked --offline --lib lock::` on this host, at its default threads,
+failed
+`service_index_lock::tests::a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+in three runs of three,
+with `the wait ended at its timer and not at the removal; placements [true, false]`,
+and the same control passed alone and under `--test-threads=1`.
+The placements in that message are this control's own evidence that the wake was the removal,
+so the comparison that failed was the other one:
+the count of waits the timer ended.
+
+That count was one `static AtomicUsize` for the process (`WAKES_BY_THE_TIMER`),
+and `Watch::wait` adds one whenever a poll ends at its timer,
+on whatever thread the waiting test runs.
+`cargo test` runs a module's tests as threads of one process,
+so any other test's wait that ended at its timer inside this control's 400 ms hold moved the same count:
+10 in the run that first showed it,
+and 9, 12 and 15 in the three runs kept for this record.
+
+Measured, rather than argued:
+
+- this control alone, three runs, passed with the count unchanged;
+- this control beside `a_wait_on_a_watch_whose_directory_is_removed_returns_at_once_and_reports_it`,
+  whose first step is a 50 ms wait on a quiet watch and so a timer wake and nothing else,
+  failed in three runs of three with the count moved `0` to `1`;
+- the same pair after the change passed in three runs of three.
+
+The count is per thread now, as `live_watches_on_this_thread` in the same file and
+`service_index_attempts.rs`'s `WAITS_CHOSEN` already were,
+and the wait runs on the thread that asks for the lock
+(`service_index_attempts.rs` waits with `active.wait(next_wake, lock_name)`),
+so a control reads its own thread's waits.
+Nothing in the release executable changed:
+the count and its recorder are both `#[cfg(test)]`.
+
 ## The other windows, each decided
 
 Branch `fix/git-policy-cli-landing-controls-wait-on-order-everywhere` read every window the first record left
@@ -216,7 +252,9 @@ because the window decided the verdict:
   wake by the removal from one by the reminder's timer.
   The watch knows which of the two ended it and now counts the waits it ended at their timer,
   for test builds
-  (`WAKES_BY_THE_TIMER`),
+  (`WAKES_BY_THE_TIMER`,
+  named `WAKES_BY_THE_TIMER_ON_THIS_THREAD` since 2026-11-25,
+  because the count is the thread's now: see "The count a threaded run read from another control" below),
   and the control reads that count.
   Planted a watch on a directory nothing happens in,
   so only the timer can end the wait:
