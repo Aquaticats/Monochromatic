@@ -1075,15 +1075,31 @@ read on 2026-11-25 with OpenZFS `2.4.4-1` (`/sys/module/zfs/version`),
   so `MemAvailable` leaves the ARC out,
   and a guard that reads `MemAvailable` alone sees less room than there is.
 
-The reading of these numbers,
-which is this document's inference and not a measured cause:
-the kernel starts reclaiming at its own watermarks
-(low 855 MiB and high 1,645 MiB at `watermark_scale_factor` 125, measured in this document),
-and the ARC starts shrinking on its own only below `arc_sys_free`,
-so both begin only once free memory is under about 2.2 GiB,
-and at `vm.swappiness` 150 the kernel's share of that reclaim goes to swap.
-An ARC that keeps more memory free shrinks first,
-before the kernel's watermarks are reached.
+The reading first drawn from these numbers was that the kernel and the ARC both began reclaiming
+only once free memory was under about 2.2 GiB,
+so the kernel's share went to swap while the ARC still held cache.
+That reading was wrong as a cause of the swapping, and the readings after the change disproved it:
+
+- Between 2026-11-25T13:23:43-05:00 and 13:37:01-05:00, `pswpout` rose by 8069492 pages (30.8 GiB)
+  while the ARC was down to 3.1 GiB and `MemFree` read 37.9 GiB.
+- Over 120 seconds from 13:38:08-05:00 (`date +%s` 1795631888 to 1795632008),
+  17.41 GiB went out to swap and 10.64 GiB came back,
+  the ARC held 2.2 to 3.7 GiB,
+  and `memory.events` `max` of `user.slice` did not move (7948604 both times),
+  so no capped cgroup was reclaiming against its own limit either.
+- Over 30 seconds at about 13:42-05:00,
+  `pgsteal_kswapd` rose by 1213853 pages (4.63 GiB) and `pgsteal_direct` by 12,
+  with `MemFree` at 36.5 GiB:
+  the background reclaim thread did nearly all of it.
+
+The Normal zone then held 9196486 free pages against a `high` watermark of 408439,
+and `/proc/buddyinfo` showed no free block of order 9 or 10 (2 MiB and up).
+That points at transparent hugepages instead;
+see "Transparent hugepage defrag and proactive compaction, 2026-11-25".
+The ARC setting stays,
+by the owner's answer "Keep 8 GiB (Recommended)",
+as room for one guest to start from free memory,
+not as a fix for the swapping.
 
 Applied at runtime at 2026-11-25T13:24:47-05:00 and read back:
 
@@ -1124,6 +1140,70 @@ with these counters (`pswpout`, `allocstall_*`, `/proc/pressure/memory` `total`,
 read over windows of comparable work before and after 13:24:47.
 To undo it,
 write the old value back (`2316412032`) and remove the `tmpfiles.d` file.
+
+### Transparent hugepage defrag and proactive compaction, 2026-11-25
+
+What the host ran:
+`/sys/kernel/mm/transparent_hugepage/enabled` `[always]`,
+`defrag` `[defer+madvise]` (set by CachyOS's `/usr/lib/tmpfiles.d/thp.conf` line 3,
+under the comment "Improve performance for applications that use tcmalloc"),
+and `vm.compaction_proactiveness` 0, which no file in `/etc/sysctl.d`, `/usr/lib/sysctl.d` or `/etc/sysctl.conf` sets,
+so this kernel boots with it.
+The kernel's own text at v7.3,
+`Documentation/admin-guide/mm/transhuge.rst`:
+`defer+madvise` "will enter direct reclaim and compaction like ``always``, but only for regions that have used
+madvise(MADV_HUGEPAGE); all other regions will wake kswapd in the background to reclaim pages and wake kcompactd to
+compact memory";
+and `Documentation/admin-guide/sysctl/vm.rst`: "Setting it to 0 disables proactive compaction."
+Since boot,
+7685445 of 9661022 hugepage faults had fallen back to small pages (`thp_fault_fallback`, `thp_fault_alloc`),
+and at about 2026-11-25T13:43-05:00 `/proc/buddyinfo` held no free Normal-zone block of order 9 or 10.
+
+The owner chose "Madvise and compaction" (`defrag` `madvise`, `compaction_proactiveness` 20)
+from a question that ranked `madvise` alone first,
+with the condition that it is kept only if the reclaim and swap rates drop.
+Four windows of 120 seconds,
+each after five seconds on its setting,
+alternated the host's setting (A) and the chosen one (B);
+the raw readings are in `~/temp/agent/thp-defrag-and-compaction-measured-2026-11-25/keep/`:
+
+1.  A from 13:45:51-05:00:
+    `pgsteal_kswapd` 23.70 GiB, `pswpout` 18.22 GiB, `pswpin` 12.17 GiB, stall 5.0 s,
+    hugepage faults 7659 allocated and 59520 fallen back, 4448 order-9 blocks free at the end.
+2.  B from 13:47:56-05:00:
+    `pgsteal_kswapd` 0.16 GiB, `pswpout` 0.03 GiB, `pswpin` 1.99 GiB, stall 0.0 s,
+    42681 allocated and 17658 fallen back, 3286 free at the end.
+3.  A from 13:50:02-05:00:
+    `pgsteal_kswapd` 0.00 GiB, `pswpout` 0.00 GiB, `pswpin` 0.73 GiB, stall 0.0 s,
+    68677 allocated and 0 fallen back, 3309 free at the end.
+4.  B from 13:52:07-05:00:
+    `pgsteal_kswapd` 0.47 GiB, `pgsteal_direct` 0.16 GiB, `pswpout` 0.00 GiB, stall 0.4 s,
+    30588 allocated and 16798 fallen back, 683 compaction stalls, 216 free at the end.
+
+What the windows show:
+the reclaim and swap stopped when the setting changed,
+and the third window,
+the host's setting again,
+stayed quiet because writing a nonzero `compaction_proactiveness` "will immediately trigger the proactive compaction"
+(`vm.rst`),
+which had left 2 MiB blocks free,
+so no hugepage fault missed (0 fallen back) and nothing woke kswapd.
+So the churn follows the missing 2 MiB blocks under `defer+madvise`.
+What they do not show:
+which half of the change carries the effect,
+because compaction's result outlasts its window and makes A after B no control;
+and whether the rates stay down as builds fragment memory again over hours.
+
+Persisted for boots:
+`/etc/tmpfiles.d/thp.conf`,
+which replaces the distribution's file of the same name,
+holds `w! /sys/kernel/mm/transparent_hugepage/defrag - - - - madvise` under a comment naming these readings,
+and `/etc/sysctl.d/90-vm-compaction-proactiveness.conf` holds `vm.compaction_proactiveness = 20`.
+`sudo systemd-tmpfiles --create --boot /etc/tmpfiles.d/thp.conf` and
+`sudo sysctl --load /etc/sysctl.d/90-vm-compaction-proactiveness.conf` both exited 0,
+and `systemd-tmpfiles --cat-config` lists the `/etc` line for that path.
+To undo it,
+delete both files and write `defer+madvise` and `0` back.
 
 ## What does not work
 
