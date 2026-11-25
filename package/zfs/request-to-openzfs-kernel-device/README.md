@@ -435,6 +435,11 @@ it prints the tag it built:
 mise run //package/zfs/request-to-openzfs-kernel-device:build:gate-image -- --tag <tag>
 ```
 
+The build itself is bounded:
+`podman build` has no weight, CPU or process option,
+so the build takes the shared container bound's memory, CFS period and quota,
+the size every container gets unless its task asks for another.
+
 The checks run there as `podman run --rm --init --network none --cpus 4
 --memory 4g --pids-limit 512`,
 with no home folder,
