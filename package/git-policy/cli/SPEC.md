@@ -4957,8 +4957,8 @@ and every step reads the state a kill at the step before it leaves:
   and the slot's own folder is compared by identity while nothing covers it,
   or by the clone's dataset name and its GUID while a mount of that clone stands at the slot.
   The name comes from the mount table's source,
-  and the GUID is read through the add route's own identity read
-  (`DatasetGuidReads`, implemented for `add_zfs::OpenedDevice`),
+  and the GUID is read through the add route's own identity read,
+  `DatasetGuidReads` implemented for `add_zfs::OpenedDevice`,
   because a dataset made again under the same name answers another GUID.
   A pool that does not answer the GUID,
   a record that names no `cloneGuid=`,

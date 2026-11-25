@@ -20,7 +20,8 @@
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
 /// What:
-///  One dataset's GUID, as the pool answers it.
+///  One dataset's GUID,
+///  as the pool answers it.
 /// Why:
 ///  The mounted arm compares an identity the name cannot carry,
 ///  and the caller owns how the pool is reached:

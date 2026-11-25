@@ -280,7 +280,8 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
 }
 
 /// What:
-///  The mounted fact: the clone dataset the mount's source names answers the record's `cloneGuid=`.
+///  The mounted fact:
+///  the clone dataset the mount's source names answers the record's `cloneGuid=`.
 /// Why:
 ///  The mount table compares a name,
 ///  and a name alone passes a dataset made again under it after the recorded one was destroyed,

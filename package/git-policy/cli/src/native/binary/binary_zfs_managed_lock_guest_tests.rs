@@ -4,7 +4,8 @@
 //!  Git's own `worktree add --lock --reason` writing the wrapper's sentence,
 //!  the clone mounted over the slot and unmounted,
 //!  the mounted arm of the two-fact proof (measurement `M2`),
-//!  a clone destroyed and made again under the same name, which its GUID refuses,
+//!  a clone destroyed and made again under the same name,
+//!  which its GUID refuses,
 //!  the pointer deleted,
 //!  the lock read as the wrapper's own through the two-fact proof,
 //!  the three prune commands keeping the registration while it stands,
@@ -116,7 +117,8 @@ fn guid_of(sbin: &str, dataset: &str) -> DatasetGuid {
 }
 
 /// What:
-///  The pool's GUIDs, read through the add route's own device.
+///  The pool's GUIDs,
+///  read through the add route's own device.
 /// Why:
 ///  The mounted arm compares the record's `cloneGuid=` with the GUID of the dataset the mount's source names,
 ///  and that read is the route's own `OpenedDevice::identity_of`,
