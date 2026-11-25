@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:13:41-05:00.
+State recorded 2026-11-25T17:14:27-05:00.
 
 ## Requirement as stated
 
@@ -163,6 +163,9 @@ Sessions still carrying the old `off` setting return to the enabled default unle
 The hook warns the user once per session but otherwise applies the selected policy normally.
 A synchronous `SessionStart` handler in this same plugin emits `systemMessage` on startup.
 It has no persistent warning marker and does not re-warn on resume or clear.
+The warning fires only when our timeout policy is enabled.
+If both native background tasks and our policy are disabled,
+there is no warning because this hook introduces no one-second termination consequence.
 It does not suppress the default timeout,
 change the requested background mode,
 block the command,
@@ -178,22 +181,12 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-One dependent warning question remains:
+The design frontier is empty.
+No behavior remains silently assumed from the answered branches.
 
-- `warning-when-policy-disabled`:
-  should the `SessionStart` warning fire when native background tasks are disabled
-  but `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` has disabled our policy too?
-
-After that answer,
-the design frontier is empty.
 A cross-vendor review and native runtime probes remain required before the user is asked
 to confirm shared understanding.
-
-## Current recommendation
-
-Warn only when the new timeout policy is enabled.
-When both mechanisms are disabled,
-our hook adds no one-second timeout and therefore has no new termination consequence to explain.
+Implementation stays unauthorized until that confirmation.
 
 ## Rejected recommendations
 
