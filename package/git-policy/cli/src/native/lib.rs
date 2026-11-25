@@ -401,7 +401,8 @@ pub mod worktree_clone_origin_cleanup;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_origin_cleanup::*;
 
-/// The boot and shutdown units of the ZFS route, as the setup writes them:
+/// The boot and shutdown units of the ZFS route,
+/// as the setup writes them:
 ///  the gate that reconciles clone mounts after boot,
 ///  its two drop-ins,
 ///  the propagation service and the mount drop-in that starts it,
@@ -424,7 +425,8 @@ pub use checkout_boot_units::*;
 /// The immutable covered entry of the checkout's underlay:
 ///  what the kernel says about the entry at the checkout path and its parent,
 ///  why a reading is refused,
-///  and the protected, unprotected or unproven answer a boot takes before it
+///  and the protected,
+///  unprotected or unproven answer a boot takes before it
 ///  attaches a clone or trusts a reimported or rolled-back checkout.
 /// Plan step 19's piece,
 /// built ahead of the plan's order and unwired:
