@@ -121,12 +121,18 @@ pub(crate) mod real_git_lfs_the_run_requires;
 
 /// `strace`,
 /// which the controls that trace a wrapped command run it under,
-/// and what a control does in a run that has none;
+/// and the rule a control follows when this run has none;
 /// never part of the release executable,
 /// and included by path in the binary controls' own crate,
 /// which cannot reach this one.
 #[cfg(test)]
 pub(crate) mod strace_the_controls_run_under;
+
+/// The controls of the rule above;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "strace_the_controls_run_under_tests.rs"]
+pub(crate) mod strace_the_controls_run_under_tests;
 
 /// The controls of the decision above;
 /// never part of the release executable.

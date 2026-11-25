@@ -1200,3 +1200,12 @@ fn a_flushed_write_is_read_back_after_the_guest_loses_power() {
 }
 
 //endregion The two arms a boot and a power cut split in half
+
+//region The grant split, as the delegated account
+
+/// Choice 3C's split at the boundary a person meets,
+/// with the account the delegation names.
+#[path = "binary_zfs_add_grants_guest_tests.rs"]
+mod grants;
+
+//endregion The grant split, as the delegated account

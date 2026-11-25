@@ -40,7 +40,6 @@ pub fn observed_path(handle: &std::fs::File) -> std::io::Result<PathBuf> {
 }
 
 /// What:
-/// What:
 ///  The unique mount number of the mount an open handle is on,
 ///  from `statx(2)`'s unique mount identity.
 /// Why:
@@ -78,6 +77,7 @@ pub fn unique_mount_number_of(handle: &std::fs::File) -> std::io::Result<u64> {
     return Ok(facts.stx_mnt_id);
 }
 
+/// What:
 ///  The mount ID the kernel has recorded for the mount an open handle is on,
 ///  read from `/proc/self/fdinfo`.
 /// Why:
