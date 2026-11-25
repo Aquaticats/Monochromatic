@@ -83,9 +83,13 @@ The measurements behind its "measured" lines are in `## The guest probe`.
 - `container`: the ZFS dataset the add creates its clones in, beside the checkout dataset.
 - `legacy`: a `mountpoint` value that forbids the pool to mount the dataset itself.
   Only root's own `mount` can place such a dataset at a path.
-- decided grants: the nine permissions the accepted design lets the managed account hold,
-  listed in `REQUIRED_GRANTS`
-  (`package/git-policy/cli/src/native/health/doctor_zfs_route/delegation_checks.rs`).
+- decided grants: the nine permissions the accepted design gives the account at fixed places:
+  `snapshot` on the checkout;
+  `clone`, `mount` and `destroy` on the checkout's descendants;
+  `create` and `mount` on the container;
+  and `mount`, `userprop` and `destroy` on the container's descendants
+  (`REQUIRED_GRANTS`,
+  `package/git-policy/cli/src/native/health/doctor_zfs_route/delegation_checks.rs`).
   `mountpoint` is not one of them.
 - removal proof: the check that a clone about to be removed is the clone the add recorded.
   It rests on the account holding no permission that could change a dataset's lineage.
@@ -101,8 +105,8 @@ The measurements behind its "measured" lines are in `## The guest probe`.
   It is not built, so today an operator or a fixture makes the container.
 - plan step 14: the implementation plan's removal step.
   A failed add hands its clone to it, and it settles what the add could not.
-- measured: run in a throwaway virtual machine in the case the sentence names;
-  the actor and the grants in hand are given with that case.
+- measured: seen in a throwaway virtual machine in the second revision's round;
+  the case is named beside the line.
 
 The add works as the account.
 Today it asks the pool to create its clone with the property `mountpoint=legacy`,
@@ -222,7 +226,8 @@ No arm measured that change;
 it is read from the inheritance walk the pool uses.
 The pin covers `mountpoint` on that clone;
 `setuid` and `devices` stay inherited under every answer,
-and C's check, in the preflight, answers the same change for the next add only.
+and C's check answers the same change for the next add only,
+when the owner puts it in the preflight.
 
 What it costs:
 it deletes one entry from the list the design forbids the account,
@@ -1306,8 +1311,9 @@ A's pin is a real gain and buys less than it seems.
 It covers `mountpoint` on that clone,
 while `setuid` and `devices` stay inherited under every answer,
 and it survives a change of the container that an inherited value would follow.
-C answers that change for the next add only:
-it refuses a container that is not `legacy`,
+C answers that change for the next add only,
+and only when Choice 2 puts the check in the preflight:
+the preflight refuses a container that is not `legacy`,
 so the change can still reach the clones that already exist,
 and `doctor` and the sweep are what report it then.
 
