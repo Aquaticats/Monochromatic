@@ -50,6 +50,7 @@ import {
   lockFileName,
   newestTimingLine,
   readOrEmpty,
+  releaseAnswersTheRootModes,
   rootModesFirstRelease,
   stepNameOf,
   summaryLinesOf,
@@ -346,6 +347,15 @@ async function main(): Promise<number> {
   if (rest.length > 0)
     throw new NativeGateError(`native:install takes one release and "${rest.join(' ')}" is a second, so which one to install is unknown. ${usage}`);
   /**
+   Whether this release's build can be asked the root modes' words, which every release from
+   {@link rootModesFirstRelease} answers and none before it can.
+
+   Asking this before the first step is what refuses a version no release takes, and it is what keeps a rollback to an
+   earlier release from ending refused for a check that release could never pass
+   (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, "Rolling back with `native:install`").
+   */
+  const asksTheRootModes = releaseAnswersTheRootModes({ version, });
+  /**
    The checkout the command line named, when it named one.
    */
   const namedRepository = options.values
@@ -386,7 +396,10 @@ async function main(): Promise<number> {
     for (const step of plan)
       printLine(`  ${stepNameOf({ step, })}`);
     printLine(`  then refuse unless what ${gitProgram} --version prints holds ${wrapperVersionLine({ version, })}`);
-    printLine(`  and unless what ${gitProgram} ${rootModeWords.join(' ')} --version prints holds ${rootModesVersionLine({ version, })}`);
+    if (asksTheRootModes)
+      printLine(`  and unless what ${gitProgram} ${rootModeWords.join(' ')} --version prints holds ${rootModesVersionLine({ version, })}`);
+    else
+      printLine(`  and skip the words check, because ${version} is before ${rootModesFirstRelease} and its build cannot answer ${gitProgram} ${rootModeWords.join(' ')} --version`);
     printLine(`  commit ${lockFileName} when it moved, and print the newest line of ${commitTimingFileName} beside the common Git directory`);
     printLine('  and the service journal of the sample commit');
     return 0;
@@ -438,29 +451,38 @@ async function main(): Promise<number> {
     throw new NativeGateError(`${gitProgram} --version does not name ${version}, so the installed wrapper is not the release that was asked for. What it printed: ${reported.trim() || '(nothing)'}. Check that ${wrapperToolName} resolves to ${version} (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}) and that the wrapper's directory comes before any other ${gitProgram} on PATH.`);
   }
   /**
-   What the installed build says its root modes are.
+   What the installed build says its root modes are, when this release's build can be asked at all.
 
    The release holds one executable, so this asks the same file the check above asked, with the words that select a
    root mode on any file: a build that lost the dispatch, or a release whose root modes went to a file of their own
    again, answers nothing here.
-   */
-  const modesReported = (await runGateCommandOrThrow({
-    program: gitProgram,
-    args: [
-      rootModeWords[0],
-      rootModeWords[1],
-      '--version',
-    ],
-    deadlineMilliseconds: gitDeadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-    workingDirectory: repository,
-  })).stdout;
-  printLine(modesReported.trimEnd());
-  if (!modesReported.includes(rootModesVersionLine({ version, }))) {
-    throw new NativeGateError(`${gitProgram} ${rootModeWords.join(' ')} --version does not name ${version}, so this build does not answer the root modes. What it printed: ${modesReported.trim() || '(nothing)'}. ${rootModesFirstRelease} was the first release that answers the words: a release older than it answers nothing here whatever the archive holds, so an install of one ends with the wrapper installed, the lock moved and nothing committed, and only ${rootModesFirstRelease} or later has the root modes. For a release at or after ${rootModesFirstRelease}, check that the archive the lock names carries the root modes and that the wrapper on PATH is the release asked for (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}).`);
+   A release before {@link rootModesFirstRelease} has no such answer to give, so its install skips this check and says
+   so, which is what lets a rollback to one finish.
+  */
+  if (asksTheRootModes) {
+    /**
+     What the installed build answers the words with.
+     */
+    const modesReported = (await runGateCommandOrThrow({
+      program: gitProgram,
+      args: [
+        rootModeWords[0],
+        rootModeWords[1],
+        '--version',
+      ],
+      deadlineMilliseconds: gitDeadlineMilliseconds,
+      environment: {
+        ...process.env,
+        ...promptlessGitSettings,
+      },
+      workingDirectory: repository,
+    })).stdout;
+    printLine(modesReported.trimEnd());
+    if (!modesReported.includes(rootModesVersionLine({ version, }))) {
+      throw new NativeGateError(`${gitProgram} ${rootModeWords.join(' ')} --version does not name ${version}, so this build does not answer the root modes. What it printed: ${modesReported.trim() || '(nothing)'}. Every release from ${rootModesFirstRelease} answers the words, so this build has lost the dispatch, or the wrapper on PATH is another release: check that the archive the lock names carries the root modes and that the wrapper on PATH is the release asked for (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}).`);
+    }
+  } else {
+    printLine(`${version} is before ${rootModesFirstRelease}, the first release whose build answers the root modes' words, so the words check is skipped: a build of ${version} cannot answer ${gitProgram} ${rootModeWords.join(' ')} --version at all, and this install keeps the checks that release can answer.`);
   }
   /**
    The lockfile's text once the tools were installed.
