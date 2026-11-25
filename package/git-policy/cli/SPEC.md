@@ -5431,7 +5431,7 @@ and every step of it that decides anything runs before anything is written:
    compared with the origin-side inventory,
    and every snapshot's group against the clone's own,
    because a snapshot at or below it is history the clone inherited.
-   The clone's origin's deferred-destroy mark is read here,
+   The origin snapshot's deferred-destroy mark is read here,
    so a marked origin is refused with the clone still where it is.
 4. The bookmark rule `A: Live or planned`:
    a bookmark passes when a live passing snapshot of the clone or a line of a standing plan
