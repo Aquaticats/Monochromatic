@@ -402,7 +402,8 @@ OpenSSH 10.6p2, Git 2.56.1, `sshd` on 127.0.0.1:2222 with a fixture host key.
   equal the destination's (`ssh.c:1289-1291` at `V_10_6_P2`, read);
 - the wrapper's two variables as `main` holds them:
   `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`;
-- an `ssh` at `/work/bin/ssh`, a copy of the image's own, for the reason under "The question, open again".
+- an `ssh` at `/work/bin/ssh`, a copy of the image's own, for the reason under
+  "The question, open again: the value J put in `SSH_ASKPASS` ended connections that worked".
 
 ### The twelve families
 
@@ -1276,7 +1277,8 @@ Shown, chosen on 2026-11-24, and retired by the owner on 2026-11-25:
 `SSH_ASKPASS` holds `false` again.
 The reason is H1, and it is not a defect of the wording:
 a value OpenSSH cannot start takes the connection down when the connection has a proxy,
-which is the mechanism quoted under "The question, open again".
+which is the mechanism quoted under
+"The question, open again: the value J put in `SSH_ASKPASS` ended connections that worked".
 
 The value a shipped J would use cannot name the host, so it is one generic text.
 That text is 369 bytes,
@@ -1487,7 +1489,7 @@ Each item says what would go wrong without it, and the measurement or the source
   (`src/native/invocation/child_environment.rs`).
   `GIT_ASKPASS` stays empty.
 - a mode at the top of `main`, after `install_payload_free_panic_hook` and before any planning,
-  selected by the two signals under "B",
+  selected by the two signals under "B. The wrapper itself as the askpass program",
   printing one sentence and exiting 2 on every branch,
   and keeping its last log line through `end_after_the_log`.
 - the sentences in one module beside `lfs_pre_push.rs`, with the address and the key filled from the question.
