@@ -8375,6 +8375,30 @@ each with its sidecar test file.
   The integration test roots (`native_binary`,
   `native_candidates`) keep their names.
 
+#### Who depends on whom
+
+The repository's layout rules are on for this crate since 2026-11-25
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`):
+every source folder holds a `uses/` folder of links to the folders its code uses,
+no two folders use each other,
+and no two files of a folder do.
+`monochromatic-lint.config.jsonc` turns them on in its block `layout-git-policy-cli`.
+The crate does not satisfy them yet,
+so the loops it has stand in the two allow lists beside this file:
+
+- `layout-allow-list/folder-rule.txt`:
+  one `uses <folder> -> <folder>` line per folder use in a loop.
+- `layout-allow-list/file-rule.txt`:
+  one `file-uses <folder> <file> -> <file>` line per file use in a loop,
+  and one line for each of the other findings this rule had that day.
+
+A line matches only while its finding is still there,
+so a round that untangles a use deletes its line,
+and the rule refuses a use added inside a loop the list tolerates today.
+Both rules run in the package's `lint:monochromatic-lint` task,
+never in the container gate,
+and `package/linter/monochromatic-lint/README.md` describes the lists.
+
 #### Subsystems
 
 - `invocation/`:

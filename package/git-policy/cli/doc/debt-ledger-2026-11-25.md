@@ -489,15 +489,34 @@ Size: 29 folders, 97 pairs.
 Label: measured by script; `crate::name` can be a type or function that shares a module's name, which would
 over-count (inferred, small).
 
-### Item 17. Four names say too little
+The round of 2026-11-25 switched the rules on.
+The two rules now run for the whole crate
+in the block `layout-git-policy-cli` of `monochromatic-lint.config.jsonc`.
+Every folder that lacked a `uses/` folder has one.
+Today's findings stand in two lists beside the crate:
 
-Category 6.
-`foundation/` (131 files: diagnostics, scratch folders, runtimes and plain files together), `binary/` (195 files, all
-consumer-level controls and their support), `testing/` (37), and the source root `src/native` itself
-(`Cargo.toml` `[lib] path`, named in many task descriptions): words that fit any code (VGW).
-File names are good: no file is named `helpers`, `utils` or the like; the only repeated name is `mod.rs` (55)
-(`rg --files | xargs -n1 basename | sort | uniq -c`).
-Cost: reading only.
+- `layout-allow-list/folder-rule.txt` holds 593 entries:
+  524 `uses <folder> -> <folder>` lines for today's folder and entry loop edges;
+  49 lines for the `pub use folder::*` re-exports,
+  which keep the crate's flat module paths;
+  and 20 lines for the findings that `health/` is a group folder
+  with module files beside its child folder.
+- `layout-allow-list/file-rule.txt` holds 604 entries:
+  544 `file-uses <folder> <file> -> <file>` lines for today's file loops;
+  59 lines for the folders whose top doc has no file list or misses a name;
+  and one for the function that `main.rs` holds beside `fn main`.
+
+Both lists may only shrink:
+a line that matches no finding any more fails the lint;
+and a use added inside a loop a list tolerates is a finding that no line can record.
+The untangling this item asks for is what deletes those lines,
+one use per line.
+What is left for it is 524 folder uses and 544 file uses.
+Neither rule runs in the container gate.
+They run in `mise run //package/git-policy/cli:lint:monochromatic-lint`,
+which fails today on findings of other rules as well:
+2295 `markdown/semantic-line-breaks` and 24 `rust/max-lines` over this package.
+
 Fix: low priority; rename cost is high, so only with item 16.
 Size: 4 names.
 
