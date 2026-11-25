@@ -1,72 +1,60 @@
 //! What:
-//!  One clone's removal claim:
-//!  the folder and the name the claim lives under,
-//!  the take that refuses a live removal and replaces a dead one's generation,
-//!  and the release that ends it.
+//!  The slot's claim as the cancel command sees it:
+//!  the whole removal's own claim,
+//!  taken through the merged `take_the_removals_claim`,
+//!  which is the add's own claim in the add's folder,
+//!  and given back when the claim is dropped.
 //! Why:
-//!  The design gives the wrapper one claim per clone for the whole removal,
-//!  of the repository's own generation claim kind,
-//!  under `<common>/monochromatic-git-policy-cli-worktree-copy/removal/`
-//!  and named `<guid>.removal`
-//!  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-//!  "The removal claim").
-//!  A live owner refuses the command with the owner's process identity,
-//!  because a person must wait for or end that removal;
-//!  a dead owner's claim is replaced by the next generation,
-//!  which is the mechanism's ordinary takeover and needs nothing cleaned by hand.
-//!  The claim is not the root handler's per-slot claim,
-//!  which only root takes and which the command cannot take.
-//!  Every writer that acts on one clone's removal takes this claim first:
-//!  the removal's own entry,
-//!  the wiring round that switches it on,
-//!  and this command.
+//!  The project's merged removal path takes one claim per slot before its first read,
+//!  in the add's folder and under the add's own name,
+//!  so a removal and an add of one slot meet each other rather than interleave
+//!  (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+//!  "The removal's one order of writes and removals",
+//!  steps 1 and 14).
+//!  The command is a removal-side operation,
+//!  so it takes the same claim and is serialized against both.
+//!  A live owner refuses the command with its process and claim file,
+//!  and the claim's own rule replaces a dead owner's claim with the next generation,
+//!  so nothing is left to clean up by hand.
+//!  The design's separate `<guid>.removal` folder is not what merged:
+//!  the replayed claim is the slot-keyed one, and this module takes that and writes no
+//!  second claim of its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const held = claim.take(guid); // a held claim, or a refusal naming the live owner
-//! held.release();
+//! const held = claim.take('one'); // { claim } or a refusal naming the live owner
+//! // dropping it gives the slot back
 //! ```
 
-use crate::lock::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
-use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{RemovalClaim, take_the_removals_claim};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-
-/// The folder the removal claims live in,
-/// beside repository's other wrapper records inside one Git common directory.
-pub const REMOVAL_CLAIM_FOLDER: &str = "monochromatic-git-policy-cli-worktree-copy/removal";
-
-/// The word between the clone's GUID and the generation number.
-pub const REMOVAL_CLAIM_WORD: &str = "removal";
-
-/// The folder one repository's removal claims live in.
-pub fn removal_claim_folder(common_dir: &Path) -> PathBuf {
-    return common_dir.join(REMOVAL_CLAIM_FOLDER);
-}
-
-/// The prefix `take_claim` completes with a generation number,
-/// which is the clone's canonical GUID and the claim's word.
-pub fn removal_claim_prefix(clone_guid: DatasetGuid) -> OsString {
-    return OsString::from(format!("{}.{}", clone_guid.file_name(), REMOVAL_CLAIM_WORD));
-}
+use std::path::Path;
 
 /// What:
-///  A claim this run holds.
+///  A slot claim this run holds.
 /// Why:
-///  Every way out of the command releases it,
-///  and a control needs a held claim that creates no file,
-///  so the live claim and the control's answer live in one type.
+///  The claim is that removal-order claim itself,
+///  whose drop gives the slot back on every path out,
+///  and a control needs an answer that creates no file,
+///  so the two live in one type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ClaimHeld = { claim?: OwnerClaim; owner: string };
+/// type ClaimHeld = { claim?: RemovalClaim; owner: string };
 /// ```
 #[derive(Debug)]
 pub struct ClaimHeld {
-    /// The claim file this process created,
+    /// The claim this process took,
     /// and nothing in a control.
-    claim: Option<OwnerClaim>,
+    /// Its only reader is the removal claim's own `Drop`,
+    /// which rewrites the file as released when this value goes,
+    /// so no code reads the field and the compiler cannot see the drop's read.
+    /// An owner accessor would be a second name for the same fact and nothing would call
+    /// it, and holding the claim in a `ManuallyDrop` would leave this command to release a
+    /// slot on paths it forgets.
+    #[allow(dead_code, reason = "the removal claim's Drop is this field's only reader, and the compiler does not count a drop as a read")]
+    claim: Option<RemovalClaim>,
     /// The owner the claim names.
     owner: String,
 }
@@ -92,56 +80,34 @@ impl ClaimHeld {
     pub fn owner(&self) -> &str {
         return self.owner.as_str();
     }
-
-    /// What:
-    ///  Give the claim back.
-    /// Why:
-    ///  The removal claim marks a running operation,
-    ///  and there is none once the command has printed,
-    ///  so every path out releases it and a control releases nothing.
-    ///
-    /// # Errors
-    /// The claim file could not be rewritten as a released claim.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// held.release();
-    /// ```
-    pub fn release(mut self) -> Result<(), CancelRefusal> {
-        let Some(mut claim) = self.claim.take() else {
-            return Ok(());
-        };
-        return claim.release().map_err(|error| return CancelRefusal::TheClaimCouldNotBeTaken { said: error.to_string() });
-    }
 }
 
 /// What:
-///  The removal claim,
-///  as the command and the removal take it.
+///  The slot's claim,
+///  as the command takes it.
 /// Why:
 ///  A control must be able to refuse with a live owner and to hold a claim without a file,
-///  so the take is one seam and the release is the value it returns.
+///  so the take is one seam and the drop is the release.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface TheRemovalClaim { take(guid: DatasetGuid): ClaimHeld }
+/// interface TheRemovalClaim { take(slot: string): ClaimHeld }
 /// ```
 pub trait TheRemovalClaim {
-    /// Take this clone's removal claim.
+    /// Take this slot's removal claim.
     ///
     /// # Errors
-    /// A live removal,
+    /// A live command holding the slot,
     /// or a claim whose folder or file could not be used.
-    fn take(&self, clone_guid: DatasetGuid) -> Result<ClaimHeld, CancelRefusal>;
+    fn take(&self, slot: &str) -> Result<ClaimHeld, CancelRefusal>;
 }
 
 /// What:
 ///  The release answer:
-///  the repository's own generation claim,
-///  in this route's folder and under this route's name.
+///  the removal order's own claim in the add's folder.
 /// Why:
-///  The mechanism is already the repository's,
-///  so this module adds the two names and no second lock.
+///  The mechanism and the names are the merged removal path's,
+///  so this module adds no second claim and no second folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -153,22 +119,19 @@ pub struct LiveTheRemovalClaim<'a> {
 }
 
 impl TheRemovalClaim for LiveTheRemovalClaim<'_> {
-    fn take(&self, clone_guid: DatasetGuid) -> Result<ClaimHeld, CancelRefusal> {
-        let folder: PathBuf = removal_claim_folder(self.common_dir);
-        crate::private_storage::create_private_directory_all(folder.as_path()).map_err(|error| {
-            return CancelRefusal::TheClaimCouldNotBeTaken { said: format!("the claim folder {} could not be made ({error})", folder.display()) };
-        })?;
-        let prefix: OsString = removal_claim_prefix(clone_guid);
-        let outcome: ClaimOutcome = take_claim(folder.as_path(), prefix.as_os_str()).map_err(|error| {
-            return CancelRefusal::TheClaimCouldNotBeTaken { said: error.to_string() };
-        })?;
-        return match outcome {
-            ClaimOutcome::Held(claim) => Ok(ClaimHeld { claim: Some(claim), owner: format!("this command (pid {})", std::process::id()) }),
-            ClaimOutcome::Busy(owner) => Err(CancelRefusal::ALiveRemoval {
-                owner: format!("pid {} (its claim is {})", owner.pid, owner.path.display()),
-            }),
-        };
+    fn take(&self, slot: &str) -> Result<ClaimHeld, CancelRefusal> {
+        let claim: RemovalClaim = take_the_removals_claim(self.common_dir, slot).map_err(|stop| return of_a_claim_stop(&stop))?;
+        return Ok(ClaimHeld { claim: Some(claim), owner: format!("this command (pid {})", std::process::id()) });
     }
+}
+
+/// One claim refusal as this command's,
+/// naming the owner and the file a person has to look at.
+fn of_a_claim_stop(stop: &RemovalStop) -> CancelRefusal {
+    return match stop {
+        RemovalStop::TheSlotIsClaimed { pid, path, .. } => CancelRefusal::ALiveRemoval { owner: format!("pid {pid} (its claim is {})", path.display()) },
+        other => CancelRefusal::TheClaimCouldNotBeTaken { said: other.message() },
+    };
 }
 
 /// Controls stay out of the release executable.

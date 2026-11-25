@@ -5,7 +5,7 @@
 //!  the destroyed set it reports,
 //!  and the status the removal exits with.
 //! Why:
-//!  The project's answer makes a seen holder cancel before any delete and decide that a
+//!  The project's answer makes a seen holder cancel before any delete and decides that a
 //!  cancellation after part of the history is gone attaches the clone again and reports each
 //!  destroyed snapshot
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
@@ -21,48 +21,22 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_removal_proof_and_plan::fixtures::guid;
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_cancel::cancel_stand_ins::{RecordingMountRequest, ScriptedStaged, an_order};
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::TheDestroyOutcomes;
+use crate::worktree_clone_removal_cancel::cancel_stand_ins::{RecordingMountRequest, ScriptedStaged, a_nonce, a_recorded_binding, an_order};
 use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity};
 use crate::worktree_clone_removal_cancel::the_staged_state::StagedSettlement;
 use std::path::{Path, PathBuf};
 
-/// One folder identity,
-/// written from its own grammar so a control needs no folder to answer it.
-fn an_identity() -> crate::worktree_clone_binding_record::binding_encoding::FolderIdentity {
-    return crate::worktree_clone_binding_record::binding_encoding::FolderIdentity::decode("2:3:4").expect("the grammar reads one identity");
-}
-
-
-/// The record the cancellation names.
-fn recorded() -> RecordedBinding {
-    return RecordedBinding {
-        slot: String::from("one"),
-        slot_path: PathBuf::from("/repo/.claude/worktrees/one"),
-        pool: String::from("tank"),
-        pool_guid: guid(1_234_567_890_123_456_789),
-        clone_dataset: String::from("tank/clone"),
-        clone_guid: guid(7_828_944_690_444_299_989),
-        clone_createtxg: 17,
-        origin_dataset: String::from("tank/mono-checkout"),
-        origin_dataset_guid: guid(4_815_162_342_109_876_543),
-        origin_snapshot: String::from("tank/mono-checkout@origin"),
-        origin_snapshot_guid: guid(11_050_373_805_378_911_967),
-        origin_snapshot_createtxg: 15,
-        registration_id: Vec::from("one".as_bytes()),
-        registration_identity: an_identity(),
-    };
-}
+/// The slot path the reversal's record names.
+const SLOT_PATH: &str = "/fixture/repo/.claude/worktrees/fix-flaky-test";
 
 /// The answer a handler gives for the clone put back at its slot.
 fn an_answer() -> MountAnswer {
     return MountAnswer {
         dataset: guid(7_828_944_690_444_299_989),
         operation: MountOperation::Mount,
-        nonce: crate::worktree_clone_mount_protocol::request_nonce::RequestNonce::parse("9c410000000000000000000000000000").expect("a nonce"),
+        nonce: a_nonce(),
         outcome: ReceiptOutcome::Done,
-        mount: Some(MountIdentity { mount_id: 3, source: String::from("tank/clone"), canonical_path: String::from("/repo/.claude/worktrees/one") }),
+        mount: Some(MountIdentity { mount_id: 3, source: String::from("tank/wt/fix-flaky-test"), canonical_path: String::from(SLOT_PATH) }),
         failed_step: None,
         errno: None,
     };
@@ -74,18 +48,15 @@ fn a_cancellation(name: &str, stop: WhereItStopped, destroyed: &[&str], holders:
     let order = an_order();
     let request: RecordingMountRequest = RecordingMountRequest { order: order.clone(), answer: Ok(an_answer()) };
     let staged: ScriptedStaged = ScriptedStaged { order: order.clone(), settlement: StagedSettlement::Removed { record: true, claim: true } };
-    let outcomes: TheDestroyOutcomes = TheDestroyOutcomes {
-        destroyed: destroyed.iter().map(|lost| return String::from(*lost)).collect(),
-        everything: Vec::new(),
-    };
+    let lost: Vec<String> = destroyed.iter().map(|lost| return String::from(*lost)).collect();
     let holder_lines: Vec<String> = holders.iter().map(|holder| return String::from(*holder)).collect();
-    let record: RecordedBinding = recorded();
+    let record = a_recorded_binding();
     return the_removal_cancels_itself(&TheSelfCancellation {
         common_dir: common.as_path(),
         recorded: &record,
-        slot_path: Path::new("/repo/.claude/worktrees/one"),
+        slot_path: Path::new(SLOT_PATH),
         plan: None,
-        outcomes: &outcomes,
+        destroyed: lost.as_slice(),
         stop,
         holders: holder_lines.as_slice(),
         mount_request: &request,
@@ -160,7 +131,7 @@ fn every_stop_point_says_which_one_it_is_and_where_it_stopped() {
         assert_eq!(done.stop, stop);
         let text: String = done.lines().join("\n");
         assert!(text.contains(stop.clause()), "{stop:?}: {text}");
-        assert!(text.contains("tank/clone"), "the dataset is named: {text}");
+        assert!(text.contains("tank/wt/fix-flaky-test"), "the dataset is named: {text}");
         assert!(text.contains(&guid(7_828_944_690_444_299_989).file_name()), "the GUID is named: {text}");
         assert!(text.contains("Ways forward"), "a way forward is named: {text}");
     }

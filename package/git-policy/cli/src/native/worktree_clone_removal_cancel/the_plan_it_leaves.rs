@@ -19,7 +19,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const fate = thePlanACancellationLeaves(commonDir, recorded, plan, outcomes); // { kind: 'no-plan' } | { kind: 'removed' } | { kind: 'kept' }
+//! const fate = thePlanACancellationLeaves(commonDir, recorded, plan, destroyed); // { kind: 'no-plan' } | { kind: 'removed' } | { kind: 'kept' }
 //! ```
 
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
@@ -27,7 +27,6 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::TheDestroyOutcomes;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -39,7 +38,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Fate = { kind: 'no-plan' } | { kind: 'removed'; path } | { kind: 'kept'; path; destroyed };
+/// type Fate = { kind: 'no-plan' } | { kind: 'removed'; path } | { kind: 'kept'; path };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ThePlansFate {
@@ -55,8 +54,6 @@ pub enum ThePlansFate {
     Kept {
         /// The plan's file.
         path: PathBuf,
-        /// The names whose current state is `destroyed`.
-        destroyed: Vec<String>,
     },
 }
 
@@ -81,13 +78,13 @@ impl ThePlansFate {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// thePlanACancellationLeaves(commonDir, recorded, plan, outcomes);
+/// thePlanACancellationLeaves(commonDir, recorded, plan, destroyed);
 /// ```
 pub fn the_plan_a_cancellation_leaves(
     common_dir: &Path,
     recorded: &RecordedBinding,
     plan: Option<&DestructionPlan>,
-    outcomes: &TheDestroyOutcomes,
+    destroyed: &[String],
 ) -> Result<ThePlansFate, CancelRefusal> {
     let Some(standing) = plan else {
         return Ok(ThePlansFate::NoPlan);
@@ -100,9 +97,9 @@ pub fn the_plan_a_cancellation_leaves(
             recorded_guid: recorded.clone_guid.file_name(),
         });
     }
-    let witnessed_nothing: bool = outcomes.nothing_was_destroyed() && standing.head == HeadWord::Present && every_line_is_planned(standing);
+    let witnessed_nothing: bool = destroyed.is_empty() && standing.head == HeadWord::Present && every_line_is_planned(standing);
     if !witnessed_nothing {
-        return Ok(ThePlansFate::Kept { path, destroyed: outcomes.destroyed.clone() });
+        return Ok(ThePlansFate::Kept { path });
     }
     return match std::fs::remove_file(path.as_path()) {
         Ok(()) => Ok(ThePlansFate::Removed { path }),

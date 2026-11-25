@@ -14,7 +14,7 @@
 //!  The command acts only on what it can prove,
 //!  and a person who typed another slot's name must not be told a removal was reversed
 //!  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-//!  its "The proof" section).
+//!  "The proof: which slot, which clone, which claim").
 //!  The design proves the records first and repeats every deciding read under the claim,
 //!  so the slot that is not being removed is refused before any claim is taken,
 //!  and no record that changed while the claim was taken is ever acted on.
@@ -30,7 +30,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const standing = proveTheSlotIsARemovals(input);
+//! const guid = proveTheSlotIsARemovals(input);
 //! const proved = proveTheSlotsRecords(input);
 //! console.log(proved.destroyed);
 //! ```
@@ -46,11 +46,10 @@ use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, the_clone_absence};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::{RecordedBinding, read_the_recorded_binding};
-use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_cancel::cancel_refusal::{CancelRefusal, of_pointer};
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::{TheDestroyOutcomes, settle_the_destroy_outcomes};
+use crate::worktree_clone_removal_cancel::the_destroy_outcomes::settle_the_destroy_outcomes;
 use crate::worktree_clone_unmount::staging_folder_name::staging_record_name;
 use std::path::{Path, PathBuf};
 
@@ -87,46 +86,17 @@ pub struct TheRecordsProof<'a> {
 }
 
 /// What:
-///  The records that stand for one slot,
-///  proved without the pool's inventory.
-/// Why:
-///  The command proves them before it takes the claim and repeats them under it,
-///  and the full proof starts from these,
-///  so one order answers both moments.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Standing = { slotPath; recorded; plan?; planPath; intent };
-/// ```
-#[derive(Debug)]
-pub struct TheRecordsThatStand {
-    /// The slot's own folder.
-    pub slot_path: PathBuf,
-    /// The identities the add recorded.
-    pub recorded: RecordedBinding,
-    /// The plan that stands,
-    /// where one does.
-    pub plan: Option<DestructionPlan>,
-    /// The plan's file,
-    /// whether or not it stands.
-    pub plan_path: PathBuf,
-    /// The request the clone's own property carried.
-    pub intent: MountIntent,
-}
-
-/// What:
 ///  Everything one proof establishes,
 ///  together with the reads the act needs.
 /// Why:
 ///  The claim is taken between the records' proof and the act,
 ///  and the caller repeats these reads under it,
 ///  so one value carries the records,
-///  the live facts
-///  and the settled destroyed set.
+///  the plan and the settled destroyed set.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Proved = { slotPath; cloneDataset; cloneGuid; recordedSlotPath; plan?; planPath; intent; live; destroyed; outcomes };
+/// type Proved = { recorded; slotPath; plan?; intent; destroyed };
 /// ```
 #[derive(Debug)]
 pub struct WhatTheRecordsProve {
@@ -135,32 +105,18 @@ pub struct WhatTheRecordsProve {
     pub recorded: RecordedBinding,
     /// The slot's own folder.
     pub slot_path: PathBuf,
-    /// The clone's dataset name,
-    /// as the binding records it.
-    pub clone_dataset: String,
-    /// The clone's recorded GUID.
-    pub clone_guid: DatasetGuid,
-    /// The slot's recorded path,
-    /// as the binding records it.
-    pub recorded_slot_path: PathBuf,
     /// The plan that stands,
     /// where one does.
     pub plan: Option<DestructionPlan>,
-    /// The plan's file,
-    /// whether or not it stands.
-    pub plan_path: PathBuf,
     /// The request the clone's own property carried.
     pub intent: MountIntent,
-    /// Every live snapshot of the clone.
-    pub live: Vec<LiveObject>,
-    /// The destroyed set the plan's tuples settled to.
+    /// The snapshots the plan's tuples prove destroyed.
     pub destroyed: Vec<String>,
-    /// Every tuple with its settled state.
-    pub outcomes: TheDestroyOutcomes,
 }
 
 /// What:
-///  Prove the records that stand for one slot without the pool's inventory.
+///  Prove the records and the clone's own request,
+///  without reading the clone's snapshot inventory.
 /// Why:
 ///  A mistyped slot or a slot that is not being removed must be refused before a claim is
 ///  created,
@@ -179,80 +135,13 @@ pub struct WhatTheRecordsProve {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const standing = proveTheSlotIsARemovals(input);
+/// const guid = proveTheSlotIsARemovals(input);
 /// ```
-pub fn prove_the_slot_is_a_removals(input: &TheRecordsProof<'_>) -> Result<TheRecordsThatStand, CancelRefusal> {
-    if let Some(reason) = slot_name_refusal(input.slot) {
-        return Err(CancelRefusal::NotBeingRemoved { slot: String::from(input.slot), found: format!("`{}` is not a slot name ({reason}).", input.slot) });
-    }
-    let slot_path: PathBuf = input.checkout.join(WORKTREES_FOLDER).join(input.slot);
-    let folder: std::fs::File = std::fs::File::open(slot_path.as_path()).map_err(|error| {
-        return CancelRefusal::ThePointerIsNotOneGitdirLine { slot: String::from(input.slot), said: format!("the slot folder {} could not be read ({error})", slot_path.display()) };
-    })?;
-    read_the_slot_git_pointer(&folder, input.checkout, input.slot).map_err(|refusal| return of_pointer(input.slot, &refusal))?;
-    let recorded: RecordedBinding =
-        read_the_recorded_binding(input.common_dir, input.slot).map_err(|stop| return of_a_removal_stop(input.slot, &stop))?;
-    if recorded.slot != input.slot {
-        return Err(CancelRefusal::TheBindingIsNotThisSlots { slot: String::from(input.slot), said: format!("is filed as the slot `{}`", recorded.slot) });
-    }
-    let plan_path: PathBuf = plans_folder(input.common_dir).join(recorded.clone_guid.file_name());
-    let plan: Option<DestructionPlan> = read_an_existing_plan(input.common_dir, recorded.clone_guid)
-        .map_err(|refusal| return CancelRefusal::ThePlanIsUnreadable { path: plan_path.clone(), said: refusal.message(plan_path.as_path()) })?;
-    if let Some(standing_plan) = &plan {
-        if standing_plan.facts.clone_guid != recorded.clone_guid {
-            return Err(CancelRefusal::ThePlanIsOfAnotherClone {
-                path: plan_path,
-                plan_guid: standing_plan.facts.clone_guid.file_name(),
-                recorded_guid: recorded.clone_guid.file_name(),
-            });
-        }
-        if standing_plan.facts.clone_dataset != recorded.clone_dataset {
-            return Err(CancelRefusal::TheRecordsDisagree {
-                what: String::from("the plan and the binding name different clone datasets"),
-                first: standing_plan.facts.clone_dataset.clone(),
-                second: recorded.clone_dataset.clone(),
-            });
-        }
-    }
-    let identity = input.reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| return the_clone_absence_arm(input, &recorded, &reason))?;
-    let live_clone_guid: DatasetGuid = dataset_guid_of(identity.stats.dds_guid).map_err(|said| {
-        return CancelRefusal::TheCloneDoesNotAnswer { dataset: recorded.clone_dataset.clone(), reason: said };
-    })?;
-    if live_clone_guid != recorded.clone_guid {
-        return Err(CancelRefusal::TheCloneIsNotTheRecordedOne {
-            field: "cloneGuid",
-            recorded: recorded.clone_guid.file_name(),
-            live: live_clone_guid.file_name(),
-        });
-    }
-    let intent: MountIntent = match read_intent(Some(&identity.properties), recorded.clone_dataset.as_str()) {
-        IntentReading::Request(request) => request,
-        IntentReading::Absent => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: String::from("no local value") });
-        }
-        IntentReading::Inherited { from } => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: format!("an inherited value from `{from}`") });
-        }
-        IntentReading::Refused(refusal) => {
-            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: refusal.message() });
-        }
-    };
-    let staged: bool = staged_record_stands(input.home, recorded.clone_guid);
-    if plan.is_none() && !staged && intent.operation != MountOperation::Unmount {
-        return Err(CancelRefusal::NotBeingRemoved {
-            slot: String::from(input.slot),
-            found: format!(
-                "Its destruction plan is not there, no staged-folder record stands in the account's cache, and the clone's own property asks for `{}`.",
-                intent.operation.word()
-            ),
-        });
-    }
-    if let Some(standing_plan) = &plan
-        && let Some(owner) = live_plan_owner(standing_plan)
-    {
-        return Err(CancelRefusal::ALiveRemoval { owner });
-    }
-    return Ok(TheRecordsThatStand { slot_path, recorded, plan, plan_path, intent });
+pub fn prove_the_slot_is_a_removals(input: &TheRecordsProof<'_>) -> Result<DatasetGuid, CancelRefusal> {
+    let recorded: RecordedBinding = read_the_records(input)?;
+    let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
+    let _intent: MountIntent = read_the_request(input, &recorded, plan.is_some())?;
+    return Ok(recorded.clone_guid);
 }
 
 /// What:
@@ -277,11 +166,10 @@ pub fn prove_the_slot_is_a_removals(input: &TheRecordsProof<'_>) -> Result<TheRe
 /// proveTheSlotsRecords(input);
 /// ```
 pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRecordsProve, CancelRefusal> {
-    let standing: TheRecordsThatStand = prove_the_slot_is_a_removals(input)?;
-    let plan: Option<DestructionPlan> = standing.plan;
-    let plan_path: PathBuf = standing.plan_path;
-    let recorded: &RecordedBinding = &standing.recorded;
-    let identity = input.reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| return the_clone_absence_arm(input, recorded, &reason))?;
+    let recorded: RecordedBinding = read_the_records(input)?;
+    let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
+    let intent: MountIntent = read_the_request(input, &recorded, plan.is_some())?;
+    let identity = live_identity(input, &recorded)?;
     let live_origin: Option<String> = Some(identity.stats.origin()).filter(|origin| return !origin.is_empty());
     if live_origin.as_deref() != Some(recorded.origin_snapshot.as_str()) {
         return Err(CancelRefusal::TheCloneIsNotTheRecordedOne {
@@ -290,26 +178,148 @@ pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRec
             live: live_origin.unwrap_or_else(|| return String::from("none")),
         });
     }
-    let live: Vec<LiveObject> = input.reads.snapshots_of(recorded.clone_dataset.as_str(), recorded.clone_guid).map_err(|reason| {
-        return CancelRefusal::TheInventoryIsUnreadable { clone: recorded.clone_dataset.clone(), reason };
-    })?;
-    let outcomes: TheDestroyOutcomes = match &plan {
-        Some(standing_plan) => settle_the_destroy_outcomes(standing_plan, live.as_slice())?,
-        None => TheDestroyOutcomes { destroyed: Vec::new(), everything: Vec::new() },
+    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> =
+        input.reads.snapshots_of(recorded.clone_dataset.as_str(), recorded.clone_guid).map_err(|reason| {
+            return CancelRefusal::TheInventoryIsUnreadable { clone: recorded.clone_dataset.clone(), reason };
+        })?;
+    let destroyed: Vec<String> = match &plan {
+        Some(standing) => settle_the_destroy_outcomes(standing, live.as_slice())?,
+        None => Vec::new(),
     };
-    return Ok(WhatTheRecordsProve {
-        recorded: standing.recorded.clone(),
-        slot_path: standing.slot_path,
-        clone_dataset: recorded.clone_dataset.clone(),
-        clone_guid: recorded.clone_guid,
-        recorded_slot_path: recorded.slot_path.clone(),
-        plan,
-        plan_path,
-        intent: standing.intent,
-        live,
-        destroyed: outcomes.destroyed.clone(),
-        outcomes,
-    });
+    let slot_path: PathBuf = input.checkout.join(WORKTREES_FOLDER).join(input.slot);
+    return Ok(WhatTheRecordsProve { recorded, slot_path, plan, intent, destroyed });
+}
+
+/// What:
+///  The records that name one slot's clone:
+///  its pointer,
+///  its binding,
+///  and the plan beside them.
+/// Why:
+///  These are the reads a caller's mistake must be refused on,
+///  and the plan's owner speaks for the removal where a claim cannot.
+///
+/// # Errors
+/// The pointer, binding or plan that cannot be read or that names another object,
+/// or a plan whose owner still runs.
+fn read_the_records(input: &TheRecordsProof<'_>) -> Result<RecordedBinding, CancelRefusal> {
+    if let Some(reason) = slot_name_refusal(input.slot) {
+        return Err(CancelRefusal::NotBeingRemoved { slot: String::from(input.slot), found: format!("`{}` is not a slot name ({reason}).", input.slot) });
+    }
+    let slot_path: PathBuf = input.checkout.join(WORKTREES_FOLDER).join(input.slot);
+    let folder: std::fs::File = std::fs::File::open(slot_path.as_path()).map_err(|error| {
+        return CancelRefusal::ThePointerIsNotOneGitdirLine { slot: String::from(input.slot), said: format!("the slot folder {} could not be read ({error})", slot_path.display()) };
+    })?;
+    read_the_slot_git_pointer(&folder, input.checkout, input.slot).map_err(|refusal| return of_pointer(input.slot, &refusal))?;
+    let recorded: RecordedBinding =
+        read_the_recorded_binding(input.common_dir, input.slot).map_err(|stop| return of_a_removal_stop(input.slot, &stop))?;
+    if recorded.slot != input.slot {
+        return Err(CancelRefusal::TheBindingIsNotThisSlots { slot: String::from(input.slot), said: format!("is filed as the slot `{}`", recorded.slot) });
+    }
+    let plan: Option<DestructionPlan> = read_the_plan(input, &recorded)?;
+    if let Some(standing_plan) = &plan
+        && let Some(owner) = live_plan_owner(standing_plan)
+    {
+        return Err(CancelRefusal::ALiveRemoval { owner });
+    }
+    return Ok(recorded);
+}
+
+/// What:
+///  The plan that stands for one clone,
+///  proved to name that clone.
+/// Why:
+///  A plan of another clone is a disagreement between two records,
+///  and a plan this build cannot read may describe a destroy nobody can settle.
+///
+/// # Errors
+/// The plan that cannot be read,
+/// or one that names another clone than the binding does.
+fn read_the_plan(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Result<Option<DestructionPlan>, CancelRefusal> {
+    let plan_path: PathBuf = plans_folder(input.common_dir).join(recorded.clone_guid.file_name());
+    let plan: Option<DestructionPlan> = read_an_existing_plan(input.common_dir, recorded.clone_guid)
+        .map_err(|refusal| return CancelRefusal::ThePlanIsUnreadable { path: plan_path.clone(), said: refusal.message(plan_path.as_path()) })?;
+    let Some(standing_plan) = &plan else {
+        return Ok(None);
+    };
+    if standing_plan.facts.clone_guid != recorded.clone_guid {
+        return Err(CancelRefusal::ThePlanIsOfAnotherClone {
+            path: plan_path,
+            plan_guid: standing_plan.facts.clone_guid.file_name(),
+            recorded_guid: recorded.clone_guid.file_name(),
+        });
+    }
+    if standing_plan.facts.clone_dataset != recorded.clone_dataset {
+        return Err(CancelRefusal::TheRecordsDisagree {
+            what: String::from("the plan and the binding name different clone datasets"),
+            first: standing_plan.facts.clone_dataset.clone(),
+            second: recorded.clone_dataset.clone(),
+        });
+    }
+    return Ok(plan);
+}
+
+/// What:
+///  The clone's own request and the at-least-one-removal-record rule.
+/// Why:
+///  A local `mount` request beside no plan and no staged record is a pending add and not a
+///  removal,
+///  and a slot with no removal record at all is a mistyped name rather than a state.
+///
+/// # Errors
+/// A clone that does not answer,
+/// a request that is no local one,
+/// or a slot with no removal record.
+fn read_the_request(input: &TheRecordsProof<'_>, recorded: &RecordedBinding, has_plan: bool) -> Result<MountIntent, CancelRefusal> {
+    let identity = live_identity(input, recorded)?;
+    let intent: MountIntent = match read_intent(Some(&identity.properties), recorded.clone_dataset.as_str()) {
+        IntentReading::Request(request) => request,
+        IntentReading::Absent => {
+            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: String::from("no local value") });
+        }
+        IntentReading::Inherited { from } => {
+            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: format!("an inherited value from `{from}`") });
+        }
+        IntentReading::Refused(refusal) => {
+            return Err(CancelRefusal::TheIntentIsNotALocalRequest { clone: recorded.clone_dataset.clone(), said: refusal.message() });
+        }
+    };
+    let staged: bool = staged_record_stands(input.home, recorded.clone_guid);
+    if !has_plan && !staged && intent.operation != MountOperation::Unmount {
+        return Err(CancelRefusal::NotBeingRemoved {
+            slot: String::from(input.slot),
+            found: format!(
+                "Its destruction plan is not there, no staged-folder record stands in the account's cache, and the clone's own property asks for `{}`.",
+                intent.operation.word()
+            ),
+        });
+    }
+    return Ok(intent);
+}
+
+/// What:
+///  The clone's live identity,
+///  proved to be the recorded GUID or refused with the reason.
+/// Why:
+///  A name the pool answers with another GUID is another object,
+///  and a name the pool does not answer is the head-gone state rather than a clone.
+///
+/// # Errors
+/// The identity that differs,
+/// or the clone that is gone, renamed or unreadable.
+fn live_identity(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Result<monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity, CancelRefusal> {
+    let identity = input.reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| return the_clone_absence_arm(input, recorded, &reason))?;
+    let live_clone_guid: DatasetGuid = dataset_guid_of(identity.stats.dds_guid).map_err(|said| {
+        return CancelRefusal::TheCloneDoesNotAnswer { dataset: recorded.clone_dataset.clone(), reason: said };
+    })?;
+    if live_clone_guid != recorded.clone_guid {
+        return Err(CancelRefusal::TheCloneIsNotTheRecordedOne {
+            field: "cloneGuid",
+            recorded: recorded.clone_guid.file_name(),
+            live: live_clone_guid.file_name(),
+        });
+    }
+    return Ok(identity);
 }
 
 /// What:
@@ -321,12 +331,7 @@ pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRec
 ///  which is what the design's agreement of the plan's owner with the claim's means.
 ///  An owner this machine cannot probe is neither proved alive nor proved dead,
 ///  so it is reported and the command refuses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const live = livePlanOwner(plan); // the owner when the writer still runs, or when it cannot be probed
-/// ```
-pub fn live_plan_owner(plan: &DestructionPlan) -> Option<String> {
+fn live_plan_owner(plan: &DestructionPlan) -> Option<String> {
     let owner: &str = plan.facts.owner.as_str();
     let (pid_text, birth) = owner.split_once(':')?;
     let pid: i64 = pid_text.parse().ok()?;

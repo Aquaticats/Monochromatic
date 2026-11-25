@@ -18,14 +18,6 @@ use super::{StagedSettlement, of_the_cleanup};
 use crate::worktree_clone_unmount::staging_cleanup::CleanupOutcome;
 
 #[test]
-fn the_four_answers_carry_their_words() {
-    assert_eq!(StagedSettlement::NoStagedFolder.word(), "none");
-    assert_eq!(StagedSettlement::Removed { record: true, claim: false }.word(), "removed");
-    assert_eq!(StagedSettlement::ReleasedNoFolder.word(), "released-no-folder");
-    assert_eq!(StagedSettlement::Retained { step: String::from("mount"), said: String::from("x") }.word(), "kept");
-}
-
-#[test]
 fn only_a_kept_folder_is_retained() {
     assert!(!StagedSettlement::NoStagedFolder.is_retained());
     assert!(!StagedSettlement::Removed { record: true, claim: true }.is_retained());

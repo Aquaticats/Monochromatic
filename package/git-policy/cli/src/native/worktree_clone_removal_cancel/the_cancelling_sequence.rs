@@ -27,7 +27,6 @@ use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::TheDestroyOutcomes;
 use crate::worktree_clone_removal_cancel::the_plan_it_leaves::{ThePlansFate, the_plan_a_cancellation_leaves};
 use crate::worktree_clone_removal_cancel::the_reversing_request::{
     ExpectedMount, MountProof, TheMountRequest, the_reversing_intent, verify_the_mount_answer,
@@ -46,7 +45,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Reversal = { commonDir; recorded; slotPath; plan?; outcomes; mountRequest; staged };
+/// type Reversal = { commonDir; recorded; slotPath; plan?; destroyed; mountRequest; staged };
 /// ```
 pub struct TheReversalRequest<'a> {
     /// The repository's common Git directory.
@@ -58,8 +57,8 @@ pub struct TheReversalRequest<'a> {
     /// The plan that stands,
     /// where one does.
     pub plan: Option<&'a DestructionPlan>,
-    /// The destroyed set the plan's tuples settled to.
-    pub outcomes: &'a TheDestroyOutcomes,
+    /// The snapshots the plan's tuples prove destroyed.
+    pub destroyed: &'a [String],
     /// The route's own request writer and wait.
     pub mount_request: &'a dyn TheMountRequest,
     /// The staging folder's settlement.
@@ -123,13 +122,13 @@ pub fn reverse_the_removal(input: &TheReversalRequest<'_>) -> Result<TheReversal
     let proof: MountProof = verify_the_mount_answer(&answer, &expected)?;
     let clone_guid: DatasetGuid = input.recorded.clone_guid;
     let staged: StagedSettlement = input.staged.settle(clone_guid);
-    let plans: ThePlansFate = the_plan_a_cancellation_leaves(input.common_dir, input.recorded, input.plan, input.outcomes)?;
+    let plans: ThePlansFate = the_plan_a_cancellation_leaves(input.common_dir, input.recorded, input.plan, input.destroyed)?;
     return Ok(TheReversalDone {
         nonce: intent.nonce.as_str().to_string(),
         mount_id: proof.mount.mount_id,
         staged,
         plans,
-        destroyed: input.outcomes.destroyed.clone(),
+        destroyed: input.destroyed.to_vec(),
     });
 }
 

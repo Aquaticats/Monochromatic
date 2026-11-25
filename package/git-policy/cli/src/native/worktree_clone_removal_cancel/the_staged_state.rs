@@ -30,7 +30,6 @@ use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_unmount::staging_claim::{CLAIM_FOLDER, staging_claim_path};
 use crate::worktree_clone_unmount::staging_cleanup::{CleanupOutcome, CleanupRequest, clean_up_staging_folder, the_account_cache};
 use crate::worktree_clone_unmount::staging_folder_name::{staging_folder_name, staging_record_name};
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -71,16 +70,6 @@ pub enum StagedSettlement {
 }
 
 impl StagedSettlement {
-    /// The word a report carries.
-    pub fn word(&self) -> &'static str {
-        return match self {
-            StagedSettlement::NoStagedFolder => "none",
-            StagedSettlement::Removed { .. } => "removed",
-            StagedSettlement::ReleasedNoFolder => "released-no-folder",
-            StagedSettlement::Retained { .. } => "kept",
-        };
-    }
-
     /// Whether every name was kept,
     /// which the command refuses on and the cancelling removal reports.
     pub fn is_retained(&self) -> bool {
@@ -186,12 +175,6 @@ fn this_process_mounts() -> Vec<MountFacts> {
         }
     };
     return parse_mount_table(text.as_slice());
-}
-
-/// One staging name as the cleanup reads it,
-/// which a control plants.
-pub fn the_staging_names(clone_guid: DatasetGuid) -> (OsString, OsString) {
-    return (OsString::from(staging_folder_name(clone_guid)), OsString::from(staging_record_name(clone_guid)));
 }
 
 /// The log tag of every decision this module takes.

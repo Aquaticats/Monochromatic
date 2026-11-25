@@ -16,7 +16,7 @@
 //! expect(settleTheDestroyOutcomes(plan, live).destroyed).toEqual(['tank/clone@one']);
 //! ```
 
-use super::{TheDestroyOutcomes, settle_the_destroy_outcomes};
+use super::settle_the_destroy_outcomes;
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_removal_proof_and_plan::fixtures::{guid, sample_facts};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanSnapshot};
@@ -61,28 +61,24 @@ fn with_a_line(plan: &DestructionPlan, name: &str, outcome: SnapshotOutcome) -> 
 fn a_guid_the_inventory_carries_is_intact_and_an_absent_one_is_destroyed() {
     let plan: DestructionPlan = the_plan();
     let live: Vec<LiveObject> = vec![live("one", 1_000)];
-    let settled: TheDestroyOutcomes = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("both tuples settle");
-    assert_eq!(settled.destroyed, vec![String::from("tank/clone@two")]);
-    assert!(!settled.nothing_was_destroyed());
-    assert_eq!(settled.everything.len(), 2);
-    assert_eq!(settled.everything[0], super::SettledSnapshot { name: String::from("tank/clone@one"), destroyed: false });
+    let destroyed: Vec<String> = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("both tuples settle");
+    assert_eq!(destroyed, vec![String::from("tank/clone@two")], "the present one is not named");
 }
 
 #[test]
 fn a_plan_whose_every_snapshot_is_live_destroyed_nothing() {
     let plan: DestructionPlan = the_plan();
     let live: Vec<LiveObject> = vec![live("one", 1_000), live("two", 2_000)];
-    let settled: TheDestroyOutcomes = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("both tuples settle");
-    assert!(settled.nothing_was_destroyed());
-    assert!(settled.destroyed.is_empty());
+    let destroyed: Vec<String> = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("both tuples settle");
+    assert!(destroyed.is_empty());
 }
 
 #[test]
 fn a_line_the_plan_wrote_as_destroyed_is_final_beside_a_live_snapshot() {
     let plan: DestructionPlan = with_a_line(&the_plan(), "tank/clone@one", SnapshotOutcome::Destroyed);
     let live: Vec<LiveObject> = vec![live("one", 1_000), live("two", 2_000)];
-    let settled: TheDestroyOutcomes = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("the tuples settle");
-    assert_eq!(settled.destroyed, vec![String::from("tank/clone@one")], "a `destroyed` line is not undone by a live object of the same GUID");
+    let destroyed: Vec<String> = settle_the_destroy_outcomes(&plan, live.as_slice()).expect("the tuples settle");
+    assert_eq!(destroyed, vec![String::from("tank/clone@one")], "a `destroyed` line is not undone by a live object of the same GUID");
 }
 
 #[test]
@@ -128,8 +124,8 @@ fn a_snapshot_carrying_the_recorded_guid_under_another_name_refuses() {
 fn a_bookmark_carrying_the_guid_does_not_prove_the_snapshot_intact() {
     let plan: DestructionPlan = the_plan();
     let bookmark: LiveObject = LiveObject { kind: EntryKind::Bookmark, ..live("one", 1_000) };
-    let settled: TheDestroyOutcomes = settle_the_destroy_outcomes(&plan, &[bookmark]).expect("a bookmark settles as no snapshot");
-    assert_eq!(settled.destroyed.len(), 2, "neither snapshot is proved intact by a bookmark");
+    let destroyed: Vec<String> = settle_the_destroy_outcomes(&plan, &[bookmark]).expect("a bookmark settles as no snapshot");
+    assert_eq!(destroyed.len(), 2, "neither snapshot is proved intact by a bookmark");
 }
 
 #[test]

@@ -34,7 +34,6 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{TheReversalDone, TheReversalRequest, reverse_the_removal};
-use crate::worktree_clone_removal_cancel::the_destroy_outcomes::TheDestroyOutcomes;
 use crate::worktree_clone_removal_cancel::the_plan_it_leaves::ThePlansFate;
 use crate::worktree_clone_removal_cancel::the_reversing_request::TheMountRequest;
 use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
@@ -111,7 +110,7 @@ impl WhereItStopped {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Cancellation = { commonDir; recorded; slotPath; plan?; outcomes; stop; holders; mountRequest; staged };
+/// type Cancellation = { commonDir; recorded; slotPath; plan?; destroyed; stop; holders; mountRequest; staged };
 /// ```
 pub struct TheSelfCancellation<'a> {
     /// The repository's common Git directory.
@@ -123,8 +122,8 @@ pub struct TheSelfCancellation<'a> {
     /// The plan the removal wrote or adopted,
     /// where it wrote one.
     pub plan: Option<&'a DestructionPlan>,
-    /// The destroyed set the plan's tuples settled to.
-    pub outcomes: &'a TheDestroyOutcomes,
+    /// The snapshots the plan's tuples prove destroyed.
+    pub destroyed: &'a [String],
     /// Where the removal stopped.
     pub stop: WhereItStopped,
     /// Every holder the scan or the receipt named,
@@ -274,7 +273,7 @@ pub fn the_removal_cancels_itself(input: &TheSelfCancellation<'_>) -> Result<The
         recorded: input.recorded,
         slot_path: input.slot_path,
         plan: input.plan,
-        outcomes: input.outcomes,
+        destroyed: input.destroyed,
         mount_request: input.mount_request,
         staged: input.staged,
     })?;

@@ -132,7 +132,7 @@ impl TheStagedFolder for NoStagedFolder {
 struct AClaimTheArmHolds;
 
 impl TheRemovalClaim for AClaimTheArmHolds {
-    fn take(&self, _clone_guid: DatasetGuid) -> Result<ClaimHeld, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
+    fn take(&self, _slot: &str) -> Result<ClaimHeld, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
         return Ok(ClaimHeld::for_a_control("the guest arm"));
     }
 }
@@ -196,12 +196,13 @@ fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
     enter_the_removal(&entry, &reads, &unmount, &TheLiveClock).expect("the removal's own entry writes its plan");
     let plan_path: PathBuf = plans_folder(common.as_path()).join(recorded.clone_guid.file_name());
     assert!(plan_path.exists(), "positive control: the removal's entry wrote a plan the command can prove");
-    if already_cancelled {
-        // A cancellation's first act is the `mount` request, so this is the state one leaves behind.
-        let intent: MountIntent = MountIntent { operation: MountOperation::Mount, nonce: a_nonce() };
-        fixture.run("zfs", &["set", format!("{DESIRED_STATE_PROPERTY}={}", intent_text(intent.operation, &intent.nonce)).as_str(), clone.as_str()]);
-    } else {
-        // The removal destroyed one snapshot before a holder outlasted it, which the plan records as still planned.
+    // The request the clone carries is the state a killed removal leaves:
+    // an `unmount` request, or the `mount` one a cancellation's first act writes.
+    let operation: MountOperation = if already_cancelled { MountOperation::Mount } else { MountOperation::Unmount };
+    let intent: MountIntent = MountIntent { operation, nonce: a_nonce() };
+    fixture.run("zfs", &["set", format!("{DESIRED_STATE_PROPERTY}={}", intent_text(intent.operation, &intent.nonce)).as_str(), clone.as_str()]);
+    if !already_cancelled {
+        // The removal destroyed one snapshot before a holder outlasted it, which the plan still calls planned.
         fixture.run("zfs", &["destroy", first.as_str()]);
     }
     let absence: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest has /dev/zfs");
