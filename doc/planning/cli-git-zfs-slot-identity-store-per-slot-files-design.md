@@ -1988,7 +1988,8 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     the same file also covers the kill between the link and the unlink,
     which leaves the record whole beside a dot entry naming the same file.
 5.  `the_adoption_removes_the_staging_entries_a_killed_writer_left`:
-    the listing the adoption decides on (`SlotIdentityStore::list_and_remove_staging_entries`) run on a folder the account owns,
+    the listing the adoption decides on
+    (`SlotIdentityStore::list_and_remove_staging_entries`) run on a folder the account owns,
     both known forms planted in it and an unknown dot entry beside them,
     asserting the two known forms gone,
     the record untouched,
