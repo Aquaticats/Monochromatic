@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:57:43-05:00.
+State recorded 2026-11-25T18:00:40-05:00.
 
 ## Requirement as stated
 
@@ -147,7 +147,7 @@ A command such as `sleep 30` receives no new default timeout.
 Output filtering remains independent,
 so a filtered sleep can still be wrapped in the pipeline that starts with `set -o pipefail`.
 The exemption therefore must not be described as proof that native Claude Code sees a leading `sleep`.
-Its real wrapped and unwrapped behavior remains a required probe.
+Its real wrapped and unwrapped behavior is recorded under native probe evidence.
 A chained command such as `sleep 2 && make` is eligible when its timeout is absent.
 The user accepted in `Q6 B` that chained sleeps can terminate.
 Because filtering can change the leading command seen by Claude Code,
@@ -253,9 +253,13 @@ but implementation tests must use the production predicate and include those dif
 The scratch wrapper probes exercise the real filter executable,
 not production allowlist and denylist composition.
 
-A fresh substantive cross-vendor review of the final record and probe evidence remains required
-before the user is asked to confirm shared understanding.
-Implementation stays unauthorized until that confirmation.
+The final fresh Claude Sonnet acceptance review returned **READY** on 2026-11-25.
+It found no design blocker,
+missing user decision,
+or critical untested mechanism.
+Its only correction was a missing derived unwrapped measurement file,
+now created from the raw log.
+Implementation stays unauthorized until the user confirms shared understanding.
 
 ## Review record
 
@@ -460,10 +464,12 @@ The valid measurements are in `duration-interactive-measurements.jsonl`.
 
 ## Verification still owed
 
-A fresh cross-vendor reviewer must read this final record,
+The final fresh Claude Sonnet reviewer read this record,
 the timing evidence,
-and the user's `Q21 A` acceptance
-before the user is asked to confirm shared understanding.
+and the user's `Q21 A` acceptance,
+and returned **READY**.
+Implementation verification remains an implementation-time concern,
+not a design blocker.
 
 After acceptance,
 implementation verification must cover the filter-skipped composition branch,
@@ -485,7 +491,7 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Obtain a fresh final review of the accepted design and complete evidence,
-then present the assembled contract for explicit shared-understanding confirmation.
+Present the assembled contract for explicit shared-understanding confirmation.
+Do not implement before that confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
