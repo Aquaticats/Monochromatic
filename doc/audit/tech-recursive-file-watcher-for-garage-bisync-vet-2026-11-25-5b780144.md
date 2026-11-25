@@ -1563,6 +1563,16 @@ so it neither queues nor leaves a running sync alone;
 open issue 703 reports the same since 2019,
 and its own trigger documentation says the opposite.
 
+### Owner decisions on the results (2026-11-25T18:51:49-05:00)
+
+onchange exits on the intent of the round 3 requirement;
+modd exits on the provenance gate, building it from source declined;
+Watchman exits on three hard constraints.
+directory-watcher 3.2.1 is the only hard-gate-confirmed candidate and the only finalist.
+The skill's alternatives rule allows one survivor after saturated discovery;
+every exhausted source is in "Query log",
+and every exit is recorded with its evidence.
+
 ## Evidence records
 
 Every record below was read on 2026-11-25 between 17:22 and 17:41 -05:00.

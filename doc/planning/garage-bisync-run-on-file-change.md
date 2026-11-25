@@ -211,8 +211,20 @@ which the fallback would have to clear first:
   so a LaunchAgent for it would have to raise its own soft limit.
 - `~/Plain` exists there,
   and `launchctl list` shows `cat.aquati.rclone-bisync-garage` loaded with last exit status 7,
-  the status bisync exits with when it aborts;
-  not investigated.
+  the status bisync exits with when it aborts.
+  Read at 2026-11-25T18:51:49-05:00 on the owner's go-ahead:
+  every run since the agent's log began (2026-09-14 16:00, 682 runs) aborted
+  with "cannot find prior Path1 or Path2 listings",
+  none succeeded,
+  and `~/Library/Caches/rclone/bisync/` is empty;
+  recorded in `doc/handover/garage-file-sync.md` "Client check (macOS, `ssh m1`)".
+
+## Owner answers, round 6 (2026-11-25T18:51:49-05:00)
+
+- onchange exits: its per-event queue meets the round 3 wording but not its purpose.
+- modd exits on the provenance gate; building it from source was declined.
+- The Mac's failing agent was read, not changed (see the Mac client section).
+- directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
 
 ## Design consequences still to settle
 
