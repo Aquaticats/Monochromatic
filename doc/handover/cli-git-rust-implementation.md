@@ -608,9 +608,18 @@ the nested rule is mountpoint-only,
 the unit keeps `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run,
 and the choices are ten, with choice 9 how a recorded checkout is replaced (`--replace` first)
 and choice 10 the panic hook in a root mode.
-Running since 2026-11-24T19:55-05:00:
-its Sonnet read, which writes the owner blocks (`~/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/`);
-then the choices go to the owner.
+Its Sonnet read (`report-sonnet-read-of-the-fourth-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/keep/`)
+found the new scan needle `/proc/self/` failing today's tree in 27 release files that read it on purpose,
+the new comment stripper hiding code after a `//` inside a string,
+more guard variants that pass and change decisions,
+no pin on `main`'s refusal arm and no binary control of it,
+choice 9 silent on what a restore or the migration's rollback does to the nested dataset's unit,
+and choice 7's deadline variable able to turn a missed deadline into a pass;
+the owner blocks for all ten choices are in that report.
+The fifth revision, briefed to weigh whole-file pins of `main.rs` and the names module against more spelling lists
+and to pose the deadline variable as its own choice, has its brief at `~/temp/agent/zfs-root-modes-fifth-revision-2026-11-24/prompt.md`
+and starts once the memory stall stops rising;
+a Sonnet read of it follows, then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
