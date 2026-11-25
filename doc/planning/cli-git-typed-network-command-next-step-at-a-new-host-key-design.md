@@ -1314,13 +1314,12 @@ wrapper's own host-key sentence.
 ## The words
 
 Three sentences,
-all new,
-and one generic sentence kept from B's record.
+all new.
 They live beside the two that exist today (`src/native/lfs/lfs_pre_push.rs`),
 because the same detectors must not drift,
 and the existing two stay for the LFS upload and the service's push record,
 whose subjects are an upload and a push.
-These three are verb-neutral ("run this command again", never "push again").
+They are verb-neutral ("run this command again", never "push again").
 
 Nothing on `main` holds them today:
 `NO_ANSWER_SENTENCE` went with J,
@@ -1430,7 +1429,7 @@ Each item says what would go wrong without it, and the measurement or the source
   and Git's progress is drawn only when `is_foreground_fd(fileno(stderr))` holds or the descriptor has no foreground
   group at all (`progress.c:106` to `:110`, `:146`).
   A new session that owns the pty would put Git's group outside the foreground one.
-  The stand-in this round ran has neither call, which is why the person's signals were not tested.
+  The stand-in this round ran has neither call; no arm sent a signal to the wrapper alone, so that part is design.
 - A size is set on the terminal, and it is not what decides Git's progress width.
   Git's width comes from `term_columns()` reading **standard output** (`pager.c:213` to `:241`),
   which K leaves alone, so copying the wrapper's window size onto the pty changed nothing in any transcript:
@@ -1646,7 +1645,7 @@ K2 > K > C > C2 > D > A.
   It needs the sentences under "The words", the two detectors that already exist with the two additions they need,
   one relay wired into the child paths named under "What building each option would take", and one `isatty`
   decision.
-  It costs what C costs, about `2 ms` of work on every typed network command,
+  It costs what C costs, about `0.7 ms` of work on every typed network command,
   and it changes no captured byte for anyone.
 - K is the same with a terminal always: the same words, the progress display and the touch notice for everyone,
   and a captured stream that holds the progress, the carriage returns and the escapes.
@@ -1677,7 +1676,7 @@ What each answer leaves:
 - K2: the words arrive at the refusals OpenSSH prints, name the host as the person typed it,
   and nothing changes in what a captured command writes;
   at a terminal the person keeps the progress display and the touch notice.
-  A `-q` command still gets nothing, and a tagged LFS push needs the double-sentence fix.
+  A `-q` command still gets nothing, and a typed LFS push needs the double-sentence fix.
 - K: the same words, and every captured stream gains Git's progress bytes, a carriage return per line and Git's
   terminal escapes.
 - C: the same words, plain Git's bytes in every capture, and no progress display and no touch notice at a
