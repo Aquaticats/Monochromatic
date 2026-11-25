@@ -84,6 +84,12 @@ const COMPLETION_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_COMPLETION_GUEST';
 const DESTRUCTION_POOL = 'zfsstep15destruction';
 /** The folder step 15's pool image and fixture repository live under. */
 const DESTRUCTION_ROOT = '/home/zfs-step-15-destruction-fixture';
+/** The pool step 17's cancel arm builds and destroys, so no two arms share one. */
+const CANCEL_POOL = 'zfsstep17cancel';
+/** The folder step 17's pool image and fixture repository live under. */
+const CANCEL_ROOT = '/home/zfs-step-17-cancel-fixture';
+/** The environment step 17's cancel arm reads, so it never opens the host's device. */
+const CANCEL_GUEST_VARIABLE = 'CLI_GIT_ZFS_CANCEL_GUEST';
 /** The OpenZFS 2.4.4 prefix the guest's recipe installs. */
 const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
 /** The `PATH` the guest's OpenZFS userspace needs. */
@@ -112,6 +118,9 @@ const EXPECTED_MARKERS = [
   'COMPLETION blocked=origin',
   'COMPLETION resume=finished',
   'COMPLETION done',
+  'CANCEL destroyed=',
+  'CANCEL already-cancelled=reported',
+  'CANCEL done',
   'DESTRUCTION healthy=destroyed',
   'DESTRUCTION look=refused',
   'DESTRUCTION first-check=refused',
@@ -336,6 +345,11 @@ async function run(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     // The refusal arm's own pool, made from a file so nothing of the guest's root disk is a vdev.
     `mkdir --parents ${REFUSAL_ROOT}`,
+    `mkdir --parents ${CANCEL_ROOT}`,
+    `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${CANCEL_POOL} > /dev/null 2>&1; then`,
+    `  truncate --size 1G ${CANCEL_ROOT}/pool.img`,
+    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${CANCEL_POOL} ${CANCEL_ROOT}/pool.img`,
+    'fi',
     `mkdir --parents ${REFUSAL_CHECKOUT}`,
     `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${REFUSAL_POOL} > /dev/null 2>&1; then`,
     `  truncate --size 1G ${REFUSAL_ROOT}/pool.img`,
@@ -370,6 +384,10 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_REMOVAL_COMPLETION_POOL=${COMPLETION_POOL}`,
     `export CLI_GIT_ZFS_REMOVAL_COMPLETION_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_REMOVAL_COMPLETION_ROOT=${COMPLETION_ROOT}`,
+    `export ${CANCEL_GUEST_VARIABLE}=${chosen.name}`,
+    `export CLI_GIT_ZFS_CANCEL_POOL=${CANCEL_POOL}`,
+    `export CLI_GIT_ZFS_CANCEL_PREFIX=${OPENZFS_PREFIX}`,
+    `export CLI_GIT_ZFS_CANCEL_ROOT=${CANCEL_ROOT}`,
     `export ${REFUSAL_GUEST_VARIABLE}=${chosen.name}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${REFUSAL_POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
@@ -378,7 +396,7 @@ async function run(chosen: Options): Promise<void> {
     // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
     // and the failure's own output is printed rather than the last forty lines of a passing run.
     'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
-      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms) | test(the_removal_completion_guest_arms)" ' +
+      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms) | test(the_removal_completion_guest_arms) | test(the_cancel_command_guest_arms)" ' +
       '> /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
     'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=120 /root/removal-lineage-arm.log',
@@ -403,6 +421,8 @@ async function run(chosen: Options): Promise<void> {
     `zpool destroy -f ${COMPLETION_POOL} 2>/dev/null || true`,
     `rm --force ${COMPLETION_ROOT}/pool.img 2>/dev/null || true`,
     `rmdir ${COMPLETION_ROOT} 2>/dev/null || true`,
+    `zpool destroy -f ${CANCEL_POOL} 2>/dev/null || true`,
+    `rm --force ${CANCEL_ROOT}/pool.img 2>/dev/null || true`,
   ].join('\n');
   guestStart({ chosen, script: arm, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });

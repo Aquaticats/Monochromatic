@@ -105,6 +105,12 @@ pub mod the_cancel_command;
 /// What a removal restores when it cancels itself.
 pub mod the_cancelled_removal;
 
+/// The guest arms of the cancel command.
+/// Compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "the_cancel_command_guest_arm_tests.rs"]
+mod the_cancel_command_guest_arm_tests;
+
 /// The stand-ins the controls answer the seams with.
 /// Never part of the release executable.
 #[cfg(test)]
