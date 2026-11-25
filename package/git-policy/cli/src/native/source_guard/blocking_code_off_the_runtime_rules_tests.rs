@@ -418,11 +418,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the sampler's own pause between its /proc reads",
     },
     Allowed {
-        file: "push/auto_push.rs",
-        rule: "blocking-sleep",
-        why: "the pause between attempts at the push lock",
-    },
-    Allowed {
         file: "push/push_tracking_ref_repair.rs",
         rule: "blocking-sleep",
         why: "the same pause between attempts at a reference lock, on the push a command outside the runtime makes; the \
