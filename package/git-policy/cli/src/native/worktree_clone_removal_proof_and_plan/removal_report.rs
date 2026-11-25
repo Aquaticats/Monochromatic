@@ -27,6 +27,7 @@ use crate::worktree_clone_origin_cleanup::origin_cleanup_words::BlockReason;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::RecordsGone;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
 use std::path::PathBuf;
 
@@ -116,6 +117,8 @@ pub struct TheRemovalDone {
     pub settle: SettleAnswer,
     /// What the removal's own records were.
     pub records: RecordsGone,
+    /// What the slot's per-slot claim did at the order's last step.
+    pub claim: ClaimEnd,
     /// The plan's file,
     /// which a finished removal removed.
     pub plan_path: PathBuf,
@@ -193,6 +196,14 @@ impl TheRemovalDone {
         } else {
             lines.push(format!("  the removal's plan still stands at {}; nothing was destroyed twice.", self.plan_path.display()));
         }
+        lines.push(match &self.claim {
+            ClaimEnd::Released => format!("  the slot's per-slot claim is released, so the next command on `{}` starts at once.", self.slot),
+            ClaimEnd::RefusedToRelease { said } => format!(
+                "  {said}, so the next command on `{}` waits until this process ends, when the claim stops counting as alive and the next command takes the next generation.",
+                self.slot
+            ),
+            ClaimEnd::Held => format!("  the removal still holds the slot's per-slot claim: `{}` is not free until its last step runs.", self.slot),
+        });
         let refused: usize = self
             .requests
             .iter()

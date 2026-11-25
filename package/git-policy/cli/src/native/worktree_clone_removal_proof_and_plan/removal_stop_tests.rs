@@ -29,6 +29,8 @@ use std::path::PathBuf;
 fn stops() -> Vec<RemovalStop> {
     return vec![
         RemovalStop::NoBinding { slot: String::from("fix-flaky-test"), reason: String::from("no such file") },
+        RemovalStop::TheSlotIsClaimed { slot: String::from("fix-flaky-test"), pid: 48213, path: PathBuf::from("/repo/.git/monochromatic-git-policy-cli/worktree-clones/v1/fix-flaky-test.claim.1") },
+        RemovalStop::TheClaimCannotBeTaken { slot: String::from("fix-flaky-test"), said: String::from("the claim file is not one this command wrote") },
         RemovalStop::BindingIncomplete { slot: String::from("fix-flaky-test"), field: "cloneGuid" },
         RemovalStop::DoesNotAnswer { object: String::from("tank/wt/fix-flaky-test"), reason: String::from("no such dataset") },
         RemovalStop::IdentityDiffers { object: String::from("tank/wt/fix-flaky-test"), field: "cloneGuid", recorded: String::from("1"), live: String::from("2") },
