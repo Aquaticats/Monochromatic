@@ -144,6 +144,13 @@ two things need measuring on a disposable Garage before the design settles:
   before the owner reads it,
   its reproduction steps run exactly as written on a throwaway Garage.
 
+## Owner answer on the upstream draft (2026-11-25T18:04:35-05:00)
+
+"Make the changes but don't post it."
+The reproduction fix (start from a seed file) is in
+`doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md`;
+nothing is posted upstream.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
