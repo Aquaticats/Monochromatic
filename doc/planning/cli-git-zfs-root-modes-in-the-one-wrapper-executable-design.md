@@ -1472,7 +1472,7 @@ The answer's two clauses are kept apart in the design like this:
   and `--help` and `--version`,
   and turns every other word at that path into a refusal.
 
-So under the recommended install layout (choice 3's option A)
+So under the layout choice 3's answer fixes
 both spellings reach the modes,
 and the words remain what selects a mode:
 a unit line works whether the file it starts is the installed name or another,
@@ -4871,15 +4871,11 @@ and the runbook carries both:
   root replaces the record (choice 9),
   and that boot then finds a record the kernel agrees with.
   Skipped, that boot's nested unit refuses `checkout-record-no-longer-matches`,
-  names the field that differs and prints the record's GUID,
-  and the nested dataset stays unmounted until the replacement runs,
+  prints both GUIDs, and names the exact `--replace <the kernel's guid>` to run,
+  so the repair is one command typed from a value the failed boot printed;
+  until it runs the nested dataset stays unmounted,
   because a unit that refuses has no fallback and a unit that `Requires=` it fails with it
-  (the step 19 record's V6).
-  What choice 9's options make of that window is stated there:
-  options A, D and E leave one command whose flag the boot's own refusal prints,
-  option C leaves the ordinary command,
-  which that refusal does not name,
-  and option B leaves a deletion and a re-record that no refusal names;
+  (the step 19 record's V6);
 - the migration's tested rollback
   (source doc/planning/cli-git-zfs-worktree-implementation-plan.md:2598,
   which is the plan's only word on it)
@@ -5077,7 +5073,7 @@ and why the design cannot leave it implicit:
 - the profile gives `/etc/zfs/zed.d/{,*} r,` and no execute permission,
   so a zedlet cannot be started at all until a rule grants it;
   the rule therefore names the file AppArmor resolves the zedlet's path to,
-  which under choice 3's option A is the root-owned file in `/usr/libexec`;
+  which under choice 3's answer is the root-owned file in `/usr/libexec`;
 - AppArmor's documented default is to resolve symlinks before matching a rule,
   and this round did not measure that,
   so the ZED-enable step proves the rule with the audit log before ZED is enabled,
