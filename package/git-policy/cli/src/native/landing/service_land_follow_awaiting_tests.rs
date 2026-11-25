@@ -8,6 +8,7 @@
 use super::tests::{differs, index_behind};
 use super::*;
 use crate::test_support::{git_context, git_output, remove};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::PathBuf;
 
 /// What:
@@ -26,6 +27,11 @@ use std::path::PathBuf;
 /// ```
 #[test]
 fn the_awaited_reset_installs_what_the_synchronous_one_installs() {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land_follow::awaiting_tests::the_awaited_reset_installs_what_the_synchronous_one_installs",
+    ) {
+        return;
+    }
     let names: Vec<Vec<u8>> = vec![b"not-utf8-\xff\xfe.txt".to_vec(), b"plain.txt".to_vec()];
     let (root, repo, _first, second) = index_behind("follow-awaiting-reset", names.as_slice());
     assert!(differs(repo.as_path(), second.as_str()), "the index starts behind the commit");
@@ -66,6 +72,11 @@ fn the_awaited_reset_installs_what_the_synchronous_one_installs() {
 /// ```
 #[test]
 fn the_awaited_derived_names_are_the_ones_the_synchronous_face_reads() {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land_follow::awaiting_tests::the_awaited_derived_names_are_the_ones_the_synchronous_face_reads",
+    ) {
+        return;
+    }
     let names: Vec<Vec<u8>> = vec![b"not-utf8-\xff\xfe.txt".to_vec(), b"plain.txt".to_vec()];
     let (root, repo, first, second) = index_behind("follow-awaiting-derived", names.as_slice());
     let zero: String = "0".repeat(first.len());

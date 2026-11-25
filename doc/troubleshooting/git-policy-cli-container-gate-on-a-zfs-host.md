@@ -113,6 +113,39 @@ controls of this cause that failed before the change passed after it (`keep/per-
 `worktree_clone_mount::slot_identity_store::tests::a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`,
 had printed `SKIPPED` and passed without running; it now runs and proves the refusal.
 
+Sixteen controls were missed by that round and still failed here on 2026-11-25: two in
+`commit::capture_invocation`, three in `candidate::candidate_store`, three in
+`landing::service_land_follow`, four in `worktree_copying`'s stage-claim and journal controls, one in
+`shadow::replay_merge`, two in `repo_read::repo_read_query`, and the binary control
+`service_commit::a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway`. Each now asks
+`in_a_fixture_root_taking_any_name` first, and each was red before and green after on this host, one
+process per test (`keep/red-before-the-two-controls.log`, `keep/search-before-fix.log`,
+`keep/search-before-fix-helpers.log` and `keep/green-after-the-fix.log` in
+`~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`).
+
+### How the controls of this cause are found
+
+A grep for the name of a guard finds the controls that already have one, not the ones that need it.
+Three searches find the rest of them, and each one caught controls the others did not:
+
+- Read every byte-string literal in the crate's sources and decode it as UTF-8: a literal that does
+  not decode is a byte string the home dataset refuses. This found 145 controls that hold one and do
+  not ask the guard.
+- Read every test body for any byte over 127 at all, whether an escape in a text literal, a byte-string
+  literal or a bare `0x` number pushed into a name. This found 193, and it is what catches a name built
+  by `name.push(0xff)`.
+- Find each helper whose own body holds such a byte and makes a path component, then each control that
+  calls one without a byte of its own. This found eleven controls, and only this search caught three of
+  them (`repo_read::repo_read_query::tests::an_offset_table_version_git_words_is_left_to_git`,
+  `repo_read::repo_read_query::tests::the_index_extensions_git_reads_silently_are_answered` and
+  `candidate::candidate_store::tests::reader_starts_only_for_blob_content`), because their name comes
+  from a helper that stages it.
+
+A control on the union of those three lists is then run on the host, one process per control, with
+nothing set: a control that makes such a name fails there with `errno` 84 and one that does not passes.
+That run is the answer, and the searches are only how its candidates are found. A control that needs a
+`btrfs` fixture root refuses for that reason first and is no part of this cause.
+
 ## Cause A2: one test writes through a scratch helper the fixture root does not move (1 test)
 
 This was a defect of ours, and it is fixed: the helper now builds its directory under the run's own

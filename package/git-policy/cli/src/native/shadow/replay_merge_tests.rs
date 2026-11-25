@@ -98,6 +98,9 @@ fn overlapping_hunks_conflict_and_name_their_paths() {
 /// A conflict over a name that is not UTF-8 reports its exact bytes.
 #[test]
 fn a_conflict_over_a_name_that_is_not_utf8_reports_its_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("shadow::replay_merge::tests::a_conflict_over_a_name_that_is_not_utf8_reports_its_exact_bytes") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let file: std::ffi::OsString = std::ffi::OsString::from_vec(b"caf\xe9.txt".to_vec());
     let (root, base, current, prepared) = scenario_for_file("replay-merge-conflict-odd", file.as_os_str(), "PREPARED", "line 11");

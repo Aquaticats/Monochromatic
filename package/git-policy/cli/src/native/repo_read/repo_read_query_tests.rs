@@ -437,6 +437,9 @@ fn an_unknown_index_extension_is_declined() {
 /// and `FSMN` in the shape `write_fsmonitor` writes.
 #[test]
 fn the_index_extensions_git_reads_silently_are_answered() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::the_index_extensions_git_reads_silently_are_answered") {
+        return;
+    }
     let root = fixture("repo-read-query-known-extensions");
     let repo = staged_repository(root.as_path(), "known", "sha1");
     answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
@@ -493,6 +496,9 @@ fn extension_body(bytes: &[u8], signature: &[u8; 4]) -> usize {
 ///   which is why the reader could answer it unnoticed).
 #[test]
 fn an_offset_table_version_git_words_is_left_to_git() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::tests::an_offset_table_version_git_words_is_left_to_git") {
+        return;
+    }
     let root = fixture("repo-read-query-offset-table");
     let repo = staged_repository(root.as_path(), "offset-table", "sha1");
     git(repo.as_path(), &["-c", "index.threads=4", "-c", "index.recordOffsetTable=true", "update-index", "--index-version", "4"]);

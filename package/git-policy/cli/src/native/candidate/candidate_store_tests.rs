@@ -24,6 +24,7 @@ use crate::candidate_record::CandidateChange;
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion};
 use crate::git_metadata::strip_git_line;
 use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
@@ -149,6 +150,9 @@ pub(super) fn staged_changes(root: &Path) -> PathBuf {
 ///  and nothing unchanged.
 #[test]
 fn staged_version_describes_every_kind_of_entry() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::staged_version_describes_every_kind_of_entry") {
+        return;
+    }
     let root: PathBuf = fixture("store-staged");
     let repo: PathBuf = staged_changes(root.as_path());
     let mut subject: CandidateStore = store(repo.as_path());
@@ -241,6 +245,9 @@ fn staged_version_describes_every_kind_of_entry() {
 ///  and nothing for a deletion.
 #[test]
 fn staged_bytes_are_exact_for_every_kind_of_entry() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::staged_bytes_are_exact_for_every_kind_of_entry") {
+        return;
+    }
     let root: PathBuf = fixture("store-bytes");
     let repo: PathBuf = staged_changes(root.as_path());
     let head: ObjectId = rev_parse(repo.as_path(), "HEAD");
@@ -325,6 +332,9 @@ fn an_object_larger_than_a_check_reads_is_refused_and_the_reader_stays_in_step()
 ///  a blob starts it.
 #[test]
 fn reader_starts_only_for_blob_content() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tests::reader_starts_only_for_blob_content") {
+        return;
+    }
     let root: PathBuf = fixture("store-lazy");
     let repo: PathBuf = staged_changes(root.as_path());
     let head: ObjectId = rev_parse(repo.as_path(), "HEAD");
