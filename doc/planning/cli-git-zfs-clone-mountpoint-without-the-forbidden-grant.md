@@ -1329,10 +1329,9 @@ and each answer is in this document.
 
 ## Open items
 
-- The add's own binary was not run as the account,
-  and the last open item names why:
+- The add's own binary was not run as the account:
   the wrapper's account companion refuses a bare `ubuntu` at `/proc/self/setgroups`,
-  as the round that found the issue recorded.
+  as issue 6462 records.
   The route's guest tests and this round's arms narrow that gap.
 - `zfs clone -o mountpoint=legacy` as the account was refused under the nine grants
   and succeeded once `mountpoint` was granted,
