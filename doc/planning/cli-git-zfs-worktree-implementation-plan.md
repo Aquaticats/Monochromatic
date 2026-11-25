@@ -2072,6 +2072,10 @@ the settle a failed add hands over to is step 14's,
 which is the step that lands the move,
 and `source_guard/add_route_issues_no_destroy_tests.rs` fails the day the add's
 folder names a destroying entry without moving them.
+Owned by issue 6462:
+the add's clone asks the pool for `mountpoint=legacy`,
+and `mountpoint` is a delegation the design forbids the account,
+so the guest refuses that request for a delegated account whatever the nine say.
 
 #### Design sections
 
