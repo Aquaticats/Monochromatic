@@ -227,6 +227,7 @@ jobs:
           task-run //package/logger/core:test:unit
           task-run //package/upstream-fork/p-map:test:unit
           task-run //package/toml-edit/core:test:unit
+          task-run //package/container-limit/core:test:unit
           task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test
       - name: Summary
@@ -236,7 +237,7 @@ jobs:
             echo "## Advisory core result"
             echo "- commit: ${{ github.sha }}"
             echo "- provider: GitHub-hosted Linux"
-            echo "- fast subset: logger/core, upstream-fork/p-map, toml-edit/core, forbidden-strings/cli, linter/monochromatic-lint"
+            echo "- fast subset: logger/core, upstream-fork/p-map, toml-edit/core, container-limit/core, forbidden-strings/cli, linter/monochromatic-lint"
             echo "- results are advisory: no required checks and no branch-protection change; a failed profile or drift check still fails the run"
           } >> "$GITHUB_STEP_SUMMARY"
       # The drift checks run with continue-on-error so that one drift does not hide the others and the build and unit

@@ -185,9 +185,9 @@ fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
     let joined = |directories: &[&PathBuf]| {
         return std::env::join_paths(directories).expect("joined");
     };
-    assert!(program_on_path(joined(&[&without, &with_program]).as_os_str()));
-    assert!(!program_on_path(joined(&[&without, &plain, &directory_named_so]).as_os_str()));
-    assert!(!program_on_path(OsStr::new("")));
+    assert!(program_on_path(joined(&[&without, &with_program]).as_os_str(), std::path::Path::new("/")));
+    assert!(!program_on_path(joined(&[&without, &plain, &directory_named_so]).as_os_str(), std::path::Path::new("/")));
+    assert!(!program_on_path(OsStr::new(""), std::path::Path::new("/")));
     remove(root.as_path());
 }
 
@@ -659,10 +659,9 @@ fn a_relative_path_entry_is_found_as_an_absolute_file() {
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir(&bin).expect("bin directory");
     executable(bin.join("git-lfs").as_path(), b"#!/bin/sh\n");
-    std::env::set_current_dir(&root).expect("the fixture is the lookup directory");
-    let found: PathBuf = find_program(OsStr::new("bin")).expect("found through the relative entry");
+    let found: PathBuf = find_program(OsStr::new("bin"), root.as_path()).expect("found through the relative entry");
     assert!(found.is_absolute(), "{found:?}");
     assert_eq!(found, root.join("bin/git-lfs"));
-    assert!(program_on_path(OsStr::new("bin")));
+    assert!(program_on_path(OsStr::new("bin"), root.as_path()));
     remove(root.as_path());
 }

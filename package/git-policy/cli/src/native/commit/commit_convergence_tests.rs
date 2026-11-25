@@ -80,6 +80,7 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,
@@ -137,6 +138,7 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("README.md")])),
         Vec::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let config: crate::config_schema::CliGitConfig =
         crate::config_parse::parse_config(r#"{"policies":{"markdown/autofix":"warn"}}"#).expect("policy config");
@@ -235,6 +237,7 @@ fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,

@@ -102,7 +102,7 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
         //  the hatch: the line is written here instead, with the same facts a run without the hatch would carry.
         LinkedWorktreeDecision::Audited(audited) => {
             if let Ok(location) = checks.facts.location() {
-                record_audited(&mut checks.facts, seen, *audited, &location);
+                record_audited(&mut checks.facts, seen, *audited, &location, checks.start_directory.path());
             }
             return;
         }
@@ -159,9 +159,9 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         None => git_dir.clone(),
     };
     // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(directory) => directory,
-        Err(_unreadable) => git_dir.clone(),
+    let cwd: PathBuf = match checks.start_directory.path() {
+        Some(directory) => directory.to_path_buf(),
+        None => git_dir.clone(),
     };
     let context: GitContext = checks.facts.transaction_context();
     if silent {
@@ -564,11 +564,12 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
     let context = checks.facts.transaction_context();
     let cwd = match repository {
         Some(directory) => directory,
-        None => match std::env::current_dir() {
-            Ok(directory) => directory,
-            Err(error) => {
+        None => match checks.start_directory.path() {
+            Some(directory) => directory.to_path_buf(),
+            None => {
                 return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
-                    "the working directory could not be read: {error}"
+                    "the working directory could not be read: {}",
+                    checks.start_directory.reason().unwrap_or("the caller named none")
                 )));
             }
         },

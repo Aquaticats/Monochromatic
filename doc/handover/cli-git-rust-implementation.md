@@ -340,8 +340,18 @@ so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-pro
 step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
 held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
 and runs the proof read-only inside the refusal;
-running since 2026-11-24T19:10-05:00:
-issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
+a `source_guard` check that fails any `set_current_dir` in the crate,
+and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
+its one conflict with `main` (`entry_zfs_slot_commands.rs`, the move refusal's read order) was resolved keeping both,
+the word first and then the given directory, with `main`'s order check still red on a planted read,
+and it merged as `ac6fce8e3b` (`source_guard` 87 of 87; issue 6454 closed);
+the reads of the process's directory that remain, each its own process's entry or reached by no control, are listed in its report
+(`report-pi-fix-tests-that-change-the-process-directory.md` in `~/temp/agent/fix-tests-that-change-the-process-directory-2026-11-24/keep/`);
+the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
+choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
+and its Sonnet read runs since then (`~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`);
+earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
@@ -355,16 +365,29 @@ the command's lines beside it);
 7 instances no record names stay untouched,
 and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
 when the same command clears it;
-the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt;
+the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt
+(the 6454 worktree's removal at 2026-11-24T21:04-05:00 kept one; a run of the fixed build's `service stop-units-of-removed-worktrees` after this batch clears them);
 the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
-running since 2026-11-24T19:50-05:00, once that stall was falling:
-the round that makes that control hold without `/dev/zfs` (`pi-fix-preflight-dirty-source-test-without-dev-zfs`)
-and the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
+that control now derives the refusal it expects from the device layer, so it holds with and without `/dev/zfs`
+(merged `c12b45dfc4`; red then green in the gate image itself),
+and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
+(added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
+the image build now has its own measured bound, 8 GiB against a measured peak of 5,363.4 MiB uncapped,
+while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` still sets both
+(merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
+that round also found `package/container-limit/core`'s ledger test failing on `main`:
+16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456);
+fixed and merged as `b7ab8cf80a` (issue 6456 closed): every file listed under its role,
+the gate runner `bin/native-gate-container.ts` now takes its container limits as its own argument,
+the ZFS package's gate image build carries the shared bound,
+and the ide marker was stale (the file hands the root file through `bin/run-bounded.ts`, probed);
+`.github/workflows/advisory-core.yml`'s fast unit subset now runs `//package/container-limit/core:test:unit` so the ledger cannot fall behind silently;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,

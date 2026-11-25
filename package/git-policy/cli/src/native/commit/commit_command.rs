@@ -222,6 +222,10 @@ pub struct CommitCommand<'a> {
     pub config: &'a CliGitConfig,
     /// The wrapper controls given on the command line.
     pub controls: &'a Controls,
+    /// The directory this command was started in,
+    ///  read once by the executable's entry;
+    ///  the commit's own options are relative to it.
+    pub start_directory: crate::start_directory::StartDirectory,
 }
 
 /// What:
@@ -281,8 +285,10 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 /// });
 /// ```
 fn where_the_commit_runs(command: &CommitCommand<'_>) -> (GitContext, PathBuf) {
-    let start: PathBuf = std::env::current_dir().unwrap_or(PathBuf::from("."));
-    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    // The directory the command was started in, and `.` when the caller named none, which is where Git reads its own
+    //  relative options.
+    let start: &Path = command.start_directory.path().unwrap_or(Path::new("."));
+    let cwd: PathBuf = effective_directory(start, command.context.global_prefix.as_slice());
     let context: GitContext = GitContext {
         global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
         ..command.context.clone()
@@ -469,6 +475,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         environment: command.environment,
         config: command.config.policies.clone(),
         controls: command.controls.clone(),
+        start_directory: command.start_directory.clone(),
     };
     let mut stderr: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back

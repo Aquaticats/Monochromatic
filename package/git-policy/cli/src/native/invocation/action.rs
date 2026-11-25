@@ -101,6 +101,13 @@ pub struct PushForward {
     /// Whether a push that fails on a divergence is integrated and pushed again.
     ///  A push that only needs the LFS upload explained keeps its own status.
     pub stack: bool,
+    /// The directory this command was started in,
+    ///  read once by the executable's entry,
+    ///  and nothing when the caller could name none;
+    ///  the run resolves a relative `PATH` entry of its `git-lfs` lookup there and
+    ///  starts its Git children from there,
+    ///  as the caller's own shell would.
+    pub start_directory: Option<PathBuf>,
 }
 
 /// What:

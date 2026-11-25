@@ -40,6 +40,23 @@ fn args(words: &[&str]) -> Vec<OsString> {
 }
 
 /// What:
+///  The directory a control's alias reader starts Git in,
+///  when every setting the control sets comes from the configuration overlay.
+/// Why:
+///   An overlay holds the whole configuration these controls read,
+///  so any directory Git can start in answers the same;
+///  an absolute one no control moves or deletes keeps each answer the test's own,
+///  where a read of the process could answer with another test's fixture or a deleted one.
+fn outside_every_repository() -> &'static Path {
+    return Path::new("/");
+}
+
+/// Resolve one command as a caller started in `outside_every_repository` would.
+fn resolved_from(context: &GitContext, environment: &[(OsString, OsString)], arguments: &[OsString]) -> ResolvedCommand {
+    return resolve_forwarded_command(context, environment, arguments, Some(outside_every_repository()));
+}
+
+/// What:
 ///  An environment that names no `PATH` and no `GIT_EXEC_PATH`.
 /// Why:
 ///   The resolver asks the exec path of Git itself when the environment names none,
@@ -139,7 +156,7 @@ fn empty_and_unfinished_values_split_to_one_empty_word_or_fail() {
 fn alias_value_bytes_are_kept_exactly() {
     let context: GitContext = context_with_aliases(&[("fixturespaces", "  commit \n")]);
     assert_eq!(
-        lookup_alias(&context, &[], &OsString::from("fixturespaces")),
+        lookup_alias(&context, &[], &OsString::from("fixturespaces"), Some(outside_every_repository())),
         Some(b"  commit \n".to_vec())
     );
 }
@@ -150,7 +167,7 @@ fn alias_value_bytes_are_kept_exactly() {
 #[test]
 fn a_value_with_a_leading_space_is_unresolved_and_not_trimmed_into_a_command() {
     let context: GitContext = context_with_aliases(&[("fixturetrim", " commit -v")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturetrim"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixturetrim"]));
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
 }
@@ -177,7 +194,7 @@ fn the_last_of_the_two_spellings_in_config_order_is_the_alias() {
         (vec![("fixturetwo", "status --short"), ("fixturetwo", "diff --stat")], "diff"),
     ] {
         let context: GitContext = context_with_aliases(pairs.as_slice());
-        let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturetwo"]));
+        let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixturetwo"]));
         assert_eq!(resolved.route, Route::Alias, "{pairs:?}");
         assert_eq!(String::from_utf8_lossy(resolved.word()), expected, "{pairs:?}");
     }
@@ -214,7 +231,7 @@ fn an_alias_whose_expansion_changes_the_environment_is_left_to_git() {
         "--no-replace-objects status",
     ] {
         let context: GitContext = context_with_aliases(&[("fixtureenv", value)]);
-        let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureenv"]));
+        let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixtureenv"]));
         assert_eq!(resolved.route, Route::Unresolved, "{value}");
         let spelling: String = format!("alias.fixtureenv={value}");
         let output: std::process::Output = git_output(root.as_path(), &["-c", spelling.as_str(), "fixtureenv"]);
@@ -230,7 +247,7 @@ fn an_alias_whose_expansion_changes_the_environment_is_left_to_git() {
         "-C \"\" status",
     ] {
         let context: GitContext = context_with_aliases(&[("fixtureenv", value)]);
-        let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureenv"]));
+        let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixtureenv"]));
         assert_eq!(resolved.route, Route::Alias, "{value}");
         assert_eq!(resolved.word(), b"status", "{value}");
         let spelling: String = format!("alias.fixtureenv={value}");
@@ -265,7 +282,7 @@ fn an_alias_shadowed_by_an_external_command_is_left_to_git() {
     let path: String = format!("{}:/usr/bin:/bin", directory.display());
     let environment: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), OsString::from(path))];
     let context: GitContext = context_with_aliases(&[("fixtureexternal", "status --short")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(
+    let resolved: ResolvedCommand = resolved_from(
         &context,
         environment.as_slice(),
         &args(&["fixtureexternal"]),
@@ -309,7 +326,7 @@ fn an_alias_shadowed_by_an_external_command_is_left_to_git() {
 #[test]
 fn a_shell_alias_reads_the_configuration_the_caller_passed() {
     let context: GitContext = context_with_aliases(&[("fixtureouter", "!git fixtureinner")]);
-    let followed: ResolvedCommand = resolve_forwarded_command(
+    let followed: ResolvedCommand = resolved_from(
         &context,
         no_environment().as_slice(),
         &args(&["-c", "alias.fixtureinner=reset --hard", "fixtureouter"]),
@@ -337,7 +354,7 @@ fn a_shell_alias_reads_the_configuration_the_caller_passed() {
 fn a_shell_alias_that_names_one_git_command_is_read_for_the_guard() {
     let context: GitContext = context_with_aliases(&[("fixtureshell", "!git reset --hard")]);
     let resolved: ResolvedCommand =
-        resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
+        resolved_from(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
     assert_eq!(resolved.route, Route::ShellAlias);
     assert_eq!(
         resolved.shell_command,
@@ -348,7 +365,7 @@ fn a_shell_alias_that_names_one_git_command_is_read_for_the_guard() {
     // A nested alias named after `git` is the command the shell runs, so the chain is followed.
     let chained: GitContext = context_with_aliases(&[("fixtureshell", "!git fixturewipe"), ("fixturewipe", "reset --hard")]);
     let followed: ResolvedCommand =
-        resolve_forwarded_command(&chained, no_environment().as_slice(), &args(&["fixtureshell"]));
+        resolved_from(&chained, no_environment().as_slice(), &args(&["fixtureshell"]));
     assert_eq!(followed.shell_command, Some(args(&["reset", "--hard"])));
 }
 
@@ -405,8 +422,6 @@ fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
     let directory: PathBuf = root.join("sub/bin");
     std::fs::create_dir_all(directory.as_path()).expect("program directory");
     executable(directory.join("git-fixturewipe").as_path(), b"#!/bin/sh\necho external\n");
-    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
-    std::env::set_current_dir(root.as_path()).expect("the fixture is where the wrapper starts");
     let context: GitContext = context_with_aliases(&[
         ("fixtureouter", "!git fixturewipe"),
         ("fixturewipe", "version"),
@@ -428,6 +443,7 @@ fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
         &context,
         environment.as_slice(),
         &args(&["-C", "sub", "fixtureouter"]),
+        Some(root.as_path()),
     );
     assert_eq!(resolved.route, Route::ShellAlias);
     assert_eq!(
@@ -449,6 +465,7 @@ fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
         &context,
         reachable.as_slice(),
         &args(&["-C", "sub", "fixtureouter"]),
+        Some(root.as_path()),
     );
     assert_eq!(external.route, Route::ShellAlias);
     assert_eq!(external.shell_command, None, "the program is reachable, so Git runs it");
@@ -457,7 +474,6 @@ fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
         reachable_stdout.contains("external"),
         "the control did not reach the program, so the relative case proves nothing: {reachable_stdout}"
     );
-    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
 }
 
@@ -490,7 +506,7 @@ fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
     ] {
         let context: GitContext = context_with_aliases(&[("fixtureshell", value)]);
         let resolved: ResolvedCommand =
-            resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
+            resolved_from(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
         assert_eq!(resolved.route, Route::ShellAlias, "{value}");
         assert_eq!(resolved.shell_command, None, "{value} must stay unread");
         assert_eq!(resolved.arguments, args(&["fixtureshell"]), "{value}");
@@ -498,7 +514,7 @@ fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
     // One shell is read, so a shell alias that names another shell alias is left unread rather than followed twice.
     let doubled: GitContext = context_with_aliases(&[("fixtureshell", "!git fixturesecond"), ("fixturesecond", "!git reset --hard")]);
     let resolved: ResolvedCommand =
-        resolve_forwarded_command(&doubled, no_environment().as_slice(), &args(&["fixtureshell"]));
+        resolved_from(&doubled, no_environment().as_slice(), &args(&["fixtureshell"]));
     assert_eq!(resolved.shell_command, None, "a second shell is not read");
 }
 
@@ -506,7 +522,7 @@ fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
 #[test]
 fn a_direct_builtin_resolves_past_its_global_options() {
     let context: GitContext = context_with_aliases(&[]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["-C", "/x", "status"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["-C", "/x", "status"]));
     assert_eq!(resolved.route, Route::Direct);
     assert_eq!(resolved.word(), b"status");
     assert_eq!(resolved.subcommand_index, 2);
@@ -517,7 +533,7 @@ fn a_direct_builtin_resolves_past_its_global_options() {
 #[test]
 fn a_query_has_no_subcommand() {
     let context: GitContext = context_with_aliases(&[]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["--version"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["--version"]));
     assert_eq!(resolved.subcommand, None);
     assert_eq!(resolved.word(), b"");
     assert!(!resolved.is_builtin());
@@ -529,7 +545,7 @@ fn a_query_has_no_subcommand() {
 fn an_alias_expands_to_its_words_then_the_rest() {
     let context: GitContext = context_with_aliases(&[("fixturecommit", "commit -v")]);
     let resolved: ResolvedCommand =
-        resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturecommit", "-m", "x"]));
+        resolved_from(&context, no_environment().as_slice(), &args(&["fixturecommit", "-m", "x"]));
     assert_eq!(resolved.route, Route::Alias);
     assert_eq!(resolved.word(), b"commit");
     assert_eq!(resolved.arguments, args(&["commit", "-v", "-m", "x"]));
@@ -540,7 +556,7 @@ fn an_alias_expands_to_its_words_then_the_rest() {
 #[test]
 fn chained_aliases_resolve_to_the_builtin_at_the_end() {
     let context: GitContext = context_with_aliases(&[("fixturex", "fixturey -a"), ("fixturey", "commit")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturex"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixturex"]));
     assert_eq!(resolved.route, Route::Alias);
     assert_eq!(resolved.arguments, args(&["commit", "-a"]));
 }
@@ -550,7 +566,7 @@ fn chained_aliases_resolve_to_the_builtin_at_the_end() {
 #[test]
 fn a_builtin_name_is_not_shadowed_by_an_alias() {
     let context: GitContext = context_with_aliases(&[("commit", "status")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["commit"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["commit"]));
     assert_eq!(resolved.route, Route::Direct);
     assert_eq!(resolved.word(), b"commit");
 }
@@ -560,7 +576,7 @@ fn a_builtin_name_is_not_shadowed_by_an_alias() {
 #[test]
 fn a_shell_alias_is_never_a_builtin() {
     let context: GitContext = context_with_aliases(&[("fixtureshell", "!git commit -a")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
     assert_eq!(resolved.route, Route::ShellAlias);
     assert!(!resolved.is_builtin());
     assert!(!creates_worktrees(&resolved));
@@ -572,7 +588,7 @@ fn a_shell_alias_is_never_a_builtin() {
 #[test]
 fn an_alias_loop_is_unresolved() {
     let context: GitContext = context_with_aliases(&[("fixtureloopa", "fixtureloopb"), ("fixtureloopb", "fixtureloopa")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureloopa"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixtureloopa"]));
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
 }
@@ -581,7 +597,7 @@ fn an_alias_loop_is_unresolved() {
 #[test]
 fn an_unknown_name_is_unresolved() {
     let context: GitContext = context_with_aliases(&[]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixture-no-such-command"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixture-no-such-command"]));
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
 }
@@ -591,7 +607,7 @@ fn an_unknown_name_is_unresolved() {
 #[test]
 fn a_malformed_alias_value_is_unresolved() {
     let context: GitContext = context_with_aliases(&[("fixturebad", "'commit")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturebad"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixturebad"]));
     assert_eq!(resolved.route, Route::Unresolved);
 }
 
@@ -599,7 +615,7 @@ fn a_malformed_alias_value_is_unresolved() {
 #[test]
 fn an_empty_alias_value_is_unresolved() {
     let context: GitContext = context_with_aliases(&[("fixtureempty", "   ")]);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureempty"]));
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["fixtureempty"]));
     assert_eq!(resolved.route, Route::Unresolved);
 }
 
@@ -633,7 +649,7 @@ fn chain_context(length: usize) -> (GitContext, OsString) {
 #[test]
 fn the_expansion_limit_reaches_the_builtin() {
     let (context, first): (GitContext, OsString) = chain_context(MAX_ALIAS_EXPANSIONS);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &[first]);
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &[first]);
     assert_eq!(resolved.route, Route::Alias);
     assert_eq!(resolved.word(), b"commit");
 }
@@ -642,7 +658,7 @@ fn the_expansion_limit_reaches_the_builtin() {
 #[test]
 fn one_expansion_past_the_limit_is_unresolved() {
     let (context, first): (GitContext, OsString) = chain_context(MAX_ALIAS_EXPANSIONS + 1);
-    let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &[first]);
+    let resolved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &[first]);
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
 }
@@ -653,13 +669,13 @@ fn one_expansion_past_the_limit_is_unresolved() {
 #[test]
 fn only_worktree_add_creates_worktrees() {
     let context: GitContext = context_with_aliases(&[]);
-    let add: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["worktree", "add", "x"]));
-    let moved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["worktree", "move", "a", "b"]));
+    let add: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["worktree", "add", "x"]));
+    let moved: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["worktree", "move", "a", "b"]));
     let verbose_add: ResolvedCommand =
-        resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["worktree", "--verbose", "add", "x"]));
-    let list: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["worktree", "list"]));
-    let bare: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["worktree"]));
-    let other: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["status", "add"]));
+        resolved_from(&context, no_environment().as_slice(), &args(&["worktree", "--verbose", "add", "x"]));
+    let list: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["worktree", "list"]));
+    let bare: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["worktree"]));
+    let other: ResolvedCommand = resolved_from(&context, no_environment().as_slice(), &args(&["status", "add"]));
     assert!(creates_worktrees(&add));
     assert!(!creates_worktrees(&moved));
     assert!(creates_worktrees(&verbose_add));

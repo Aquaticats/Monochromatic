@@ -30,7 +30,7 @@ fn entry_rooted_at(worktree: &Path) -> RelinkEntry {
 /// as the add writes it.
 fn record_of(worktree: &Path, common_dir: &Path) -> WorkItem {
     let entry: RelinkEntry = entry_rooted_at(worktree);
-    return item_of(common_dir, worktree, &entry).expect("the record");
+    return item_of(common_dir, worktree, &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
 }
 
 /// What:
@@ -196,7 +196,7 @@ fn a_relink_record_names_the_tools_it_asked_for() {
     let root: PathBuf = fixture("relink-notice-tools");
     let worktree: PathBuf = root.join("the worktree");
     let entry: RelinkEntry = RelinkEntry { root: worktree.clone(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Pnpm] };
-    let item: WorkItem = item_of(root.as_path(), worktree.as_path(), &entry).expect("the record");
+    let item: WorkItem = item_of(root.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     let notice: String = notice_for_given_up(&item, 3).expect("the notice");
     assert!(notice.contains("pnpm --dir "), "{notice}");
     assert!(!notice.contains(MANUAL_COMMAND), "the notice names a tool the record did not ask for: {notice}");
@@ -257,7 +257,7 @@ fn registered_worktree(root: &Path, name: &str) -> (PathBuf, PathBuf, PathBuf) {
 /// so a control can put it before or after a worktree was registered.
 fn record_queued_at(common: &Path, worktree: &Path, queued_at: &str) -> WorkItem {
     let entry: RelinkEntry = entry_rooted_at(worktree);
-    let mut item: WorkItem = item_of(common, worktree, &entry).expect("the record");
+    let mut item: WorkItem = item_of(common, worktree, &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     item.created = String::from(queued_at);
     return item;
 }

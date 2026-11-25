@@ -68,6 +68,7 @@ fn pass(
         os_arguments(values),
         candidates,
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let result: PassResult = run_policy_pass(stage, &mut checks);
     // The pass never changes the arguments the checks read.

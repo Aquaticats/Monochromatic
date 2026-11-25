@@ -175,6 +175,13 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     ///  the guard needs its `PATH` to see that Git runs an installed
     ///  external command instead of an alias of that name.
     pub environment: Vec<(OsString, OsString)>,
+    /// The directory this command was started in,
+    ///  read once by the executable's entry;
+    ///  the guard resolves a relative `PATH` entry there,
+    ///  a `!` alias reads its shell's directory from there,
+    ///  and a `worktree add` or `remove` reads its destination from there.
+    ///  A caller that starts elsewhere names that directory instead.
+    pub start_directory: crate::start_directory::StartDirectory,
     /// The branches the push's destination reported,
     ///  when this invocation discovered the push's updates;
     ///  the LFS upload plan answers the tracking refs' question from them,
@@ -186,20 +193,26 @@ pub struct ShippedChecks<F: RepositoryFacts> {
 ///  The shipped checks for one invocation,
 ///  with no candidates yet prepared.
 ///       `<F: RepositoryFacts>` accepts any facts provider.
+///       `&StartDirectory` borrows the directory this command was started in.
 /// Why:
 ///   Every lifecycle builds its checks the same way;
 ///  it only chooses what the
 ///       content policies may read.
+///  The directory is a parameter and not a field a caller remembers to set:
+///  a check that resolves a relative path against nothing,
+///  because nobody named the directory,
+///  would answer differently from the command it decides about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function shippedChecks(facts, args, candidates, allowedWorktreeDirs): ShippedChecks;
+/// function shippedChecks(facts, args, candidates, allowedWorktreeDirs, start): ShippedChecks;
 /// ```
 pub fn shipped_checks<F: RepositoryFacts>(
     facts: F,
     arguments: Vec<OsString>,
     candidates: LifecycleContent,
     allowed_worktree_dirs: Vec<ToolCacheDirectory>,
+    start: &crate::start_directory::StartDirectory,
 ) -> ShippedChecks<F> {
     return ShippedChecks {
         can_apply_patches: false,
@@ -218,6 +231,8 @@ pub fn shipped_checks<F: RepositoryFacts>(
         notices: Vec::new(),
         forwarded: None,
         environment: Vec::new(),
+        // `.clone()` copies the directory, so a checks value outlives the read that named it.
+        start_directory: start.clone(),
         push_destination: None,
     };
 }
@@ -252,6 +267,7 @@ pub fn guarded_forwarded<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) -> G
         &checks.facts.transaction_context(),
         checks.environment.as_slice(),
         checks.arguments.as_slice(),
+        checks.start_directory.path(),
     );
     checks.forwarded = Some(decided.clone());
     return decided;
@@ -452,6 +468,7 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     self.allowed_worktree_dirs.as_slice(),
                     self.discarded_limits,
                     &mut self.notices,
+                    self.start_directory.path(),
                 );
             }
             PolicyId::BranchWorktreeOnly => {

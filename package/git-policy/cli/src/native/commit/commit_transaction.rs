@@ -301,11 +301,13 @@ pub fn private_checks<'a, F: RepositoryFacts>(
     let markdown = std::mem::replace(&mut checks.markdown, markdown_state(Box::new(embedded_linter())));
     let arguments: Vec<OsString> = checks.arguments.clone();
     let allowed_worktree_dirs: Vec<ToolCacheDirectory> = checks.allowed_worktree_dirs.clone();
+    let start: crate::start_directory::StartDirectory = checks.start_directory.clone();
     let mut rebuilt: ShippedChecks<PrivateIndexFacts<&'a mut F>> = shipped_checks(
         PrivateIndexFacts::new(&mut checks.facts, index, object_directory),
         arguments,
         LifecycleContent::Requested(candidates),
         allowed_worktree_dirs,
+        &start,
     );
     rebuilt.scanner_settings = scanner_settings;
     rebuilt.markdown = markdown;

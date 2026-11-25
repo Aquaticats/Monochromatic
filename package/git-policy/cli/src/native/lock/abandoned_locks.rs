@@ -381,10 +381,10 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// meetTheLocks(env) // GIT_DIR, else the working directory's repository
+/// meetTheLocks(env, start) // GIT_DIR, else the working directory's repository
 /// ```
-pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)]) {
-    let working: PathBuf = std::env::current_dir().unwrap_or_default();
+pub fn meet_the_locks_of_the_working_directory(environment: &[(std::ffi::OsString, std::ffi::OsString)], start: &crate::start_directory::StartDirectory) {
+    let working: PathBuf = start.path().map_or_else(PathBuf::new, Path::to_path_buf);
     let mut named: Option<PathBuf> = None;
     for (name, value) in environment.iter().rev() {
         if name == std::ffi::OsStr::new("GIT_DIR") {

@@ -57,6 +57,12 @@ const suiteIdentity = gateContainerIdentityOf({
 const containerId = '3f2a9c1e'.repeat(8,);
 
 /**
+ The bound every container of the runs below is given, in the option form the caller's own limits take
+ (`bin/native-gate-container-limits.ts`): memory, CPUs, processes and the shared disk weight.
+ */
+const gateLimits = ['--memory=2g', '--cpus=4', '--pids-limit=1024', '--blkio-weight=10',];
+
+/**
  The client's arguments that name this run's container, which both stand-ins below write their ID file for.
  */
 const identityWriting = `  const cidFile = args[args.indexOf('--cidfile') + 1];
@@ -301,6 +307,7 @@ await describe({
             'ended.cid',
           ),
           identity: suiteIdentity,
+          limits: gateLimits,
           args: ['image'],
           capture: true,
           deadlineMilliseconds: standInDeadlineMilliseconds,
@@ -347,6 +354,7 @@ await describe({
             'named.cid',
           ),
           identity: suiteIdentity,
+          limits: gateLimits,
           args: ['image'],
           capture: true,
           deadlineMilliseconds: standInDeadlineMilliseconds,
@@ -373,6 +381,37 @@ await describe({
       timeout: 20_000,
     },),
     it({
+      name: 'gives the container the limits its caller handed it, so no gate container starts unbounded',
+      fn: async () => {
+        await using tree = await containerTestTree({ delegate: standInPodmanThatEnds, },);
+        await runGateContainer({
+          cidFile: join(
+            tree.path,
+            'bounded.cid',
+          ),
+          identity: suiteIdentity,
+          limits: gateLimits,
+          args: ['image'],
+          capture: true,
+          deadlineMilliseconds: standInDeadlineMilliseconds,
+          environment: {
+            ...process.env,
+            PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
+            PODMAN_LOG: tree.argumentLog,
+            PODMAN_CONTAINER_ID: containerId,
+          },
+        },);
+        /**
+         The client's own call, which is where the limit options go.
+         */
+        const [run] = await recordedCalls(tree.argumentLog,);
+        expect((run ?? []).filter(function isALimit(argument,) {
+          return gateLimits.includes(argument,);
+        },),).toEqual(gateLimits,);
+      },
+      timeout: 20_000,
+    },),
+    it({
       name: 'removes the container of a client the deadline stopped, so a stopped check leaves nothing running',
       fn: async () => {
         await using tree = await containerTestTree({ delegate: standInPodman, },);
@@ -391,6 +430,7 @@ await describe({
               'stopped.cid',
             ),
             identity: suiteIdentity,
+            limits: gateLimits,
             args: ['image'],
             capture: true,
             deadlineMilliseconds: standInDeadlineMilliseconds,

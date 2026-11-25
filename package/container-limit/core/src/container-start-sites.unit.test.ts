@@ -150,6 +150,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/git-policy/cli/bin/e2e-native-container.ts',
     'package/git-policy/cli/bin/native-planted-controls-only.ts',
     'package/git-policy/cli/bin/test-native-container.ts',
+    'package/git-policy/cli/bin/service-manager-machine.ts',
     'package/ide/app/bin/check-nextest-config.ts',
     'package/ide/app/bin/container-bounds.ts',
     'package/ide/app/bin/inspect-annotation-guards.ts',
@@ -169,6 +170,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/ide/app/bin/inspect-watch-guards.ts',
     'package/ide/app/bin/inspect-watch-limit.ts',
     'package/ide/app/bin/inspect-watch-scope.ts',
+    'package/ide/app/bin/run-bounded.ts',
     'package/ide/app/bin/stress-native.ts',
     'package/ide/app/mise.toml',
     'package/ide/app/task.ts',
@@ -192,6 +194,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/upstream-fork/deepmerge-ts.fuzz/mise.toml',
     'package/vm-builder/cli/mise.toml',
     'package/vm-builder/cli/src/container-arguments.ts',
+    'package/zfs/request-to-openzfs-kernel-device.fuzz/bin/container.ts',
   ].map((path,) => ({ path, role: 'starts' as const, }),),
   // Files whose only container command is `podman build`, which has no weight option.
   ...[
@@ -201,8 +204,10 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/monorepo-task/core-exec/src/playwright-image-build.ts',
     'package/mutation-test/cli/src/host/image.ts',
     'package/test-harness/core-matrix/src/container-image-rebuild-on-changed-inputs.ts',
+    'package/zfs/request-to-openzfs-kernel-device/build-gate-image.ts',
   ].map((path,) => ({ path, role: 'builds' as const, }),),
-  // Files that run a container with limits their caller or a sibling module built.
+  // Files that run a container with limits their caller or a sibling module built, the module that builds the limits the
+  // gate's containers are handed, and the one gate runner every one of them is started through.
   ...[
     'package/forbidden-strings/cli.fuzz/bin/smoke-container.ts',
     'package/forbidden-strings/cli/bin/guard-container.ts',
@@ -212,13 +217,17 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/git-policy/cli.fuzz/bin/fuzz-build.ts',
     'package/git-policy/cli.fuzz/bin/fuzz-run.ts',
     'package/git-policy/cli/bin/container-limits.ts',
+    'package/git-policy/cli/bin/native-gate-container-limits.ts',
+    'package/git-policy/cli/bin/native-gate-container.ts',
     'package/git-policy/cli/bin/native-planted-controls.ts',
     'package/linter/monochromatic-lint.fuzz/bin/fuzz-build.ts',
     'package/linter/monochromatic-lint.fuzz/bin/fuzz-run.ts',
     'package/vm-builder/cli/src/build-and-import.ts',
   ].map((path,) => ({ path, role: 'passes-limits' as const, }),),
-  // Files that name the tool without starting a container: allow-lists, version, inspect, tag, login and push calls, image
-  // names, stand-ins for tests, and the generic runner whose callers build the arguments.
+  // Files that name the tool without starting a container: allow-lists, version, inspect, tag, login, copy, exec and push
+  // calls, image names, stand-ins for tests, the generic runner whose callers build the arguments, and the gate's own
+  // identity, ID file, fixture-root and evidence helpers, which name `podman` in prose only. The gate's syscall profile
+  // and its image retention read what `podman info` and `podman images` printed, and start nothing.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
     'package/container-limit/core/src/argument-text-of-a-container-start.ts',
@@ -228,8 +237,18 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/claude-code-plugin/source/src/handler/bash-output-filter/validation.ts',
     'package/forbidden-strings/cli/bin/scanner-run.ts',
     'package/forbidden-strings/cli/data/betterleaks-default-config.toml',
+    'package/git-policy/cli/bin/command-deadline.ts',
+    'package/git-policy/cli/bin/native-gate-checks.ts',
+    'package/git-policy/cli/bin/native-gate-container-id-file.ts',
+    'package/git-policy/cli/bin/native-gate-container-identity.ts',
+    'package/git-policy/cli/bin/native-gate-fixture-root.ts',
+    'package/git-policy/cli/bin/native-gate-run-containers.ts',
+    'package/git-policy/cli/bin/native-gate-syscall-profile.ts',
+    'package/git-policy/cli/bin/native-image-retention.ts',
     'package/git-policy/cli/bin/native-mutation-parallel.ts',
     'package/git-policy/cli/bin/native-verification-process.ts',
+    'package/git-policy/cli/bin/service-manager-install-proof.ts',
+    'package/git-policy/cli/bin/service-manager-scenario.ts',
     'package/monorepo-task/core-exec/src/depends.ts',
     'package/monorepo-task/core-exec/src/github-actions-step-fixture-fake-tools.ts',
     'package/monorepo-task/core-exec/src/github-actions-step-fixture.ts',
@@ -265,7 +284,9 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
  */
 const CONTAINER_LINT_CONFIG_SITES: readonly { readonly path: string; readonly markers: readonly string[]; }[] = [
   { path: 'package/ide/app/mise.toml', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
-  { path: 'package/ide/app/task.ts', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+  // The IDE's task file hands the path to `bin/run-bounded.ts`, which mounts it read-only at `/clippy-conf/clippy.toml`
+  // and names it in the container's environment; the file itself is where the path is resolved, so that is its word.
+  { path: 'package/ide/app/task.ts', markers: ['../../../clippy.toml',], },
   { path: 'package/music-player/desktop-app/mise.toml', markers: ['../../../clippy.toml',], },
   { path: 'package/music-player/desktop-app/task.ts', markers: ['../../../clippy.toml',], },
   { path: 'package/nested-wayland-session/cli/mise.toml', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },

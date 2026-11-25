@@ -126,9 +126,9 @@ impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ThePreparation = [string | undefined, string];
+/// type ThePreparation = [string | undefined, string, StartDirectory];
 /// ```
-type ThePreparation = (Option<OsString>, PathBuf);
+type ThePreparation = (Option<OsString>, PathBuf, crate::start_directory::StartDirectory);
 
 /// What:
 ///  The Cargo program the search path resolves,
@@ -140,8 +140,13 @@ type ThePreparation = (Option<OsString>, PathBuf);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lookForTheProgram = ([searchPath, destination]) => [findProgram('cargo', searchPath), canonicalize(destination)];
+/// const lookForTheProgram = ([searchPath, destination, start]) => [findProgram('cargo', searchPath, start), canonicalize(destination)];
 /// ```
-pub(super) fn look_for_the_program((search_path, destination): ThePreparation) -> (Option<PathBuf>, Result<PathBuf, std::io::Error>) {
-    return (find_program(PROGRAM, search_path.as_deref()), std::fs::canonicalize(destination.as_path()));
+pub(super) fn look_for_the_program(
+    (search_path, destination, start): ThePreparation,
+) -> (Option<PathBuf>, Result<PathBuf, std::io::Error>) {
+    return (
+        find_program(PROGRAM, search_path.as_deref(), &start),
+        std::fs::canonicalize(destination.as_path()),
+    );
 }
