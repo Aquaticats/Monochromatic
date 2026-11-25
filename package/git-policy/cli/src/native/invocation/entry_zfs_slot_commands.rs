@@ -48,7 +48,8 @@ pub const REFUSAL_STATUS: i32 = REFUSED_EXIT_CODE;
 ///  The subcommand word of one `git worktree` command,
 ///  which Git never abbreviates.
 /// Why:
-///  The move refusal, the prune pass and the repair notice run for their own subcommand only,
+///  The move refusal,
+///  the prune pass and the repair notice run for their own subcommand only,
 ///  and `git worktree` declares its subcommands rather than options;
 ///  each of them runs for every forwarded command,
 ///  so each reads this word before it reads anything else.

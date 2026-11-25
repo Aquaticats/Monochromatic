@@ -176,7 +176,8 @@ pub(super) struct ReadCode {
     /// the line's code,
     /// with a space wherever a comment or a literal put a character.
     /// The slot glue's order check in `slot_command_reads_its_words_first_tests.rs` reads a function
-    /// body through it, so both scans blank a comment or a literal the same way.
+    /// body through it,
+    /// so both scans blank a comment or a literal the same way.
     pub(super) masked: Vec<String>,
     /// For each line:
     /// the `{` and `}` that are code rather than comment or literal text.

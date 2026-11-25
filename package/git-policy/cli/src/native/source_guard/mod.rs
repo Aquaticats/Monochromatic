@@ -53,7 +53,8 @@ mod no_self_invocation_tests;
 mod blocking_code_off_the_runtime_tests;
 
 /// The slot glue a forwarded command reaches reads the command's words before it reads the working
-/// directory, a record or the registry,
+/// directory,
+/// a record or the registry,
 /// and returns between them;
 /// the command's printed answer cannot show that order.
 #[cfg(test)]
