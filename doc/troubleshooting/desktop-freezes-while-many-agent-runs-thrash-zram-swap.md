@@ -659,6 +659,10 @@ measured what the steps need:
 The build now has a bound of its own, 8 GiB, 1.53 times that measured peak,
 separate from the suite's and Clippy's 2 GiB,
 and `--memory <size>` bounds both for a host that has less to give (issue 6455).
+A second round measured the same 2 GiB killing rather than slowing a test compile it ran in a `podman run`
+container, where the test `rustc` died with `signal: 9, SIGKILL` at `--cpus=4` and at `--cpus=2` and the same command
+compiled and ran at `--memory=4g` (that round's comment on issue 6455, 2026-11-24),
+so the shared default was too small for this compile on either side of the gate.
 `doc/planning/git-policy-cli-cachyos-test-containers.md`,
 "The image build's own memory bound, measured 2026-11-24",
 holds the arms, their ratios and the arithmetic.

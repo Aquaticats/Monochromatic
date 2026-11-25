@@ -779,8 +779,9 @@ Every build container's own cgroup was read every 250 ms:
 `memory.peak`, `memory.current`, `memory.max`, `memory.pressure`, `memory.events`, `cpu.stat` and `pids.peak`.
 Podman gives each build container a scope of its own beside the harness's, so a step's peak and its own stall are
 readable per step;
-the harness's copy of the readings, the script and the summariser are in
-`~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/`.
+the harness's copy of the readings is in
+`~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/arms/`,
+and the harness and the summariser that produced them are in that folder's `keep/harness/`.
 
 The arms ran in this order, host load at each start being what the day had:
 
@@ -843,6 +844,13 @@ What it costs and how a person lowers it:
   which bounds the build and the suite together, and the gate prints which bound each container got before it builds.
   Below what the compile needs, that host pays in reclaim and time exactly as these capped arms did;
   it does not stall the rest of the host, because the bound is the container's own.
+- A container bounded below the compile can also be killed rather than slowed:
+  another round measured the crate's lib tests in the gate image under `podman run --memory=2g`,
+  where the test `rustc` died with `signal: 9, SIGKILL` at `--cpus=4` and at `--cpus=2` and the same command compiled
+  and ran at `--memory=4g`
+  (that round's comment on issue 6455, 2026-11-24).
+  A build container carries the repository's swap allowance, so the capped arms above spent their time in reclaim instead,
+  which is the slower and non-fatal version of the same bound.
 - The bound is sized at four compile jobs.
   A gate given more CPUs compiles more jobs at once and wants its `--memory` raised with them;
   nothing here measured more than four.
