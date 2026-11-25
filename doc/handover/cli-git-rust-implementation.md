@@ -592,9 +592,14 @@ statements in choices 1, 4, 5 and 6 that are wrong,
 and a warm-start paragraph that concludes against its own data;
 it asks that the panic hook be its own choice
 and that the nested unit keep `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run.
-Running since 2026-11-24T19:16:51-05:00:
-the fourth revision folding all of it (`pi-zfs-root-modes-fourth-revision`, branch `docs/planning-cli-git-zfs-root-modes-fourth-revision`);
-a Sonnet read of that follows,
+The fourth revision folding all of it merged as `4993ad866e`
+(report `report-pi-zfs-root-modes-fourth-revision.md` in `~/temp/agent/zfs-root-modes-fourth-revision-2026-11-24/keep/`):
+the nested rule is mountpoint-only,
+the unit keeps `/usr/bin/zfs mount` until step 19's migration and a `record-checkout` have run,
+and the choices are ten, with choice 9 how a recorded checkout is replaced (`--replace` first)
+and choice 10 the panic hook in a root mode.
+Running since 2026-11-24T19:55-05:00:
+its Sonnet read, which writes the owner blocks (`~/temp/agent/gate-review-zfs-root-modes-fourth-revision-2026-11-24/`);
 then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
