@@ -5683,6 +5683,70 @@ What this release does not do:
   a removal that finds one adopts it and continues,
   and no release command runs one.
 
+#### The settling command, built and reachable from no command
+
+Design:
+`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"The settling command" and its veto entries V21 and V23;
+`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+"A slot whose recorded clone is gone and cannot be proved gone".
+The code is `src/native/worktree_clone_record_settling/`.
+
+A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing
+the next add,
+and the project chose a command that removes the record once a person confirms it.
+The command is
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
+and it is built ahead of the plan's order:
+
+- No management grammar admits it,
+  no `git` command reaches it,
+  `doctor`, the mount handler and the boot units do not either,
+  and the round that switches removal on adds it to the grammar and to every sentence that names it.
+- Its confirmation is three values the record supplies and the person types:
+  the slot twice,
+  and the last four decimal digits of the record's own `cloneGuid=`.
+  A printed line carries both as placeholders,
+  so a blind paste fails either comparison,
+  and the command never prompts.
+- Its six reads run in one order:
+  the slot's claim under the per-slot claim file,
+  the binding record,
+  the pinned clone parent's children for the clone's GUID and its name,
+  the slot's `.git` and the registration's identity,
+  a standing origin cleanup record,
+  and a standing destruction plan.
+  A live claim,
+  an unreadable record,
+  a record holding no clone,
+  a clone that stands or whose name or GUID answers elsewhere,
+  a mount at the slot,
+  a pointer naming another registration,
+  a registration of another identity,
+  a person's own lock,
+  a cleanup record or a plan naming other objects,
+  and a plan whose head is `gone` each refuse by name and change nothing.
+  A refused or partial pool listing is not a refusal:
+  the state the command exists for is exactly that,
+  so the listing's words are printed as the evidence the person confirms.
+- With no checkout begun it writes a lost lock again,
+  runs step 10's recipe over the registration,
+  prints the lost names of a standing plan and removes it,
+  then removes the two inventories,
+  then the binding,
+  and releases the claim last.
+- With a checkout begun it removes the plan and the three records,
+  leaves the registration,
+  the pointer and the person's files,
+  writes no lock,
+  and names `git worktree remove <slot>`.
+- It prints the record it confirmed,
+  the slot's entries,
+  the pool's answer,
+  the cleanup record and the plan it found,
+  the exact removals in order,
+  and one sentence that afterwards the wrapper can no longer prove which clone the slot held.
+
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
 Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
