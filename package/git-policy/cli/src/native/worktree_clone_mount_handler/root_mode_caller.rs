@@ -45,13 +45,15 @@ pub struct NotRootRefusal<'a> {
 
 impl NotRootRefusal<'_> {
     /// The sentence a person reads,
-    /// naming the mode,
+    /// opening with the words every root mode is reached through,
+    /// and then naming the mode,
     /// the effective user,
     /// what was not touched,
     /// why root is required and what to do.
     pub fn sentence(&self) -> String {
+        let named: String = super::handler_install_paths::root_modes_name();
         return format!(
-            "the {} mode runs as root, and this process's effective user is {}. Nothing was {}, because {}. Ways forward: {}.",
+            "{named}: the {} mode runs as root, and this process's effective user is {}. Nothing was {}, because {}. Ways forward: {}.",
             self.mode, self.effective_user, self.nothing, self.because, self.way
         );
     }

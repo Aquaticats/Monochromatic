@@ -143,8 +143,11 @@ fn behind_the_gate(
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(_) = verdict {
+        // The gate's own sentence names the compatibility check and nothing ties it to the modes, so every mode's gate
+        // refusal opens with the words a person or root's journal reads first.
+        let named: String = super::handler_install_paths::root_modes_name();
         return Err(format!(
-            "{line}\nno mode was entered and no raw request was made, so this invocation mounted nothing, unmounted nothing and recorded nothing"
+            "{named}: {line}\nno mode was entered and no raw request was made, so this invocation mounted nothing, unmounted nothing and recorded nothing"
         ));
     }
     return match outcome() {
