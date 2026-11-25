@@ -35,9 +35,9 @@ use super::companion_child::{ChildStart, run as run_the_child};
 use super::companion_calls::CompanionCall;
 use super::companion_deadline::the_deadline;
 use super::companion_lines::{CompanionVerdict, Refusal, Skip};
-use super::companion_process_calls::{Exit, effective_ids, fork, is_alive, kill_group, pause, pid_descriptor, pipe_pair, read_available, ready_within, reap_now};
+use super::companion_process_calls::{Exit, effective_ids, fork, kill_group, pause, pid_descriptor, pipe_pair, read_available, ready_within, reap_now};
 use super::companion_records::{Decoded, decode_all};
-use super::companion_scratch::{RunDirectory, RuntimeFolder, ScratchRefusal, make_run_directory, remove_run_directory};
+use super::companion_scratch::{RunDirectory, RuntimeFolder, make_run_directory, remove_run_directory};
 use super::companion_settings::{self, Settings};
 use super::companion_steps::{CompanionStep, STEP_COUNT, STEPS_IN_ORDER, is_skip};
 use super::companion_test_switch::{Switch, from_environment};
@@ -269,20 +269,6 @@ fn the_verdict(decoded: Decoded, ended: Exit, settings: &Settings) -> CompanionV
 /// which is the step that was in flight.
 fn step_after(records: usize) -> CompanionStep {
     return STEPS_IN_ORDER.get(records).copied().unwrap_or(CompanionStep::MoveUnmount);
-}
-
-/// What:
-///  Whether one process of this namespace is alive,
-///  for the sweep's benefit.
-pub fn a_process_of_this_namespace_is_alive(pid: libc::pid_t) -> bool {
-    return is_alive(pid);
-}
-
-/// What:
-///  The sentence a scratch refusal prints,
-///  for the controls that read it.
-pub fn scratch_refusal(refusal: &ScratchRefusal) -> String {
-    return refusal.message.clone();
 }
 
 /// Controls stay out of the release executable.

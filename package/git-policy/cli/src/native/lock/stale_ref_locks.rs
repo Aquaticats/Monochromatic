@@ -32,8 +32,6 @@
 //! if (outcome.clearedAny()) await runAgain(command); else process.stderr.write(outcome.notice());
 //! ```
 
-/// The Git directories a command works in.
-use crate::git_directory_roots::roots_of_command;
 /// How a candidate is judged and what a judgement can say.
 pub use crate::stale_ref_lock_judge::{Judge, Proof, Verdict};
 /// The shapes of a finding and of the outcome of one clearing.
@@ -42,20 +40,6 @@ pub use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
 use crate::stale_ref_lock_walk::ref_lock_candidates;
 /// Judging and removing one candidate.
 use crate::stale_ref_lock_retire::judge_and_clear;
-/// The command whose repository is searched.
-use std::process::Command;
-
-/// The candidates of the repository a command will run in,
-/// judged,
-/// and the provably stale ones removed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function clearStaleRefLocksFor(command: Command, judge: Judge): Outcome;
-/// ```
-pub fn clear_stale_ref_locks_for(command: &Command, judge: &Judge) -> Outcome {
-    return clear_stale_ref_locks(roots_of_command(command).as_slice(), judge);
-}
 
 /// What:
 ///  Judge every reference lock below the given Git directories,

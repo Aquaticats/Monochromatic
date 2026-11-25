@@ -460,22 +460,6 @@ pub fn decide_without_the_pass(layer: &Layer) -> Option<Decision> {
     }
 }
 
-/// What:
-///  A text merge of three texts,
-/// for controls that do not start Git.
-/// Why:
-///   The word pass's verdict and the file a person reads must come from one merge,
-/// and a control can check both
-///  without a repository.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mergeText = (base, ours, theirs) => mergeByWord(base, ours, theirs);
-/// ```
-pub fn merge_text(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
-    return merge_by_word(base, ours, theirs);
-}
-
 /// The object a merged layer's bytes are written as.
 ///
 /// In TS you'd write (pseudocode):

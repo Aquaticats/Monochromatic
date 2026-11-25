@@ -62,15 +62,6 @@ pub const ADDRESS_SPACE_RESERVE_BYTES: u64 = 64 << 20;
 /// so this is a conservative upper bound.
 const WORKER_RESIDENT_BYTES: u64 = 1 << 20;
 
-/// The threads a runtime of `workers` workers can start:
-/// the workers,
-/// the same number of blocking-pool threads,
-/// and the helper
-///  thread that builds the runtime under a deadline.
-pub fn threads_needed(workers: usize) -> u64 {
-    return (workers as u64).saturating_mul(2).saturating_add(1);
-}
-
 /// Which runtime to build.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimePlan {

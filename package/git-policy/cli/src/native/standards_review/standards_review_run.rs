@@ -345,7 +345,7 @@ pub enum Contained<T> {
     /// the caller stopped waiting and the job's thread is left to end with the
     ///  process,
     /// or when the step it is stuck in returns.
-    /// Until then it counts as outstanding (`outstanding_reviews`).
+    /// Until then the runner counts it as outstanding.
     CeilingReached(Duration),
     /// The job was not started:
     /// an earlier one that the caller stopped waiting for is still running and may hold what this one
@@ -481,11 +481,6 @@ impl Drop for Release<'_> {
     }
 }
 
-/// How many reviews the service stopped waiting for that are still running.
-pub fn outstanding_reviews() -> usize {
-    return RUNNER.outstanding();
-}
-
 /// What:
 ///  Run `job` on a helper thread and wait for it,
 /// at most `ceiling`.
@@ -556,24 +551,6 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
             }
         }
     }
-}
-
-/// What:
-///  `run_contained` awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The wait for the job is the runtime's timer here,
-/// so a worker that waits holds nothing while the job runs;
-/// a caller inside the runtime cannot make the synchronous wait at all,
-/// because the job it waits for
-///  starts Git,
-/// and the synchronous wait is refused from inside the runtime (`lazy_runtime::run_on_runtime`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runContainedAwaiting(job, ceiling)
-/// ```
-pub async fn run_contained_awaiting<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
-    return run_contained_in_awaiting(&RUNNER, job, ceiling).await;
 }
 
 /// What:
