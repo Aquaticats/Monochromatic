@@ -168,7 +168,7 @@ fn the_usage_opens_with_the_spelling_that_works_and_says_who_installs_the_file()
     assert_eq!(first, format!("usage: <file> {} <mode>", root_modes_name()));
     assert!(!text.contains("[mode]"), "no line offers a mode in brackets: {text}");
     assert!(text.contains(ROOT_MODE_INSTALL_PATH), "the usage names the root-owned file's path: {text}");
-    assert!(text.contains("plan step 19's setup installs"), "the usage says who installs the file: {text}");
+    assert!(text.contains("Plan step 19's setup installs"), "the usage says who installs the file: {text}");
     assert!(text.contains("no release installs it yet"), "the usage says no release installs the file yet: {text}");
     assert!(text.contains(ZEDLET_START_NAME), "the usage names the ZED event's own file name: {text}");
 }

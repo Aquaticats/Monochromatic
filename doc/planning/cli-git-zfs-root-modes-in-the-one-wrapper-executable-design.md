@@ -2613,7 +2613,7 @@ with choice 5's line for the program's name,
 choice 8's word and choice 9's token where those answers put them:
 
 ```text
-usage: monochromatic-git-policy-cli zfs-root [mode]
+usage: <file> monochromatic-git-policy-cli zfs-root <mode>
   (no argument)        run the clone-mount sweep the installed ZED event starts
   boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart
   start-probe          run the start probe's arms and write this boot's result
@@ -2630,16 +2630,28 @@ usage: monochromatic-git-policy-cli zfs-root [mode]
                        mount one nested dataset at its own mountpoint, under the recorded checkout
   --help               print this text
   --version            print this build's version
-Every root mode is reached through the words `monochromatic-git-policy-cli zfs-root <mode>`,
-and the build is installed as /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets.
-ZED starts the same file by the name history_event-mount_git_worktree_clone_datasets.
+Every root mode is reached through the words `<file> monochromatic-git-policy-cli zfs-root <mode>`,
+with `<file>` the root-owned file.
+Plan step 19's setup installs `<file>` as /usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets
+and links it as history_event-mount_git_worktree_clone_datasets for ZED; no release installs it yet.
 The modes that make requests open /dev/zfs through this repository's binding, never a CDDL library and never the zfs program.
 ```
 
+The first line names the root-owned file before the words,
+so no line offers a spelling that works only through it and no line offers a mode in brackets:
+the words follow whatever path starts the program,
+so the words alone reach Git as an unknown command.
+That is the alpha.46 release pass's answer A,
+which also settles the closing sentences:
+they say who installs the file and when,
+because `--help` claimed install paths no release creates,
+and the sweep's refusal to an administrator says the same
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+"How the root modes' usage reads").
 The first line is choice 5's,
 so no refusal and no usage names `mount-git-worktree-clone-datasets` any more;
-the last three lines are replaced by the two sentences above,
-because the build is one file at one path and the words are what a person types.
+the last three lines are replaced by the sentences above,
+because the build is one file at one path and the words are what a person types, and the file is not installed yet.
 The two `record-checkout` and `mount-path-descendant` blocks are this design's
 (proposal);
 everything else is the build's own text.
