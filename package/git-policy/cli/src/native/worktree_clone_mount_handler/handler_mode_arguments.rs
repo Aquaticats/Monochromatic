@@ -34,7 +34,6 @@
 //! const mode = parse(words); // { kind: 'attaching-sweep' } | { kind: 'boot-reconcile' } | ...
 //! ```
 
-use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::start_probe::probe_source_name::check_dataset_name;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
@@ -318,24 +317,38 @@ impl ArgumentRefusal {
 }
 
 /// What:
+///  The word the usage prints where the root-owned file's path belongs.
+/// Why:
+///   The words select a mode on any file,
+///  so the usage cannot name one path as the only spelling,
+///  and the file root runs is the one plan step 19's setup installs,
+///  which no release installs yet:
+///  the placeholder says the command needs that file without claiming one exists.
+pub const ROOT_MODE_FILE_PLACEHOLDER: &str = "<file>";
+
+/// What:
 ///  The whole usage text,
 ///  naming the modes the words reach,
-///  the one root-owned file,
+///  the root-owned file they are started as,
 ///  and the device the modes that make requests will open.
 /// Why:
 ///   A person meeting the modes reads what they are and what this build refuses,
 ///  and every line names a spelling that works:
 ///  the words for every mode,
-///  the file root's units start,
+///  the root-owned file with the step that installs it,
 ///  and the device a change of which is a change of one constant.
+///  The first line names the file before the words because the words follow
+///  whatever path starts the program,
+///  so the words alone reach Git as an unknown command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const usage = `usage: ...`; // one line per mode and one per installed path
+/// const usage = `usage: <file> monochromatic-git-policy-cli zfs-root <mode>`; // one line per mode and one for the file
 /// ```
 pub fn usage() -> String {
+    let named: String = root_modes_name();
     return [
-        format!("usage: {} {ROOT_GROUP_WORD} [mode]", COMMAND_WORD.current),
+        format!("usage: {ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>"),
         String::from("  (no argument)        run the clone-mount sweep the installed ZED event starts"),
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
@@ -352,9 +365,10 @@ pub fn usage() -> String {
         String::from("                       mount one nested dataset at its own mountpoint, under the recorded checkout"),
         String::from("  --help               print this text"),
         String::from("  --version            print this build's version"),
-        format!("Every root mode is reached through the words `{} <mode>`,", root_modes_name()),
-        format!("and the build is installed as {ROOT_MODE_INSTALL_PATH}."),
-        format!("ZED starts the same file by the name {ZEDLET_START_NAME}."),
+        format!("Every root mode is reached through the words `{ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>`,"),
+        format!("with `{ROOT_MODE_FILE_PLACEHOLDER}` the root-owned file."),
+        format!("Plan step 19's setup installs `{ROOT_MODE_FILE_PLACEHOLDER}` as {ROOT_MODE_INSTALL_PATH}"),
+        format!("and links it as {ZEDLET_START_NAME} for ZED; no release installs it yet."),
         format!("The modes that make requests open {DEVICE_PATH} through this repository's binding, never a CDDL library and never the zfs program."),
     ].join("\n");
 }
