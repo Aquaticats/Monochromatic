@@ -549,6 +549,10 @@ At `f-locked` (the passphrase refusal, host key known):
 
 - `a-wrappers-value`: exit 128, `Permission denied (publickey).`, nothing else;
 - `c-relay` and `c-pty`: exit 128, then the passphrase sentence, which is right;
+  the transcript is
+  `root@localhost: Permission denied (publickey).`, Git's two `fatal:` lines, then
+  `monochromatic-git-policy-cli: this command needed the passphrase of the key `/work/key_locked` …`
+  (run, arm `f-locked-direct-c-relay`);
 - `c2-status`: exit 128, then the **host-key** sentence, which is wrong;
 - `c2-check-unknown`: silent, so the refusal the person needs words for gets none;
 - `c2-check-known`: exit 128, then the passphrase sentence, which is right here;
@@ -559,8 +563,10 @@ At `f-locked` (the passphrase refusal, host key known):
 - They are stand-ins, not the wrapper.
   `keep/stand-ins/standin.c` is one binary with a mode per option: it forks, relays on a pipe or a pseudo-terminal,
   waits, and prints a sentence file's text when its condition holds.
-  It reads no repository, applies no policy and prints the words of "The words" unchanged, so the arms show the
-  delivery and the cost, not the wrapper's own reading.
+  It reads no repository, applies no policy and prints the words of "The words" unchanged,
+  so the host and the key inside those sentences are the fixture's, `[127.0.0.1]:2222` and `/work/key_locked`,
+  and not filled from the transcript as a shipped option would fill them.
+  The arms show the delivery and the cost, not the wrapper's own reading.
 - C2's two shapes are two arms of that binary: `forkwait-check-unknown-only` prints the host-key sentence only when no
   file `ssh -G` named holds a key for the host, and `forkwait-check-key-known` prints the passphrase sentence only when
   one does.
@@ -1456,6 +1462,20 @@ The host in them is the stand-in's fixed text;
 a real C would fill it from the remote it resolved,
 which is composed, not run.
 
+This round ran C's shape against a real `sshd` again, at the passphrase refusal and unchanged from the transcripts above
+in everything but the address inside the sentence (run, `keep/run-1-behaviour.log`, arm `f-locked-direct-c-relay`):
+
+```text
+$ git clone ssh://target/work/served.git        (host key known, only a key nobody can unlock offered)
+Cloning into '/work/clones/f-locked-direct-c-relay'...
+root@localhost: Permission denied (publickey).
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+monochromatic-git-policy-cli: this command needed the passphrase of the key `/work/key_locked`, and no command the wrapper runs asks a person for one, so that key was skipped. Start an agent with `eval "$(ssh-agent)"` (`eval (ssh-agent -c)` in fish) and load the key with `ssh-add /work/key_locked` before the next command, use a key without a passphrase, or have the server accept another key you hold.
+```
+
 What it starts: Git as a child, one pipe, one relay thread or loop.
 What it reads: Git's standard error as it arrives.
 Can it answer yes: no; it only reads.
@@ -2349,13 +2369,13 @@ Typed path: `git ls-remote` of one repository over loopback, `145.63 ms` for the
 
 - the same command twice (`null-b` against `null-a`), the noise floor: **`+1.59 ms`**, range `-8.23` to `+18.15`,
   fourteen of twenty-four positive;
-- plain Git with its own `ssh` from `PATH`: `-133.91 ms`, which is the wrapper's own start and its two extra ssh
-  processes, and is context, not a finding;
+- the same Git with no ssh options at all (`plain-git`): `11.66 ms` absolute, and not a control, because without
+  `-F` the destination `target` is a name nothing resolves, so that arm ends before it connects;
 - C's relay: `+2.82 ms`, range `-7.04` to `+18.65`, seventeen of twenty-four positive, **inside the floor**;
 - K's pseudo-terminal relay: `+1.37 ms`, range `-7.90` to `+13.91`, thirteen of twenty-four positive, **inside the floor**;
 - C2's fork and wait: `+3.01 ms`, range `-6.13` to `+11.95`, sixteen of twenty-four positive, **inside the floor**;
 - D's check: `+7.33 ms`, range `-3.91` to `+34.61`, twenty-two of twenty-four positive, **inside the floor**;
-- one stand-in start and `true`: `-139.12 ms`, context only.
+- one stand-in start wrapped around `true`: `-139.12 ms`, context only, since it measures no connection.
 
 The steps themselves, against `/usr/bin/true` at `5.94 ms` absolute
 (run, `keep/run-3-steps.log`, twenty-four rounds, every arm clear of the floor by its sign):
