@@ -2645,7 +2645,7 @@ so the words alone reach Git as an unknown command.
 The rows below it name mode words only,
 so the sweep has no row there:
 `zfs-root` with no mode word after it is refused,
-and the sweep is named by the ZED history event link ZED starts with no argument.
+and the sweep is named by the history event link, which ZED starts with no argument.
 That is the alpha.46 release pass's answer A,
 which also settles the closing sentences:
 they say who installs the file and when,
