@@ -3,11 +3,15 @@
 ## Status
 
 A proposal,
-put to the owner,
-and answered on 2026-11-24T14:30:00-05:00.
-The third revision below is the design round that led to that answer and is kept as it stood;
-the section after the labels records the answer and what building it took,
-and the options that were not chosen are kept under "The options that were not chosen".
+put to the owner a fourth time.
+The third revision of it led to the owner's answer of 2026-11-24T14:30:00-05:00,
+recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
+and the value that answer chose was retired on 2026-11-25
+by the answer "Put `false` back (Recommended)" in
+`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
+because it ended connections that used to work instead of printing a line.
+That is why the delivery question is open again,
+and this revision puts it to the project with this round's evidence.
 It is not a decision,
 nothing of this design record is approved or final,
 and this revision is not final either.
@@ -15,49 +19,130 @@ It designs the words a typed `git clone`,
 `fetch`,
 `pull` or non-LFS `push` can print when OpenSSH refuses a new host key,
 or when a key needs a passphrase nobody can be asked for,
-and it ranks the ways the wrapper could do that under the project's recorded rules.
-
-This is the third round on the same question.
-The first round's proposal was merged as `41bdf36a2a`,
-the second as `082c3ff8eb`,
-and the second was read by a same-vendor second pass kept at
-`~/temp/agent/gate-review-typed-network-command-revision-2026-11-24/keep/read-of-the-revised-host-key-design.md`.
-This round folds that read,
-re-runs the arms it called unresolved,
-and ranks twice so the owner can answer the one question it raises either way.
-The read is a same-vendor second pass,
-so it is the only review this design has had,
-and no finding of it is treated here as settled.
+and it ranks the ways the wrapper could do that while keeping the owner's two answers "Never" for B and E and the
+rule against starting itself.
 
 Round folder:
-`~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/`
-(`keep/run-1.log`, `keep/run-2.log` and `keep/run-3.log` hold every transcript and timing this document cites;
-`keep/scripts/` holds the scripts that produced them).
+`~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/`,
+whose `keep/` holds `run-1-behaviour.log`, `run-2-costs-and-progress.log` and `run-3-steps.log` (every transcript and
+timing this revision cites), `lib.sh` and `run-1-behaviour.sh`, `run-2-costs-and-progress.sh`, `run-3-steps.sh` (the
+scripts), and `stand-ins/standin.c`, `stand-ins/proxy.c`, `sentences/host-key.txt`, `sentences/passphrase.txt` and
+`sentences/j-value.txt` (the programs and the words those runs printed).
 Worktree:
-`.claude/worktrees/typed-network-command-next-step-third-revision`,
-branch `docs/planning-cli-git-typed-network-command-next-step-third-revision`,
-made from `main` at `442710344e`.
+`.claude/worktrees/host-key-next-step-design-after-askpass-false`,
+branch `docs/planning-host-key-next-step-design-after-askpass-false`,
+made from `main` at `49029c6828`.
 Nothing under `doc/decision/` or `doc/handover/` was changed by this round,
 and no wrapper code was changed.
+The round that puts `false` back runs at the same time,
+on `fix/git-policy-cli-askpass-false-and-commit-push-pass-fixes`,
+so `main` is described here as it will stand after that round.
+
+The sections written by the earlier rounds are kept in place, and where one of them says "this round" it means the round
+that wrote it.
+Everything the fourth round measured names one of three logs,
+`keep/run-1-behaviour.log`, `keep/run-2-costs-and-progress.log` or `keep/run-3-steps.log`,
+and a figure that names one of those is this round's.
 
 Every transcript in this document is labelled,
-because the read's first finding was that the second round printed text its run had not printed:
+because a read of the second revision found that round printing text its run had not printed:
 
 - **run** means a program printed these bytes, and the log that holds them is named with it;
 - **composed** means no program printed them: the text was put together from other facts;
 - **source** means read from a file, at the tag or the path named with it;
 - **unrun** means neither.
 
-## The answer: J, and what building it took
+## The question, open again: the value J put in `SSH_ASKPASS` ended connections that worked
+
+J put one sentence into `SSH_ASKPASS`,
+on the reasoning that a value OpenSSH cannot execute starts no program and prints the sentence inside OpenSSH's own
+failure line.
+What the code also does, read from OpenSSH `V_10_6_P2`:
+`ssh_askpass` runs `execlp(askpass, askpass, msg)` and,
+when that fails,
+calls `fatal_f("exec(%s): %s", askpass, strerror(errno))`
+(`readpass.c:77`, `:78`);
+in the client `fatal_f` ends in `cleanup_exit`,
+which calls `ssh_kill_proxy_command()`
+(`clientloop.c:2886-2891`, `sshconnect.c:305-312`),
+and the askpass child holds the parent's `proxy_command_pid`
+(`sshconnect.c:288`),
+so the child that could not start the sentence sends SIGHUP to the connection's own `ProxyCommand`.
+OpenSSH starts every proxy as `$SHELL -c "exec <command>"` (`sshconnect.c:126`),
+so the process killed is the proxy whatever the shell is.
+
+So a value in `SSH_ASKPASS` is on the connection's critical path twice:
+it answers the question,
+and it must be a program OpenSSH can start,
+or its failure reaches the transport itself.
+`false` satisfies both: it starts, prints nothing and exits 1.
+
+That is what the release pass found, and it is why the owner retired J.
+The finding, quoted from
+`~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/commit-push-lfs-lock-and-the-rest/keep/review.md`:
+
+> #### H1. The askpass sentence makes ssh kill its own ProxyCommand, so a connection that worked now fails
+>
+> ... With a startable value such as `false` the child starts and exits 1, and no `fatal_f` runs. The sentence
+> can never start, so every question asked on a connection that has a proxy kills the proxy. After an unknown host key
+> the refusal that follows hides it. After a passphrase key that the server accepts but nobody can unlock, ssh should
+> go on to the next key; the transport is already dead.
+
+The owner's answer, recorded in `doc/decision/cli-git-alpha-46-release-pass-four-answers.md`:
+"Put `false` back (Recommended)".
+That record states the failure and what the answer leaves:
+"the sentence of option J ... cannot be started,
+and OpenSSH's failure path for an askpass that cannot start kills the connection's `ProxyCommand`,
+so behind a `ProxyCommand` or `ProxyJump`, when the first key the server accepts has a passphrase no agent holds and a
+later key works, the command ends 255 where alpha.45's `false` ended 0",
+and
+"The next step at a new host key then needs another delivery,
+which brings back the options the owner did not pick for L4
+(C, the wrapper reads Git's error output; C2, a paragraph after every exit 128; D, a `known_hosts` check before Git runs);
+that choice goes to the owner separately, with the proposal".
+
+So the question is the one this document was written to rank,
+with three answers fixed:
+B and E stay "Never" (`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`),
+and no option may hand OpenSSH a value it cannot start,
+so `SSH_ASKPASS` stays `false` and `SSH_ASKPASS_REQUIRE` stays `force` on `main` after the askpass round.
+
+This round ran the case H1 names in a capped container with a real `sshd` and OpenSSH 10.6p2,
+and ran every remaining option against it.
+Run (`keep/run-1-behaviour.log`, families `f-noask-proxycommand` and `f-noask-proxyjump`):
+one served repository,
+the first key offered with a passphrase nobody can give and a later key that works,
+and the connection through a relay `ProxyCommand` or through `-J`:
+
+- **A, and today's `main` after the askpass round** (`SSH_ASKPASS=false`): exit 0, the clone complete, nothing extra
+  printed;
+- **J's sentence**: exit 128 through Git (255 through `ssh`), the line
+  `ssh_askpass: exec(monochromatic-git-policy-cli: …): File name too long`, then
+  `fatal: Could not read from remote repository.`;
+- **the same sentence, with a relay that ignores SIGHUP**: exit 0 and the clone complete, which names the signal as the
+  cause;
+- **C, C2, D and K**: exit 0, the clone complete, and nothing extra, because none of their conditions became true.
+
+Those results are the reason J is listed below with the options that were shown and not kept.
+
+One thing this host adds, and every proxy arm below says so:
+the `git` profile attaches to `/usr/bin/git` and stacks `&git//ssh` for `/usr/bin/ssh`
+(`/etc/apparmor.d/git`, read),
+and that stack refuses the shell a `ProxyCommand` needs:
+the two `f-confined-proxycommand` arms fail with `/bin/sh: Permission denied`, whether `SSH_ASKPASS` holds `false` or
+the sentence, while the two direct arms end 0 (run, `keep/run-1-behaviour.log`).
+So no proxy arm can run under this image's own `ssh` here,
+and every other arm uses a copy of `ssh` at a path no attachment names,
+which runs under the `git` profile alone and may execute anything under `/work`
+(`/etc/apparmor.d/local/git`, read: `owner /work/** mix`).
+On this host the H1 failure cannot be produced, and the H1 arms describe a host whose `ssh` carries no such stack.
+
+## What became of the answer J
 
 The owner answered on 2026-11-24T14:30:00-05:00,
 recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`:
 "J: the sentence in SSH_ASKPASS (Recommended)",
 and each of B and E was answered "Never (Recommended)".
-So the wrapper never hands its own program to ssh or to Git for an explanation,
-the self-start rule stays as written,
-and the strict ranking is the one that applied:
-J, then C, C2, D, A.
 
 Built in the round whose folder is
 `~/temp/agent/build-host-key-next-step-option-j-2026-11-24/`,
@@ -97,7 +182,74 @@ and a typed LFS push and the service's push record print the rule's sentence and
 one unknown host key,
 because both read the same transcript.
 
+What became of it, in order:
+
+- the release pass of 2026-11-25 found H1 (quoted under "The question, open again"):
+  behind a `ProxyCommand` or a `ProxyJump`, a connection whose first accepted key had a passphrase no agent held, and
+a later key that worked, ended 255 through `ssh` (128 through Git) where `false` ended 0;
+- the owner answered "Put `false` back (Recommended)";
+- the round on `fix/git-policy-cli-askpass-false-and-commit-push-pass-fixes` removed it:
+  `NO_ANSWER_PROGRAM = "false"` in `src/native/invocation/child_environment.rs`,
+  the tests that read the sentence gone with it,
+  and a new control that runs the connection through a `ProxyCommand`
+  (`a_key_nobody_can_unlock_is_skipped_for_one_that_works_behind_a_proxy_command`);
+  `SPEC.md` and `README.md` now say that the release names no next step at a new host key.
+
+The lesson this design keeps:
+a value in `SSH_ASKPASS` is on the connection's critical path,
+so no option here puts anything there but a program that starts and answers nothing,
+and every option's control set carries an arm with a `ProxyCommand` and an arm with `ProxyJump`.
+That arm is the control the gates did not have:
+the build's own controls proved the sentence on direct connections only,
+and the gate passed because of that (source: the review's H1, "The control that should have caught it does not exist").
+
 ## What this revision changed
+
+This fourth round's changes, and what each one is for.
+
+1. **J is retired, and its section says why.**
+   H1 is quoted whole under "The question, open again" and in J's own section,
+   and J sits with the options shown and not kept.
+2. **Every remaining option is tried at the case that broke J.**
+   A `ProxyCommand`, a `ProxyJump`, a first key whose passphrase no agent holds and a later key that works:
+   the case, every arm's exit status and every line a person reads, under "The case every option is tried against".
+3. **A new option, K, removes the con that decided the earlier ranking.**
+   C lost the live progress display because Git draws it only when standard error is a terminal;
+   K gives the child a pseudo-terminal on standard error and relays it,
+   which keeps the display and the security-key touch notice.
+   Measured: the display's lines come back through K and not through C.
+4. **C2's two shapes are separated and both run.**
+   With the exit status alone, and with D's known-hosts check after it;
+   each shape speaks wrongly at one of the two refusals, measured on the same arms.
+5. **Costs are measured twice, so a cost can be told from this harness's noise.**
+   On the typed path against a same-binary control, where C, K, C2 and D all fall inside the noise;
+   and as the steps themselves (one fork and wait, one pipe relay, one pseudo-terminal relay, `ssh -G`, `ssh-keygen -F`),
+   where each one clears it.
+6. **One ranking replaces the earlier two.**
+   B and E are answered "Never", so the second ranking has no readers;
+   the earlier one is kept only as the record quoted under "The ranking".
+7. **What the person sees today is restated for `main` with `false`.**
+   The transcripts are those of the earlier round's run, which used `false`,
+   and the registry of what each option adds is this round's.
+8. **The design no longer plans text inside `SSH_ASKPASS`.**
+   `NO_ANSWER_SENTENCE` is gone from `main`;
+   the words live in the option that owns a child.
+9. **`HOST_KEY_NOT_KNOWN_SENTENCE_OPENING` is described as it stands.**
+   The constant remains, because the push record and the upload still print the wrapper's own host-key sentence;
+   the sentence that used to be in `SSH_ASKPASS` is no longer one of its readers.
+10. **The words of the earlier revision are kept, with their status named.**
+    They were designed for B and for C and were not built;
+    they are what an option that owns a child prints, and K and C would print them.
+11. **The container arms say what this host's policy does to them.**
+    The stack on `/usr/bin/ssh` refuses a `ProxyCommand`'s shell, so the arms use a copy of `ssh` and say so,
+    and the failure this host would meet with any option is named where a reader meets it.
+12. **The probe list is this round's.**
+    What was run, what was not, and which claims are source only.
+
+The third revision's own list of corrections is kept below, because each item is evidence about how this document was
+corrected and about what a reader should check for in the next round.
+
+### What the third revision changed, kept for its record
 
 The read's findings, and what each one changed.
 Where a finding did not hold,
@@ -201,12 +353,21 @@ and the choice between plain words and no everyday cost is named as the owner's.
 
 ## What the person sees today
 
+These are the lines a person meets on `main` as it stands after the askpass round,
+because `SSH_ASKPASS` holds `false` again (`NO_ANSWER_PROGRAM` in
+`src/native/invocation/child_environment.rs`),
+so the wrapper adds no line of its own at either refusal.
+Nothing changed in these transcripts when J was built and then removed:
+they were measured with `false`, which is the value `main` carries again
+(run, the third revision's `keep/run-1.log` and `keep/run-2.log`; this round re-measured the same shapes with `false`
+in `keep/run-1-behaviour.log`, families `f-newkey-direct` and `f-locked-direct`).
+
 Measured in a rootless container of the gate image
 (`localhost/git-policy-native-test-base:e3fcdbe008bd-c04fca4bdd85`, `OpenSSH_10.6p2`, `git 2.56.1`)
 against a throwaway `sshd` on loopback,
 with a fixture host key,
 a fresh `known_hosts` and throwaway client keys.
-The wrapper is the worktree's release build (`0.6.1-alpha.44`, 27971352 bytes).
+The wrapper is the third revision round's release build (`0.6.1-alpha.44`, 27971352 bytes).
 The wrapper and Git are copies under `/work`,
 which no AppArmor profile attaches to,
 so the arms show OpenSSH's own behaviour and not this host's confinement.
@@ -251,7 +412,8 @@ wrapper pull exit=1
 pull stdout and stderr: identical
 ```
 
-That is run, this round (`keep/run-1.log`, `keep/run-2.log`; script `02-byte-compare.sh` and `06-corrections.sh`).
+That is run, in the third revision's round (`keep/run-1.log`, `keep/run-2.log`; script `02-byte-compare.sh` and
+`06-corrections.sh`).
 
 A changed host key for a host this machine already knows ends 128 with OpenSSH's own banner,
 `Offending ED25519 key in <file>:<line>`,
@@ -306,6 +468,116 @@ read from the source:
 The owner's question for this waits in
 `doc/handover/questions-for-the-owner.md`,
 section "Words for a typed command at an unknown host key or a missing passphrase (the pass's L4)".
+
+## The case every option is tried against
+
+Every option in this document was run at the case H1 names,
+and at the three other refusals a next step is meant for,
+in one capped container with a real `sshd` and the OpenSSH this image carries.
+Run (`keep/run-1-behaviour.log`, script `keep/run-1-behaviour.sh`, stand-ins `keep/stand-ins/standin.c` and
+`keep/stand-ins/proxy.c`).
+
+Container: `localhost/git-policy-native-test-base:e3fcdbe008bd-bbd969e09a87`, `--rm`, `--network=none`,
+`--cpus=2 --memory=2g --pids-limit=400 --blkio-weight=10`, started in a `systemd-run --user` scope with
+`RuntimeMaxSec=1800`, `CPUQuota=300%`, `MemoryMax=6G`, `TasksMax=1024` and `IOWeight=10`, named
+`host-key-next-step-options-2026-11-25`.
+OpenSSH 10.6p2, Git 2.56.1, `sshd` on port 2222 with a fixture host key.
+
+### The setup a person would have
+
+- two client keys in `authorized_keys`: `key_locked`, whose passphrase is nobody's to give, listed first, and
+  `key_good`, which works;
+- a served repository at `ssh://target/work/served.git`, where `target` resolves to `localhost:2222` and offers the two
+  keys in that order with `IdentitiesOnly yes`;
+- a relay `ProxyCommand` (a compiled program, `keep/stand-ins/proxy.c`), and a `ProxyJump` through `root@127.0.0.1:2222`;
+  the jump host is `127.0.0.1` and the destination `localhost`, because `ssh` refuses a jump whose host, port and user
+  equal the destination's (`ssh.c:1289-1291` at `V_10_6_P2`, read);
+- the wrapper's two variables as `main` holds them after the askpass round:
+  `SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`;
+- an `ssh` at `/work/bin/ssh`, a copy of the image's own, because the stack this host attaches to `/usr/bin/ssh` refuses
+  the shell a `ProxyCommand` needs (the `f-confined` arms and the section "The question, open again" show it).
+
+### The four families
+
+The families differ only in what a person's settings and the server make true.
+
+- `f-noask`: the host key is known and no host-key question is asked, so the questions are the passphrase ones.
+  **This is the case that broke J.**
+- `f-newkey`: the host key is unknown and the person's `StrictHostKeyChecking` is `ask`, so the host-key question is
+  asked, with a direct connection and behind both proxies.
+- `f-known`: the host key is known and the repository is not there: a failure that is not about a key at all.
+- `f-locked`: the host key is known and only the locked key is offered: a key nobody can unlock.
+
+Each family ran the same eight arms:
+`a-wrappers-value` (`SSH_ASKPASS=false` and nothing else, which is `main`),
+`j-sentence` (the retired value, kept as the positive control),
+`c-relay`, `c-pty`, `c2-status`, `c2-check-unknown`, `c2-check-known` and `d-precheck`.
+The first two families ran each arm three times: directly, behind the `ProxyCommand`, and behind the `ProxyJump`.
+
+### What each option gave, family by family
+
+Run (`keep/run-1-behaviour.log`; the exit statuses and the lines are that log's).
+
+At `f-noask`, which is H1's case:
+
+- `a-wrappers-value`: exit 0 in all three transports, and nothing extra printed;
+- `j-sentence`: exit 0 direct, 128 behind the `ProxyCommand`, 128 behind the `ProxyJump`, with the line
+  `ssh_askpass: exec(monochromatic-git-policy-cli: …): File name too long`;
+- `j-sentence` with a relay that ignores SIGHUP: exit 0, the clone complete, which names the signal as the cause;
+- `c-relay`, `c-pty`, `c2-status`, `c2-check-unknown`, `c2-check-known`, `d-precheck`: exit 0 in all three transports, and
+  nothing extra printed, because no refusal reached them.
+
+At `f-newkey`, directly and behind both proxies:
+
+- `a-wrappers-value`: exit 128 and OpenSSH's own lines, and no next step;
+- `j-sentence`: exit 128, the exec line, then `Host key verification failed.`;
+- `c-relay` and `c-pty`: exit 128, OpenSSH's and Git's lines, then the host-key sentence;
+- `c2-status` and `c2-check-unknown`: exit 128, then the host-key sentence;
+- `c2-check-known`: exit 128 and nothing, because the check found no key and this shape speaks only when it finds one;
+- `d-precheck`: exit 128, the host-key sentence **before** `Cloning into`, then OpenSSH's and Git's lines.
+
+At `f-known` (a repository that is not there, host key known):
+
+- `a-wrappers-value`: exit 128, Git's two `fatal:` lines, nothing about keys;
+- `c-relay` and `c-pty`: the same, and silent, which is C being right;
+- `c2-status`: exit 128, Git's lines, then the **host-key** sentence, which is wrong;
+- `c2-check-unknown`: silent, which is right here;
+- `c2-check-known`: exit 128, Git's lines, then the **passphrase** sentence, which is wrong;
+- `d-precheck`: silent, because the key is known.
+
+At `f-locked` (the passphrase refusal, host key known):
+
+- `a-wrappers-value`: exit 128, `Permission denied (publickey).`, nothing else;
+- `c-relay` and `c-pty`: exit 128, then the passphrase sentence, which is right;
+  the transcript is
+  `root@localhost: Permission denied (publickey).`, Git's two `fatal:` lines, then
+  `monochromatic-git-policy-cli: this command needed the passphrase of the key `/work/key_locked` …`
+  (run, arm `f-locked-direct-c-relay`);
+- `c2-status`: exit 128, then the **host-key** sentence, which is wrong;
+- `c2-check-unknown`: silent, so the refusal the person needs words for gets none;
+- `c2-check-known`: exit 128, then the passphrase sentence, which is right here;
+- `d-precheck`: silent, because the key is known and D never sees a passphrase.
+
+### What the arms are not
+
+- They are stand-ins, not the wrapper.
+  `keep/stand-ins/standin.c` is one binary with a mode per option: it forks, relays on a pipe or a pseudo-terminal,
+  waits, and prints a sentence file's text when its condition holds.
+  It reads no repository, applies no policy and prints the words of "The words" unchanged,
+  so the host and the key inside those sentences are the fixture's, `[127.0.0.1]:2222` and `/work/key_locked`,
+  and not filled from the transcript as a shipped option would fill them.
+  The arms show the delivery and the cost, not the wrapper's own reading.
+- C2's two shapes are two arms of that binary: `forkwait-check-unknown-only` prints the host-key sentence only when no
+  file `ssh -G` named holds a key for the host, and `forkwait-check-key-known` prints the passphrase sentence only when
+  one does.
+  Neither branch is what the earlier revision assumed: it said "a paragraph after every exit 128", and a check changes
+  which paragraph, not whether one arrives.
+- D's arm runs `ssh -G` and `ssh-keygen -F` for real, and prints only when `ssh -G` reports `stricthostkeychecking ask`
+  or `accept-new` and no named file holds a key.
+- No arm has `Match exec`, `CanonicalizeHostname`, `KnownHostsCommand`, `HostKeyAlias` or `VerifyHostKeyDNS` set.
+  The third revision's runs measured `KnownHostsCommand` (which makes D speak while the clone succeeds) and
+  `@cert-authority` (which does not); those results stand and are quoted in D's section.
+- No arm ran with a signal sent to the wrapper alone, and none ran on Windows.
 
 ## The rule that forbids the question, and where it lives now
 
@@ -383,6 +655,20 @@ in `readpass.c` lines 46 to 107:
 - a program that cannot be executed never starts,
   and OpenSSH prints its own line for that:
   `fatal_f("exec(%s): %s", askpass, strerror(errno))` (`readpass.c:78`);
+  and that line is not the end of it.
+  In the client `fatal_f` ends in `cleanup_exit`,
+  which calls `ssh_kill_proxy_command()`
+  (`clientloop.c:2886-2891`; `sshconnect.c:305-312`: `kill(proxy_command_pid, SIGHUP)`),
+  and the askpass child holds the parent's `proxy_command_pid`
+  (`sshconnect.c:288`),
+  so a value OpenSSH cannot start sends SIGHUP to the connection's own `ProxyCommand`,
+  which `ssh` started as `$SHELL -c "exec <command>"` (`sshconnect.c:126`).
+  This is H1, and it is why no option here but a program's path may be the value.
+  OpenSSH also sends SIGHUP to the proxy at its own normal exit
+  (the same call, from the same path),
+  so a proxy that records SIGHUP does not by itself say anything failed:
+  the exit status of the connection is what does (run, `keep/run-1-behaviour.log`, where the arms that succeed behind a
+  `ProxyCommand` record it too).
 - the parent reads standard output in one buffer of about a thousand bytes
   (`readpass.c:82` to `:94`);
 - a program that did not exit zero,
@@ -691,12 +977,14 @@ Two precedents in the same record bear on the reading and neither settles it:
 - the one-program record allows a later askpass *program* to reopen its answer,
   which is not this question.
 
-Whether an askpass start, or a wrapper started as ssh, is "asked to explain" is therefore the owner's call,
-and it is not settled here.
-The ranking is given twice so either answer can be read off it:
-its first form excludes B and E,
-and its second grants B's exception.
-That question is put in "The owner's question".
+Whether an askpass start, or a wrapper started as ssh, is "asked to explain" was the owner's call,
+and the owner answered it on 2026-11-24,
+recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`:
+"Never (Recommended)" for B and "Never (Recommended)" for E.
+That is the strict reading of the third bullet,
+so no option here starts the wrapper from Git or from ssh,
+and the two options that would are listed with the answers that retired them.
+The rule therefore stands as written, and a later round cannot reopen this by finding better words.
 
 The other recorded rules:
 
@@ -768,29 +1056,51 @@ none of its five words (`terminal prompts disabled`,
 `too many authentication attempts`,
 `Permission denied (`) appears in the three sentences this design adds.
 
-## The options that were not chosen
+## The options shown and not kept
 
-J was chosen on 2026-11-24,
-so every option in this section is recorded for its evidence and is not built.
-Each says what it starts,
+This revision ranks five options and hands only one of them to the owner,
+so no option here is built until the owner answers.
+Each entry says what it starts,
 what it reads,
 whether it can answer yes,
-what a person sees for each case from a run,
+what a person sees for each family of "The case every option is tried against",
 what it costs on a command that meets no question,
 and its pros and cons.
 The ranking and its adjacent-pair reasons are in "The ranking".
-Every cost is against a null arm run in the same round:
-`git ls-remote` with the same ssh and the same identity options.
-The noise floor is the difference between two runs of that same command in the same round:
-median `-0.29 ms`, range `-2.20` to `+1.87 ms`, nine of twenty-four rounds positive
-(run, `keep/run-2.log`).
-A formula below that does not clear `+1.87 ms` with a consistent sign is called noise.
+
+B, E and J carry answers already given,
+and each says which answer and what became of it.
+B and E are out by the owner's answer of 2026-11-24,
+so nothing in this revision ranks them;
+J is out by the owner's answer of 2026-11-25,
+and its own section keeps the finding that retired it.
+
+Costs are given twice, because one measurement cannot carry them all.
+On the typed path,
+an arm is measured against a null arm run in the same round:
+`git ls-remote` with the same ssh, the same identity options and a value that needs no question.
+**In this round's typed-path run that measurement cannot resolve any of these options**:
+the noise floor, two runs of the same command in the same round, is
+median `+1.59 ms` with a range of `-8.23` to `+18.15 ms` on a command of about 146 ms
+(run, `keep/run-2-costs-and-progress.log`),
+and C, K and C2 land inside it.
+So the work each option adds is measured as the steps it runs,
+against `/usr/bin/true`, in the same container and the same rotation
+(run, `keep/run-3-steps.log`),
+and that measurement resolves all of them.
+The third revision's typed-path figures are quoted beside the new ones where the two differ.
 
 ### A. Leave it as recorded
 
 What it starts: the real Git, replacing the wrapper, as today.
 What it reads: nothing.
 Can it answer yes: no.
+
+At H1's case A is what `main` does, and it is the only arm that ends 0 and prints nothing, because nothing is added to
+the connection:
+exit 0 direct, behind the `ProxyCommand` and behind the `ProxyJump`, with `SSH_ASKPASS=false`
+(run, `keep/run-1-behaviour.log`, family `f-noask`).
+That is also why the owner's answer of 2026-11-25 is safe: it restores exactly this.
 
 A person sees the transcripts in "What the person sees today": OpenSSH's line, Git's fatal line, exit 128,
 and no next step.
@@ -817,8 +1127,15 @@ and a changed key ends with OpenSSH's banner and no advice about the offending l
 
 ### B. The wrapper itself as the askpass program
 
+Answered "Never (Recommended)" by the owner on 2026-11-24
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`),
+so this is recorded for its evidence and is not ranked.
+The mechanism is kept here because it is the only option that would name the host, the address, the port and the key at
+the question, and because a later round may need to know what it would have cost.
+
 Mechanism: the overlay keeps `SSH_ASKPASS_REQUIRE=force` and names the wrapper's own path in `SSH_ASKPASS`
 instead of `false`.
+A program, unlike the retired sentence, is a value OpenSSH can start, which is why B survives H1 where J does not.
 OpenSSH starts the wrapper with the question as its only argument
 (`readpass.c:77`),
 so the start that answers no question becomes the start that prints the next step:
@@ -1022,11 +1339,25 @@ Cons:
 
 ### J. The sentence itself as `SSH_ASKPASS`'s value
 
-Mechanism: `SSH_ASKPASS` holds the sentence, not a program.
+Shown, chosen on 2026-11-24, and retired by the owner on 2026-11-25:
+`SSH_ASKPASS` holds `false` again
+(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, "What `SSH_ASKPASS` holds":
+"Put `false` back (Recommended)").
+The reason is H1, and it is not a defect of the wording:
+a value OpenSSH cannot start takes the connection down when the connection has a proxy
+(the mechanism is quoted from OpenSSH's source under "The question, open again").
+This round's arms reproduce it:
+behind a `ProxyCommand` or a `ProxyJump`, with a locked first key and a working second, the clone ends 128 where
+`false` ends 0, and the same arm with a relay that ignores SIGHUP ends 0
+(run, `keep/run-1-behaviour.log`, family `f-noask`, arms `j-sentence` and `j-sentence-plant`).
+
+The mechanism as it was designed:
 `execlp` tries to execute a file named the sentence, fails,
 and OpenSSH prints its own failure line with the value in it
 (`fatal_f("exec(%s): %s", askpass, strerror(errno))`, `readpass.c:78`).
 No program, no mode, no selector, no AppArmor rule, no process.
+Everything below is that design's dated record, and none of it is a reason to build it again:
+the failure line is not harmless, it reaches `cleanup_exit`.
 
 Measured this round with the value a shipped J must use,
 which cannot name the host
@@ -1080,6 +1411,18 @@ the single generic text,
 the false appearance on a command that succeeds,
 and silence under `-q`.
 It also cannot be turned into more precise words without becoming B.
+And the con that was not weighed when it was chosen:
+it is not a program, so OpenSSH's failure path for it runs, and behind a proxy that path ends the connection.
+The owner was told the cost was a printed line; the line was the least of it.
+
+What is left of J on `main` after the askpass round:
+nothing.
+The value is `false` again,
+`NO_ANSWER_SENTENCE` is gone,
+the tests that read it are gone with it,
+and `SPEC.md` and `README.md` say that the release names no next step at a new host key.
+`HOST_KEY_NOT_KNOWN_SENTENCE_OPENING` stays, because the upload's explanation and the push record still print the
+wrapper's own host-key sentence.
 
 ### C. The wrapper keeps the child and reads its standard error
 
@@ -1119,15 +1462,43 @@ The host in them is the stand-in's fixed text;
 a real C would fill it from the remote it resolved,
 which is composed, not run.
 
+This round ran C's shape against a real `sshd` again, at the passphrase refusal and unchanged from the transcripts above
+in everything but the address inside the sentence (run, `keep/run-1-behaviour.log`, arm `f-locked-direct-c-relay`):
+
+```text
+$ git clone ssh://target/work/served.git        (host key known, only a key nobody can unlock offered)
+Cloning into '/work/clones/f-locked-direct-c-relay'...
+root@localhost: Permission denied (publickey).
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+monochromatic-git-policy-cli: this command needed the passphrase of the key `/work/key_locked`, and no command the wrapper runs asks a person for one, so that key was skipped. Start an agent with `eval "$(ssh-agent)"` (`eval (ssh-agent -c)` in fish) and load the key with `ssh-add /work/key_locked` before the next command, use a key without a passphrase, or have the server accept another key you hold.
+```
+
 What it starts: Git as a child, one pipe, one relay thread or loop.
 What it reads: Git's standard error as it arrives.
 Can it answer yes: no; it only reads.
+
+At H1's case C ends 0 and prints nothing, directly and behind both proxies, because no refusal reached it
+(run, `keep/run-1-behaviour.log`, family `f-noask`, arm `c-relay`).
+Behind the `ProxyCommand` the proxy still received SIGHUP, which is what `ssh` does to its proxy at its own normal exit;
+the person's clone was complete.
 
 Cost on a command that meets no question,
 against the null arm in the same rounds: `+0.43 ms` median, range `-1.47` to `+2.38`, seventeen of twenty-four
 positive
 (run, `keep/run-2.log`, arm `relay_git`).
 That is inside the noise floor, so this round cannot say C costs a measurable amount on such a command.
+This round measured it twice:
+on the typed path, `+2.82 ms` median with a range of `-7.04` to `+18.65 ms` and seventeen of twenty-four positive,
+which is inside this harness's noise floor of `+1.59 ms` (`-8.23` to `+18.15`)
+(run, `keep/run-2-costs-and-progress.log`);
+and as the work it adds, one fork, one pipe relay and one wait,
+`+2.04 ms` against `/usr/bin/true`, positive in twenty-two of twenty-four rounds
+(run, `keep/run-3-steps.log`, arm `relay-start`).
+So C adds about two milliseconds of work to every typed network command, and the second figure is the one this harness
+can resolve.
 
 Pros: gives both cases words at the same place as the existing push sentences do,
 names the host,
@@ -1146,6 +1517,9 @@ Cons, recounted:
   `remote: Enumerating objects` line;
   through C's pipe all three are absent;
   with `--progress` all three return.
+  **This round measured the same count through K, the option that puts a pseudo-terminal there instead of a pipe, and
+  all three lines return** (run, `keep/run-2-costs-and-progress.log`: plain `1/1/1`, C's pipe `0/0/0`, K `1/1/1`).
+  So this con belongs to the pipe and not to keeping the child, which is what K is for.
   Passing `--progress` is not free:
   it would mean adding a word to the caller's arguments,
   and the wrapper's own rule is that Git receives only the caller's arguments, in order
@@ -1213,6 +1587,21 @@ So C2 either cries wolf or says nothing:
   (run, the second round, `keep/run5.log`, arm `c2-notfound-known-host`;
   the sentence there was the stand-in's fixed file, and no arm ran a real check).
 
+**This round ran a real check**, in both directions, and the two shapes are separate options in everything below.
+The check is the one D makes (`ssh -G` for the resolved host, port and known-hosts files, then `ssh-keygen -F` over each).
+The first shape, `c2-check-unknown`, prints the host-key sentence only when the check finds no key;
+the second, `c2-check-known`, prints the passphrase sentence only when the check finds one.
+Run (`keep/run-1-behaviour.log`, families `f-known` and `f-locked`), the two shapes take each other's case:
+
+- at a repository that is not there with the key known, `c2-check-unknown` stays silent (right) and `c2-check-known`
+  prints the **passphrase** sentence (wrong: no key was involved);
+- at a key nobody can unlock with the key known, `c2-check-known` prints the passphrase sentence (right) and
+  `c2-check-unknown` stays silent (wrong: the one refusal the person needed words for gets none).
+
+So a check does not fix C2; it chooses which of the two refusals C2 answers, and the other one gets either silence or a
+false paragraph.
+That is the pair of facts the earlier revision could not show, because no arm ran a real check.
+
 Three more arms of the same stand-in, run in the second round (`keep/run9.log`):
 
 - a passphrase key followed by a key that works ends 0 and prints nothing,
@@ -1230,11 +1619,20 @@ What it starts: Git as a child; on a failure, `ssh -G` and `ssh-keygen -F` as we
 What it reads: the exit status and, with the check, the resolved OpenSSH configuration and the known-hosts files.
 Can it answer yes: no.
 
+At H1's case C2 ends 0 and prints nothing, in all three transports, because no refusal became a status it watches
+(run, `keep/run-1-behaviour.log`, family `f-noask`).
+That is the one case where the shape is better than C's: nothing is said about a question that did not decide anything.
+
 Cost on a command that meets no question,
 against the null arm: `+0.72 ms` median, range `-1.47` to `+2.31`, eighteen of twenty-four positive
 (run, `keep/run-2.log`, arm `forkwait_git`).
 Inside the floor, so not a finding;
 on a success it is one fork and one wait, with the same streams.
+This round: `+3.01 ms` median, range `-6.13` to `+11.95`, sixteen of twenty-four positive on the typed path, inside the
+noise floor again (run, `keep/run-2-costs-and-progress.log`, arm `c2-status`);
+and `+2.10 ms` as the work it adds, one fork and one wait, positive in twenty-three of twenty-four rounds
+(run, `keep/run-3-steps.log`, arm `standin-start`).
+With the check added the failure path pays D's resolution as well, which is measured in D's section.
 
 Pros: keeps the terminal,
 the progress display,
@@ -1248,6 +1646,100 @@ the wrapper still owns the wait,
 the exit status and the signal ending,
 as C does;
 and the paragraph has to be long enough to cover refusals it cannot see, which is what makes it cry wolf.
+
+### K. The wrapper keeps the child, with standard error on a pseudo-terminal
+
+Mechanism: C's shape, with one difference.
+The wrapper starts Git as its child and gives it a pseudo-terminal on standard error instead of a pipe,
+relays whatever that terminal produces to the wrapper's own standard error,
+and after the child ends prints the sentence the transcript calls for, using the same two detectors C uses.
+Standard input and standard output stay the child's own, no argument is added, and no program Git did not start is
+asked anything, so the owner's three rules and the two "Never" answers all hold.
+
+Why the pseudo-terminal at all:
+Git, OpenSSH and `git-lfs` all ask `isatty(2)` before drawing anything a person watches.
+Git draws its progress through `sideband.c:316` and `transport.c:1230`, `:1358`;
+OpenSSH writes a security key's touch notice to standard error only when that stream is a terminal
+(`notify_start`, `readpass.c:252`, `:253`, and otherwise sends it to the askpass program, `:279`).
+A pipe answers no to that question, and a pseudo-terminal answers yes.
+
+A concrete case.
+The person's setup: `git clone ssh://target/work/served.git` typed in a shell,
+`target` in `~/.ssh/config` with `HostName localhost`, `Port 2222` and two `IdentityFile` lines,
+the first key's passphrase held by no agent and the second key without one,
+and the connection going through a `ProxyCommand` the arm passes with `-o`.
+What the person sees at a new host key, with K in place
+(run, `keep/run-1-behaviour.log`, arm `f-newkey-proxycommand-c-pty`; the sentence is the one in "The words",
+whose address is the stand-in's fixed text and not filled from the transcript):
+
+```text
+# git clone ssh://target/work/served.git
+Cloning into '/work/clones/f-newkey-proxycommand-c-pty'...
+Host key verification failed.
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+monochromatic-git-policy-cli: this machine does not know the SSH host key of `[127.0.0.1]:2222`, and no command the wrapper runs asks whether to trust a new one, so the connection stopped before any login. Connect once with plain `ssh -p 2222 127.0.0.1`, which the wrapper does not touch and which still asks, or add that machine's host key to `known_hosts`, then run this command again.
+```
+
+At a key nobody can unlock, with the host key known, the same shape prints the passphrase sentence
+(run, arm `f-locked-direct-c-pty`).
+At H1's case, a locked first key followed by a working one, it prints nothing and the clone ends 0, directly and behind
+both proxies (run, family `f-noask`).
+
+What it starts: Git as a child, one pseudo-terminal pair, one relay loop.
+What it reads: the terminal's text as it arrives.
+Can it answer yes: no; it only reads.
+
+Cost, measured as the work it adds:
+one fork, one pseudo-terminal relay and one wait cost `+2.66 ms` against `/usr/bin/true`, positive in twenty-three of
+twenty-four rounds (run, `keep/run-3-steps.log`, arm `pty-start`).
+C's pipe costs `+2.04 ms` in the same rounds (`relay-start`), so the pseudo-terminal is about `0.6 ms` more than the
+pipe on every typed network command, and both are about one process start.
+On the typed path the arm lands inside this harness's noise, as C's does
+(run, `keep/run-2-costs-and-progress.log`, arm `c-pty`: `+1.37 ms` median, `-7.90` to `+13.91`, thirteen of twenty-four
+positive).
+
+What it keeps that C loses, measured (run, `keep/run-2-costs-and-progress.log`, one clone of two thousand objects,
+standard error on a terminal):
+
+- the terminal's own transcript shows a `Receiving objects` line, a `remote: Counting objects` line and a
+  `remote: Enumerating objects` line under plain Git, under C2 and under K (`1`, `1`, `1` of each);
+  through C's pipe none of the three appears (`0`, `0`, `0`);
+- with `--progress` C's pipe shows them too, which is the workaround C would need and cannot add on a person's behalf.
+
+What it costs that C does not:
+the pseudo-terminal answers `isatty(2)` with yes even when the person redirected standard error,
+so a person who runs `git clone ... > log 2>&1` gets the progress bytes in the file, where today there are none.
+Measured: with both streams redirected to a file, plain Git writes no `Receiving objects` line and K writes one
+(run, `keep/run-2-costs-and-progress.log`, the `REDIRECT` lines).
+That is a real change in what a script's log holds, and it is the price of keeping the display.
+
+What else a shipped K would have to get right, and which this round's stand-in does not:
+
+- the pseudo-terminal is only standard error: no new session, no controlling terminal, so the person's own control
+  characters still reach Git. The stand-in calls `setsid()` and `TIOCSCTTY`, which a shipped K must not do,
+  and the arms' own signals are therefore not the ones a person's terminal would send;
+- the window size should be copied from the person's standard error when it is a terminal (`TIOCGWINSZ` then
+  `TIOCSWINSZ`), so progress lines are cut where the person's terminal cuts them, and a default of eighty by twenty-four
+  is what the arms used;
+- everything else the relay reads is text the wrapper must not print back: the arm relays it unchanged, and a shipped K
+  relays it unchanged too, which is what C does.
+
+What it misses, which is everything C misses:
+
+- under `-q` OpenSSH prints nothing, so there is no refusal in the transcript and no sentence;
+- a changed host key never asks and prints OpenSSH's banner, which the detectors leave to OpenSSH;
+- `BatchMode=yes` and `StrictHostKeyChecking=yes` produce no question, so no sentence from K for them;
+- it changes nothing about the transport, so a `ProxyCommand` or `ProxyJump` is Git's and not the wrapper's.
+
+Pros: everything C gives (words chosen from what OpenSSH printed, the host named, the person's settings untouched, the
+shape the self-start rule's third bullet asks for) and none of its loss of the progress display or the touch notice;
+the cost is one process start plus about `0.6 ms`, which is what C costs.
+Cons: the pseudo-terminal makes output look like a terminal to a child that writes to a redirected stream;
+the wrapper now owns the pty's life and the child's wait, as C owns the pipe's;
+and a `-q` transcript still yields nothing.
 
 ### D. A check before Git starts
 
@@ -1342,6 +1834,16 @@ it is 4.1 times the wrapper's own start cost in the same run
 The second round's eighteen rounds gave `+28.97 ms` on a different container load;
 the two runs disagree in size and agree in sign and significance,
 and neither magnitude transfers off this host.
+This round measured D twice.
+On the typed path it is `+7.33 ms` median with a range of `-3.91` to `+34.61` and twenty-two of twenty-four positive,
+which the noise floor of that harness (`+1.59 ms`, `-8.23` to `+18.15`) cannot separate from noise
+(run, `keep/run-2-costs-and-progress.log`, arm `d-precheck`).
+Measured as the work it does, the check costs `+8.62 ms` against `/usr/bin/true`, positive in twenty-four of twenty-four
+rounds, and it splits into its two starts:
+`ssh -G` alone costs `+5.35 ms` (`10.89 ms` absolute) and `ssh-keygen -F` costs `+2.99 ms` against a file that holds
+the host and `+3.21 ms` against one that does not (run, `keep/run-3-steps.log`, arms `precheck-start`, `ssh-g`,
+`keygen-known` and `keygen-empty`).
+So D adds about `8.6 ms` of work, in two extra process starts, to every typed network command.
 
 Two costs the first round did not name:
 
@@ -1365,7 +1867,20 @@ the words can be wrong about the failure and wrong on commands that succeed,
 the cost is paid by every network command,
 and the check runs the person's own configuration commands one extra time.
 
+At H1's case D ends 0 and prints nothing, in all three transports, because the host key is known and
+the `ProxyCommand` and `ProxyJump` change nothing in the check (run, `keep/run-1-behaviour.log`, family `f-noask`).
+At a new host key it speaks before Git starts, directly and behind both proxies
+(run, `f-newkey-proxycommand-d-precheck`: the sentence, then `Cloning into`, then OpenSSH's refusal),
+and the check's silence where the key is known is the same fact that makes it useless for a passphrase.
+
 ### E. The wrapper becomes the ssh that Git starts
+
+Answered "Never (Recommended)" by the owner on 2026-11-24
+(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`),
+so this is recorded for its evidence and is not ranked.
+The owner's reason is the rule this section's first con breaks:
+the process that explains would be one Git started,
+and the wrapper would hand its own path to Git to start.
 
 Mechanism: the overlay names the wrapper in `GIT_SSH_COMMAND` (or `GIT_SSH`),
 so the wrapper starts the real `ssh`,
@@ -1490,132 +2005,124 @@ It is not ranked.
 
 ## The ranking
 
-Two rankings,
-because the self-start rule has two readings and the owner has not chosen between them.
-The owner answered on 2026-11-24 with "Never" for each of B and E,
-so the strict ranking below is the one that applied and J is the chosen option.
-Both rank by what each option delivers to the person who typed the command:
+One ranking,
+because the two questions the earlier rankings turned on are answered:
+B and E are "Never" (`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`),
+so no program Git started explains anything,
+and J is retired because its value cannot be started.
+What is left is C, C2, D, A and this round's K.
+Everything is ranked by what each delivers to the person who typed the command:
 whether the words arrive at the refusal that stopped them,
 whether they name what the person must do,
 whether they appear when nothing is wrong,
 and what the person gives up on every other command.
 
-### Read strictly: B and E leave the field
+**K > C > C2 > D > A.**
 
-**J > C > C2 > D > A.**
-
-- **J over C.**
-  J speaks to both refusals at the moment they happen and takes nothing from any command:
-  no process, no progress, no notice, no setting.
-  C's words are plainer and name the host,
-  which J cannot,
-  but C takes the live progress display and the security-key touch notice from every clone and fetch,
-  and its words arrive after Git has already said the connection failed.
-  That trade is the pair's whole content,
-  and it reverses the second round's C over J,
-  whose stated reason left out the progress loss that its own earlier pair called decisive.
+- **K over C.**
+  Both read the same transcript, name the host, keep every setting the person owns, and add one process start.
+  Measured, that start and its relay cost `+2.04 ms` as a pipe and `+2.66 ms` as a pseudo-terminal, in the same rounds
+  and against the same control (run, `keep/run-3-steps.log`).
+  The `0.6 ms` buys back the two things a pipe takes from every clone and fetch:
+  Git's live progress display, measured as three lines under plain Git, none through C's pipe and all three through K's
+  terminal (run, `keep/run-2-costs-and-progress.log`),
+  and OpenSSH's security-key touch notice, which is written to standard error only when that stream is a terminal
+  (`readpass.c:252`, `:279`).
+  K's own price is one behaviour a person can see:
+  with both streams redirected to a file, the progress bytes land in the file where today there are none (measured).
+  That is a smaller loss than taking a live display away from everyone, and it is the only pair where the option with
+  the plainer words is also the one that gives back more.
 - **C over C2.**
-  C's words are chosen from what OpenSSH actually printed, so they are right about the refusal.
-  C2 guesses from exit 128, which a missing repository, a refused connection, a changed key, `BatchMode=yes` and
-  `StrictHostKeyChecking=yes` all produce,
-  so it prints a paragraph about keys on failures that have nothing to do with them (measured).
-  C2's advantages are real: it keeps the progress display, the terminal and the signals, and it survives `-q`.
-  Wrong words at a refusal misteach more than silence does,
-  and C2 ranks above D and A for its cost and its streams, not for its accuracy.
+  C's words are chosen from what OpenSSH printed, so they fit the refusal that happened:
+  measured, C is silent at a repository that is not there and speaks at a key nobody can unlock.
+  C2 with the exit status alone speaks about a host key at a repository that is not there (measured).
+  C2 with a known-hosts check does not fix that, it chooses which refusal to answer:
+  the shape that speaks only when the key is unknown loses the passphrase refusal,
+  and the shape that speaks only when a key is known prints the passphrase sentence at a repository that is not there
+  (both measured, families `f-locked` and `f-known`).
+  What C2 keeps over C and K is `-q`, where it still reads a status while they read lines OpenSSH has stopped printing;
+  against C it has that and nothing else, and it pays with words that can be wrong.
 - **C2 over D.**
-  D's words arrive before the command, but the command runs anyway,
-  so they cannot let a person stop;
-  they never cover a passphrase;
-  they are wrong on commands that succeed when `KnownHostsCommand` supplies the key (measured this round);
-  and every network command pays about 14 ms and one extra run of the person's `Match exec` commands.
-  C2 costs nothing measurable, keeps everything on a successful command, and speaks on failures.
-  Both can misteach; C2's misteaching is an extra paragraph after a real error,
-  and D's is a first line that can be wrong before the truth arrives, plus a cost on every command.
+  D's words arrive before a command that runs anyway, so they cannot let a person stop;
+  they never cover a passphrase (measured: silent at the locked key);
+  they are wrong on commands that succeed when `KnownHostsCommand` supplies the key (measured in the third revision's
+  run), and wrong about a connection refused (measured in the second revision's run);
+  and D pays two extra process starts on every typed network command, `+8.62 ms` of work against C2's `+2.10 ms`
+  (run, `keep/run-3-steps.log`).
+  Both can misteach: C2's is an extra paragraph after a real error, and D's is a first line that can be wrong before the
+  truth arrives, plus a cost on every command.
 - **D over A.**
   D speaks accurately for the plain new-key case, which is the common one, and A never speaks.
-  D pays for that on every command;
+  D pays for that on every network command;
   A pays nothing and leaves the person with no next step at the first contact with each host.
-
-### With B's exception granted
-
-**B > J > C > E > C2 > D > A.**
-
-Granting B's exception covers E as well, because both are the same act:
-a process Git started explains the failure.
-With that allowed, delivery decides, and the order of the options that were already in the strict ranking does
-not change.
-
-- **B over J.**
-  B's words name the host, the address, the port and the key,
-  arrive between Git's first line and OpenSSH's,
-  and survive `-q`, which J's do not;
-  B costs nothing on a command that meets no question, as J does.
-  B's price is a mode, a selector, one askpass start per question, and, on this host, two AppArmor rules per build.
-  Before those rules are in place, B's words do not reach the person on this host at all
-  (`ssh_askpass: exec(<path>): Permission denied`), and B ranks below A until they are added.
-- **J over C**, for the reasons in the strict ranking: zero cost and both refusals against plain words bought with
-  the progress display.
-- **C over E.**
-  Both read the same detector words, so both are right about the same refusals and miss the same ones.
-  E's words sit closer to the cause, between OpenSSH's line and Git's;
-  C's arrive after Git's advice.
-  C keeps the person's transport settings and takes the progress display;
-  E keeps the progress display and takes the transport settings,
-  which can change which host, port or key the command uses, and cannot be preserved without shell text.
-  A wrong setting breaks the command;
-  a lost progress bar does not.
-  E also costs about 6 ms on every network command, and C's cost is inside the noise floor.
-- **E over C2.**
-  E's words are chosen from the refusal; C2's are guessed from a status that many failures share.
-  E pays about 6 ms and takes a setting;
-  C2 costs nothing measurable and keeps everything.
-  This is the closest pair after J over C, and it turns on how much the person's own transport command matters.
-- **C2 over D**, and **D over A**, for the reasons in the strict ranking.
 
 ### What each answer gives the owner
 
-- Read strictly: J is the first option, and it needs one constant, its wording's controls and docs, no mode and no
-  host change. The owner answered this way on 2026-11-24.
-  C is the option the recorded shape prefers, at the price of the progress display.
-- With B's exception and the two AppArmor rules: B is first, and the words are the best this design can print.
-- With B's exception but no root edit on this host: B's words do not print here, so J and then C are the field, as
-  under the strict reading.
+- **K** is the first option.
+  It needs the sentences in "The words", the two detectors that already exist, a child the wrapper already knows how to
+  keep, and a pseudo-terminal, with the three things named in its section to get right.
+  It costs about `2.7 ms` of work on every typed network command, and it changes what a redirected log holds.
+- **C** is the same shape with a pipe: about `0.6 ms` cheaper, and it takes the live progress display and the security
+  key's touch notice from every clone and fetch.
+- **C2** is the least work on the failure path and the least accurate: it names no host and can describe the wrong
+  failure.
+- **D** is the only option whose words arrive before the command, and the only one that pays two process starts on every
+  command.
+- **A** is what `main` does after the askpass round: nothing, at both refusals.
+
+### What the earlier rankings said, kept for the record
+
+The third revision ranked twice, because the self-start rule has a reading the owner had not then chosen between:
+`J > C > C2 > D > A` read strictly,
+and `B > J > C > E > C2 > D > A` with B's exception granted.
+The owner answered that round's three questions ("Never" for B, "Never" for E, and "J" for the option),
+so the second ranking never had a reader,
+and the first is superseded by this round's:
+J is retired, and K is the addition that changes the order, because C no longer has to lose the progress display to give
+the person words.
+The pair reasons of the earlier rankings that still hold are the ones about C over C2 and C2 over D, and this round kept
+them and measured them again.
 
 ## The owner's question
 
-The read raised it and this round does not answer it.
-The owner answered it on 2026-11-24,
-recorded in `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`:
-"Never (Recommended)" for B and "Never (Recommended)" for E,
-which is the strict answer to the question below.
+> Which delivery should the wrapper build, now that `SSH_ASKPASS` holds `false` again:
+> **K**, the child's standard error on a pseudo-terminal, with the words chosen from the transcript (ranked first);
+> **C**, the same with a pipe;
+> **C2**, a paragraph chosen from the exit status and a known-hosts check;
+> **D**, a `known_hosts` check before Git runs;
+> or **A**, nothing?
 
-> Does the self-start rule's third bullet
-> ("Nothing that Git or a hook starts is asked to explain anything")
-> allow an askpass start of the wrapper, and a wrapper started as Git's ssh, to print the explanation?
+The ranking is K > C > C2 > D > A, and each adjacent pair's reason is under "The ranking".
 
-Two answers, with what each one leaves:
+What each answer leaves:
 
-- **Yes, exception granted.** The ranking is B > J > C > E > C2 > D > A.
-  B's words are the best available, and E's are the best placed.
-  The price is two AppArmor rules per build on this host, a selector, and a mode that is started by another
-  program.
-- **No, read strictly.** B and E leave the field, and the ranking is J > C > C2 > D > A.
-  The price is that no option names the host and the key at the refusal except C's, which costs the progress
-  display.
+- **K**: the next step appears at every refusal OpenSSH or Git prints, names the host, and costs one process start and
+  about `0.6 ms` more than a pipe on every typed network command.
+  A person who redirects standard error gets Git's progress bytes in the file, and a `-q` command still gets nothing.
+- **C**: the same words for about `0.6 ms` less, and every clone and fetch loses the live progress display and the
+  security key's touch notice.
+- **C2**: no transcript is read, so `-q` still works and nothing is lost on a successful command, and the words can
+  name the wrong failure whichever of its two shapes is built.
+- **D**: advice that arrives before the command fails, one of the two refusals never covered, and two extra process
+  starts on every typed network command.
+- **A**: nothing changes, and a person at a new host key or with a key no agent holds still reads OpenSSH's line and
+  Git's `fatal:` with no next step.
 
-The question belongs beside that L4 entry in `doc/handover/questions-for-the-owner.md`;
+Until the owner answers, `main` holds `false` and names no next step:
+that is the state the askpass round leaves, and `SPEC.md` and `README.md` say so.
+The question belongs beside the L4 entry in `doc/handover/questions-for-the-owner.md`;
 this round may not edit that file,
-so it is put here and in this round's report,
-and the proposal waits on the answer before any of the three is built.
+so it is put here and in this round's report.
 
 ## The words
 
-These three sentences were designed for B and for C and were not built:
-the sentence the owner chose is one generic text, `NO_ANSWER_SENTENCE` in
-`src/native/invocation/child_environment.rs`,
-which names no host key outside single quotes and says what a person does instead
-(the constraints and the measured line are under "The answer: J, and what building it took").
-They are kept here because the next option that owns a child would print them.
+These three sentences were designed for the options that own a child, and were not built.
+They are what K and C would print, and what B would have printed,
+so the option the owner picks starts from words that were already read and argued over.
+Nothing on `main` holds them today:
+`NO_ANSWER_SENTENCE` went with J (see "What became of the answer J"),
+and the wrapper's own two sentences for the LFS upload and the service's push record are separate, because their
+subjects are an upload and a push.
 
 Three sentences,
 all new,
@@ -1686,7 +2193,13 @@ Three rules about printing text that came from outside:
   because the cut path may name no file.
   The mode cannot tell a cut path from a long one, so the rule is a length test on the question's own text.
 
-## What building B would take
+## What building each option would take
+
+B's list is kept first, because it is the longest and because the next round may have to read it against a future answer;
+nothing of it is built.
+K's list follows, and C's and C2's are K's with the middle step changed.
+
+### B, answered "Never"
 
 - `no_prompt_overlay` names the wrapper's own path in `SSH_ASKPASS`
   and keeps `SSH_ASKPASS_REQUIRE=force`
@@ -1759,108 +2272,155 @@ Three rules about printing text that came from outside:
     the `git` profile needed eight batches of read rules for the whole wrapper,
     and `git_ssh` has none of them.
 
+### K, the first option
+
+K changes where a typed network command's child keeps standard error, and nothing else about it.
+
+- `replace_process_with_real_git` (`src/native/invocation/forwarding.rs`) stops being the path for a typed
+  `clone`, `fetch`, `pull` and non-LFS `push` at a remote that ssh carries, and `run_real_git` starts Git instead,
+  which is the call the wrapper already uses where it owns a child.
+  Which commands these are is a rule the wrapper already applies when it decides whether a command is forwarded;
+  the set must be the same one, or a person meets two different behaviours by subcommand.
+- standard error of the child is one end of a pseudo-terminal pair (`openpty`, then `dup2` of the slave),
+  and the wrapper relays the master to its own standard error while keeping a bounded tail for the detectors,
+  as `lfs_upload_explanations` already does for a child it owns.
+  No new session and no `TIOCSCTTY`: the person's terminal must keep sending its own signals to Git.
+- the window size is copied from the wrapper's standard error when that is a terminal, and eighty by twenty-four
+  otherwise, so a progress line is cut where the person's terminal cuts it.
+- the sentences from "The words" go in one module beside `lfs_pre_push.rs`, with the address and the key filled from the
+  transcript, and the two detectors stay where they are.
+- the exit status, the signal ending and the wait belong to the wrapper now, which they already do for the LFS upload;
+  that path's `SignalGuard` machinery is the shape to copy.
+- controls:
+  - a typed `clone` at a new host key prints the sentence after Git's lines and ends 128, direct and behind a
+    `ProxyCommand` and a `ProxyJump`;
+  - a typed `clone` with a locked first key and a working second ends 0 and prints nothing, direct and behind both
+    proxies (the control the gates did not have for J);
+  - a typed `clone` with only a locked key prints the passphrase sentence and ends 128;
+  - a clone of a repository that is not there with the host key known prints nothing about keys;
+  - a clone at a terminal still draws `Receiving objects`, and one with both streams redirected also does, on purpose,
+    which the control should assert so the change is a decision and not a surprise;
+  - a signal aimed at the wrapper alone still reaches Git, and the wrapper ends the way Git ended;
+  - the LFS upload and the push record print one host-key sentence, not two,
+    for the same reason B needed that control: both read the same transcript.
+
+C is this list with a pipe on standard error, and its two controls change to assert that no progress line appears;
+C2 is this list without a relay, with the status watched and, if its shape carries the check, D's two starts on the
+failure path only.
+D is `ssh -G` and `ssh-keygen -F` before the process is replaced, with the sentence printed before `Cloning into`.
+
 ## What the probes did not show
 
-- **No run of the wrapper's own askpass mode.**
-  No wrapper code was changed this round,
-  so B's contract is the kept stand-in from the second round,
-  whose bytes this round printed beside its digest
-  (`keep/run-1.log`; `askpass-b`, 1513 bytes).
-- **No AppArmor profile was added** (that needs root).
-  The denials and the rules needed are reported instead,
-  and the live run is unconfined by design,
-  because a confined ssh denies every askpass program but the three the profile names.
-- **No agent-based hazard probe**: `ssh-agent` cannot bind its socket in the container
-  (the second round's `keep/run5.log`),
-  so the exit-zero hazard was probed through a multiplexed master instead, which worked.
-- **No security key**: the touch notice is source only.
-- **No `HostKeyAlias`, `ProxyJump` or `CanonicalizeHostname` arm**, where D's and E's readings are weakest.
-- **No `VerifyHostKeyDNS` arm**: source only, as D's section says.
-- **No C arm at `BatchMode=yes` or `StrictHostKeyChecking=yes`**: the detector's source says C would speak, and only
-  C2's stand-in ran those cases.
-- **No C2 check**: no arm ran a post-failure known-hosts check,
-  so C2's accuracy with one is design.
-- **No Windows build**, and no OpenSSH release other than 10.6p2 or Git release other than 2.56.1.
-- **No terminal at this machine's own confined `git`**: the container's arms are unconfined on purpose.
-- **No repetition of the refused-question timing**: it is the second round's `+3.6 ms` figure, which its spread
-  swallowed.
-- **No whole container gate, and no `native:check`, clippy, `lint:types` or host tests**:
-  the only repository change is documentation, and the round's note says no whole gate is a merge condition.
+- **No run of the wrapper itself.**
+  No wrapper code was changed this round, so every option is stood in for by a compiled stand-in
+  (`keep/stand-ins/standin.c`), and every sentence printed is one of the design's own words from "The words".
+  What the arms prove is the delivery and its cost, not the wrapper's reading of a repository.
+- **Nothing ran under this host's own `ssh`.**
+  The `git//ssh` stack refuses the shell a `ProxyCommand` needs (measured: `/bin/sh: Permission denied`), so a proxy arm
+  cannot run under `/usr/bin/ssh` here at all, which is why every arm uses a copy of `ssh` under `/work`.
+  That copy runs under the `git` profile alone, which is not what a person on this host meets.
+- **No security key.**
+  The touch notice's behaviour under a pipe or a pseudo-terminal is read from `readpass.c:252`, `:253` and `:279`, not
+  measured: no key was available.
+- **No signal aimed at the wrapper alone.**
+  K's claim that the person's own control characters still reach Git is design; the stand-in calls `setsid` and
+  `TIOCSCTTY`, which a shipped K must not, and no arm sends a signal to the wrapper only.
+- **No arm with `Match exec`, `CanonicalizeHostname`, `KnownHostsCommand`, `HostKeyAlias` or `VerifyHostKeyDNS`.**
+  The third revision's runs measured `KnownHostsCommand` (D speaks while the clone succeeds) and `@cert-authority`
+  (D stays silent while the clone succeeds); those results stand and are quoted in D's section. The rest is source.
+- **No changed host key, `BatchMode=yes` or `StrictHostKeyChecking=yes` arm this round.**
+  The second revision measured those for C2's stand-in, and the third for B's; for C, C2 and K the detectors' source says
+  they stay silent, and nothing here contradicts it.
+- **The typed-path timing cannot resolve C, K or C2.**
+  Every one of them lands inside this harness's noise floor, and only the step measurement separates them.
+  A reader who wants a typed-path figure for K should read the step figure and add it to a command's own time, not the
+  other way round.
+- **No Windows**, and no OpenSSH release other than 10.6p2 or Git release other than 2.56.1.
+- **No whole container gate, and no `native:check`, clippy, `lint:types` or host tests.**
+  The only repository change is documentation, and the round's note says no whole gate is a merge condition.
 
 ## Measurements
 
 Three container runs of the gate image
-(`localhost/git-policy-native-test-base:e3fcdbe008bd-c04fca4bdd85`),
-each `--cpus=2 --memory=2g --pids-limit=400 --blkio-weight=10`,
-started in a `systemd-run --user` scope with `RuntimeMaxSec`, `CPUQuota=200%`, `MemoryMax=4G`, `TasksMax=1024`
-and `IOWeight=10`, each `--rm`, each named
-`typed-network-next-step-third-revision-probe<n>-2026-11-24`.
-OpenSSH 10.6p2, Git 2.56.1, the worktree's release wrapper build (`0.6.1-alpha.44`, 27971352 bytes),
-`sshd` on 127.0.0.1:2222.
-Logs: `keep/run-1.log` (the arms and the comparison), `keep/run-2.log` (D's classes, the timings),
-`keep/run-3.log` (J's value, the progress counts).
+(`localhost/git-policy-native-test-base:e3fcdbe008bd-bbd969e09a87`),
+each `--rm --init --network=none --cpus=2 --memory=2g --pids-limit=400 --blkio-weight=10`,
+each started in a `systemd-run --user` scope with `RuntimeMaxSec=1800` or `1200`, `CPUQuota=300%` or `200%`,
+`MemoryMax=6G` or `4G`, `TasksMax=1024` or `512`, and `IOWeight=10`:
 
-Method, so a difference can be told from the host's noise:
+- `host-key-next-step-options-2026-11-25`: the behaviour arms, log `keep/run-1-behaviour.log`;
+- `host-key-next-step-costs-2026-11-25`: the typed-path timings and the progress counts, log
+  `keep/run-2-costs-and-progress.log`;
+- `host-key-next-step-steps-2026-11-25`: the step costs, log `keep/run-3-steps.log`.
 
-- a balanced Latin square of order 12 for eleven arms and one unmeasured slot,
-  so every arm follows every other arm twice and sits at every position twice,
-  twenty-four measured rounds after two warm-up rounds
-  (checked from the order table in `keep/run-2.log`: every ordered pair appears twice);
-- the figure for an arm is the median of its per-round difference from `null_a` in the same round,
-  with the range of those twenty-four differences beside it;
-- the noise floor is `null_b` against `null_a`,
-  two runs of the same command in the same round:
-  median `-0.29 ms`, range `-2.20` to `+1.87 ms`;
-- an arm is a finding when its sign holds in every round and its median clears the floor's widest reading.
+OpenSSH 10.6p2, Git 2.56.1, `sshd` on 127.0.0.1:2222, and the stand-ins built inside each container by `cc`
+(`keep/lib.sh`).
 
-The baseline, `git ls-remote` with the same ssh and identity options, took `119.49 ms` median
-(`117.67` to `120.48`).
-Against it, in those same rounds:
+Method, so a difference can be told from this harness's noise:
 
-- today's wrapper (exec, release build): **`+3.48 ms`** (`1.50` to `5.90`), 24 of 24 positive;
-- B, on a command that meets no question: **`-0.50 ms`** (`-2.07` to `2.17`), 9 of 24 positive, noise;
-- C's relay: **`+0.43 ms`** (`-1.47` to `2.38`), 17 of 24, noise;
-- C2's fork and wait: **`+0.72 ms`** (`-1.47` to `2.31`), 18 of 24, noise;
-- D's check before the command: **`+14.13 ms`** (`12.21` to `16.55`), 24 of 24, a finding;
-- E's relay around an unrecognised ssh name: **`+5.97 ms`** (`3.57` to `8.12`), 24 of 24, a finding;
-- the same ssh under a name Git does not recognise, without any relay: **`+4.93 ms`** (`2.03` to `7.03`),
-  24 of 24, so about `1.04 ms` of E's figure is the relay and the rest is Git's `-G` probe;
-- one extra process start alone: `relay_true` took `2.02 ms` absolute, against a command it cannot be paired with
-  in this design, so it is context and not a finding;
-- the wrapper's own start with one question-shaped argument: `11.67 ms` absolute (`10.50` to `12.31`).
+- every arm ran in every round, and each round rotated the order by one, so an arm sits at every position;
+- two warm-up rounds ran before the twenty-four measured ones;
+- an arm's figure is the median of its per-round difference from the control in the same round, with the range of those
+  differences and the count of positive rounds beside it;
+- the typed-path control is `git ls-remote` with the same `ssh` binary, the same options and `SSH_ASKPASS=false`;
+- the typed-path noise floor is the same command run twice in the same round (`null-a` against `null-b`);
+- the step-cost control is `/usr/bin/true`, one process start.
 
-What that supports and what it does not:
+Typed path: `git ls-remote` of one repository over loopback, `145.63 ms` for the control
+(run, `keep/run-2-costs-and-progress.log`):
 
-- D and E cost more on every network command, and the wrapper's own start does too;
-  all three keep their sign in every round and clear the floor.
-- B, C and C2 cannot be shown to cost anything measurable on a command that meets no question,
-  and B costs nothing by construction, because no process starts.
-- The second round's figures (wrapper `+11.26 ms` on a dev build, C `+2.16`, C2 `+2.84`, D `+28.97`,
-  E `+14.68`) came from a cyclic order in which each arm kept its predecessor, and from a dev build.
-  This round's replace them for the decisions they support;
-  D's magnitude disagrees between the two runs and its sign does not.
-- Every figure here is a loopback round trip inside a two-CPU container.
-  A person's network dominates all of them, so the absolute times say what the wrapper adds, not what a command
-  takes.
+- the same command twice (`null-b` against `null-a`), the noise floor: **`+1.59 ms`**, range `-8.23` to `+18.15`,
+  fourteen of twenty-four positive;
+- the same Git with no ssh options at all (`plain-git`): `11.66 ms` absolute, and not a control, because without
+  `-F` the destination `target` is a name nothing resolves, so that arm ends before it connects;
+- C's relay: `+2.82 ms`, range `-7.04` to `+18.65`, seventeen of twenty-four positive, **inside the floor**;
+- K's pseudo-terminal relay: `+1.37 ms`, range `-7.90` to `+13.91`, thirteen of twenty-four positive, **inside the floor**;
+- C2's fork and wait: `+3.01 ms`, range `-6.13` to `+11.95`, sixteen of twenty-four positive, **inside the floor**;
+- D's check: `+7.33 ms`, range `-3.91` to `+34.61`, twenty-two of twenty-four positive, **inside the floor**;
+- one stand-in start wrapped around `true`: `-139.12 ms`, context only, since it measures no connection.
 
-Counts and outcomes:
+The steps themselves, against `/usr/bin/true` at `5.94 ms` absolute
+(run, `keep/run-3-steps.log`, twenty-four rounds, every arm clear of the floor by its sign):
 
-- **progress at a pseudo-terminal**, one clone of two thousand objects (`keep/run-3.log`):
-  Git's standard error on the terminal, and under C2, E and today's wrapper, show a `Receiving objects` line,
-  a `remote: Counting objects` line and a `remote: Enumerating objects` line;
-  through C's pipe none of the three appear;
-  through C's pipe with `--progress` all three return.
-- **starts** (`keep/run-1.log`): plain git with `ssh` on `PATH` 1; a named `ssh` 1; a named `renamed-ssh` 2;
-  E's stand-in 2, with 2 ssh starts under it.
-- **D's classes** (`keep/run-1.log`, `keep/run-2.log`):
-  a key supplied by `KnownHostsCommand` gets D's sentence while the real clone exits 0;
-  an `@cert-authority` line is found by `ssh-keygen -F`, and D stays silent while the real clone exits 0;
-  the control without either gets the sentence and exit 128.
-- **the deleted running binary** (run on the host): `readlink /proc/<pid>/exe` gives
-  `<path> (deleted)` after the file is removed, which is the path a long-running service remembers.
-- **the byte comparison** (`keep/run-1.log`, `keep/run-2.log`):
-  identical standard output, standard error and exit status for a new host key (128),
-  a passphrase key (128), and a `pull` (1).
+- the fork and wait C2 adds (`standin-start`): **`+2.10 ms`**, range `-0.37` to `+6.18`, twenty-three of twenty-four;
+- C's pipe relay (`relay-start`): **`+2.04 ms`**, range `-1.08` to `+4.44`, twenty-two of twenty-four;
+- K's pseudo-terminal relay (`pty-start`): **`+2.66 ms`**, range `-0.85` to `+5.18`, twenty-three of twenty-four, so the
+  pseudo-terminal costs about `0.6 ms` more than the pipe;
+- `ssh -G -F <config> target` (`ssh-g`): **`+5.35 ms`**, range `+2.61` to `+8.74`, twenty-four of twenty-four,
+  `10.89 ms` absolute;
+- `ssh-keygen -F '[localhost]:2222' -f <file>` over a file that holds the host (`keygen-known`): **`+2.99 ms`**,
+  range `+1.13` to `+5.24`, twenty-four of twenty-four, `8.68 ms` absolute;
+- the same over a file that does not (`keygen-empty`): **`+3.21 ms`**, range `+1.37` to `+6.91`, twenty-four of
+  twenty-four, `9.19 ms` absolute;
+- D's whole check before a program that does nothing (`precheck-start`): **`+8.62 ms`**, range `+6.54` to `+10.78`,
+  twenty-four of twenty-four, `14.53 ms` absolute.
+
+Progress, one clone of two thousand objects at a pseudo-terminal on both sides
+(run, `keep/run-2-costs-and-progress.log`, the `PROGRESS` lines, counting `Receiving objects`,
+`remote: Counting objects` and `remote: Enumerating objects`):
+
+- plain Git: `1`, `1`, `1`;
+- through C's pipe: `0`, `0`, `0`;
+- through K's pseudo-terminal: `1`, `1`, `1`;
+- through C2's inherited streams: `1`, `1`, `1`.
+
+With both streams redirected to a file, no terminal on either side (the same log's `REDIRECT` lines):
+
+- plain Git: no `Receiving objects` line;
+- K: one, which is the change K makes to what a redirected log holds.
+
+What the figures support and what they do not:
+
+- K, C and C2 all add about two milliseconds of work and one process start; K's pseudo-terminal adds about `0.6 ms` to
+  C's pipe, and no measurement here resolves that difference on a network command, which is why the ranking turns on what
+  the streams keep rather than on time.
+- D adds about `8.6 ms` of work in two starts on every typed network command, and that is the only cost in this round
+  that a person would feel on a fast connection.
+- Every figure is a loopback round trip inside a two-CPU container on this machine.
+  A person's network dominates all of them, so the numbers say what the wrapper adds, not what a command takes.
+
+The third revision's typed-path figures are kept in its own section's words and agree in sign:
+C `+0.43 ms`, C2 `+0.72 ms`, D `+14.13 ms`, plain wrapper start `+3.48 ms`.
+Their magnitudes do not transfer to this round's container, and neither set transfers off this machine.
 
 ## References
 
@@ -1878,9 +2438,25 @@ Counts and outcomes:
 - `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
 - `doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`.
 - `doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`.
-- OpenSSH `V_10_6_P2`: `readpass.c`, `sshconnect.c`, `sshconnect2.c`, `ssh.c`, `log.c`, `log.h`, `readconf.c`, `mux.c`.
+- `doc/decision/cli-git-alpha-46-release-pass-four-answers.md`, "What `SSH_ASKPASS` holds".
+- `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md` (the answers "Never" for B and E, and
+  "J" for the option that was then retired).
+- OpenSSH `V_10_6_P2`: `readpass.c`, `sshconnect.c`, `sshconnect2.c`, `ssh.c`, `clientloop.c`, `log.c`, `log.h`,
+  `readconf.c`, `mux.c`.
 - Git 2.56.1: `prompt.c`, `connect.c`, `sideband.c`, `transport.c`, `editor.c`, `strbuf.c`.
-- `keep/run-1.log`, `keep/run-2.log`, `keep/run-3.log` and `keep/scripts/` in this round's folder.
+- This round's folder, `~/temp/agent/host-key-next-step-design-after-askpass-false-2026-11-25/keep/`:
+  `run-1-behaviour.log` and `run-1-behaviour.sh`, `run-2-costs-and-progress.log` and its script, `run-3-steps.log` and
+  its script, `lib.sh`, `stand-ins/standin.c`, `stand-ins/proxy.c`, `sentences/host-key.txt`,
+  `sentences/passphrase.txt`, `sentences/j-value.txt`, and `state-so-far.md`.
+- The askpass round's fix, `c336355bcd` on `fix/git-policy-cli-askpass-false-and-commit-push-pass-fixes`:
+  `NO_ANSWER_PROGRAM`, the `ProxyCommand` control, and the `SPEC.md` and `README.md` text.
+- The release pass's finding and its container run:
+  `~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/commit-push-lfs-lock-and-the-rest/keep/review.md` (H1 and
+  "For the owner"), `askpass-proxy-experiment-run.sh`, `askpass-proxy-experiment-container-run.log`, and the OpenSSH
+  sources it kept beside them.
+- The third revision's logs, cited arm by arm:
+  `~/temp/agent/typed-network-command-next-step-third-revision-2026-11-24/keep/run-1.log`, `run-2.log`, `run-3.log`
+  and `keep/scripts/`.
 - The second round's logs, cited arm by arm:
   `~/temp/agent/typed-network-command-next-step-after-its-review-2026-11-24/keep/run4.log`,
   `run5.log`, `run6.log`, `run9.log`, and its `probe-bin/` and `probe-scripts/`.

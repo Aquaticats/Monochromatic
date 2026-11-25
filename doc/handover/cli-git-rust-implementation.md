@@ -1246,7 +1246,19 @@ briefed and waiting only on the stall (prompts in `~/temp/agent/<name>-2026-11-2
 waiting on code: 2C (the add's text beside a standing plan names the cancel command, the settle command and the finish pass's wait line, so it follows those three rounds);
 guests start under `note-before-you-start-a-guest.md` in the launch folder;
 `MemAvailable` understates free memory on this host by the ZFS ARC above `c_min` (between 2026-11-25T13:19:12-05:00 and 13:21:08: `MemAvailable` 24 GiB, every cgroup 12 GiB of 61, ARC 18.5 GiB), so memory is judged by the stall and by `MemAvailable` plus the ARC above `c_min`;
-on the owner's words "If you think ZFS ARC is the problem, feel free to change ARC config." `zfs_arc_sys_free` is 8 GiB since 13:24:47 (runtime, and `/etc/tmpfiles.d/zfs-arc-sys-free.conf` for boots), recorded with its measurements in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`; its effect is read against the baseline there;
+on the owner's words "If you think ZFS ARC is the problem, feel free to change ARC config." `zfs_arc_sys_free` is 8 GiB since 13:24:47 (runtime, and `/etc/tmpfiles.d/zfs-arc-sys-free.conf` for boots);
+the swapping went on with the ARC at 2 to 4 GiB and 36 GiB free, so the ARC was not its cause, and the owner kept it with "Keep 8 GiB (Recommended)" as room for a guest start;
+the cause was `kswapd` (4.63 GiB reclaimed in 30 s, direct reclaim 12 pages) with no free 2 MiB block, under CachyOS's hugepage defrag `defer+madvise` and `compaction_proactiveness` 0;
+on "Madvise and compaction" the host runs `defrag` `madvise` and `compaction_proactiveness` 20 since 13:54:07 (`/etc/tmpfiles.d/thp.conf`, `/etc/sysctl.d/90-vm-compaction-proactiveness.conf`), and the first window after it fell from 18.22 GiB swapped out in 120 s to 0.03;
+all of it is in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, with the limit that the windows cannot split the two halves' effects and a longer reading under build load is owed;
+the 20-minute build sample from about 13:33 peaked at 7080 MiB for one scope (then 5048, 2618, 2464), which sizes how many rounds build at once;
+the host-key design round ended and merged as a proposal, `ec0b9e7ea3` (option K, the wrapper keeps Git's child with standard error on a pseudo-terminal, ranked `K > C > C2 > D > A`, every option ending 0 at the proxy case in a capped container), and its Sonnet gate read runs before the owner's question;
+`pi-zfs-removal-takes-the-per-slot-claim`, `pi-zfs-removal-finish-pass-for-a-gone-head`, `pi-zfs-step-17-forced-removal-arm` and (2026-11-25T14:13:49-05:00) `pi-zfs-step-18-doctor-store-snapdir-delegation-and-handler` started, the last brief also fixing `identity_checks.rs`'s "installed ZED event" sentence;
+a start that waits on memory names its test and gets a command that waits for it: stall not rising (`avg10` at or under `avg60`) and `MemFree` plus the ARC above `c_min` at least one build's measured peak (7080 MiB on 2026-11-25), never an unwatched "when memory allows";
+the three answers merged as `ff474f29ee` (the usage prints `<file> monochromatic-git-policy-cli zfs-root <mode>` and "no release installs it yet", byte-identical to the design's block;
+`native:install` below `0.6.1-alpha.46` skips the words check, with a control that fails when the floor and the release list disagree;
+a plain worktree sharing a slot's last name moves, and the slot spelled through a link still refuses), its merged-tree check green;
+queued from that round: the usage's `(no argument)` row still sits under `zfs-root <mode>` though `zfs-root` alone is refused;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor
