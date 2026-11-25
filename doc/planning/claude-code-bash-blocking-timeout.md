@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:27:07-05:00.
+State recorded 2026-11-25T17:28:41-05:00.
 
 ## Requirement as stated
 
@@ -267,6 +267,33 @@ A fresh cross-vendor re-review of the final record and probe evidence remains re
 
 Including native subagents in the new timeout policy was suggested during the initial draft
 and is retracted after the user's correction.
+
+## Native probe evidence
+
+Disposable hooks and session logs live under
+`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/`.
+All probes ran on Claude Code 2.1.332.
+
+### Bare numeric sleeps
+
+Unwrapped and output-filter-wrapped `sleep 3` calls both remained exempt from the injected default.
+Their hook outputs contained no `timeout`,
+and both completed normally with no output.
+This confirms the chosen exemption but does not bound a bare sleep to one second.
+
+### Chained leading sleeps
+
+The unwrapped `sleep 3 && printf done` hook output added `timeout: 1000`.
+Claude Code returned exit code 143 with `Command timed out after 1s`.
+The chained `printf` never ran.
+
+The identical command through the real output-filter wrapper also received `timeout: 1000`,
+but the executed command began with `set -o pipefail`.
+Claude Code moved it to background task `blhskwhvo` at one second.
+The native result explicitly said no output had been read when it moved.
+The task later exited 0,
+and its output file contained `done`.
+This proves the accepted filter-dependent termination versus auto-background divergence.
 
 ## Verification still owed
 
