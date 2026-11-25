@@ -31,6 +31,9 @@
 //!  and until then a clone's removal that got that far would leave an unmounted
 //!  clone and a plan no command of this release could finish or cancel.
 //!  The reading therefore writes nothing and prints what it proved.
+//!  The clone's mount intent is read through the caller's reader,
+//!  as the pool is,
+//!  so a host control answers it without opening this machine's ZFS device.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,8 +45,11 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, RemovalPoolReads};
 use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
+use crate::worktree_clone_slot_state::slot_state_live_read::{CloneIntentReads, GatedCloneIntentReads};
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun};
 use crate::worktree_identity::common_directory;
+use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::path::Path;
 
 /// What:
@@ -83,25 +89,29 @@ pub enum RemovalReads<'a> {
 /// const ending = refuseTheRemovalOfABoundClone(facts);
 /// ```
 pub fn refuse_the_removal_of_a_bound_clone(facts: &CopyFacts) -> Option<ForwardedRun> {
-    return refuse_the_removal_with(facts, RemovalReads::Live);
+    let gate: LiveGate = LiveGate;
+    let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
+    return refuse_the_removal_with(facts, RemovalReads::Live, &intents);
 }
 
 /// What:
-///  The same refusal over the pool reads a control answers.
+///  The same refusal over the pool reads and the mount-intent reader a control
+///  answers.
 /// Why:
 ///  A host control may not open the machine's ZFS device,
-///  and every control of this refusal runs through this call,
-///  so the printed report is the command's own.
+///  and the intent is the second raw ZFS request this refusal makes,
+///  so every control of this refusal runs through this call and the printed
+///  report is the command's own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = refuseTheRemovalWith(facts, scriptedPool);
+/// const ending = refuseTheRemovalWith(facts, scriptedPool, scriptedIntent);
 /// ```
-pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>) -> Option<ForwardedRun> {
+pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, intents: &dyn CloneIntentReads) -> Option<ForwardedRun> {
     let plan = facts.remove_plan.as_ref()?;
     let common_dir: &Path = common_directory(&facts.identity)?;
     let slot: String = crate::worktree_clone_binding_record::registration_home::slot_of(plan.target.as_path()).ok()?;
-    let at = crate::worktree_clone_link_repair::the_slot_at(common_dir, slot.as_str(), plan.target.as_path());
+    let at = crate::worktree_clone_link_repair::the_slot_at_with(common_dir, slot.as_str(), plan.target.as_path(), &LiveMountedDatasets, intents);
     if !matches!(at.state, SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }) {
         return None;
     }

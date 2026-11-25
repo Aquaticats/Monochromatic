@@ -16,6 +16,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, OWN_SNAPSHOT, POOL, POOL_GUID, RemovalFixture, SANOID_SNAPSHOT, SLOT, ScriptedPool,
     an_object, the_stats,
 };
+use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
+use crate::worktree_clone_slot_state::slot_state_live_read::CloneIntentReads;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_remove_plan::RemovePlan;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
@@ -120,7 +122,35 @@ fn walk(root: &Path, folder: &Path, found: &mut Vec<(String, Option<Vec<u8>>)>) 
 /// The refusal's printed lines,
 /// or the panic that says the command was left to Git.
 fn refusal_of(facts: &CopyFacts, reads: RemovalReads<'_>) -> String {
-    return match refuse_the_removal_with(facts, reads) {
+    return refusal_of_with(facts, reads, &no_intent_asked());
+}
+
+/// One scripted mount-intent source.
+/// Why:
+///  The clone's intent is a raw ZFS request,
+///  so a host control answers it instead of opening this machine's device.
+struct ScriptedIntent {
+    /// The reading every question is answered with,
+    /// or the refusal the device would have given.
+    answer: Result<IntentReading, String>,
+}
+
+impl CloneIntentReads for ScriptedIntent {
+    fn intent_of(&self, _clone: &str) -> Result<IntentReading, String> {
+        return self.answer.clone();
+    }
+}
+
+/// The intent source a control that says nothing about the intent answers with:
+/// a clone whose property was never set,
+/// which is what the add leaves behind.
+fn no_intent_asked() -> ScriptedIntent {
+    return ScriptedIntent { answer: Ok(IntentReading::Absent) };
+}
+
+/// The refusal's printed lines over the reads and the intent source a control answers.
+fn refusal_of_with(facts: &CopyFacts, reads: RemovalReads<'_>, intents: &dyn CloneIntentReads) -> String {
+    return match refuse_the_removal_with(facts, reads, intents) {
         Some(ForwardedRun::Failed { stderr, code }) => {
             assert_eq!(code, REFUSED_EXIT_CODE, "a refusal ends with the wrapper's own status");
             stderr
@@ -162,10 +192,10 @@ fn a_whole_worktree_refuses_its_removal() {
 #[test]
 fn every_other_slot_stays_gits() {
     let unrecorded: Bound = bound_slot("removal-of-an-unrecorded-slot");
-    assert!(refuse_the_removal_with(&facts_of(&unrecorded), RemovalReads::Unreadable("this control reads no pool")).is_none());
+    assert!(refuse_the_removal_with(&facts_of(&unrecorded), RemovalReads::Unreadable("this control reads no pool"), &no_intent_asked()).is_none());
     let adding: Bound = bound_slot("removal-of-a-pending-add");
     publish_under(adding.common.as_path(), &record_naming(Phase::Snapshotted, adding.slot.as_path(), adding.registration.as_path(), Some(adding.pointer.clone())), "one");
-    assert!(refuse_the_removal_with(&facts_of(&adding), RemovalReads::Unreadable("this control reads no pool")).is_none());
+    assert!(refuse_the_removal_with(&facts_of(&adding), RemovalReads::Unreadable("this control reads no pool"), &no_intent_asked()).is_none());
     remove(unrecorded.root.as_path());
     remove(adding.root.as_path());
 }
@@ -183,8 +213,27 @@ fn a_command_without_a_removal_plan_answers_nothing() {
     publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.registration.as_path(), Some(bound.pointer.clone())), "one");
     let mut facts: CopyFacts = facts_of(&bound);
     facts.remove_plan = None;
-    assert!(refuse_the_removal_with(&facts, RemovalReads::Unreadable("this control reads no pool")).is_none());
+    assert!(refuse_the_removal_with(&facts, RemovalReads::Unreadable("this control reads no pool"), &no_intent_asked()).is_none());
     remove(bound.root.as_path());
+}
+
+/// What:
+///  The refusal reads the clone's mount intent through the reader it was given,
+///  not through this machine's ZFS device.
+/// Why:
+///  The slot report prints what that reader answered,
+///  so a control that names its own answer proves the command path asks the
+///  seam and a host control opens no device.
+#[test]
+fn the_refusal_asks_the_intent_reader_it_was_given() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("command-path-intent-seam");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let intents: ScriptedIntent = ScriptedIntent { answer: Err(String::from("this control reads no intent")) };
+    let stderr: String = refusal_of_with(&facts_of_the_fixture(&fixture), RemovalReads::Scripted(&pool), &intents);
+    assert!(stderr.contains("this control reads no intent"), "the report names the reader's own answer: {stderr}");
+    assert_eq!(the_tree(fixture.common()), before, "the refusal wrote nothing");
+    assert_eq!(fixture.the_plan_folder_holds(), 0);
 }
 
 /// What:
