@@ -539,9 +539,4 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "storage-read-on-a-task",
         why: "one removal of a known private index file; the merge's own step owns batching it on the blocking pool",
     },
-    Allowed {
-        file: "merge/merge_second_pass_worktree.rs",
-        rule: "storage-read-on-a-task",
-        why: "one read of the worktree's HEAD, once per second pass; the merge's own step owns batching it on the blocking pool",
-    },
 ];
