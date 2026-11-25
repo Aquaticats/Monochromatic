@@ -219,7 +219,66 @@ and the guests those probes create are ordinary throwaway guests.
 
 ## Results
 
-(None recorded yet.)
+### The default guest: 8 GiB, the virtiofs share, shared memfd, reporting off
+
+Guest `mem-a` was `mvm`'s own output with no change at all:
+8,192 MiB asked for,
+7.75 GiB usable in the guest (`MemTotal` 8,131,772 kB),
+the virtiofs share,
+`<memoryBacking><source type="memfd"/><access mode="shared"/></memoryBacking>`,
+and a virtio balloon with no attributes.
+The load was one build of the wrapper,
+`CARGO_BUILD_JOBS=1 cargo build --release --tests --locked` with a 6 GiB swap file,
+which finished in 34 minutes 13 seconds:
+longer than the 18 minutes the round note quotes,
+because this machine was under such pressure that the guest's pages were swapped out twice while it built.
+
+The readings, in order,
+as the host's charge to the guest (`smaps_rollup` `Rss` + `Swap` of its RAM mapping):
+
+- 76 seconds after `mvm create`: 0.88 GiB charged, all resident.
+  `mvm create` itself took 11 seconds.
+- After preparing the guest for a build (25 Debian packages and the Rust 1.100.0 toolchain, 100 seconds):
+  2.99 GiB charged.
+  The guest's own view was `MemFree` 6.0 GiB and `Cached` 1.47 GiB.
+- During the build: 5.51 GiB resident at the peak (16:44:25-05:00),
+  7.23 GiB in swap at the peak (16:51:15-05:00),
+  and 8.16 GiB charged at the peak (16:47:19-05:00).
+  The host's `MemAvailable` reached 0 MiB at 16:22:18-05:00,
+  when memory pressure's `some avg10` read 14.01,
+  and again at 16:41 with `some avg10` 22.92.
+- After the build, at rest: 7.98 GiB charged,
+  of which 1.00 GiB resident and 6.99 GiB in the zram swap device.
+  The guest's own view was `MemFree` 6,610,188 kB (6.3 GiB of its 7.75 GiB),
+  `Cached` 1.16 GiB,
+  `AnonPages` 54 MiB:
+  the guest called 6.3 GiB of its memory free,
+  and the host could not use any of it.
+- After the guest dropped its own page cache
+  (`sync; echo 3 > /proc/sys/vm/drop_caches`):
+  the guest's `MemFree` rose to 7,887,348 kB and its `Cached` fell to 75,588 kB,
+  and the host's charge did not move:
+  7.98 GiB charged before, 7.98 GiB after (1.09 GiB resident, 6.89 GiB in swap).
+  Dropping the guest's cache alone returns nothing.
+- `mvm destroy`: 9 seconds,
+  the guest's charge went to zero,
+  and the swap device's free space rose by 7.12 GiB.
+
+The charge is not all resident memory,
+and what the resident part costs is the interesting half:
+by the end, 6.99 GiB of the guest's memory had been written to the zram swap device,
+where it compressed to 3 percent of its size
+(`orig_data_size` 36.97 GB against `mem_used_total` 1.22 GiB),
+because the pages the guest had freed and this build had left behind are mostly zeros.
+So on this host the price of an idle default guest is about 1 GiB of RAM plus the zram share,
+and the price of a *working* guest is up to its whole 8 GiB resident,
+which is what the 22.8 GiB of shared memory in the opening reading was.
+
+What that means for the question:
+the host holds the guest's memory whether or not the guest uses it,
+because nothing tells the host when a page stops mattering,
+and the guest's own free memory (6.3 GiB of 7.75 GiB here) is invisible to it.
+The next arms test what makes the host able to take it back.
 
 ## Ranking
 
