@@ -636,6 +636,32 @@ so the reading could not stop it.
 The 2 GiB cap of the gate's image build is the repository's shared test-container default
 (`package/container-limit/core`),
 and no measurement of that build's memory is recorded.
+That measurement now exists,
+and the cap it sized is gone from the build:
+see "The capped build's stall, measured and given its own bound, 2026-11-24T19:51-05:00" below.
+
+### The capped build's stall, measured and given its own bound, 2026-11-24T19:51-05:00
+
+The container the catalogue above names is the gate's image build,
+and its 2 GiB was the repository's shared test-container default rather than a measurement of that build.
+Three arms of the same build, one `podman build --no-cache` each at the gate's four compile jobs,
+with every build container's own cgroup read every 250 ms,
+measured what the steps need:
+
+- Under a 10 GiB cap no step met,
+  the compile of the wrapper's own sources peaked at 5,363.4 MiB with 0.1 s of stall in 87.2 s.
+- Under the shared 2 GiB that same step sat at 2,048 MiB for 196 s:
+  `memory.events` `max` 149,888,
+  some avg10 22.33 at its highest,
+  29.8 s of stall,
+  and 197.1 s to finish.
+
+The build now has a bound of its own, 8 GiB, 1.53 times that measured peak,
+separate from the suite's and Clippy's 2 GiB,
+and `--memory <size>` bounds both for a host that has less to give (issue 6455).
+`doc/planning/git-policy-cli-cachyos-test-containers.md`,
+"The image build's own memory bound, measured 2026-11-24",
+holds the arms, their ratios and the arithmetic.
 
 ### The comparison that would verify the change
 
