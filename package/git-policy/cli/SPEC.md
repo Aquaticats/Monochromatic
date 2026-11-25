@@ -270,7 +270,7 @@ The root modes are modes of this file,
  the words `monochromatic-git-policy-cli zfs-root <mode>` select a mode on any file,
  which is what a unit's `ExecStart`,
  an adoption and a person use;
- and the installed ZED history event's own file name,
+ and the ZED history event's own file name,
  `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,
  whose ZED entry `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
  is a link to it,
@@ -281,7 +281,7 @@ The setup of plan step 19 installs that file and the link,
  and no release installs them yet;
  nothing in that folder is linked as `git`.
 The default invocation,
- which is how the installed ZED event starts it,
+ which is how ZED's own start calls it,
  runs the clone-mount sweep;
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
@@ -7699,7 +7699,7 @@ The sweep that reads the intent and files a receipt is the plan's step 8,
 and the handler runs it in two modes:
 
 - no argument,
-  which is what the installed ZED event starts,
+  which is what ZED's own start hands it,
   reads the handler configuration,
   this boot's start probe record,
   the pool and the checkout,
@@ -20121,7 +20121,7 @@ Git never starts the wrapper for a hook:
 the wrapper writes no hook entry,
 passes no hooks path of a directory it made,
 and reads the name it was started under in one module only,
-the installed ZED history event's,
+the ZED history event's,
 where that name selects the clone-mount sweep and the modes' own `--help` and
 `--version`,
 and nothing else a Git command means

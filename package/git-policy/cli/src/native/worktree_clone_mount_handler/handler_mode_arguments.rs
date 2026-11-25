@@ -1,6 +1,6 @@
 //! What:
 //!  The words one invocation of the root modes is read as:
-//!  no argument for the clone-mount sweep the installed ZED event starts,
+//!  no argument at all for the clone-mount sweep ZED's own start runs,
 //!  `boot-reconcile`,
 //!  `start-probe`,
 //!  `shutdown-unmount`,
@@ -15,7 +15,7 @@
 //!  "Boot and shutdown unit",
 //!  "The administrator's adoption"),
 //!  and the plan's suggestion is that the default invocation,
-//!  which is how the installed ZED event calls it,
+//!  which is how ZED's own start calls it,
 //!  runs the sweep
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Where the design is silent:
@@ -36,7 +36,7 @@
 
 use crate::start_probe::probe_source_name::check_dataset_name;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
+use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name};
 use crate::worktree_clone_mount_handler::root_mode_names::{ROOT_GROUP_WORD, ZEDLET_START_NAME};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
@@ -174,7 +174,7 @@ pub struct MountPathDescendantRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HandlerMode {
     /// No argument:
-    /// the clone-mount sweep the installed ZED event starts.
+    /// the clone-mount sweep ZED's own start runs.
     AttachingSweep,
     /// `boot-reconcile`:
     /// the boot unit's reconciliation.
@@ -335,21 +335,25 @@ pub const ROOT_MODE_FILE_PLACEHOLDER: &str = "<file>";
 ///   A person meeting the modes reads what they are and what this build refuses,
 ///  and every line names a spelling that works:
 ///  the words for every mode,
+///  the ZED history event link handed no argument for the sweep,
 ///  the root-owned file with the step that installs it,
 ///  and the device a change of which is a change of one constant.
+///  The rows below the first line hang under the words,
+///  so each names a mode word and its options and nothing else;
+///  the sweep has no word there,
+///  because the words with no mode word after them are refused.
 ///  The first line names the file before the words because the words follow
 ///  whatever path starts the program,
 ///  so the words alone reach Git as an unknown command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const usage = `usage: <file> monochromatic-git-policy-cli zfs-root <mode>`; // one line per mode and one for the file
+/// const usage = `usage: <file> monochromatic-git-policy-cli zfs-root <mode>`; // one row per mode word, then the closing sentences
 /// ```
 pub fn usage() -> String {
     let named: String = root_modes_name();
     return [
         format!("usage: {ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>"),
-        String::from("  (no argument)        run the clone-mount sweep the installed ZED event starts"),
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
         String::from("  shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost"),
@@ -365,10 +369,12 @@ pub fn usage() -> String {
         String::from("                       mount one nested dataset at its own mountpoint, under the recorded checkout"),
         String::from("  --help               print this text"),
         String::from("  --version            print this build's version"),
-        format!("Every root mode is reached through the words `{ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>`,"),
+        format!("Every mode with a word is reached through the words `{ROOT_MODE_FILE_PLACEHOLDER} {named} <mode>`,"),
         format!("with `{ROOT_MODE_FILE_PLACEHOLDER}` the root-owned file."),
         format!("Plan step 19's setup installs `{ROOT_MODE_FILE_PLACEHOLDER}` as {ROOT_MODE_INSTALL_PATH}"),
         format!("and links it as {ZEDLET_START_NAME} for ZED; no release installs it yet."),
+        format!("ZED starts {ZEDLET_INSTALL_PATH} with no argument,"),
+        String::from("and that start runs the clone-mount sweep, which has no mode word."),
         format!("The modes that make requests open {DEVICE_PATH} through this repository's binding, never a CDDL library and never the zfs program."),
     ].join("\n");
 }
