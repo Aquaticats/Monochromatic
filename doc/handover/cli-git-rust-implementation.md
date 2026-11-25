@@ -319,10 +319,18 @@ and until the settle lands the preflight declines to the ladder the two source s
 (an untracked directory holding a repository, and a directory where the index records a file; `44fa679969`),
 while a clean or reset that fails on the way (an unremovable path, a full disk) still leaves the clone and claim behind,
 as `SPEC.md` "What this release does not yet do" says;
+step 12 is wired and merged (`7cf926dc56`, 2026-11-24T19:07:56-05:00):
+`git worktree move` of a bound slot is refused mounted or not,
+a removal of a whole clone is refused with the slot's report (no clone removal before steps 14 and 16),
+a `git worktree prune` first writes back a lost underlay pointer and refuses when nothing can be restored,
+and `git worktree repair` prints what the link can and cannot restore;
+its guest arm and VM item 6's pointer arms pass on a file-backed pool, and `source_guard` passed 80 of 80 at its tip;
 running since 2026-11-24T17:40-05:00:
-step 12's wiring with its prune pointer and repair report (`pi-zfs-step-12-wire-unmounted-pruned-and-moved-worktrees`),
-and step 14's lineage proof, inventory, bookmark rule, destruction plan and removal intent built ahead, unwired (`pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead`);
-step 13's wiring follows step 12's;
+step 14's lineage proof, inventory, bookmark rule, destruction plan and removal intent built ahead, unwired (`pi-zfs-step-14-lineage-proof-and-removal-plan-built-ahead`);
+running since 2026-11-24T19:10-05:00:
+step 13's wiring of the managed lock's distinction and put-back (`pi-zfs-step-13-wire-the-managed-lock`),
+issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`),
+and step 12's move refusal reading the working directory for every forwarded command before it checks for `worktree move` (`pi-fix-move-refusal-reads-its-word-first`);
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
