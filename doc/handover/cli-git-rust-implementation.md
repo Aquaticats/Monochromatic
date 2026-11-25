@@ -1237,15 +1237,16 @@ running since about 13:05: `pi-askpass-false-and-commit-push-pass-fixes` (`false
 and the gate on `main` at `7ed5ec0b34`;
 the owner asked "Can we parallelize better?" at about 13:15: only two rounds ran while plan steps 17 and 18 had every dependency merged,
 so the ready queue below is now refilled whenever a round ends, a start pausing only on a rising stall;
-started from 13:35: `pi-zfs-step-17-cancel-command-and-cancelled-removal`, `pi-zfs-step-18-doctor-removal-lines`;
+started: `pi-zfs-step-17-cancel-command-and-cancelled-removal` (2026-11-25T13:19:12-05:00), `pi-zfs-step-18-doctor-removal-lines` (13:21:08), `pi-zfs-settle-worktree-clone-record-command`;
 briefed and waiting only on the stall (prompts in `~/temp/agent/<name>-2026-11-25/prompt.md`):
-`zfs-settle-worktree-clone-record-command`, `zfs-add-grants-refuse-six-warn-three` (3C), `lock-kill-controls-that-fail-alone-on-this-host`,
+`zfs-add-grants-refuse-six-warn-three` (3C), `lock-kill-controls-that-fail-alone-on-this-host`,
 `host-key-next-step-design-after-askpass-false` (C, C2, D after `false`; then a Sonnet read, then the owner's question),
 `zfs-step-17-forced-removal-arm`, `zfs-step-18-doctor-store-snapdir-delegation-and-handler`, `zfs-removal-takes-the-per-slot-claim`,
 `zfs-removal-finish-pass-for-a-gone-head`;
 waiting on code: 2C (the add's text beside a standing plan names the cancel command, the settle command and the finish pass's wait line, so it follows those three rounds);
 guests start under `note-before-you-start-a-guest.md` in the launch folder;
-`MemAvailable` understates free memory on this host by the ZFS ARC above `c_min` (2026-11-25T13:40-05:00: `MemAvailable` 24 GiB, every cgroup 12 GiB of 61, ARC 18.5 GiB), so memory is judged by the stall and by `MemAvailable` plus the ARC above `c_min`;
+`MemAvailable` understates free memory on this host by the ZFS ARC above `c_min` (between 2026-11-25T13:19:12-05:00 and 13:21:08: `MemAvailable` 24 GiB, every cgroup 12 GiB of 61, ARC 18.5 GiB), so memory is judged by the stall and by `MemAvailable` plus the ARC above `c_min`;
+on the owner's words "If you think ZFS ARC is the problem, feel free to change ARC config." `zfs_arc_sys_free` is 8 GiB since 13:24:47 (runtime, and `/etc/tmpfiles.d/zfs-arc-sys-free.conf` for boots), recorded with its measurements in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`; its effect is read against the baseline there;
 issue 6459's first round (`~/temp/agent/any-name-fixture-root-git-dac-override-2026-11-25/keep/`) blamed the wrapper's `/proc/<pid>/fd` scans,
 but the audit log's `SYSCALL` records show every denial is `/usr/bin/git`'s own `link()` of a `0444` loose object during `git commit --allow-empty --message=initial` in a fixture repository,
 succeeding, under `fs.protected_hardlinks = 1`, with Git as root of the any-name root's user namespace, where the capability check reaches AppArmor

@@ -446,6 +446,8 @@ The ZFS ARC was far below its ceiling at 21:00:
 `size` 6123719120 against `c_max` 65146339328 and `c_min` 2069377536.
 Its peak and its reclaim behaviour were not measured,
 so that reading rules out a full cache rather than a cache contribution.
+(Note of 2026-11-25: a later reading measured the ARC giving back 17.6 GB while the kernel swapped;
+see "`zfs_arc_sys_free`, from 2.16 GiB to 8 GiB".)
 
 ### The owner's position, and the measurements beside it
 
@@ -1040,6 +1042,88 @@ so the pattern is one the machine's own boot already runs.
 This draft waits,
 by the owner's choice to keep 125 for now,
 until the comparison in "The comparison that would verify the change" exists.
+
+### `zfs_arc_sys_free`, from 2.16 GiB to 8 GiB
+
+The owner,
+on 2026-11-25 while many build rounds started at once:
+"If you think ZFS ARC is the problem, feel free to change ARC config."
+
+What the ARC did,
+read on 2026-11-25 with OpenZFS `2.4.4-1` (`/sys/module/zfs/version`),
+46.2 hours after boot (`/proc/uptime` 166272.89):
+
+- Its ceiling is almost all memory:
+  `c_max` 65146327040 with `zfs_arc_max=0`,
+  which the installed `man 4 zfs` defines as
+  "The larger of all_system_memory - 1 GiB and 5/8 × all_system_memory".
+- Its free-memory target was the default,
+  `arc_sys_free` 2316412032 (2.16 GiB).
+  The same page: "The target number of bytes the ARC should leave as free memory on the system."
+- Since boot the kernel had swapped 1508725136 pages out and 1119591931 in (`/proc/vmstat` `pswpout`, `pswpin`),
+  about 5.6 TiB and 4.2 TiB at 4 KiB a page,
+  into the one swap device, `/dev/zram0` (zstd),
+  whose `mm_stat` peak use of memory was 20963995648 bytes.
+- Between two readings at 2026-11-25T13:21-05:00 and 13:23:43-05:00,
+  the ARC fell from `size` 22414649728 to 4753788496
+  while `pswpout` rose by 261970 pages (1.0 GiB):
+  the kernel was compressing process memory into zram
+  while the ARC still held cache it later gave back.
+- Between 2026-11-25T13:19:12-05:00 and 13:21:08-05:00,
+  `MemAvailable` read 24 GiB
+  while every cgroup together held 12 GiB of 61 and the ARC held 18.5 GiB,
+  so `MemAvailable` leaves the ARC out,
+  and a guard that reads `MemAvailable` alone sees less room than there is.
+
+The reading of these numbers,
+which is this document's inference and not a measured cause:
+the kernel starts reclaiming at its own watermarks
+(low 855 MiB and high 1,645 MiB at `watermark_scale_factor` 125, measured in this document),
+and the ARC starts shrinking on its own only below `arc_sys_free`,
+so both begin only once free memory is under about 2.2 GiB,
+and at `vm.swappiness` 150 the kernel's share of that reclaim goes to swap.
+An ARC that keeps more memory free shrinks first,
+before the kernel's watermarks are reached.
+
+Applied at runtime at 2026-11-25T13:24:47-05:00 and read back:
+
+```sh
+# doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md
+echo 8589934592 | sudo --non-interactive tee /sys/module/zfs/parameters/zfs_arc_sys_free
+cat /sys/module/zfs/parameters/zfs_arc_sys_free
+```
+
+Both printed `8589934592`, and `arc_sys_free` in `/proc/spl/kstat/zfs/arcstats` read the same.
+8 GiB is one `mvm` guest's memory (7.75 GiB),
+so a guest can start from free memory without the kernel reclaiming for it.
+The ARC can still grow into whatever nothing else uses;
+`zfs_arc_max` is unchanged.
+
+For boots,
+`/etc/tmpfiles.d/zfs-arc-sys-free.conf` holds,
+under a comment naming these measurements,
+
+```text
+# /etc/tmpfiles.d/zfs-arc-sys-free.conf
+w- /sys/module/zfs/parameters/zfs_arc_sys_free - - - - 8589934592
+```
+
+and `sudo systemd-tmpfiles --create /etc/tmpfiles.d/zfs-arc-sys-free.conf` exited 0 with the value unchanged.
+The line has no `!`,
+because the installed `man 5 tmpfiles.d` says lines without it "are presumed to be safe to execute at any time",
+and writing this target is;
+the `-` keeps a boot where the module has not loaded from failing the line.
+The ZFS module options in `/etc/modprobe.d/zfs.conf` reach the boot through the initramfs (`mkinitcpio` `modconf` hook),
+so a line there would take effect only after the initramfs is rebuilt;
+the `tmpfiles.d` line needs no rebuild.
+
+What has not been shown:
+whether swap traffic and the memory stall fall under the same load.
+The comparison owed is the one "The comparison that would verify the change" describes,
+with these counters (`pswpout`, `allocstall_*`, `/proc/pressure/memory` `total`, the ARC's `size`)
+read over windows of comparable work before and after 13:24:47.
+To undo it,
+write the old value back (`2316412032`) and remove the `tmpfiles.d` file.
 
 ## What does not work
 
