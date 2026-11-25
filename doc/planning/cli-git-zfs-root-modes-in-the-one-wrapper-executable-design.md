@@ -2638,7 +2638,7 @@ The modes that make requests open /dev/zfs through this repository's binding, ne
 ```
 
 The first line names the root-owned file before the words,
-so no line offers a spelling that works only through it and no line offers a mode in brackets:
+and no line offers a mode in brackets:
 the words follow whatever path starts the program,
 so the words alone reach Git as an unknown command.
 That is the alpha.46 release pass's answer A,
@@ -2648,10 +2648,10 @@ because `--help` claimed install paths no release creates,
 and the sweep's refusal to an administrator says the same
 (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
 "How the root modes' usage reads").
-The first line is choice 5's,
+The words in it are choice 5's,
 so no refusal and no usage names `mount-git-worktree-clone-datasets` any more;
 the last three lines are replaced by the sentences above,
-because the build is one file at one path and the words are what a person types, and the file is not installed yet.
+because the build is one file at one path, the words are what a person types, and the file is not installed yet.
 The two `record-checkout` and `mount-path-descendant` blocks are this design's
 (proposal);
 everything else is the build's own text.
