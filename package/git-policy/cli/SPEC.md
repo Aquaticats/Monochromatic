@@ -4901,6 +4901,12 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
+  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  source check,
+  so a declined add reaches the ladder with the words Git's own `worktree add`
+  takes by itself,
+  and only an add the route serves reads the sentence about the managed lock it
+  takes.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
   in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.

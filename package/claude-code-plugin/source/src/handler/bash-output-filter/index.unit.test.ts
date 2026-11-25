@@ -13,7 +13,10 @@ import {
   bashOutputFilterHandler,
   type BashOutputFilterOutput,
 } from './index.ts';
-import { BLOCKING_TIMEOUT_ENABLED_ENV, } from './blocking-timeout.ts';
+import {
+  BLOCKING_TIMEOUT_ENABLED_ENV,
+  BLOCKING_TIMEOUT_MS,
+} from './blocking-timeout.ts';
 
 function environmentOverride(env: Readonly<NodeJS.ProcessEnv>,): { [Symbol.dispose]: () => void } {
   const original = process.env;
@@ -25,7 +28,12 @@ function environmentOverride(env: Readonly<NodeJS.ProcessEnv>,): { [Symbol.dispo
   };
 }
 
-function withEnv<T>(env: Readonly<NodeJS.ProcessEnv>, fn: () => T,): T {
+function withEnv<T>(
+  { env, fn }: Readonly<{
+    env: Readonly<NodeJS.ProcessEnv>;
+    fn: () => T;
+  }>,
+): T {
   using override = environmentOverride(env,);
   return fn();
 }
@@ -93,10 +101,10 @@ await describe({
     it({
       name: 'adds the timeout to a filtered main-agent command and preserves description',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'printf ok', description: 'quick check', }, }),
-        ),);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
         expect(updatedInput(output,).description,).toBe('quick check',);
         expect(updatedInput(output,).command,).toContain('set -o pipefail && printf ok',);
       },
@@ -104,19 +112,37 @@ await describe({
     it({
       name: 'adds the timeout without wrapping a filter-skipped command',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'xxd file.bin', }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).command,).toBe('xxd file.bin',);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'passes through a filter-skipped caller timeout unchanged',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'xxd file.bin', timeout: 500, }, }),
+        ) },);
+        expect(output,).toEqual({},);
+      },
+    },),
+    it({
+      name: 'passes through a filter-skipped explicit background call unchanged',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'xxd file.bin', run_in_background: true, }, }),
+        ) },);
+        expect(output,).toEqual({},);
       },
     },),
     it({
       name: 'filters a subagent without changing execution fields',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ agentId: 'agent-1', input: { command: 'printf ok', }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).command,).toContain('printf ok',);
         expect(updatedInput(output,).timeout,).toBeUndefined();
         expect(updatedInput(output,).run_in_background,).toBeUndefined();
@@ -125,18 +151,18 @@ await describe({
     it({
       name: 'passes through a filter-skipped subagent',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ agentId: 'agent-1', input: { command: 'xxd file.bin', }, }),
-        ),);
+        ) },);
         expect(output,).toEqual({},);
       },
     },),
     it({
       name: 'preserves an explicit background call and its absent timeout',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'printf ok', run_in_background: true, }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).run_in_background,).toBe(true,);
         expect(updatedInput(output,).timeout,).toBeUndefined();
       },
@@ -144,9 +170,9 @@ await describe({
     it({
       name: 'preserves an explicit background call with a supplied timeout',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'printf ok', run_in_background: true, timeout: 500, }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).run_in_background,).toBe(true,);
         expect(updatedInput(output,).timeout,).toBe(500,);
       },
@@ -155,9 +181,9 @@ await describe({
       return it({
         name: `preserves foreground caller timeout ${timeout}`,
         fn: async () => {
-          const output = withEnv({}, () => bashOutputFilterHandler(
+          const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
             bashEvent({ input: { command: 'printf ok', timeout, }, }),
-          ),);
+          ) },);
           expect(updatedInput(output,).timeout,).toBe(timeout,);
         },
       },);
@@ -165,19 +191,19 @@ await describe({
     it({
       name: 'adds the default to explicit foreground input',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'printf ok', run_in_background: false, }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).run_in_background,).toBe(false,);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({
       name: 'keeps a bare numeric sleep exempt while filtering it',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'sleep 5', }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).command,).toContain('sleep 5',);
         expect(updatedInput(output,).timeout,).toBeUndefined();
       },
@@ -185,26 +211,26 @@ await describe({
     it({
       name: 'times an unwrapped sleep with a redirect because it is not bare',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'sleep 5 > result.txt', }, }),
-        ),);
+        ) },);
         expect(updatedInput(output,).command,).toBe('sleep 5 > result.txt',);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({
       name: 'keeps the policy enabled when only the legacy variable is off',
       fn: async () => {
-        const output = withEnv({ MONOCHROMATIC_BASH_FORCE_BACKGROUND: 'off', }, () =>
-          bashOutputFilterHandler(bashEvent({ input: { command: 'printf ok', }, })),);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        const output = withEnv({ env: { MONOCHROMATIC_BASH_FORCE_BACKGROUND: 'off', }, fn: () =>
+          bashOutputFilterHandler(bashEvent({ input: { command: 'printf ok', }, })) },);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({
       name: 'filters without a timeout when the new policy is disabled',
       fn: async () => {
-        const output = withEnv({ [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, () =>
-          bashOutputFilterHandler(bashEvent({ input: { command: 'printf ok', }, })),);
+        const output = withEnv({ env: { [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, fn: () =>
+          bashOutputFilterHandler(bashEvent({ input: { command: 'printf ok', }, })) },);
         expect(updatedInput(output,).command,).toContain('printf ok',);
         expect(updatedInput(output,).timeout,).toBeUndefined();
       },
@@ -212,17 +238,17 @@ await describe({
     it({
       name: 'treats agent_type without agent_id as a main session',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ agentType: 'custom', input: { command: 'printf ok', }, }),
-        ),);
-        expect(updatedInput(output,).timeout,).toBe(1_000,);
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({
       name: 'warns at startup without requiring a model field',
       fn: async () => {
-        const output = withEnv({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, () =>
-          bashOutputFilterHandler(startupEvent('startup',),),);
+        const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, fn: () =>
+          bashOutputFilterHandler(startupEvent('startup',),) },);
         expect(output.systemMessage,).toContain(BLOCKING_TIMEOUT_ENABLED_ENV,);
       },
     },),
@@ -230,8 +256,8 @@ await describe({
       return it({
         name: `does not warn on ${source}`,
         fn: async () => {
-          const output = withEnv({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, () =>
-            bashOutputFilterHandler(startupEvent(source,),),);
+          const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, fn: () =>
+            bashOutputFilterHandler(startupEvent(source,),) },);
           expect(output,).toEqual({},);
         },
       },);
@@ -239,27 +265,27 @@ await describe({
     it({
       name: 'does not warn when native background tasks are enabled',
       fn: async () => {
-        const output = withEnv({}, () => bashOutputFilterHandler(startupEvent('startup',),),);
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(startupEvent('startup',),) },);
         expect(output,).toEqual({},);
       },
     },),
     it({
       name: 'does not warn when the timeout policy is disabled',
       fn: async () => {
-        const output = withEnv({
+        const output = withEnv({ env: {
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1',
           [BLOCKING_TIMEOUT_ENABLED_ENV]: '0',
-        }, () => bashOutputFilterHandler(startupEvent('startup',),),);
+        }, fn: () => bashOutputFilterHandler(startupEvent('startup',),) },);
         expect(output,).toEqual({},);
       },
     },),
     it({
       name: 'warns despite the removed legacy opt-out',
       fn: async () => {
-        const output = withEnv({
+        const output = withEnv({ env: {
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1',
           MONOCHROMATIC_BASH_FORCE_BACKGROUND: 'off',
-        }, () => bashOutputFilterHandler(startupEvent('startup',),),);
+        }, fn: () => bashOutputFilterHandler(startupEvent('startup',),) },);
         expect(output.systemMessage,).toBeDefined();
       },
     },),

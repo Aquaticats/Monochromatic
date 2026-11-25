@@ -1,15 +1,15 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T18:11:37-05:00.
-This work is incomplete.
-The user approved the design and authorized implementation at that timestamp.
+State recorded 2026-11-25T18:25:46-05:00.
+Owner acceptance is not recorded.
+The user approved the design and authorized implementation on 2026-11-25T18:02:17-05:00.
 
 ## Current state
 
 The design tree is recorded in
 `doc/planning/claude-code-bash-blocking-timeout.md`.
 Its user-question frontier is empty.
-No implementation is authorized until the user confirms the assembled design after review and probes.
+Implementation and the post-review fixes are committed.
 
 The current checkout has unrelated concurrent edits.
 Do not restore,
@@ -47,16 +47,18 @@ both type checks,
 the full source-package unit suite,
 and real built-plugin consumer probes all pass.
 The unit output includes every new predicate and handler suite by name.
+All five changed Markdown documents rendered to HTML through an isolated `mise` task using `pandoc`.
+The repository Markdown lint could not run because `monochromatic-lint: command not found`.
+A read-only DeepSeek second pass found no blocker and verified the tracked bundle over 30 payloads.
+Its earned in-scope findings are fixed.
+The post-review plugin rebuild produced no bundle diff,
+and the changed Markdown rendered successfully again.
 
 ## Open work
 
-- Complete the DeepSeek second-pass review and address any earned findings.
-- Record that `mise run lint:monochromatic-lint` could not run because
-  `monochromatic-lint: command not found`;
-  the locked repository linter must not be compiled ad hoc.
-  A rendered Markdown check remains before documentation completion.
+- Owner review and acceptance are not recorded.
 
 ## Next step
 
-Run the DeepSeek second-pass review,
-then finish documentation checks and cleanup.
+The owner can review the committed implementation and verification evidence.
+No agent-open implementation item remains.

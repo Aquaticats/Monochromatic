@@ -7,8 +7,12 @@ from Pi's installed source, bash-poke's own log, its spool files, and the live s
 bash-poke now steers its poke into a busy agent (commit `6795da19a6`);
 the busy-agent probe in "Busy-agent probe" shows the change.
 Not yet done:
+the probe harness lives only in the kept scratch folder named in "Busy-agent probe",
+not in the repository or a package test;
 hosted-source permalinks for the Pi citations,
-and an exercised check of the Escape behaviour in "Escape discards the queued pokes".
+and a drive of the interactive Escape key itself
+(the queue-clearing call it makes was exercised;
+see "Escape discards the queued pokes").
 
 ## Symptom
 
@@ -145,8 +149,8 @@ and nothing on screen marks it as finished.
 
 ### Escape discards the queued pokes
 
-This is source reading,
-not exercised.
+Exercised through RPC on 2026-11-25,
+not through the interactive key.
 Escape while streaming calls `restoreQueuedMessagesToEditor({ abort: true })`
 (`dist/modes/interactive/interactive-mode.js:2567-2569`),
 which calls `session.clearQueue()` (`:4063-4064`):
@@ -165,6 +169,19 @@ clearQueue() {
 which goes back into the editor.
 Extension custom messages live only in the agent's queues,
 which `clearAllQueues()` empties with nothing restored.
+
+RPC's `clear_queue` command calls the same `session.clearQueue()` (`dist/modes/rpc/rpc-mode.js:358`).
+The harness `run-clear-queue-arm.ts`,
+kept beside the busy-agent probe,
+queues a poke during a 1.5 s tool call,
+sends `clear_queue` then `abort` as Escape does,
+then sends a second prompt.
+In both the follow-up control and the steer build,
+`clear_queue` answered `{ "steering": [], "followUp": [] }`
+and no `bash-poke` message appeared in either run.
+The busy-agent probe is the positive control:
+without the clear,
+the poke always arrived.
 
 ## Verification
 
@@ -188,8 +205,10 @@ rg --count 'bashExecution|"bash-poke"' ~/.pi/agent/sessions/--home-user-Monochro
 
 - `@aliou/pi-processes` 0.13.8 sends attention `turn` notifications with `{ triggerTurn: true, deliverAs: "steer" }`
   (`extensions/processes/notification-sender.ts`, `attentionToSendOptions`).
-  The same session holds 24 `ad-process:notification` entries with attention `turn`,
-  each between a `toolResult` and the next assistant `toolUse`,
+  The same session holds 24 `ad-process:notification` entries:
+  18 with attention `turn` (steered)
+  and 6 with attention `context` (sent with `triggerTurn: false`).
+  Every one sits between a `toolResult` and the next assistant `toolUse`,
   the first at 2026-11-25T17:19:57-05:00.
   This is the positive control:
   a steer lands within the run on this Pi version.
@@ -209,10 +228,10 @@ The fixture registers a `fauxProvider` that scripts six `wait_step` tool calls o
 then `RUN_COMPLETE`, then spares.
 After the first `tool_execution_start`,
 the runner sends `{ "type": "bash", "command": "printf poked" }`.
-The control arm is the same bundle with only `deliverAs:\`steer\`` rewritten to `followUp`.
+The control arm is the same bundle with only `` deliverAs:`steer` `` rewritten to `` deliverAs:`followUp` ``.
 Harness files,
 kept outside the repository with the run outputs:
-`~/temp/agent/bash-poke-steer-delivery-check-2026-11-25/scratch/run-busy-agent-arm.ts`
+`~/temp/agent/bash-poke-steer-delivery-check-2026-11-25/keep/harness/run-busy-agent-arm.ts`
 and `busy-agent-fixture.ts` beside it.
 
 Results on 2026-11-25:
@@ -226,12 +245,17 @@ Results on 2026-11-25:
   with one assistant message before it and `RUN_COMPLETE` after it.
 - Steer, final build after the lint fixes in commit `181cb07a36`:
   the same order as the first steer run.
+- Steer, final build, with `steeringMode` and `followUpMode` set to `all` in the host's settings
+  (the values the user's own Pi uses):
+  the same order.
+- Steer, final build, idle host (the `bash` command sent with no prompt running):
+  the poke started a run at once and was its first message after the system prompt.
 
 ## Verified workarounds
 
-None are verified by an exercised reproduction yet.
-Candidates,
-each with its tradeoff:
+Each item names its tradeoff.
+Only the bash-poke change was exercised,
+by the probe in "Busy-agent probe":
 
 - Read the spool file named in bash-poke's log.
   The output is complete there at exit;
@@ -252,7 +276,8 @@ each with its tradeoff:
 ## What does not work
 
 - Pressing Escape to make the poke arrive:
-  per "Escape discards the queued pokes" it ends the run and drops the queued pokes.
+  per "Escape discards the queued pokes" it ends the run and drops the queued pokes,
+  as the `clear_queue` probe showed.
 - Watching the progress row for completion:
   the row disappears when the job exits.
 

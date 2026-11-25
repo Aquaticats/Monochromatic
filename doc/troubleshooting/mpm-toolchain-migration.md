@@ -488,6 +488,27 @@ carries its own audit and filing decision in
 This file records no new external-tool defect,
 so there is no new-issue draft here.
 
+## `mise run sync:files` cannot find `file-enforcer` (seen 2026-11-25T18:18:47-05:00)
+
+Symptom, from `mise run sync:files` in the main checkout:
+
+```text
+[//:sync:files] $ file-enforcer write
+sh: line 1: file-enforcer: command not found
+[//:sync:files] ERROR task failed
+```
+
+What was on disk at the time:
+the binary existed at
+`~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-file-enforcer-cli/0.1.3/monochromatic-file-enforcer-cli-0.1.3-x86_64-unknown-linux-gnu/file-enforcer`,
+`~/.local/share/monochromatic-dev/toolchain/bin/` held no `file-enforcer` entry (it did hold `watchexec`),
+and `mise exec -- sh -c 'command -v file-enforcer'` printed nothing.
+
+Workaround used that day:
+run that binary by its full path (`file-enforcer check` worked and listed the drift).
+Root cause not investigated;
+`mise run toolchain:install` is the repository's repair route and was not tried.
+
 ## Related records
 
 - `README.md`,

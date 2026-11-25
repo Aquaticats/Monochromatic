@@ -1,7 +1,7 @@
 # bash-output-filter
 
-Claude Code PreToolUse hook that pipes Bash tool output through a text filter
-to strip wasteful patterns before the model sees them.
+Claude Code plugin whose PreToolUse hook filters Bash output and applies a one-second foreground timeout,
+and whose SessionStart hook warns when native background tasks are disabled.
 
 ## Problem
 
@@ -139,6 +139,10 @@ The default applies only when every condition holds:
 - The caller did not supply `timeout`.
 - The command is not a bare numeric sleep under the existing production predicate.
 - The policy is enabled.
+
+A bare numeric sleep still passes through output filtering,
+so the executed command begins with the filter wrapper rather than `sleep`.
+It keeps the exemption from the default timeout.
 
 Explicit background calls preserve their flag and their present or absent timeout.
 Every caller-supplied timeout is preserved,

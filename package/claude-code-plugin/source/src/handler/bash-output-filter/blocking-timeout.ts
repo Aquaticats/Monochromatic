@@ -1,10 +1,13 @@
 /**
- Default-on one-second foreground timeout for main-agent Bash calls.
+ Default-on one-second foreground timeout and startup-warning policy for main-agent Bash calls.
 
  @module
  */
 
 import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
+//region Timeout and startup-warning policy
+// Owns environment switches, the fixed timeout, and the warning text.
 
 /**
  Environment variable that enables or disables the default foreground timeout.
@@ -66,12 +69,26 @@ function isBlockingTimeoutEnabled(env: Readonly<NodeJS.ProcessEnv>,): boolean {
   return (value === undefined) || (!DISABLED_VALUES.has(value,));
 }
 
+//endregion
+
+//region Bare numeric sleep predicate
+// Recognizes only the exact invocation shape exempted by the accepted policy.
+
 /**
  Whether `text` is a plain decimal number: digits with at most one dot, and at least one digit.
 
  @param text - candidate sleep duration
 
  @returns whether `text` is digits with an optional single dot
+
+ @example
+ ```ts
+ isPlainNumber('0.5'); // true
+ isPlainNumber('.5'); // true
+ isPlainNumber('5.'); // true
+ isPlainNumber('.'); // false
+ isPlainNumber('1.2.3'); // false
+ ```
  */
 function isPlainNumber(text: string,): boolean {
   /**
@@ -126,6 +143,11 @@ function isPlainSleep(command: string,): boolean {
   return isPlainNumber(rest.trim(),);
 }
 
+//endregion
+
+//region Timeout eligibility
+// Combines environment, event ownership, caller intent, and the sleep exemption.
+
 /**
  Whether a Bash call should receive the default foreground timeout.
 
@@ -176,6 +198,8 @@ function shouldApplyBlockingTimeout(
     return false;
   return !isPlainSleep(command,);
 }
+
+//endregion
 
 export {
   BLOCKING_TIMEOUT_ENABLED_ENV,
