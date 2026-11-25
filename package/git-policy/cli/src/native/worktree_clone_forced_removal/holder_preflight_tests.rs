@@ -88,7 +88,7 @@ impl Fixture {
             structural: &[],
             unendable: &[],
             no_destination: &[],
-            handle_recorded: true,
+            handle_proved: true,
         };
     }
 }
@@ -103,16 +103,20 @@ fn a_clean_set_takes_way_eight() {
     assert_eq!(plan.receivers.receivers.len(), 1);
 }
 
-/// The same set without the recorded handle takes way 7,
-/// and way 7's own destination read then decides.
+/// The same set without the handle's proof takes way 7,
+/// and way 7's own destination read then decides,
+/// scoped to the namespace that takes it.
 #[test]
 fn no_handle_takes_way_seven_and_its_destination_read_decides() {
     let fixture: Fixture = Fixture::new();
     let mut reads: PreflightReads<'_> = fixture.reads();
-    reads.handle_recorded = false;
+    reads.handle_proved = false;
     let plan: ForcedPlan = plan_the_forced_removal(&reads).expect("way 7 fits");
     assert_eq!(plan.route, Route::SlaveMoveAndUnmount);
-    let no_destination: [(String, &'static str); 1] = [(String::from("mnt:u"), "the parent is read-only")];
+    let no_destination: [(String, &'static str); 2] = [
+        (String::from("mnt:another"), "the parent is read-only"),
+        (String::from("mnt:u"), "the parent is read-only"),
+    ];
     reads.no_destination = &no_destination;
     let refused: ForcedRefusal = plan_the_forced_removal(&reads).expect_err("no destination refuses");
     assert_eq!(refused.word(), RefusalWord::HolderUnendable);

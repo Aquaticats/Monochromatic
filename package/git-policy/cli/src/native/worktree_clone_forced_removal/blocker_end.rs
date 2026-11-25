@@ -32,7 +32,8 @@
 //! ```
 
 use crate::process::member_signalled_through_its_pidfd::{Delivered, Pinned, PinnedMember};
-use crate::process::process_tree::{ProcessUse, TreeMember, member_of, use_of};
+use crate::process::process_tree::{TreeMember, member_of};
+use crate::worktree_clone_forced_removal::process_session_record::{ReadOutcome, read_process_record};
 use crate::worktree_clone_forced_removal::forced_arm_numbers::TimeoutWindow;
 
 /// How many blockers one signal stage handles.
@@ -111,8 +112,13 @@ pub enum EndResult {
     /// It left after `SIGTERM`,
     /// and no `SIGKILL` was sent.
     ExitedAfterTheAsk,
-    /// It ignored `SIGTERM` and was killed.
+    /// It ignored `SIGTERM` and the kill was sent,
+    /// and the kill was observed to end it.
     Killed,
+    /// It ignored `SIGTERM`,
+    /// the kill was sent,
+    /// and it was still there when the stage's own wait ended.
+    Survived,
     /// No process had its number when the stage pinned it.
     Gone,
     /// The stage could not prove it,
@@ -183,14 +189,21 @@ where
     CallerAlive: Fn() -> bool,
 {
     let mut stage: SignalStage = SignalStage::default();
-    let mut pins: Vec<(Blocker, PinnedMember)> = Vec::new();
     let kept: &[Blocker] = if blockers.len() > MOST_BLOCKERS_ONE_ACT_HOLDS {
-        // A list this long was never one scan's answer; the overflow is reported by the caller, not signalled here.
-        &blockers[..MOST_BLOCKERS_ONE_ACT_HOLDS]
+        // A list this long was never one scan's answer, so the stage is refused whole rather than cut to a prefix that
+        // would leave the rest unmentioned; the caller reports the refusal.
+        return stage;
     } else {
         blockers
     };
+    let mut pins: Vec<(Blocker, PinnedMember)> = Vec::new();
     for blocker in kept {
+        if !caller_alive() {
+            // The authority lasts only while the command that asked lives, so not one more signal is sent.
+            stage.endings.push((*blocker, EndResult::Unproven));
+            stage.caller_gone = true;
+            return stage;
+        }
         let member: TreeMember = TreeMember { pid: blocker.pid, started: blocker.started };
         match PinnedMember::open(&member) {
             Pinned::Held(pin) => match pin.signal(ASK) {
@@ -230,11 +243,15 @@ where
     if survivors.is_empty() {
         return stage;
     }
+    let mut killed: Vec<(Blocker, PinnedMember)> = Vec::new();
     for (blocker, pin) in survivors {
+        if !caller_alive() {
+            stage.endings.push((blocker, EndResult::Unproven));
+            stage.caller_gone = true;
+            continue;
+        }
         match pin.signal(KILL) {
-            Delivered::Sent => {
-                stage.endings.push((blocker, EndResult::Killed));
-            }
+            Delivered::Sent => killed.push((blocker, pin)),
             Delivered::Gone => {
                 stage.endings.push((blocker, EndResult::ExitedAfterTheAsk));
             }
@@ -244,6 +261,14 @@ where
         }
     }
     wait(window.termination());
+    for (blocker, pin) in killed {
+        // A kill is recorded once the same descriptor shows it took effect; one still there is reported as survived.
+        if pin.has_ended() {
+            stage.endings.push((blocker, EndResult::Killed));
+        } else {
+            stage.endings.push((blocker, EndResult::Survived));
+        }
+    }
     return stage;
 }
 
@@ -288,29 +313,31 @@ pub enum Endability {
 }
 
 /// What:
-///  Read one holder's endability from `/proc`.
+///  Read one holder's endability from a `/proc` root,
+///  in one record.
 /// Why:
-///  A task in an uninterruptible sleep is reported rather than waited on,
-///  and a number that names no task is gone rather than unendable.
+///  The state and the number's birth identity must come from the same read,
+///  or a number that passed to another process between two reads would be
+///  ended as the holder;
+///  and a read this act may not make is not a task that has gone
+///  (`read_process_record` keeps the two apart).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const read = endabilityOf(pid);
+/// const read = endabilityOf(procRoot, pid);
 /// ```
-pub fn endability_of(pid: i32) -> Endability {
-    let Some(record): Option<ProcessUse> = use_of(pid) else {
-        return Endability::Gone;
-    };
-    if !endable_from(record.state) {
-        return Endability::Unendable(format!(
+pub fn endability_of(proc_root: &std::path::Path, pid: i32) -> Endability {
+    return match read_process_record(proc_root, pid) {
+        ReadOutcome::Found(record) if !endable_from(record.state) => Endability::Unendable(format!(
             "task {pid} is in state `{}`, which this act does not end",
             record.state
-        ));
-    }
-    let Some(blocker): Option<Blocker> = Blocker::read(pid) else {
-        return Endability::Gone;
+        )),
+        ReadOutcome::Found(record) => Endability::Endable(Blocker { pid: record.pid, started: record.started }),
+        ReadOutcome::Gone => Endability::Gone,
+        ReadOutcome::Blind { errno, .. } => {
+            Endability::Unendable(format!("the record of task {pid} was refused with errno {errno}"))
+        }
     };
-    return Endability::Endable(blocker);
 }
 
 /// Controls stay out of the release executable.

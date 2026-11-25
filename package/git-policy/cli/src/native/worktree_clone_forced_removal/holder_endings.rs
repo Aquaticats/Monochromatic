@@ -137,6 +137,15 @@ pub struct KindEvidence {
 /// with the caller's session's other job alive throughout.
 pub const PATH_HOLDER_SHOWN_BY: &str = "this round's guest arm, phases path-holder-terminated and path-holder-killed: the control refused, the end emptied the slot and the head destroy answered gone, with the caller's session's other job alive";
 
+/// The evidence for a same-account task of another session that holds the clone,
+/// and the two shapes it does not cover.
+pub const OTHER_SESSION_SHOWN_BY: &str = "this round's guest arm, phases path-holder-terminated and path-holder-killed: a working directory inside the mounted clone, in a session of its own, was asked out and killed, and the host's unmount and the head destroy then answered gone";
+
+/// The evidence a task of another account or of a unit is owed:
+/// the end is the same pinned signal,
+/// and no round sent one to such a task.
+pub const OTHER_ACCOUNT_OWED: &str = "a task of another account, and a task of a unit the caller cannot signal, end through the same pinned signal and no round shows either: the schedule shows one account's own child, and F8's refusal is the account's, not the handler's";
+
 /// The evidence for way 8:
 /// the unmount by the recorded handle inside the holder's namespace left the
 /// host's own copy standing and the destroy answered `gone`,
@@ -157,7 +166,7 @@ pub const MOVE_SHOWN_BY: &str = "this round's guest arm, phases namespace-way7-r
 /// and the design's V10 answer,
 /// stopping a unit of the account's own user manager and finishing the removal,
 /// has no measured arm at all.
-pub const LOCKED_NOT_BUILT: &str = "the locked holder is refused: T0-14 and this round's arm answer EINVAL to both the unmount and the move inside such a namespace, and the design's V10 answer, stopping the account's own user-manager unit and finishing the removal, is measured by no round";
+pub const LOCKED_NOT_BUILT: &str = "the locked holder is refused: T0-14 answered EINVAL to both the unmount and the move inside such a namespace, this round's arm answered EINVAL to the unmount and read the namespace's owning user namespace, and the design's V10 answer, stopping the account's own user-manager unit and finishing the removal, is measured by no round";
 
 /// Why the taskless namespace's ending is not built:
 /// nothing in this build lists a namespace whose tasks are gone,
@@ -179,20 +188,20 @@ pub const THE_KINDS: [KindEvidence; 6] = [
     KindEvidence {
         kind: HolderKind::SessionTask,
         ending: Ending::EndBlockersThenUnmount,
-        shown_by: PATH_HOLDER_SHOWN_BY,
+        shown_by: OTHER_SESSION_SHOWN_BY,
         owed_arm: "a holder of another session that keeps the clone mounted in the host's namespace, ended in the full act (M1)",
     },
     KindEvidence {
         kind: HolderKind::OtherAccountTask,
         ending: Ending::EndBlockersThenUnmount,
-        shown_by: PATH_HOLDER_SHOWN_BY,
-        owed_arm: "another account's task, which needs the handler's own credentials (M1)",
+        shown_by: "no round shows this kind's end; the schedule that ran is one account's own child",
+        owed_arm: OTHER_ACCOUNT_OWED,
     },
     KindEvidence {
         kind: HolderKind::UnitTask,
         ending: Ending::EndBlockersThenUnmount,
-        shown_by: PATH_HOLDER_SHOWN_BY,
-        owed_arm: "a task of a unit the caller cannot signal (M1)",
+        shown_by: "no round shows this kind's end; no arm sent a pinned signal to a unit's task",
+        owed_arm: OTHER_ACCOUNT_OWED,
     },
     KindEvidence {
         kind: HolderKind::TasklessNamespace,

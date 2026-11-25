@@ -43,14 +43,19 @@ fn the_two_unshown_kinds_are_refused() {
     assert!(taskless.owed_arm.contains("6.19"));
 }
 
-/// A kind the evidence covers ends its blockers,
-/// and the two ways take the copy out of a namespace by their own means.
+/// The kinds whose ending a round shows say where,
+/// and the two that only a schedule of one account's own child reaches say that instead.
 #[test]
-fn the_covered_kinds_have_endings_and_their_evidence() {
-    for kind in [HolderKind::SessionTask, HolderKind::OtherAccountTask, HolderKind::UnitTask, HolderKind::PathHolder] {
-        let row: KindEvidence = ending_of(kind).expect("a covered row");
+fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
+    for kind in [HolderKind::SessionTask, HolderKind::PathHolder] {
+        let row: KindEvidence = ending_of(kind).expect("a shown row");
         assert_eq!(row.ending, Ending::EndBlockersThenUnmount);
         assert!(row.shown_by.contains("this round's guest arm"), "{}", row.shown_by);
+    }
+    for kind in [HolderKind::OtherAccountTask, HolderKind::UnitTask] {
+        let row: KindEvidence = ending_of(kind).expect("a row still owed");
+        assert!(row.shown_by.contains("no round shows"), "{}", row.shown_by);
+        assert!(row.owed_arm.contains("another account"), "{}", row.owed_arm);
     }
 }
 

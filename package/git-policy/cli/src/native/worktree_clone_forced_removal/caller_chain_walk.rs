@@ -126,7 +126,7 @@ impl CallerChain {
     /// holder.pid === caller.pid || holder.session === caller.session || ancestors.some(a => a.pid === holder.pid && a.started === holder.started);
     /// ```
     pub fn spares(&self, holder: &ProcessRecord) -> bool {
-        if holder.pid == self.caller.pid {
+        if holder.pid == self.caller.pid && holder.started == self.caller.started {
             return true;
         }
         if holder.session == self.caller.session {
@@ -140,7 +140,7 @@ impl CallerChain {
     /// Which half of the set holds this holder,
     /// for the report's own sentence.
     pub fn why_spared(&self, holder: &ProcessRecord) -> Option<SparedBy> {
-        if holder.pid == self.caller.pid {
+        if holder.pid == self.caller.pid && holder.started == self.caller.started {
             return Some(SparedBy::Caller);
         }
         if holder.session == self.caller.session {
@@ -207,8 +207,10 @@ where
     }
     let mut ancestors: Vec<ProcessRecord> = Vec::new();
     let mut child: ProcessRecord = caller.clone();
+    let mut reached_the_first_process: bool = false;
     for _step in 0..MOST_ANCESTORS_ASKED_FOR {
         if child.parent <= 1 {
+            reached_the_first_process = true;
             break;
         }
         let parent: ProcessRecord = match read(child.parent) {
@@ -223,6 +225,13 @@ where
                 parent_started: parent.started,
             });
         }
+        if parent.pid == identity.parent {
+            // The one hop the property records is proved against its own start time, so a number a later process took
+            // is not read as the wrapper's parent.
+            if parent.started != identity.parent_started {
+                return Err(ChainRefusal::ParentGone);
+            }
+        }
         let again: ProcessRecord = match read(child.pid) {
             ReadOutcome::Found(record) => record,
             ReadOutcome::Gone => return Err(ChainRefusal::ParentGone),
@@ -236,6 +245,9 @@ where
         }
         ancestors.push(parent.clone());
         child = parent;
+    }
+    if !reached_the_first_process {
+        return Err(ChainRefusal::TooDeep);
     }
     return Ok(CallerChain { caller, ancestors });
 }

@@ -198,10 +198,9 @@ impl ScanFile {
         let directory: std::fs::File = self.open_the_folder()?;
         let name: String = self.entry_name(dataset);
         let path: PathBuf = self.folder.join(name.as_str());
-        let opened: Result<std::fs::File, std::io::Error> = std::fs::OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(path.as_path());
+        // The entry is opened relative to the folder descriptor that was proved, so a path swapped after the proof
+        // cannot steer the read, which is the receipt's own boundary.
+        let opened: Result<std::fs::File, std::io::Error> = open_at(&directory, name.as_str());
         let mut file: std::fs::File = match opened {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -286,6 +285,36 @@ impl ScanFile {
         }
         return Ok(folder);
     }
+}
+
+/// What:
+///  Open one entry relative to a proved folder descriptor,
+///  following no link.
+/// Why:
+///  Opening by a path resolved again after the proof reads whatever is at that path now,
+///  and this boundary is the receipt's own: the descriptor is the authority.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = openAt(folderFd, name, O_RDONLY | O_NOFOLLOW);
+/// ```
+fn open_at(directory: &std::fs::File, name: &str) -> Result<std::fs::File, std::io::Error> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+    let named: std::ffi::CString = std::ffi::CString::new(name)?;
+    // SAFETY: `named` is one NUL-terminated name, `directory` holds a live descriptor, and the returned descriptor is
+    // owned by the `File` this makes from it.
+    let descriptor: std::ffi::c_int = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            named.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if descriptor < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: the descriptor above is open and this is the only owner of it.
+    return Ok(unsafe { std::fs::File::from_raw_fd(descriptor) });
 }
 
 /// Controls stay out of the release executable.

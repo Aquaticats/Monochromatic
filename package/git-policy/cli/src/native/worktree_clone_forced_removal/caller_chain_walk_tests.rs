@@ -108,6 +108,34 @@ fn a_start_time_that_runs_backwards_is_refused() {
     );
 }
 
+/// A parent whose number is the recorded one and whose start time is not is not the recorded parent.
+#[test]
+fn the_recorded_parents_start_time_is_proved() {
+    let mut replaced: BTreeMap<i32, ReadOutcome> = a_chain();
+    replaced.insert(400, ReadOutcome::Found(record(400, 1, 300, 700)));
+    assert_eq!(walk_the_caller_chain(reader(replaced), &an_identity()), Err(ChainRefusal::ParentGone));
+}
+
+/// A process that took the caller's number after it is not the caller,
+/// so the protected set does not spare it.
+#[test]
+fn a_reused_callers_number_is_not_spared() {
+    let chain: CallerChain = walk_the_caller_chain(reader(a_chain()), &an_identity()).expect("the chain reads");
+    // Another session, so only the caller's own half could spare it, and its start time is not the caller's.
+    assert_eq!(chain.why_spared(&record(500, 1, 777, 901)), None);
+    assert!(!chain.spares(&record(500, 1, 777, 901)));
+}
+
+/// A chain whose records name each other in a way that never reaches the first process is refused,
+/// and not read as a set that stops at the caller.
+#[test]
+fn a_chain_that_never_reaches_the_first_process_is_refused() {
+    let mut looping: BTreeMap<i32, ReadOutcome> = BTreeMap::new();
+    looping.insert(500, ReadOutcome::Found(record(500, 400, 500, 900)));
+    looping.insert(400, ReadOutcome::Found(record(400, 400, 300, 800)));
+    assert_eq!(walk_the_caller_chain(reader(looping), &an_identity()), Err(ChainRefusal::TooDeep));
+}
+
 /// A refused read is a blind spot and not an absence.
 #[test]
 fn a_refused_read_is_blind() {

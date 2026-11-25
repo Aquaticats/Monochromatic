@@ -122,13 +122,13 @@ fn the_endability_read_tells_the_states_apart() {
     let pid: i32 = i32::try_from(child.id()).expect("a number");
     // A child settling into its first exec passes through states this act refuses, so the control waits,
     // bounded, for the state the task will hold for its life.
-    let mut settled: Endability = endability_of(pid);
+    let mut settled: Endability = endability_of(std::path::Path::new("/proc"), pid);
     for _attempt in 0..400 {
         if matches!(settled, Endability::Endable(_)) {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
-        settled = endability_of(pid);
+        settled = endability_of(std::path::Path::new("/proc"), pid);
     }
     match settled {
         Endability::Endable(blocker) => assert!(blocker.started > 0),
@@ -136,18 +136,19 @@ fn the_endability_read_tells_the_states_apart() {
     }
     let _killed = child.kill();
     let _reaped: std::io::Result<std::process::ExitStatus> = child.wait();
-    assert!(matches!(endability_of(2_000_000_000), Endability::Gone));
+    assert!(matches!(endability_of(std::path::Path::new("/proc"), 2_000_000_000), Endability::Gone));
 }
 
-/// A list longer than one scan answers is cut to the bound the scan's own result is,
-/// so the stage never signals a list no report made.
+/// A list longer than one scan answers is refused whole,
+/// so the stage never signals a list no report made and never leaves part of one unmentioned.
 #[test]
 fn a_list_past_the_bound_is_cut() {
     assert_eq!(MOST_BLOCKERS_ONE_ACT_HOLDS, 1024);
     let blocker: Blocker = Blocker { pid: 2_000_000_000, started: 1 };
     let many: Vec<Blocker> = vec![blocker; MOST_BLOCKERS_ONE_ACT_HOLDS + 5];
     let stage: SignalStage = end_the_blockers(&many, a_short_window(), |_duration: std::time::Duration| { return; }, || { return true; });
-    assert_eq!(stage.endings.len(), MOST_BLOCKERS_ONE_ACT_HOLDS);
+    // A list past the scan's bound is refused whole rather than cut to a prefix the report would not mention.
+    assert!(stage.endings.is_empty());
     assert_eq!(ASK, 15);
     assert_eq!(KILL, 9);
 }

@@ -207,11 +207,13 @@ pub struct PreflightReads<'a> {
     /// The holders the endability read proved cannot be ended.
     pub unendable: &'a [(i32, String)],
     /// The namespaces with no room for way 7's directory,
-    /// or a read-only parent.
+    /// or a read-only parent,
+    /// each named by the namespace whose way 7 it stops.
     pub no_destination: &'a [(String, &'static str)],
-    /// Whether the add recorded the slot underlay's file handle,
-    /// which way 8 needs.
-    pub handle_recorded: bool,
+    /// Whether the preflight proved the handle resolves to the copy at the top of the
+    /// slot in this namespace,
+    /// which way 8 needs and the add's own record alone does not show.
+    pub handle_proved: bool,
 }
 
 /// What:
@@ -280,11 +282,16 @@ pub fn plan_the_forced_removal(reads: &PreflightReads<'_>) -> Result<ForcedPlan,
         return Err(ForcedRefusal::Unenterable { namespace: String::from(reads.acting) });
     };
     let receivers: ReceiverSet = plan_the_receivers(acting, reads.copy, reads.tables, reads.dataset, reads.handled);
-    let in_place: bool = receivers.way_eight && reads.handle_recorded;
+    let in_place: bool = receivers.way_eight && reads.handle_proved;
     if !in_place {
-        // Way 7 needs one directory on the parent mount's root, so its reads are the route's own precondition.
-        if let Some((namespace, because)) = reads.no_destination.first() {
-            return Err(ForcedRefusal::NoDestination { namespace: namespace.clone(), because });
+        // Way 7 needs one directory on the parent mount's root, so its reads are the route's own precondition, and
+        // only the namespace that takes way 7 is judged by them.
+        if let Some((_namespace, because)) = reads
+            .no_destination
+            .iter()
+            .find(|(namespace, _because)| return *namespace == reads.acting)
+        {
+            return Err(ForcedRefusal::NoDestination { namespace: String::from(reads.acting), because });
         }
     }
     let route: Route = if in_place { Route::InPlaceByTheHandle } else { Route::SlaveMoveAndUnmount };

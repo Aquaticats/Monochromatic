@@ -225,11 +225,9 @@ pub fn plan_the_receivers(
             continue;
         };
         let covered: bool = slot.filesystem != "zfs" || slot.source != dataset;
-        let mount_id: u32 = members
-            .iter()
-            .find(|(namespace, _mount)| return *namespace == table.namespace)
-            .map(|(_namespace, mount)| return *mount)
-            .unwrap_or(slot.mount_id);
+        // The report names the mount an unmount at that dentry meets, which is the namespace's own topmost mount
+        // there, and not the first member row the closure happened to find.
+        let mount_id: u32 = slot.mount_id;
         receivers.push(Receiver {
             namespace: table.namespace.clone(),
             mount_id,
