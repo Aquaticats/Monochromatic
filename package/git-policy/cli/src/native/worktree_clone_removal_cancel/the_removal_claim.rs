@@ -17,8 +17,8 @@
 //!  and the claim's own rule replaces a dead owner's claim with the next generation,
 //!  so nothing is left to clean up by hand.
 //!  The design's separate `<guid>.removal` folder is not what merged:
-//!  the replayed claim is the slot-keyed one, and this module takes that and writes no
-//!  second claim of its own.
+//!  the replayed claim is the slot-keyed one,
+//!  and this module takes that and writes no second claim of its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -50,9 +50,9 @@ pub struct ClaimHeld {
     /// Its only reader is the removal claim's own `Drop`,
     /// which rewrites the file as released when this value goes,
     /// so no code reads the field and the compiler cannot see the drop's read.
-    /// An owner accessor would be a second name for the same fact and nothing would call
-    /// it, and holding the claim in a `ManuallyDrop` would leave this command to release a
-    /// slot on paths it forgets.
+    /// An owner accessor would be a second name for the same fact and nothing would call it,
+    /// and holding the claim in a `ManuallyDrop` would leave this command to release a slot
+    /// on paths it forgets.
     #[allow(dead_code, reason = "the removal claim's Drop is this field's only reader, and the compiler does not count a drop as a read")]
     claim: Option<RemovalClaim>,
     /// The owner the claim names.

@@ -14,7 +14,7 @@
 //!  The command acts only on what it can prove,
 //!  and a person who typed another slot's name must not be told a removal was reversed
 //!  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-//!  "The proof: which slot, which clone, which claim").
+//!  its "The proof" section).
 //!  The design proves the records first and repeats every deciding read under the claim,
 //!  so the slot that is not being removed is refused before any claim is taken,
 //!  and no record that changed while the claim was taken is ever acted on.
@@ -200,7 +200,8 @@ pub fn prove_the_slots_records(input: &TheRecordsProof<'_>) -> Result<WhatTheRec
 ///  and the plan's owner speaks for the removal where a claim cannot.
 ///
 /// # Errors
-/// The pointer, binding or plan that cannot be read or that names another object,
+/// The pointer,
+/// binding or plan that cannot be read or that names another object,
 /// or a plan whose owner still runs.
 fn read_the_records(input: &TheRecordsProof<'_>) -> Result<RecordedBinding, CancelRefusal> {
     if let Some(reason) = slot_name_refusal(input.slot) {
@@ -306,7 +307,8 @@ fn read_the_request(input: &TheRecordsProof<'_>, recorded: &RecordedBinding, has
 ///
 /// # Errors
 /// The identity that differs,
-/// or the clone that is gone, renamed or unreadable.
+/// or the clone that is gone,
+/// renamed or unreadable.
 fn live_identity(input: &TheRecordsProof<'_>, recorded: &RecordedBinding) -> Result<monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity, CancelRefusal> {
     let identity = input.reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| return the_clone_absence_arm(input, recorded, &reason))?;
     let live_clone_guid: DatasetGuid = dataset_guid_of(identity.stats.dds_guid).map_err(|said| {

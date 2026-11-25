@@ -7,7 +7,7 @@
 //!  A live command on the slot must refuse the cancel command with its process and claim file,
 //!  and a dead owner's claim must be replaced by the next generation with nothing cleaned by hand
 //!  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-//!  "The proof: which slot, which clone, which claim").
+//!  its "The proof" section).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

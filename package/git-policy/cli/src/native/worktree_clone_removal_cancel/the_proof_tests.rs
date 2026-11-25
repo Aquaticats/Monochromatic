@@ -10,7 +10,7 @@
 //!  The command may not reverse a removal it cannot prove,
 //!  and a person who typed another slot's name must not be told a removal was reversed
 //!  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-//!  "The proof: which slot, which clone, which claim").
+//!  its "The proof" section).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

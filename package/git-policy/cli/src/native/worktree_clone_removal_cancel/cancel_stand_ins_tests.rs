@@ -25,6 +25,7 @@ use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation, intent_text};
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
@@ -32,7 +33,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{CLONE, CLON
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_removal_cancel::the_removal_claim::{ClaimHeld, TheRemovalClaim};
-use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, TheMountRequest};
+use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity, TheMountRequest};
 use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
 use std::cell::RefCell;
@@ -133,7 +134,8 @@ pub fn a_repository_with_its_pointer(name: &str) -> (RemovalFixture, PathBuf) {
 /// Why:
 ///  The reader judges exactly this shape,
 ///  and a bare value would be a reply the kernel never sends;
-///  the source is the dataset's own name, which is what a local value's source is.
+///  the source is the dataset's own name,
+///  which is what a local value's source is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,6 +156,29 @@ pub fn a_pool_carrying(fixture: &RemovalFixture, operation: MountOperation) -> S
     return fixture
         .healthy_pool()
         .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT), properties: an_intent_property(&intent) });
+}
+
+/// What:
+///  One handler answer about this fixture's clone,
+///  put back at the slot it was given and observed under one mount number.
+/// Why:
+///  The answer's fields are what the request's verification reads,
+///  and every control wants the same answer with its own mount number and slot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = anWholeAnswer(slotPath, 11);
+/// ```
+pub fn an_whole_answer(slot_path: &Path, mount_id: u64) -> MountAnswer {
+    return MountAnswer {
+        dataset: guid(CLONE_GUID),
+        operation: MountOperation::Mount,
+        nonce: a_nonce(),
+        outcome: ReceiptOutcome::Done,
+        mount: Some(MountIdentity { mount_id, source: String::from(CLONE), canonical_path: slot_path.display().to_string() }),
+        failed_step: None,
+        errno: None,
+    };
 }
 
 /// What:
