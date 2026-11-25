@@ -24,8 +24,9 @@
  suite.
  */
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
 import {
+  basename,
   join,
   resolve,
 } from 'node:path';
@@ -42,6 +43,10 @@ const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
 const ARM_TIMEOUT_MS = 900_000;
 /** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
+/** How often the host asks the guest whether a detached script has finished, in milliseconds. */
+const POLL_INTERVAL_MS = 15_000;
+/** The swap file the guest adds, in gibibytes, so one rustc at five gigabytes does not exhaust its memory. */
+const SWAP_GIB = '6G';
 /** The environment variable the adoption arm reads, so it never writes `/var/lib` on a machine somebody uses. */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_ADOPTION_GUEST';
 /** The lines a run must find in the guest's arm log, one per arm it performed. */
@@ -168,6 +173,9 @@ const EXPECTED_UNMOUNT_MARKERS = [
 /** The checkout the sweep arms walk inside the guest, under the guest's own root. */
 const SWEEP_CHECKOUT = '/root/sweep-checkout';
 
+/** The second checkout the stale sub-case mounts its own layout at, which a run that stopped inside it leaves standing. */
+const SWEEP_STALE_CHECKOUT = '/root/sweep-stale-checkout';
+
 /** The pool the sweep arms create their clone parents in, which the driver prepared for the store's arms. */
 const SWEEP_POOL = 'git-policy-cli-store';
 
@@ -292,6 +300,84 @@ function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; re
 }
 
 /**
+ Start one long guest script detached, so it cannot lose its answer, and leave its log in the shared folder.
+
+ The guest's crate build and its arms run for minutes, and the guest agent has lost the status of a long `exec`
+ (`keep/report-pi-build-the-root-modes-into-the-one-wrapper-executable.md`). The script therefore runs under
+ `setsid nohup` from a file, writes its log where the host can read it, and ends by appending `DONE=<status>` to that
+ log, which is the shape the removal-lineage driver uses (`removal-lineage-proof-guest.ts`, `guestStart`).
+
+ @param chosen - the run's options
+
+ @param script - the shell script to run inside the guest
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the script may take inside the guest
+
+ @throws Error when the guest cannot be asked to start it, or answers for another guest
+ */
+function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): void {
+  const seconds = Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS;
+  // The step and the launcher are files, not one command line: `mvm exec` hands its argument to one shell, and a
+  // detached job written inline nested that shell inside another and the ampersand ended up inside the inner quoting,
+  // so the host waited for the whole script instead of its start.
+  const step = join(chosen.logDir, `${log}.step.sh`);
+  writeFileSync(step, [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`, ''].join('\n'), { mode: 0o600, });
+  const launch = join(chosen.logDir, `${log}.launch.sh`);
+  writeFileSync(launch, [`test "$(hostname)" = ${chosen.name} || exit 1`, `setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`, 'exit 0', ''].join('\n'), { mode: 0o600, });
+  // `mvm push` lands each file in the guest's shared folder under the destination's own name, which is where the
+  // launcher looks for the step.
+  for (const from of [step, launch,]) {
+    host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, from, `/shared/${basename(from)}`,], log: `guest-push-${log}.log`, });
+  }
+  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'sh', `/mnt/shared/${log}.launch.sh`,], {
+    stdio: 'ignore',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  if ((result.error !== undefined) || (result.status !== 0))
+    throw result.error ?? new Error(`mvm exec exited ${String(result.status)} starting ${log}; the guest is not ${chosen.name}`);
+}
+
+/**
+ Wait for one detached script's own `DONE=` line, pull its log, and refuse a status other than zero.
+
+ @param chosen - the run's options
+
+ @param log - the log's name inside the shared folder
+
+ @param timeout - milliseconds the host waits before giving up
+
+ @returns the pulled log
+
+ @throws Error naming the status the script ended with, or the wait that ended
+ */
+function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; readonly log: string; readonly timeout: number; }): string {
+  const path = `/mnt/shared/${log}`;
+  const deadline = Date.now() + timeout;
+  let finished = false;
+  while (Date.now() < deadline) {
+    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'tail', '--lines=1', path,], {
+      encoding: 'utf8',
+      timeout: HOST_COMMAND_TIMEOUT_MS,
+    });
+    if ((answer.stdout ?? '').trim().startsWith('DONE=')) {
+      finished = true;
+      break;
+    }
+    spawnSync('sleep', [String(POLL_INTERVAL_MS / 1000),], { timeout: POLL_INTERVAL_MS * 2, });
+  }
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, path, join(chosen.logDir, log),], log: `host-pull-${log}`, });
+  const pulled = readFileSync(join(chosen.logDir, log), 'utf8');
+  if (!finished)
+    throw new Error(`${log}: the guest script did not finish inside ${String(timeout)} ms; see ${log}`);
+  const status = /^DONE=(?<status>\d+)$/m.exec(pulled)?.groups?.status;
+  if (status !== '0')
+    throw new Error(`${log}: the guest script ended ${status ?? 'without a status'}; see ${log}`);
+  return pulled;
+}
+
+/**
  Run one step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
 
  @param chosen - the run's options
@@ -339,14 +425,17 @@ async function run(chosen: Options): Promise<void> {
     'export PATH=/root/.cargo/bin:$PATH',
     // The guest is a four-vCPU image, and this crate's release test build at Cargo's default parallelism fills it:
     // measured on 2026-11-25 (issue 6458), two jobs peaked the guest agent's own unit at 7.45 GiB of the guest's
-    // 7.75 GiB, and one run ended with the kernel killing a rustc at 5.15 GiB inside that unit. Two jobs keep the
-    // build inside the guest and are the same build either way; a kill now shows as a failing build with its own
-    // error, because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
+    // 7.75 GiB, and one run ended with the kernel killing a rustc at 5.15 GiB inside that unit. One job with a swap
+    // file keeps the build inside the guest (fd5e81e1ab; this driver's whole run on 2026-11-25 built in 18 minutes
+    // that way), and the build is the same one either way. A kill would show as a failing build with its own error,
+    // because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
     // (doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md).
-    'CARGO_BUILD_JOBS=2 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
-  guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  guestStart({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
   storeDataset({ chosen, });
   const arm = [
     'set -eu',
@@ -364,7 +453,8 @@ async function run(chosen: Options): Promise<void> {
     }),
     'cp /root/adoption-arm.log /mnt/shared/adoption-arm.log',
   ].join('\n');
-  guest({ chosen, script: arm, log: 'guest-adoption.log', timeout: ARM_TIMEOUT_MS, });
+  guestStart({ chosen, script: arm, log: 'guest-adoption.log', timeout: ARM_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'guest-adoption.log', timeout: ARM_TIMEOUT_MS + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/adoption-arm.log', join(chosen.logDir, 'adoption-arm.log')], log: 'host-pull-adoption.log', });
   const pulled = readFileSync(join(chosen.logDir, 'adoption-arm.log'), 'utf8');
   for (const marker of EXPECTED_MARKERS) {
@@ -418,7 +508,8 @@ function holderScanArms({ chosen, }: { readonly chosen: Options; }): void {
     }),
     'cp /root/holder-scan-arm.log /mnt/shared/holder-scan-arm.log',
   ].join('\n');
-  guest({ chosen, script, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS * 3, });
+  guestStart({ chosen, script, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS * 3, });
+  guestFinish({ chosen, log: 'guest-holder-scan.log', timeout: (ARM_TIMEOUT_MS * 3) + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/holder-scan-arm.log', join(chosen.logDir, 'holder-scan-arm.log'),], log: 'host-pull-holder-scan.log', });
   const pulled = readFileSync(join(chosen.logDir, 'holder-scan-arm.log'), 'utf8');
   for (const marker of EXPECTED_SCAN_MARKERS) {
@@ -481,7 +572,8 @@ function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
     'pool_disk=$(lsblk --noheadings --output PKNAME --paths "$pool_device")',
     `python3 -I /mnt/shared/probe-reaches-storage.py ${FSYNC_ROUND_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$(basename "$pool_disk")" > /mnt/shared/store-fsync.log 2>&1`,
   ].join('\n');
-  guest({ chosen, script, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS, });
+  guestStart({ chosen, script, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS, });
+  guestFinish({ chosen, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/store-fsync.log', join(chosen.logDir, 'store-fsync.log'),], log: 'host-pull-store-fsync.log', });
   const pulled = readFileSync(join(chosen.logDir, 'store-fsync.log'), 'utf8');
   for (const marker of EXPECTED_FSYNC_MARKERS) {
@@ -512,16 +604,25 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `for slot in ${SWEEP_CHECKOUT}/.claude/worktrees/*; do umount --force "$slot" 2>/dev/null || true; done`,
     'for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ' + SWEEP_CHECKOUT + ' || true); do umount "$target" 2>/dev/null || true; done',
     `umount --force ${SWEEP_CHECKOUT} 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
+    // The stale sub-case's own checkout carries the design's leaf name too, and a run that stopped inside it leaves its
+    // thousand slot mounts standing. A legacy dataset whose clone a mount holds cannot be destroyed, so those mounts go
+    // before the datasets, or the `zfs create` below meets a dataset that is still there.
+    `for slot in ${SWEEP_STALE_CHECKOUT}/.claude/worktrees/*; do umount --force "$slot" 2>/dev/null || true; done`,
+    `umount --force ${SWEEP_STALE_CHECKOUT} 2>/dev/null || true`,
+    // The guest's OpenZFS 2.4.4 refuses `zfs destroy --recursive --force` with `invalid option '-'` (measured
+    // 2026-11-25: `destroy` takes only `-f -n -p -R -r -v`), so every line below spelled its options long and never
+    // destroyed anything, its refusal going to `/dev/null`. The short flags are the only form this tool has, and the
+    // refusal now stays in the log rather than being discarded.
+    `zfs destroy -r -f ${SWEEP_POOL}/step8 || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-bound || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-encrypted || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-foreign || true`,
     // The stale arm's own checkout carries the design's leaf name too, and the no-configuration shapes that run before
     // it need one instance of that name, so its layout goes before the arm and not only after it.
-    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-stale 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-stale || true`,
     // The stoppage arm's container and the probe fixture this arm creates live in the same pool.
-    `zfs destroy --recursive --force ${SWEEP_POOL}/account-clones 2>/dev/null || true`,
-    `zfs destroy --recursive --force ${SWEEP_POOL}/nosnap 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/account-clones || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/nosnap || true`,
     // Another driver's checkout dataset carries the same leaf name and would be a second instance for the arm's
     // no-configuration shapes; it is taken down for the length of the arm and mounted again afterwards.
     'others=$(findmnt --list --noheadings --output SOURCE --type zfs | grep --fixed-strings monochromatic-git-checkout | grep --invert-match "git-policy-cli-store/step8" | sort --unique || true)',
@@ -553,7 +654,8 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
     `for layout in step8 step8-stale step8-encrypted step8-foreign step8-bound account-clones nosnap; do zfs destroy -r -f ${SWEEP_POOL}/$layout 2>/dev/null || true; done`,
   ].join('\n');
-  guest({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });
+  guestStart({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });
+  guestFinish({ chosen, log: 'guest-sweep.log', timeout: (ARM_TIMEOUT_MS * 2) + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/sweep-arm.log', join(chosen.logDir, 'sweep-arm.log'),], log: 'host-pull-sweep.log', });
   const pulled = readFileSync(join(chosen.logDir, 'sweep-arm.log'), 'utf8');
   for (const marker of EXPECTED_SWEEP_MARKERS) {
@@ -789,7 +891,8 @@ function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
     }),
     'cp /root/unmount-arm.log /mnt/shared/unmount-arm.log',
   ].join('\n');
-  guest({ chosen, script, log: 'guest-unmount.log', timeout: ARM_TIMEOUT_MS * 2, });
+  guestStart({ chosen, script, log: 'guest-unmount.log', timeout: ARM_TIMEOUT_MS * 2, });
+  guestFinish({ chosen, log: 'guest-unmount.log', timeout: (ARM_TIMEOUT_MS * 2) + 120_000, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/unmount-arm.log', join(chosen.logDir, 'unmount-arm.log'),], log: 'host-pull-unmount.log', });
   const pulled = readFileSync(join(chosen.logDir, 'unmount-arm.log'), 'utf8');
   for (const marker of EXPECTED_UNMOUNT_MARKERS) {

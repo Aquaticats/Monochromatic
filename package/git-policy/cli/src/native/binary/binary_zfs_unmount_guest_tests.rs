@@ -21,7 +21,7 @@
 
 use super::zfs_sweep_guest::{
     CONFIGURATION, DESIRED_STATE, NONCE, PROBE_RECORD_DIRECTORY, Run, STORE, clone_the_checkouts_snapshot, command_ok, line_about, make_the_designs_layout, make_the_slot,
-    mount_request, prepare_the_store, required, sweep, write_configuration, write_passing_probe_record, zfs, zfs_ignored, zfs_ok,
+    mount_request, prepare_the_store, printed_line_about, required, sweep, write_configuration, write_passing_probe_record, zfs, zfs_ignored, zfs_ok,
 };
 use git_policy_cli::worktree_clone_mount_protocol::DatasetGuid;
 use git_policy_cli::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
@@ -126,7 +126,7 @@ fn row_at(folder: &Path) -> Option<String> {
 /// Whether any line begins with `prefix` and names `dataset`,
 /// which a concurrent handler's later line about the same clone does not hide.
 fn any_line(said: &str, prefix: &str, dataset: &str) -> bool {
-    return said.lines().any(|line| return line.starts_with(prefix) && line.contains(dataset));
+    return said.lines().any(|line| return line.starts_with(prefix) && printed_line_about(line, dataset));
 }
 
 /// Start a holder whose working directory is inside `folder`,
