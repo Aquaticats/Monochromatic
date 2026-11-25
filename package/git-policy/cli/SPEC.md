@@ -4939,15 +4939,18 @@ and every step reads the state a kill at the step before it leaves:
   `doctor` and the removal share one order
   (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
   "How doctor and removal tell the states apart").
-  The states are the wrapper's verified lock or its cut-short twin,
-  the wrapper's at another add's nonce,
-  a lock the record cannot recompose,
+  The states are the wrapper's verified lock,
+  its cut-short twin,
+  words its add did not write
+  (a lock at another add's nonce reads this way too,
+  because the two registrations' sentences differ),
   no lock,
   no pointer,
   no registration,
   a registration no record of the slot explains,
   a half-made registration,
   and another worktree's registration.
+  The missing pointer is carried beside the lock's own state rather than instead of it.
   What is proved is a byte comparison and never the words' meaning:
   the sentence is recomposed from the record's `nonce=`,
   the file's bytes on disk are compared with it,
