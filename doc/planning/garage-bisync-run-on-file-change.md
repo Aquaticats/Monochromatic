@@ -83,18 +83,26 @@ two things need measuring on a disposable Garage before the design settles:
   and whether that chain ends;
 - whether two quick saves of one file produce new `.conflictN` copies.
 
-## Adopted unless the owner vetoes
+## Owner answers, round 1 (2026-11-25T17:15:31-05:00)
 
-- A change starts the existing `rclone-bisync-garage.service`,
-  never a second rclone command:
-  the same flags,
-  the same failure alert,
-  and systemd never runs two copies of one unit at once.
-- The hourly timer stays as the safety net for missed events.
+- Machines:
+  every client should eventually start a sync on change,
+  but only this CachyOS PC is in scope for this session.
+  The other clients (macOS, Windows) are later work,
+  so the design prefers parts that also run there.
+- Folders:
+  all of `~/Plain`,
+  every folder and every folder created later.
+- Remote edits:
+  the timer polls every 5 minutes instead of hourly,
+  because Garage cannot push change notices.
+- Trigger:
+  a change starts the existing `rclone-bisync-garage.service`,
+  never a second rclone command,
+  keeping one set of flags,
+  the failure alert,
+  and systemd's one-run-at-a-time guarantee for a unit.
 
-## Open questions, round 1
+## Open questions, round 2
 
-- Which machines start a sync on change.
-- Which folders count as relevant.
-- How quickly edits made on other devices must reach this PC,
-  given that only polling can find them.
+- Which watcher watches `~/Plain` recursively and starts the unit.
