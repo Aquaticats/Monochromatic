@@ -251,7 +251,8 @@ fn a_record_replaced_by_a_named_pipe_as_it_is_read_is_left_alone() {
 /// Why:
 ///   A read with no size bound lets the file at a record's name decide how much memory the add reads,
 ///   and a record is one JSON object whose paths a kernel bounds;
-///   a file past `LONGEST_RECORD` is therefore no record, and a record this release cannot read is left alone.
+///   a file past `LONGEST_RECORD` is therefore no record,
+///   and a record this release cannot read is left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

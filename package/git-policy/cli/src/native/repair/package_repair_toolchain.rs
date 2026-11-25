@@ -58,8 +58,10 @@ const LONGEST_LOCK: u64 = SMALL_FILE_LIMIT;
 
 /// The bytes of a launcher record this release reads,
 /// past which the file at that name is no record it can read.
-///  A record is one JSON object holding a tool's name, its scope and two paths,
-/// and every path the kernel accepts is at most 4,096 bytes (`getconf PATH_MAX /`, measured 2026-11-25),
+///  A record is one JSON object holding a tool's name,
+/// its scope and two paths,
+/// and every path the kernel accepts is at most 4,096 bytes (`getconf PATH_MAX /`,
+/// measured 2026-11-25),
 /// so a record this release writes stays some hundred bytes
 /// and the longest one a kernel can hand a writer stays under ten kilobytes.
 ///  The bound is `SMALL_FILE_LIMIT`,
@@ -615,7 +617,7 @@ thread_local! {
     pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
     /// Whether this thread's removal stops once a record is aside, which no release build can do.
     pub(crate) static KILLED_AFTER_THE_RECORD_IS_ASIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// The replacement a control stands in the window between a record's name being looked at and its open with,
+    /// The replacement a control makes in the window between a record's name being looked at and its open,
     /// which no release build has.
     pub(crate) static WHEN_THE_RECORD_IS_OPENED: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
 }
@@ -684,7 +686,8 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Run the replacement a control queued, once,
+///  Run the replacement a control queued,
+///  once,
 ///  at the one instruction before this release opens a launcher record.
 /// Why:
 ///   A record is a file another command may replace at any moment,
