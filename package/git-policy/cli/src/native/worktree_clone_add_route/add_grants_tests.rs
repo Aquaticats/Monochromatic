@@ -100,6 +100,26 @@ fn every_permission_only_a_removal_uses_warns_and_the_add_goes_on() {
     }
 }
 
+/// Every missing permission of the removal's group prints its own `zfs allow`
+/// in the one line,
+/// so a machine missing all three reads three commands and runs them once.
+#[test]
+fn the_whole_removal_group_missing_prints_one_line_with_every_command() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    for (place, permission) in A_REMOVALS_GROUP {
+        let (dataset, inheritance): (&str, Inheritance) = place_of(place);
+        facts.grants.retain(|allowed| return !(allowed.permission == permission && allowed.carried_by == dataset && allowed.inheritance == inheritance));
+    }
+    let warnings: Vec<String> = refuse_unless_the_decided_ones(&facts).expect("no add step uses a removal's permission");
+    assert_eq!(warnings.len(), 1, "one line for the whole group: {warnings:?}");
+    let line: &str = warnings[0].as_str();
+    for (place, permission) in A_REMOVALS_GROUP {
+        let (dataset, _inheritance): (&str, Inheritance) = place_of(place);
+        assert!(line.contains(&format!("zfs allow -d -u {ACCOUNT} {permission} {dataset}")), "`{permission}` on `{dataset}` earns its command: {line}");
+    }
+    assert_eq!(line.matches("zfs allow").count(), A_REMOVALS_GROUP.len(), "each command prints once: {line}");
+}
+
 /// The two tables name every decided permission once,
 /// so a permission neither table names is a table that drifted rather than a
 /// permission that moved.
