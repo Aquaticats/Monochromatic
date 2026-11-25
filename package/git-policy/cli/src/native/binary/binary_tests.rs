@@ -420,10 +420,13 @@ mod commit_form_refusal;
 #[path = "binary_version_cache_tests.rs"]
 mod version_cache;
 
-/// Finding `strace`,
+/// `strace`,
 /// which the budget,
-/// fault and child-bound controls run a wrapped command under.
-#[path = "binary_strace_support.rs"]
+/// fault,
+/// child-bound and stop-lock controls run a wrapped command under,
+/// and what a control does in a run that has none;
+/// the one copy the library's unit tests share.
+#[path = "../testing/strace_the_controls_run_under.rs"]
 mod strace;
 
 /// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program,
