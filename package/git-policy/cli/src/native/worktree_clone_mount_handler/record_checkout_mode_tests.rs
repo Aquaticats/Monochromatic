@@ -223,6 +223,13 @@ fn a_caller_that_is_not_root_is_refused_first() {
     let mountpoint: PathBuf = fixture.checkout();
     let failure: RecordCheckoutFailure = record(&fixture, &pool, mountpoint.as_path(), &fixture.request(), false).expect_err("an account may not record the checkout");
     assert_eq!(failure, RecordCheckoutFailure::NotRoot { effective_user: 1_000 });
+    assert!(
+        failure
+            .message()
+            .starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        "the refusal opens with the words: {}",
+        failure.message()
+    );
     assert!(!fixture.record().exists(), "nothing was written");
 }
 
@@ -358,6 +365,39 @@ fn the_kernels_guid_replaces_the_record() {
     assert!(std::fs::read_to_string(fixture.record()).expect("the record is written").contains(&RESTORED_GUID.to_string()));
     let again: String = recorded(&fixture, RESTORED_GUID, CONTAINER, &fixture.request()).expect("every field agrees now");
     assert!(again.starts_with("already recorded:"));
+}
+
+/// The kernel's own GUID admits the GUID and nothing else:
+/// a container that also differs is refused,
+/// and the record keeps the container it holds.
+///
+/// The two differences are one run's,
+/// because the GUID is the first field the comparison reaches and the
+/// replacement is the only admitted change:
+/// a run whose container differs is a different container,
+/// which no `--replace` token names.
+#[test]
+fn the_kernels_guid_does_not_replace_a_differing_container() {
+    let fixture: Fixture = Fixture::new("replace-two-fields");
+    recorded(&fixture, GUID, CONTAINER, &fixture.request()).expect("the first record");
+    let elsewhere: &str = "zpcachyos/nosnap/another-clone-container";
+    let failure: RecordCheckoutFailure =
+        recorded(&fixture, RESTORED_GUID, elsewhere, &fixture.replacing(RESTORED_GUID)).expect_err("a differing container is refused even with the kernel's GUID");
+    let RecordCheckoutFailure::RecordDiffers { recorded: held, kernel, field } = &failure else {
+        panic!("a differing container is refused as that field: {failure:?}");
+    };
+    assert_eq!(held, CONTAINER, "the refusal names the container the record holds");
+    assert_eq!(kernel, elsewhere, "the refusal names the container the configuration names");
+    assert!(matches!(field, super::DifferingField::Container { .. }), "{field:?}");
+    let said: String = failure.message();
+    assert!(
+        said.starts_with(&format!("{}: checkout-record-differs:", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        "every refusal opens with the words: {said}"
+    );
+    assert!(!said.contains("--replace"), "no flag admits a container, so the way forward names none: {said}");
+    let text: String = std::fs::read_to_string(fixture.record()).expect("the record stands");
+    assert!(text.contains(CONTAINER), "the recorded container was not rewritten: {text}");
+    assert!(text.contains(&GUID.to_string()), "the recorded GUID was not replaced: {text}");
 }
 
 /// `--replace` with no record stands refuses,

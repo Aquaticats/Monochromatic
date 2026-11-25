@@ -100,15 +100,41 @@ fn say(line: &str) {
 }
 
 /// What:
+///  One refusal as the process prints it:
+///  opening with the words every root mode is reached through, once.
+/// Why:
+///   `SPEC.md` states that the modes' refusals open with the words,
+///  and a mode's own sentence may name its cause first while another already
+///  opens with them;
+///  every mode's refusal passes through `report`,
+///  so this is the one place that adds them where they are missing and never
+///  twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const openingWithTheWords = (refusal) => refusal.startsWith(words + ': ') ? refusal : `${words}: ${refusal}`;
+/// ```
+fn opening_with_the_words(refusal: String) -> String {
+    let named: String = super::handler_install_paths::root_modes_name();
+    let opening: String = format!("{named}: ");
+    if refusal.starts_with(opening.as_str()) {
+        return refusal;
+    }
+    return format!("{opening}{refusal}");
+}
+
+/// What:
 ///  The status one mode's answer becomes,
 ///  writing its line first.
 /// Why:
 ///   The success line and the refusal line are both a person's answer,
-///  and only the success reaches zero.
+///  and only the success reaches zero;
+///  the refusal opens with the words every root-mode refusal opens with,
+///  whether the mode built that sentence itself or not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const report = (outcome) => { if (outcome.ok) { say(outcome.line); return 0 } say(outcome.refusal); return 2 };
+/// const report = (outcome) => { if (outcome.ok) { say(outcome.line); return 0 } say(openingWithTheWords(outcome.refusal)); return 2 };
 /// ```
 fn report(outcome: Result<String, String>) -> i32 {
     return match outcome {
@@ -117,7 +143,7 @@ fn report(outcome: Result<String, String>) -> i32 {
             EXIT_DONE
         }
         Err(refusal) => {
-            say(refusal.as_str());
+            say(opening_with_the_words(refusal).as_str());
             EXIT_REFUSED
         }
     };
@@ -143,8 +169,11 @@ fn behind_the_gate(
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(_) = verdict {
+        // The gate's own sentence names the compatibility check and nothing ties it to the modes, so every mode's gate
+        // refusal opens with the words a person or root's journal reads first.
+        let named: String = super::handler_install_paths::root_modes_name();
         return Err(format!(
-            "{line}\nno mode was entered and no raw request was made, so this invocation mounted nothing, unmounted nothing and recorded nothing"
+            "{named}: {line}\nno mode was entered and no raw request was made, so this invocation mounted nothing, unmounted nothing and recorded nothing"
         ));
     }
     return match outcome() {

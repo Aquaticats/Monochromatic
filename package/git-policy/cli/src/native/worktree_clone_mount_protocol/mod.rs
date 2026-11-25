@@ -16,7 +16,7 @@
 //!  "Decided defaults";
 //!  the build order is `doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 7).
-//!  Both executables read the same codecs,
+//!  Both the wrapper and the root modes read the same codecs,
 //!  so a value the handler writes is read by exactly the grammar the wrapper
 //!  wrote it as.
 //!  Nothing here mounts,

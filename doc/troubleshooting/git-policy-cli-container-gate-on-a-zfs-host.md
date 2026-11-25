@@ -128,6 +128,37 @@ process per test: `keep/red-before-the-two-controls.log`,
 `keep/green-after-the-nineteenth.log` and `keep/green-after-the-shadow-three.log` in
 `~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`.
 
+### The inner half's Git holds no capability (issue 6459)
+
+Recorded 2026-11-25T07:55:39-05:00 by the round `any-name-fixture-root-git-without-capabilities`,
+on branch `fix/git-policy-cli-any-name-fixture-root-git-without-capabilities`.
+Not approved and not final.
+
+A control re-executed into a namespace of its own is root there,
+and the kernel gives the root of a user namespace the whole bounding set in permitted and effective
+at every `exec` (`handle_privileged_root` in `security/commoncap.c`).
+A `git commit` that control runs in a fixture repository hardlinks a `0444` loose object,
+and with `fs.protected_hardlinks = 1` the hardlink check asks for `CAP_DAC_OVERRIDE`
+once the mode bits refuse the write (`may_linkat` and `safe_hardlink_source` in `fs/namei.c`).
+That Git held the capability, so AppArmor's `git` profile was asked, refused it and logged it,
+while the link itself succeeded on the owner check.
+That is why the audit log holds `git` `dac_override` denials in these controls' windows and none
+in the gate's;
+the cause and its records are in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+subsection
+`### The git dac_override records are the any-name fixture's Git (issue 6459)`.
+
+Since 2026-11-25 the inner half sets `SECURE_NOROOT` once it has mounted the tmpfs
+(`src/native/testing/fixture_root_taking_any_name.rs`),
+so each program it starts holds no capability of the namespace, as an ordinary account's does,
+and the inner half keeps its own for the fixtures it makes root's.
+The control that holds this is
+`testing::fixture_root_taking_any_name_of_unit_tests::tests::a_program_started_from_the_any_name_root_holds_no_capability`,
+which reads a child's own `/proc/self/status`:
+it is red before the bit and green after it.
+No control changes what it tests, and no mount leaves the namespace the control made.
+
 ### How the controls of this cause are found
 
 A grep for the name of a guard finds the controls that already have one, not the ones that need it.

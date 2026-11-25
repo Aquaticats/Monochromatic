@@ -51,7 +51,7 @@ pub mod json_record;
 pub mod jsonc_member_text;
 
 /// The keys the root-owned handler configuration holds,
-/// which both executables read.
+/// which the wrapper and the root modes both read.
 pub mod handler_configuration_keys;
 
 /// Reading a file only the account this program runs as may write.

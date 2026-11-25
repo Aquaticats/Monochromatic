@@ -279,7 +279,7 @@ The root modes are modes of this file,
  and refuses every other word before the mode grammar sees it.
 The setup of plan step 19 installs that file and the link,
  and no release installs them yet;
- nothing is ever linked as `git`.
+ nothing in that folder is linked as `git`.
 The default invocation,
  which is how the installed ZED event starts it,
  runs the clone-mount sweep;

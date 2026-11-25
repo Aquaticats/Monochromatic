@@ -141,6 +141,44 @@ fn the_two_flag_spellings_are_the_same_two_bits() {
 }
 
 /// What:
+///  The attributes a caller hands the attach are the ones the mount is made
+///  with, which is what lets `mount-path-descendant` mount a dataset with the
+///  pair its own properties resolve to.
+/// Why:
+///  The clone attach fixes `nosuid,nodev`, and a control that only ever passes
+///  that pair cannot tell the parameter from the fixed value: replacing one
+///  with the other would leave every other control green.
+///  `attach_with` names the filesystem type precisely so a control can drive
+///  the same four calls on a tmpfs,
+///  so this one attaches a tmpfs with `ro,noexec`, neither of which any
+///  attach passes, in a namespace of its own, and reads them back from the
+///  mount table the kernel keeps there.
+#[test]
+fn the_attributes_a_caller_hands_reach_fsmount() {
+    if !crate::testing::root_namespace_test_support::in_a_root_namespace(
+        "CLI_GIT_ATTACH_ATTRIBUTES_ROOT",
+        "worktree_clone_mount::attach_the_clone::tests::the_attributes_a_caller_hands_reach_fsmount",
+    ) {
+        return;
+    }
+    let attributes: u64 = libc::MOUNT_ATTR_RDONLY | libc::MOUNT_ATTR_NOEXEC;
+    assert_ne!(attributes, ATTACH_FSMOUNT_ATTRIBUTES, "the control's pair is not the clone's, so a build that ignores the parameter answers other options");
+    let root: std::path::PathBuf = crate::test_support::fixture("attach-attributes");
+    let target_path: std::path::PathBuf = root.join("target");
+    std::fs::create_dir_all(target_path.as_path()).expect("the target folder is made");
+    let target: std::fs::File = std::fs::File::open(target_path.as_path()).expect("the target opens");
+    let attached = attach_with("tmpfs", "monochromatic-attach-attributes-control", &target, attributes, &mount_id_of).expect("a tmpfs is attached with the caller's attributes");
+    assert_eq!(attached.source, "monochromatic-attach-attributes-control");
+    let table = parse_mount_table(std::fs::read("/proc/self/mountinfo").expect("this namespace's mount table reads").as_slice());
+    let canonical: std::path::PathBuf = std::fs::canonicalize(target_path.as_path()).expect("the target resolves");
+    let mounted = table.iter().find(|facts| return facts.mount_point == canonical).expect("the attach's mount stands at the target");
+    assert_eq!(mounted.mount_id, attached.mount_id, "the mount table row is the mount the attach made");
+    assert!(mounted.mount_options.iter().any(|option| return option == "ro"), "the caller's read-only attribute reached fsmount: {:?}", mounted.mount_options);
+    assert!(mounted.mount_options.iter().any(|option| return option == "noexec"), "the caller's noexec attribute reached fsmount: {:?}", mounted.mount_options);
+    unmount_through_descriptor(&target).expect("the control's own mount is taken down");
+}
+
+/// What:
 ///  A folder that is no mount is refused by the descriptor-bound unmount,
 ///  and the refusal names that call.
 /// Why:

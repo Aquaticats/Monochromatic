@@ -41,7 +41,7 @@ mod typed_ban_configuration_tests;
 #[path = "service_lock_inventory_tests.rs"]
 mod service_lock_inventory_tests;
 
-/// The crate declares only the two executables the release archive holds;
+/// The crate declares only the one executable the release archive holds;
 /// a `[[bin]]` the archive lacks breaks every cargo-binstall install.
 #[cfg(test)]
 #[path = "release_bins_tests.rs"]

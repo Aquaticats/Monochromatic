@@ -18,7 +18,7 @@
 //!  and `doc/decision/cli-git-zfs-start-probe.md`,
 //!  "Answer of 2026-11-22:
 //! the probe needs no configuration file").
-//!  Both programs need that answer and neither may read the other's folder,
+//!  The wrapper and the root modes both need that answer and neither may read the other's folder,
 //!  so it sits here,
 //! above both
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
