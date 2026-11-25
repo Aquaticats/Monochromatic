@@ -378,8 +378,12 @@ while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` s
 (merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
 that round also found `package/container-limit/core`'s ledger test failing on `main`:
 16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
-and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456,
-its round `pi-fix-container-start-sites-ledger` running since 2026-11-24T20:40-05:00);
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456);
+fixed and merged as `b7ab8cf80a` (issue 6456 closed): every file listed under its role,
+the gate runner `bin/native-gate-container.ts` now takes its container limits as its own argument,
+the ZFS package's gate image build carries the shared bound,
+and the ide marker was stale (the file hands the root file through `bin/run-bounded.ts`, probed);
+`.github/workflows/advisory-core.yml`'s fast unit subset now runs `//package/container-limit/core:test:unit` so the ledger cannot fall behind silently;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
