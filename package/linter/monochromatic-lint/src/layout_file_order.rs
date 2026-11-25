@@ -394,6 +394,7 @@ fn new_loop_file_uses(
     edges: &BTreeMap<(usize, usize), Proof>,
     listed: &[PathBuf],
     loops: &BTreeMap<usize, usize>,
+    reported_loops: &BTreeMap<usize, usize>,
     tolerated: &BTreeSet<usize>,
     list: &AllowList,
     base: &Path,
@@ -416,6 +417,12 @@ fn new_loop_file_uses(
             continue;
         }
         if !tolerated.contains(loop_of_from) {
+            continue;
+        }
+        // A loop the loop check reports already lists this use.
+        if let Some(reported) = reported_loops.get(from)
+            && reported_loops.get(to) == Some(reported)
+        {
             continue;
         }
         findings.push(LayoutFinding {
@@ -584,11 +591,14 @@ pub fn check_file_order(
                 list,
                 base,
             );
+            let reported_loops_of_files: BTreeMap<usize, usize> =
+                loop_of_each_file(listed.as_slice(), &reported);
             findings.extend(new_loop_file_uses(
                 folder,
                 &edges,
                 listed.as_slice(),
                 &loops_of_files,
+                &reported_loops_of_files,
                 &tolerated,
                 list,
                 base,

@@ -467,3 +467,31 @@ fn a_listed_key_that_names_no_finding_is_reported() {
         "{found:#?}"
     );
 }
+
+/// A new use that closes a loop of its own is reported once,
+///  by the loop finding,
+///  and never once per old use the new loop happens to join.
+#[cfg(unix)]
+#[test]
+fn a_new_mutual_use_inside_a_tolerated_loop_is_one_loop_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a/mod.rs", "use crate::b::X;\nuse crate::c::Y;\n"),
+        ("src/b/mod.rs", "use crate::a::X;\n"),
+        ("src/c/mod.rs", "use crate::a::Z;\n"),
+    ]);
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/c", "../../c");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/a", "../../a");
+    crate::layout_test_support::link(&fixture.path, "src/c/uses/a", "../../a");
+    let listed: &str = "uses src/a -> src/b\nuses src/b -> src/a\n";
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/a/mod.rs:2 These folders use each other in a loop"),
+        "{}",
+        found[0]
+    );
+    assert!(found[0].contains("src/a uses src/c"), "{}", found[0]);
+    assert!(found[0].contains("src/c uses src/a"), "{}", found[0]);
+}
