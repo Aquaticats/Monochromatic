@@ -67,20 +67,22 @@ fn worktree_subcommand(command: &ResolvedCommand) -> Option<&[u8]> {
 }
 
 /// What:
-///  Whether this prune would remove nothing anyway.
+///  Whether this prune removes nothing,
+///  by Git's own reading of its own options.
 /// Why:
 ///  A dry run must not write,
-///  so the pass that restores a pointer stays out of it.
+///  so the pass that restores a pointer stays out of it;
+///  Git accepts abbreviations of `--dry-run` and `--no-dry-run` and the short
+///  `-n`,
+///  and only its parser decides which of them stands last
+///  (`worktree_clone_prune_pointer::prune_removes_nothing`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const dry = pruneIsADryRun(['prune', '-nv']);
+/// const dry = pruneRemovesNothing(['prune', '-nv']);
 /// ```
-fn prune_is_a_dry_run(command: &ResolvedCommand) -> bool {
-    return command.region().iter().skip(1).any(|token| {
-        let bytes: &[u8] = token.as_encoded_bytes();
-        return bytes == b"--dry-run" || (bytes.starts_with(b"-") && !bytes.starts_with(b"--") && bytes.contains(&b'n'));
-    });
+fn prune_removes_nothing(command: &ResolvedCommand) -> bool {
+    return crate::worktree_clone_prune_pointer::a_prune_that_removes_nothing(command.region());
 }
 
 /// What:
@@ -129,7 +131,7 @@ pub fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>, cur
 /// ```
 pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stderr: &mut String) -> Option<Action> {
     let common: &Path = common_dir?;
-    if worktree_subcommand(command) != Some(b"prune") || prune_is_a_dry_run(command) {
+    if worktree_subcommand(command) != Some(b"prune") || prune_removes_nothing(command) {
         return None;
     }
     let guard: PruneGuard = guard_the_prune(common, &LiveMountedDatasets);

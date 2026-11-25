@@ -38,6 +38,9 @@
 //! - `prune_guard.rs`:
 //!   the pass over every bound slot before a prune,
 //!   its restores and the slots nothing restores.
+//! - `prune_removes_nothing.rs`:
+//!   whether Git's own parser reads one prune as a command that prunes
+//!   nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -57,6 +60,11 @@ pub mod link_facts;
 
 /// The pass over every bound slot before a prune.
 pub mod prune_guard;
+
+/// Whether Git's own parser reads one prune as a command that prunes nothing.
+pub mod prune_removes_nothing;
+
+pub use prune_removes_nothing::a_prune_that_removes_nothing;
 
 pub use link_facts::{LinkFacts, RecordedLink, link_facts_of, recorded_link_of, registration_names_the_slot, the_registration_stands};
 pub use pointer_restore::{POINTER_FILE_MODE, RestoreOutcome, restore_the_slot_pointer};
