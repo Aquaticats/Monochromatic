@@ -401,6 +401,26 @@ pub mod worktree_clone_origin_cleanup;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_origin_cleanup::*;
 
+/// The boot and shutdown units of the ZFS route, as the setup writes them:
+///  the gate that reconciles clone mounts after boot,
+///  its two drop-ins,
+///  the propagation service and the mount drop-in that starts it,
+///  one unit per dataset whose mountpoint lies inside the checkout,
+///  and the list of files a setup run writes.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// nothing writes or starts one of these files until that step's setup run
+/// and the owner's own act install them,
+/// and no command of this build reads them.
+/// It is Linux only,
+/// like the modes those lines run.
+#[cfg(target_os = "linux")]
+pub mod checkout_boot_units;
+
+/// The same re-export for `checkout_boot_units`.
+#[cfg(target_os = "linux")]
+pub use checkout_boot_units::*;
+
 /// The settling command a state a resume meets names and this release does not have yet:
 ///  its grammar and the two values a person confirms,
 ///  its six reads in the design's order,
