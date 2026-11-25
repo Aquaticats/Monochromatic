@@ -201,6 +201,9 @@ pub struct RemovalFixture {
     /// The binding record's lines,
     /// which a control edits before it writes them.
     pub binding_lines: Vec<String>,
+    /// The origin snapshot's full name,
+    /// which a control that needs a record's own name grammar changes.
+    pub origin_snapshot: String,
 }
 
 impl RemovalFixture {
@@ -254,10 +257,35 @@ impl RemovalFixture {
             format!("cloneCreatetxg={CLONE_CREATETXG}"),
             format!("pointer={}", bytes_as_hexadecimal(b"gitdir: /nowhere\n")),
         ];
-        let fixture: RemovalFixture = RemovalFixture { common_dir, slot_path, registration, binding_lines: lines };
+        let fixture: RemovalFixture = RemovalFixture { common_dir, slot_path, registration, binding_lines: lines, origin_snapshot: String::from(ORIGIN_SNAPSHOT) };
         fixture.write_the_binding();
         fixture.write_the_origin_inventory();
         return fixture;
+    }
+
+    /// What:
+    ///  The same fixture with another origin snapshot name,
+    ///  written into the binding and the origin-side inventory.
+    /// Why:
+    ///  The origin cleanup record is keyed by the snapshot's own name,
+    ///  which begins with the add's prefix and the add's nonce,
+    ///  and the step 14 fixture names its origin snapshot `origin`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const fixture = RemovalFixture.healthy('x').withOriginSnapshot(fullName);
+    /// ```
+    pub fn with_origin_snapshot(mut self, full: &str) -> RemovalFixture {
+        let prefix: String = String::from("originSnapshot=");
+        for line in &mut self.binding_lines {
+            if line.starts_with(prefix.as_str()) {
+                *line = format!("{prefix}{full}");
+            }
+        }
+        self.origin_snapshot = String::from(full);
+        self.write_the_binding();
+        self.write_the_origin_inventory();
+        return self;
     }
 
     /// Write the binding as its lines stand now.
@@ -288,7 +316,7 @@ impl RemovalFixture {
             pool_guid: guid(POOL_GUID),
             dataset: String::from(ORIGIN_DATASET),
             dataset_guid: guid(ORIGIN_DATASET_GUID),
-            bounds: String::from(ORIGIN_SNAPSHOT),
+            bounds: self.origin_snapshot.clone(),
             bounds_guid: guid(ORIGIN_SNAPSHOT_GUID),
             bounds_createtxg: ORIGIN_CREATETXG,
             entries: vec![InventoryEntry { kind: EntryKind::Snapshot, guid: guid(ORIGIN_SNAPSHOT_GUID), createtxg: ORIGIN_CREATETXG, name: String::from("origin") }],

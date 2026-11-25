@@ -74,6 +74,12 @@ const REFUSAL_CHECKOUT = '/root/removal-refusal-checkout';
 const POOL = 'zfsstep14';
 /** The folder step 14's pool image and fixture repository live under. */
 const FIXTURE_ROOT = '/home/zfs-step-14-fixture';
+/** The pool step 16's whole-removal arm builds and destroys, so no two arms share one. */
+const COMPLETION_POOL = 'zfsstep16completion';
+/** The folder step 16's pool image and fixture repository live under. */
+const COMPLETION_ROOT = '/home/zfs-step-16-completion-fixture';
+/** The environment step 16's whole-removal arm reads, so it never opens the host's device. */
+const COMPLETION_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_COMPLETION_GUEST';
 /** The pool step 15's destruction arm builds and destroys, so the two arms never share one. */
 const DESTRUCTION_POOL = 'zfsstep15destruction';
 /** The folder step 15's pool image and fixture repository live under. */
@@ -101,6 +107,11 @@ const EXPECTED_MARKERS = [
   'REMOVAL-ARMS bookmark-stale=refused',
   'REMOVAL-ARMS replacement=refused',
   'REMOVAL-ARMS done',
+  'COMPLETION mounted=refused',
+  'COMPLETION healthy=destroyed',
+  'COMPLETION blocked=origin',
+  'COMPLETION resume=finished',
+  'COMPLETION done',
   'DESTRUCTION healthy=destroyed',
   'DESTRUCTION look=refused',
   'DESTRUCTION first-check=refused',
@@ -355,6 +366,10 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_POOL=${DESTRUCTION_POOL}`,
     `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_REMOVAL_DESTRUCTION_ROOT=${DESTRUCTION_ROOT}`,
+    `export ${COMPLETION_GUEST_VARIABLE}=${chosen.name}`,
+    `export CLI_GIT_ZFS_REMOVAL_COMPLETION_POOL=${COMPLETION_POOL}`,
+    `export CLI_GIT_ZFS_REMOVAL_COMPLETION_PREFIX=${OPENZFS_PREFIX}`,
+    `export CLI_GIT_ZFS_REMOVAL_COMPLETION_ROOT=${COMPLETION_ROOT}`,
     `export ${REFUSAL_GUEST_VARIABLE}=${chosen.name}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${REFUSAL_POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
@@ -363,7 +378,7 @@ async function run(chosen: Options): Promise<void> {
     // A run that failed is the one whose log matters, so the log is copied to the shared folder before any assertion,
     // and the failure's own output is printed rather than the last forty lines of a passing run.
     'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
-      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms)" ' +
+      '--filterset "test(the_removal_lineage_guest_arms) | test(the_removal_destruction_guest_arms) | test(the_removal_completion_guest_arms)" ' +
       '> /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
     'cp /root/removal-lineage-arm.log /mnt/shared/removal-lineage-arm.log || true',
     'tail --lines=120 /root/removal-lineage-arm.log',
@@ -385,6 +400,9 @@ async function run(chosen: Options): Promise<void> {
     `rm --force ${FIXTURE_ROOT}/pool.img 2>/dev/null || true`,
     `zpool destroy -f ${DESTRUCTION_POOL} 2>/dev/null || true`,
     `rm --force ${DESTRUCTION_ROOT}/pool.img 2>/dev/null || true`,
+    `zpool destroy -f ${COMPLETION_POOL} 2>/dev/null || true`,
+    `rm --force ${COMPLETION_ROOT}/pool.img 2>/dev/null || true`,
+    `rmdir ${COMPLETION_ROOT} 2>/dev/null || true`,
   ].join('\n');
   guestStart({ chosen, script: arm, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'removal-lineage-arm-shell.log', timeout: ARM_TIMEOUT_MS + 120_000, });

@@ -383,6 +383,24 @@ pub mod worktree_clone_removal_proof_and_plan;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_proof_and_plan::*;
 
+/// The record that carries an origin snapshot's cleanup past the clone and the registration:
+/// its folder,
+/// its name grammar,
+/// its lines and states,
+/// its bound,
+/// the identity proof one attempt makes,
+/// and the look the worktree commands make at it.
+/// Built ahead of the plan's order:
+/// no command reaches it until that step wires it in.
+/// It is Linux only,
+/// like the pool reads and the folder modes it checks.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_origin_cleanup;
+
+/// The same re-export for `worktree_clone_origin_cleanup`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_origin_cleanup::*;
+
 /// What one worktree-clone slot is,
 ///  read without changing anything:
 ///  a known unmounted clone,

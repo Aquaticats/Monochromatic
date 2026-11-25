@@ -256,6 +256,92 @@ pub enum RemovalStop {
         /// What the read answered.
         reason: String,
     },
+    /// A live snapshot carries a recorded GUID in another creation transaction group,
+    /// so it is not the object this plan recorded.
+    ASnapshotIsNotTheRecordedOne {
+        /// The snapshot's recorded name.
+        snapshot: String,
+        /// The recorded GUID.
+        recorded_guid: String,
+        /// The recorded creation transaction group.
+        recorded_txg: u64,
+        /// The live one.
+        live_txg: u64,
+        /// The live snapshot's full name,
+        /// which differs from the recorded one when a snapshot was renamed.
+        live_name: String,
+    },
+    /// The recorded clone's name now holds another object.
+    TheCloneNameWasReused {
+        /// The recorded name.
+        name: String,
+        /// The recorded GUID.
+        recorded_guid: String,
+        /// The live one.
+        live_guid: String,
+    },
+    /// All-namespace holders the fresh scan named stand between the removal and its destroy.
+    HoldersSeeTheClone {
+        /// Each namespace and the mounts it holds,
+        /// in the scan's own words.
+        holders: Vec<String>,
+        /// How many reads the scan could not complete.
+        incomplete: usize,
+    },
+    /// This run's requests left snapshots the plan does not record as destroyed.
+    TheSnapshotsRemain {
+        /// Every name whose current state is not `destroyed`,
+        /// with that state.
+        names: Vec<String>,
+    },
+    /// The origin cleanup record could not be written,
+    /// so the removal refused before its first destroy.
+    TheOriginCleanupCouldNotBeRecorded {
+        /// The record's file.
+        path: PathBuf,
+        /// Why it could not be written,
+        /// in the record's own words.
+        said: String,
+    },
+    /// The clone is proved gone,
+    /// and its plan's head word says no destroy of this run's may have sent it,
+    /// so the settling command is the route.
+    TheCloneIsTheSettlingCommands {
+        /// The slot whose clone is gone.
+        slot: String,
+        /// The plan that stands.
+        path: PathBuf,
+        /// The plan's head word.
+        head: String,
+    },
+    /// A standing plan has no live unmount intent,
+    /// so nothing proves the unmount it claims.
+    NoLiveIntent {
+        /// The clone,
+        /// with what the property held instead.
+        clone: String,
+    },
+    /// A plan's head word contradicts the clone the pool answers.
+    ThePlanContradictsThePool {
+        /// The plan's head word.
+        head: String,
+        /// The clone that answered.
+        clone: String,
+    },
+    /// The registration settle refused.
+    TheSettleRefused {
+        /// The step that refused.
+        step: String,
+        /// What it answered.
+        said: String,
+    },
+    /// The removal's records could not be removed after a proved destruction.
+    TheRecordsCouldNotGo {
+        /// The file that refused.
+        path: PathBuf,
+        /// Why.
+        said: String,
+    },
     /// The unmount request was refused,
     /// retained a mount,
     /// or did not answer.
@@ -353,6 +439,42 @@ impl RemovalStop {
             ),
             RemovalStop::NoOwnerIdentity { reason } => format!(
                 "this process's own birth identity could not be read ({reason}), so a record it wrote could not name the removal that wrote it. Nothing was destroyed, and the registration stands. Ways forward: run the removal again; a machine whose process table cannot be read cannot tell a running removal from an abandoned one."
+            ),
+            RemovalStop::ASnapshotIsNotTheRecordedOne { snapshot, recorded_guid, recorded_txg, live_txg, live_name } => format!(
+                "the plan recorded the snapshot `{snapshot}` with GUID `{recorded_guid}` in creation transaction group {recorded_txg}, and the live object carrying that GUID is `{live_name}` in group {live_txg}, so it is not the object this removal planned. Nothing was destroyed for that name, and the plan keeps every line it had. Ways forward: compare the two identities with `zfs get -H -p -o value guid,createtxg <name>`; no wrapper command settles this, because an outcome is never replaced with a guess."
+            ),
+            RemovalStop::TheCloneNameWasReused { name, recorded_guid, live_guid } => format!(
+                "the name `{name}` now holds a dataset with GUID `{live_guid}` and the plan recorded `{recorded_guid}`, so the recorded clone's absence is unproved and nothing is settled. Ways forward: `git monochromatic-git-policy-cli settle-worktree-clone-record` is the command for a slot whose clone cannot be proved gone; no removal settles a reused name."
+            ),
+            RemovalStop::HoldersSeeTheClone { holders, incomplete } => format!(
+                "a fresh all-namespace scan still sees this clone held, in {} namespace(s):\n{}\n{incomplete} further read(s) could not be completed. Nothing was destroyed for those holders, the plan keeps every line it had, and the clone stays unmounted. Ways forward: release the holders, or run a forced removal once it is measured; a scan that sees no holder never proves there is none.",
+                holders.len(),
+                holders.join("\n")
+            ),
+            RemovalStop::TheSnapshotsRemain { names } => format!(
+                "this run left snapshots of the clone that the plan does not record as destroyed, so the head destroy was not sent. The clone stands and the plan keeps every line and its answers. The names and their states are:\n{}\nWays forward: run the removal again, which proves each name by its GUID before it submits anything, and release any hold or dependent clone the pool named.",
+                names.join("\n")
+            ),
+            RemovalStop::TheOriginCleanupCouldNotBeRecorded { path, said } => format!(
+                "the origin cleanup record at {} could not be written ({said}), so this removal refused before its first destroy. Nothing was destroyed and the clone stands unmounted with the plan and the intent kept. Ways forward: fix what refused the write and run the removal again; a removal that destroyed without this record would leave the checkout's origin snapshot with nothing that carries its cleanup.",
+                path.display()
+            ),
+            RemovalStop::TheCloneIsTheSettlingCommands { slot, path, head } => format!(
+                "the clone of the slot `{slot}` is proved gone, and the plan at {} says `head={head}`, so this run cannot have destroyed it. Nothing was changed. Ways forward: `git monochromatic-git-policy-cli settle-worktree-clone-record {slot} --confirm-removal-of {slot} --confirm-clone-guid <guid>` is the command for a clone destroyed outside its removal; a removal never settles a head it did not request.",
+                path.display()
+            ),
+            RemovalStop::NoLiveIntent { clone } => format!(
+                "a destruction plan stands for `{clone}`, and the clone's own `unmount` property names no request this run may go on from, so nothing proves the unmount the plan claims. Nothing was destroyed. Ways forward: run `git worktree add` at the slot again if the worktree must come back, or read the plan with `monochromatic-git-policy-cli doctor`; a removal never removes the property a person wrote."
+            ),
+            RemovalStop::ThePlanContradictsThePool { head, clone } => format!(
+                "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan with `monochromatic-git-policy-cli doctor` and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
+            ),
+            RemovalStop::TheSettleRefused { step, said } => format!(
+                "the clone is proved destroyed, and the settle stopped at `{step}` ({said}). The plan keeps the record of what was destroyed, and the origin cleanup record stands. Ways forward: read the plan with `monochromatic-git-policy-cli doctor`, fix what the step names, and run the removal again; it adopts the plan and finishes the settle without destroying anything twice."
+            ),
+            RemovalStop::TheRecordsCouldNotGo { path, said } => format!(
+                "the clone is proved destroyed and the settle finished, and the removal's own records could not go: {} ({said}). Nothing is destroyed again by a later run. Ways forward: remove what the message names once you have read it; the plan is the last witness and is removed only after the binding's files are proved gone.",
+                path.display()
             ),
             RemovalStop::UnmountFailed { step, said } => format!(
                 "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; with `--force` the wrapper ends the holders other than the caller and its session."
