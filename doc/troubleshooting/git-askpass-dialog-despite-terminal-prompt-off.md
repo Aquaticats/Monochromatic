@@ -977,14 +977,21 @@ and how such a text reaches a person is the project's next choice
 (`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`,
 `doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`).
 
-### The machine's own policy can refuse the program
+### The machine's own policy can refuse the program or the proxy's shell
 
 A host whose `ssh` profile denies starting `false` cannot show either ending:
-its transcript reads `ssh_askpass: exec(false): Permission denied`,
-and a `ProxyCommand` connection there fails with alpha.45's value too.
-This machine is such a host.
-The control below therefore says so and checks nothing on such a machine,
-and keeps the assertion that catches the regression on every machine where the ending can be shown.
+its transcript reads `ssh_askpass: exec(false): Permission denied`.
+One whose profile denies the shell OpenSSH runs a proxy with cannot either:
+its transcript reads `/bin/sh: Permission denied`,
+which this machine's container run showed for every `ProxyCommand` arm and both values.
+The control below therefore carries its own precondition:
+the same clone with `false` named by hand,
+through the real Git,
+which ends 0 and writes its clone on any machine where the arm can show an ending.
+Where that arm fails,
+the control prints the machine's words and checks nothing further,
+so a machine's policy is never read as this package's regression,
+and every machine that allows the arm keeps the assertion that catches one.
 
 ### Tests that hold it
 

@@ -713,22 +713,27 @@ fn relay_over_the_port(fixture: &Fixture, python: &Path, port: u16) -> PathBuf {
 }
 
 /// What:
-///  Run one Git command with a person's own ssh options and no terminal,
-///  and answer with its status and its standard error.
+///  Run one Git command with a person's own ssh options,
+/// `variables` added to the child's environment,
+/// and no terminal,
+/// and answer with its status and its standard error.
 /// Why:
 ///   The control below reads where OpenSSH could not start the program it runs instead of asking,
 ///  which is written to standard error,
 ///  and keeping the streams apart reads OpenSSH's own lines rather than two merged buffers.
+///  Its precondition arm names the two variables by hand,
+///  which is what `variables` is for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { code, stderr } = runGit(program, ['clone', url, directory], commandLine);
+/// const { code, stderr } = runGit(program, ['clone', url, directory], commandLine, { SSH_ASKPASS: 'false' });
 /// ```
-fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_line: &str) -> (Option<i32>, String) {
+fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_line: &str, variables: &[(&str, &str)]) -> (Option<i32>, String) {
     let mut command: Command = bounded_for(fixture, program, wrapper_first_path(fixture).as_os_str(), TERMINAL_BOUND_SECONDS);
     command
         .args(arguments)
         .env("GIT_SSH_COMMAND", ssh_command_line)
+        .envs(variables.iter().copied())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -756,9 +761,15 @@ fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_li
 ///  The two keys are both accepted,
 /// and the protected one is offered first,
 ///  so the question is asked and answered with nothing exactly as on the reported command.
-///  A machine whose `ssh` may not start that program at all cannot show either ending:
-///  its transcript says the value was refused,
-///  and the arm says so and checks nothing rather than failing for the machine's own policy.
+///  The arm carries its own precondition,
+/// because a machine whose `ssh` may not start the program it runs instead of asking a person,
+///  or may not start the shell a `ProxyCommand` needs,
+///  cannot show either ending:
+///  the same clone with `SSH_ASKPASS=false` named by hand,
+///  through the real Git,
+///  ends 0 and writes its clone exactly where that machine allows it,
+///  and where that arm fails the arm says which machine refused and checks nothing further
+///  rather than failing for the machine's own policy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -809,17 +820,37 @@ fn a_key_nobody_can_unlock_is_skipped_for_one_that_works_behind_a_proxy_command(
     let clone: PathBuf = fixture.root.join("clone");
     let clone_text: String = clone.to_string_lossy().into_owned();
 
-    let (code, stderr) = run_git(&fixture, fixture.root.join("bin/git").as_path(), &["clone", url.as_str(), clone_text.as_str()], command_line.as_str());
-    assert!(proxy_marker(&fixture).exists(), "the connection ran through the ProxyCommand: {stderr:?}");
-    // A machine whose own policy refuses to start the no-answer program cannot show either ending, and this arm says so
-    //  instead of failing for the machine: the gate and every other machine with no such profile reach the assertions below.
-    let refused: String = format!("ssh_askpass: exec({NO_ANSWER_PROGRAM}):");
-    if stderr.contains(refused.as_str()) {
-        eprintln!("not checked here: this machine's ssh may not start {NO_ANSWER_PROGRAM:?}, so neither ending can be shown: {stderr:?}");
+    // The precondition: the same connection with the value named by hand, through the real Git, which carries no rule.
+    //  Where even this fails, this machine cannot start the program or the proxy's shell, and the arm cannot tell the
+    //  endings apart.
+    let control_clone: PathBuf = fixture.root.join("control-clone");
+    let control_clone_text: String = control_clone.to_string_lossy().into_owned();
+    let control_variables: [(&str, &str); 2] = [("SSH_ASKPASS", NO_ANSWER_PROGRAM), ("SSH_ASKPASS_REQUIRE", "force")];
+    let (control_code, control_stderr) = run_git(
+        &fixture,
+        program("git").expect("git was found for the fixture").as_path(),
+        &["clone", url.as_str(), control_clone_text.as_str()],
+        command_line.as_str(),
+        &control_variables,
+    );
+    if control_code != Some(0) {
+        eprintln!(
+            "not checked here: this machine's ssh cannot run this arm, because the same clone with {NO_ANSWER_PROGRAM:?} named by hand ended {control_code:?}: {control_stderr:?}"
+        );
         drop(server);
         remove_settled(&fixture);
         return;
     }
+    assert!(proxy_marker(&fixture).exists(), "the connection ran through the ProxyCommand: {control_stderr:?}");
+
+    // The claim: the wrapper's own rule, on a connection that goes through the proxy.
+    let (code, stderr) = run_git(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        &["clone", url.as_str(), clone_text.as_str()],
+        command_line.as_str(),
+        &[],
+    );
     assert!(!stderr.contains(REFUSED_ASKPASS_LINE), "the program OpenSSH runs in place of asking a person started: {stderr:?}");
     assert!(!stderr.contains("Permission denied"), "the second key was accepted: {stderr:?}");
     assert_eq!(code, Some(0), "the connection through the proxy ended 0 with the key that works: {stderr:?}");
