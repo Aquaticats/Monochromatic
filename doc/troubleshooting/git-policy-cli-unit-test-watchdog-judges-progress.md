@@ -1495,7 +1495,7 @@ ignoring `SIGTERM`,
 until the coordinating session sent `SIGKILL`.
 Measured by the LFS round on `main` plus its own fix branch,
 which touches nothing under `process/`,
-in `/home/user/temp/agent/lfs-upload-tests-signal-their-own-test-binary-2026-11-25/keep/premerge-check-on-main.log`.
+in that round's `keep/premerge-check-on-main.log` under `${HOME}/temp/agent`.
 
 ### Root cause
 
@@ -1594,4 +1594,4 @@ The forced-removal fixture of issue 6471 uses it.
 - The cause of `/bin/sleep` outliving the parent-death signal is not established.
   The measurement above is what a later round starts from,
   and the probe sources are in
-  `/home/user/temp/agent/test-children-owned-and-signalled-only-by-their-starter-2026-11-25/scratch/pdeath`.
+  this round's `scratch/pdeath` folder under `${HOME}/temp/agent`.
