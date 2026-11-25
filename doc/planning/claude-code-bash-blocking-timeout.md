@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:04:31-05:00.
+State recorded 2026-11-25T17:08:16-05:00.
 
 ## Requirement as stated
 
@@ -21,7 +21,7 @@ The user then added:
 > Must not intervene with Claude Code native subagents.
 
 The settled execution-policy boundary is that the new timeout rewrite must not affect native subagents.
-Whether the constraint also removes the existing output-filter rewrite for subagents remains open.
+Their existing output-filter rewrite remains intact.
 
 ## Current behavior
 
@@ -70,64 +70,108 @@ is a different mechanism and is not evidence for this timeout design.
 
 ## Settled decisions
 
-### Agent execution policy
+The user answered the first frontier on 2026-11-25.
+The selected options were `Q1 B`,
+`Q2 A`,
+`Q3 A`,
+`Q4 B`,
+`Q5 A`,
+`Q6 B`,
+`Q7 A`,
+`Q8 A`,
+and `Q9 A`.
+Their combined behavior follows.
 
-Native subagent commands must not receive the new timeout policy.
-Main-agent commands remain the target.
+### Native subagent boundary
 
-### Threshold
+Native subagent commands must not receive execution-field rewrites from the new policy.
+Their `timeout` and `run_in_background` fields remain untouched.
+The existing output-filter rewrite continues to apply to them.
 
-The requested blocking threshold is one second,
-which is `1000` milliseconds in the Bash tool input.
+### Foreground timeout semantics
+
+An eligible main-agent command starts in the foreground.
+If it finishes within one second,
+it returns its normal synchronous result.
+If it remains running,
+Claude Code moves it to the background and returns the native task ID and output path.
+The timeout is not intended as a general execution-lifetime limit.
+
+### Explicit background calls
+
+A call already carrying `run_in_background: true` keeps that flag and its original `timeout`,
+whether present or absent.
+The hook never converts the field into a one-second background lifetime.
+Output filtering remains independent.
+
+### Caller-supplied foreground timeouts
+
+A foreground call with any caller-supplied `timeout` keeps that value,
+including values shorter or longer than one second.
+The hook supplies `1000` only when `timeout` is absent.
+This preserves explicit caller control rather than imposing a universal override.
+
+### Explicit foreground calls
+
+A call carrying `run_in_background: false` is eligible for the default timeout.
+If its `timeout` is absent,
+the hook supplies `1000`,
+and native auto-backgrounding can still move it when that timeout expires.
+A caller-supplied timeout still wins under the caller-timeout decision.
+
+### Sleep boundary
+
+The current bare numeric-sleep exemption remains exactly as implemented.
+A command such as `sleep 30` receives no new default timeout.
+A chained command such as `sleep 2 && make` is eligible when its timeout is absent.
+Unit suffixes,
+extra arguments,
+redirects,
+and chaining remain outside the bare numeric-sleep exemption.
+
+### Opt-out and threshold
+
+An environment-controlled off switch remains.
+When off,
+it leaves main-agent execution fields to native Claude Code while retaining output filtering.
+The enabled policy uses a fixed `1000` millisecond default,
+not a configurable duration.
+
+### Shell surface
+
+The change remains scoped to the existing Bash hook.
+PowerShell behavior does not change.
 
 ## Open frontier
 
-These questions are independent unless their descriptions say otherwise:
+The first-round answers unblock these independent questions:
 
-- `subagent-filter-boundary`:
-  does non-intervention cover only execution fields,
-  or must the whole hook pass native subagent calls through without output filtering?
-- `timeout-semantics`:
-  is the intended result foreground execution for up to one second followed by native auto-backgrounding,
-  rather than termination?
-- `explicit-background`:
-  do calls already requesting `run_in_background: true` keep their original timeout and mode?
-- `caller-timeout`:
-  does the hook overwrite caller-supplied foreground timeout values,
-  including shorter and longer values?
-- `explicit-foreground`:
-  does the policy apply even when the caller explicitly supplies `run_in_background: false`?
-- `sleep-policy`:
-  should sleeps retain an exemption,
-  or should they receive the same timeout even where native behavior terminates rather than backgrounds them?
-- `opt-out-existence`:
-  does the new policy retain an environment-controlled off switch?
-- `threshold-configurability`:
-  is one second fixed,
-  or merely the default for a configurable threshold?
-- `shell-surface`:
-  does the change remain scoped to the existing Bash hook,
-  or expand to PowerShell?
+- `legacy-opt-out`:
+  must the existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off` setting remain effective?
+- `opt-out-name`:
+  should that name remain primary,
+  or should a name describing blocking timeout replace it?
+- `background-unavailable`:
+  when native auto-backgrounding is disabled,
+  should the default timeout still apply even though the native result is termination?
+- `notice-channel`:
+  is Claude Code's native moved-to-background result sufficient,
+  or should the hook add its own notice?
 
-Questions about opt-out naming,
-migration of existing opt-outs,
-notification wording,
-verification cases,
-and behavior when native backgrounding is unavailable wait for the answers that determine their prerequisites.
+The exact sleep probes,
+opt-out precedence if a rename and legacy alias coexist,
+and final verification matrix depend on these answers.
 
 ## Current recommendations
 
 These are recommendations to grill,
 not accepted design:
 
-- Preserve explicit background calls unchanged because rewriting their timeout to one second
-  can become a one-second execution lifetime.
-- Apply the one-second timeout to every main-agent foreground call,
-  including caller-supplied foreground flags and timeout values,
-  if the universal policy is confirmed.
-- Keep the change on the existing Bash surface.
-- Keep one second fixed unless the user wants a new configuration dimension.
-- Decide the sleep and opt-out branches explicitly rather than inheriting them silently.
+- Preserve existing opt-outs and use an accurately named primary variable.
+- Avoid applying a foreground timeout when background tasks are explicitly disabled,
+  because the design intends to bound blocking rather than terminate ordinary commands.
+- Use Claude Code's native auto-background result without a second notice,
+  since only native execution knows whether the threshold was crossed and which task ID was assigned.
 
 ## Rejected recommendations
 
