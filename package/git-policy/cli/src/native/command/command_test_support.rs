@@ -181,13 +181,10 @@ pub(crate) fn git_status(directory: &Path, arguments: &[&str]) -> Output {
 /// Run real Git with bytes on standard input,
 ///  as `git rev-parse --parseopt` needs.
 pub(crate) fn git_with_input(directory: &Path, arguments: &[OsString], input: &[u8]) -> Output {
-    let mut child: std::process::Child = git_command(directory)
-        .args(arguments)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("native Git fixture command");
+    let mut command: std::process::Command = git_command(directory);
+    command.args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    // Owned, so a control that fails while it writes the input leaves no Git waiting for it.
+    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
     child
         .stdin
         .take()
