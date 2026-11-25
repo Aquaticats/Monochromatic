@@ -2200,8 +2200,10 @@ Each commit service setup writes the worktree's Git directory into the folder it
 which the manager reads as no unit,
 and which goes away with the units at logout or shutdown;
 for a unit set up before that,
-the `gitdir=` line of a record in the service's journal names the worktree.
-Either text counts only when it hashes to the instance.
+the `gitdirHex=` line of a record in the service's journal names the worktree,
+and a journal that outlived both is mapped by a note of its claim watch,
+which names a Git directory only for the instance whose journal holds it.
+Every one of those texts counts only when it hashes to the instance.
 The command stops only an instance whose Git directory is missing and whose repository is proven gone:
 the nearest directory above the Git directory that exists proves it deleted when it is the root of a mounted filesystem or holds other entries,
 while an empty one may be a drive that is not mounted yet and proves nothing
