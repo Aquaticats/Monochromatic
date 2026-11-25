@@ -490,7 +490,7 @@ Every property this rests on was re-read this round
   the refusal prints both GUIDs, and A, D and E leave a repair a refusal names.
 - A12.
   The count of release lines holding a `//` inside a string is eight, not nine;
-  the ninth line is a real trailing comment.
+  the ninth release line the sixth round counted is a real trailing comment.
   The sentence now says so, and this revision's reader no longer needs the figure at all.
 - A13.
   The mount-relevant property list was called fifteen and the log held fourteen.
@@ -4695,7 +4695,7 @@ so they land with the release lists:
   `COMMAND_WORD.current`,
   and `ZEDLET_INSTALL_PATH`'s file name read as text);
 - `src/native/source_guard/lint_attribute_tests.rs` (new):
-  the nine pinned lint-level anchors and the test that holds the release tree to them;
+  the thirty-five pinned lint-level anchors and the test that holds the release tree to them;
 - `src/native/source_guard/typed_ban_configuration_tests.rs` (new):
   the pinned Clippy level table and the nine disallowed call paths;
 - `src/native/source_guard/no_self_invocation_rules_tests.rs`:
