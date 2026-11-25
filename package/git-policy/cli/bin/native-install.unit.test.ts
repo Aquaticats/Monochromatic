@@ -455,9 +455,8 @@ await describe({
         });
         expect(printed.status,).toBe(1,);
         expect(printed.stderr,).toContain(rootModesFirstRelease,);
-        expect(printed.stderr,).toContain(`${releaseBeforeTheRootModes} is older than`,);
-        expect(printed.stderr,).toContain('nothing was committed',);
-        expect(printed.stderr,).not.toContain('does not answer the root modes the release asked for',);
+        expect(printed.stderr,).toContain('a release older than it answers nothing here whatever the archive holds',);
+        expect(printed.stderr,).toContain('nothing committed',);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
       },
     }),

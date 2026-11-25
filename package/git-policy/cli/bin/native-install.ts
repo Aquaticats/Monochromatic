@@ -50,13 +50,13 @@ import {
   lockFileName,
   newestTimingLine,
   readOrEmpty,
+  rootModesFirstRelease,
   stepNameOf,
   summaryLinesOf,
   timingReportLine,
   wrapperToolName,
   wrapperVersionLine,
 } from './native-install-steps.ts';
-
 /**
  Seconds one toolchain step is given when the caller names none.
 
@@ -460,7 +460,7 @@ async function main(): Promise<number> {
   })).stdout;
   printLine(modesReported.trimEnd());
   if (!modesReported.includes(rootModesVersionLine({ version, }))) {
-    throw new NativeGateError(`${gitProgram} ${rootModeWords.join(' ')} --version does not name ${version}, so this build does not answer the root modes the release asked for. What it printed: ${modesReported.trim() || '(nothing)'}. Check that the archive the lock names carries the root modes and that the wrapper on PATH is the release asked for (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}).`);
+    throw new NativeGateError(`${gitProgram} ${rootModeWords.join(' ')} --version does not name ${version}, so this build does not answer the root modes. What it printed: ${modesReported.trim() || '(nothing)'}. ${rootModesFirstRelease} was the first release that answers the words: a release older than it answers nothing here whatever the archive holds, so an install of one ends with the wrapper installed, the lock moved and nothing committed, and only ${rootModesFirstRelease} or later has the root modes. For a release at or after ${rootModesFirstRelease}, check that the archive the lock names carries the root modes and that the wrapper on PATH is the release asked for (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}).`);
   }
   /**
    The lockfile's text once the tools were installed.
