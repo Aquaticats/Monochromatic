@@ -1109,3 +1109,13 @@ mod zfs_slot_state_guest_fixture;
 /// removal, and the refusal beside Git's own answer.
 #[path = "binary_zfs_slot_state_guest_tests.rs"]
 mod zfs_slot_state_guest;
+
+/// Plan step 14's refusal arms through the built wrapper's `git worktree remove`:
+/// the healthy proof and its loss,
+/// a promotion's refusal with every protected object surviving,
+/// the reverse promotion's proof,
+/// the inherited history a promotion leaves,
+/// a stale bookmark refused by name,
+/// and a same-name replacement clone refused on its GUID.
+#[path = "binary_zfs_removal_refusal_guest_tests.rs"]
+mod zfs_removal_refusal_guest;

@@ -45,6 +45,14 @@ const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 
 /** The environment the arm reads, so it never opens the host's device. */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_LINEAGE_GUEST';
+/** The environment the refusal arm reads, which drives the built wrapper's `git worktree remove`. */
+const REFUSAL_GUEST_VARIABLE = 'CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST';
+/** The pool the refusal arm builds its own datasets in, beside the proof arm's pool. */
+const REFUSAL_POOL = 'removal-refusal';
+/** The folder the refusal arm's file-backed pool image lives in. */
+const REFUSAL_ROOT = '/home/removal-refusal-fixture';
+/** The checkout the refusal arm registers a real worktree in. */
+const REFUSAL_CHECKOUT = '/root/removal-refusal-checkout';
 /** The pool the arm builds and destroys. */
 const POOL = 'zfsstep14';
 /** The folder the pool's image and the fixture repository live under. */
@@ -64,6 +72,14 @@ const EXPECTED_MARKERS = [
   'REMOVAL grants=lineage-changing-absent',
   'REMOVAL replacement=refused',
   'REMOVAL done',
+  'REMOVAL-ARMS healthy=proved wrote=nothing',
+  'REMOVAL-ARMS promoted=refused',
+  'REMOVAL-ARMS inherited-history=refused',
+  'REMOVAL-ARMS reverse-promotion=proved',
+  'REMOVAL-ARMS bookmark-live=printed',
+  'REMOVAL-ARMS bookmark-stale=refused',
+  'REMOVAL-ARMS replacement=refused',
+  'REMOVAL-ARMS done',
 ] as const;
 
 /** The step, the guest name, the log directory and whether `all` keeps the guest. */
@@ -203,6 +219,13 @@ async function run(chosen: Options): Promise<void> {
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
+    // The refusal arm's own pool, made from a file so nothing of the guest's root disk is a vdev.
+    `mkdir --parents ${REFUSAL_ROOT}`,
+    `mkdir --parents ${REFUSAL_CHECKOUT}`,
+    `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${REFUSAL_POOL} > /dev/null 2>&1; then`,
+    `  truncate --size 1G ${REFUSAL_ROOT}/pool.img`,
+    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${REFUSAL_POOL} ${REFUSAL_ROOT}/pool.img`,
+    'fi',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     'cargo build --release --tests --locked > /root/removal-lineage-build.log 2>&1',
@@ -216,11 +239,20 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_POOL=${POOL}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_REMOVAL_LINEAGE_ROOT=${FIXTURE_ROOT}`,
+    `export ${REFUSAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${REFUSAL_POOL}`,
+    `export CLI_GIT_ZFS_SWEEP_SBIN=${OPENZFS_PREFIX}/sbin`,
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${REFUSAL_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level all ' +
       '--filterset "test(the_removal_lineage_guest_arms)" > /root/removal-lineage-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=40 /root/removal-lineage-arm.log',
+    // The refusal arms run through the built wrapper's own `git worktree remove`, in the same log.
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      '--filterset "test(zfs_removal_refusal_guest)" >> /root/removal-lineage-arm.log 2>&1; then refusal=0; else refusal=$?; fi',
+    'tail --lines=60 /root/removal-lineage-arm.log',
     'test "$status" = 0',
+    'test "$refusal" = 0',
     // A returning arm is not a passing arm, which the binding's own live recipe also holds.
     `if grep --quiet '^SKIPPED' /root/removal-lineage-arm.log; then echo 'the arm returned without running'; exit 1; fi`,
     ...EXPECTED_MARKERS.map(function markerLine(marker) {
