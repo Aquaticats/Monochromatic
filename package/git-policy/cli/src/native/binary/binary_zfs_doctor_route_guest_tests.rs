@@ -738,7 +738,7 @@ fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_pol
             slot_git: slot.join(".git"),
         },
         plan: RemovalPlanFacts { clone: clone.clone(), reading: PlanFileReading::NoPlan },
-        snapshots: CloneSnapshotFacts { clone: clone.clone(), clone_createtxg: identity(clone.as_str()).stats.dds_creation_txg, live: git_policy_cli::doctor_zfs_route::Reading::Read(inventory), recorded: Vec::new() },
+        snapshots: CloneSnapshotFacts { clone: clone.clone(), clone_createtxg: identity(clone.as_str()).stats.dds_creation_txg, live: git_policy_cli::doctor_zfs_route::Reading::Read(inventory), plan_stands: false, recorded: Vec::new() },
         origin: CloneOriginFacts { clone: clone.clone(), recorded: None, live: None },
         retention: CloneRetentionFacts { clone: clone.clone(), dataset: git_policy_cli::doctor_zfs_route::Reading::Read(accounting(clone.as_str())), snapshots: own, inherited: Vec::new(), origin_snapshot: None },
         blocked: BlockedRemovalFacts {

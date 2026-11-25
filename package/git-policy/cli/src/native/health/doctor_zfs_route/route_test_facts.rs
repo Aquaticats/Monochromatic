@@ -447,6 +447,7 @@ pub(crate) fn healthy_clone() -> CloneFacts {
             clone: String::from(CLONE_DATASET),
             clone_createtxg: 121_294,
             live: Reading::Read(LiveInventory { dataset: String::from(CLONE_DATASET), dataset_guid: DatasetGuid::parse("7").expect("the fixture GUID reads"), objects: Vec::new() }),
+            plan_stands: false,
             recorded: Vec::new(),
         },
         origin: CloneOriginFacts {

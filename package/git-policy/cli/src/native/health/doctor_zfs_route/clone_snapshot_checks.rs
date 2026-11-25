@@ -45,7 +45,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInvent
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CloneSnapshotFacts = { clone; cloneCreatetxg; live: Reading<LiveInventory>; recorded: RecordedSnapshot[] };
+/// type CloneSnapshotFacts = { clone; cloneCreatetxg; live: Reading<LiveInventory>; planStands: boolean; recorded: RecordedSnapshot[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CloneSnapshotFacts {
@@ -55,6 +55,13 @@ pub struct CloneSnapshotFacts {
     pub clone_createtxg: u64,
     /// What the pool answered for the clone's snapshots and bookmarks.
     pub live: Reading<LiveInventory>,
+    /// Whether a destruction plan stands for the clone.
+    /// Why:
+    ///  A plan records its first write's whole inventory,
+    ///  so a plan that stands and holds no line is a real state,
+    ///  and the difference between "no plan" and "a plan with no line" decides
+    ///  whether an own snapshot is late history or unexplained.
+    pub plan_stands: bool,
     /// Every name the plan holds a line for,
     /// and the outcome its history ends on.
     pub recorded: Vec<RecordedSnapshot>,
@@ -138,6 +145,7 @@ pub fn check_clone_snapshots(facts: &CloneSnapshotFacts) -> CheckOutcome {
     let own_objects: Vec<LiveObject> = inventory.snapshots().into_iter().filter(|object| return object.createtxg > facts.clone_createtxg).collect();
     let inherited: usize = inventory.snapshots().len() - own.len();
     let mut disagreements: Vec<String> = Vec::new();
+    let mut late: Vec<String> = Vec::new();
     for recorded in &facts.recorded {
         let live: Option<&LiveObject> = own_objects.iter().find(|object| return object.full_name() == recorded.name);
         match (live, recorded.outcome) {
@@ -160,20 +168,31 @@ pub fn check_clone_snapshots(facts: &CloneSnapshotFacts) -> CheckOutcome {
             (None, _) => disagreements.push(format!("the plan holds `{}` (GUID {}) as `{}` on attempt {}, and the pool lists no such snapshot of the clone", recorded.name, recorded.guid.file_name(), recorded.outcome.word(), recorded.attempt)),
         }
     }
-    for snapshot in &own {
-        if facts.recorded.iter().any(|recorded| return recorded.name == snapshot.name) {
-            continue;
+    if facts.plan_stands {
+        for snapshot in &own {
+            if facts.recorded.iter().any(|recorded| return recorded.name == snapshot.name) {
+                continue;
+            }
+            late.push(clause(snapshot));
         }
-        disagreements.push(format!("the clone holds `{}`, and no line of the plan names it", clause(snapshot)));
     }
     let history: String = describe_the_own(own.as_slice(), inherited);
+    let after: String = if late.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " {} snapshot(s) were made after the plan's first write and no line names them ({}); the removal's next amendment records each of them, so they are late history and not a disagreement.",
+            late.len(),
+            late.join("; ")
+        )
+    };
     if !disagreements.is_empty() {
         return finding("snapshots", format!("`{clone}`: {history}. {} of the plan's name(s) disagree with the pool: {}. A later attempt settles each name by a fresh read before anything is sent for it.", disagreements.len(), disagreements.join("; ")));
     }
-    if facts.recorded.is_empty() {
-        return pass(format!("`{clone}`: {history}, and no plan records a state for it"));
+    if !facts.plan_stands {
+        return pass(format!("`{clone}`: {history}, and no destruction plan stands for it"));
     }
-    return pass(format!("`{clone}`: {history}, and every one of the plan's {} name(s) agrees with the pool", facts.recorded.len()));
+    return pass(format!("`{clone}`: {history}, and every one of the plan's {} name(s) agrees with the pool.{after}", facts.recorded.len()));
 }
 
 /// Controls stay out of the release executable.

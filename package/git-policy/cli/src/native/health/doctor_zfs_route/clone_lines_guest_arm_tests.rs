@@ -224,7 +224,8 @@ fn snapshots_of(clone: &str, clone_createtxg: u64, plan: &RemovalPlanFacts) -> C
         PlanFileReading::Standing { plan: standing, .. } => recorded_outcomes(standing),
         PlanFileReading::NoPlan | PlanFileReading::Unreadable { .. } => Vec::new(),
     };
-    return CloneSnapshotFacts { clone: String::from(clone), clone_createtxg, live, recorded: recorded_states };
+    let plan_stands: bool = matches!(plan.reading, PlanFileReading::Standing { .. });
+    return CloneSnapshotFacts { clone: String::from(clone), clone_createtxg, live, plan_stands, recorded: recorded_states };
 }
 
 /// The origin the record names and the mark its snapshot carries.

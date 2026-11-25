@@ -59,7 +59,8 @@ fn recorded(name: &str, value: u64, outcome: SnapshotOutcome) -> RecordedSnapsho
 
 /// The facts of one clone's inventory.
 fn facts(objects: Vec<LiveObject>, recorded_names: Vec<RecordedSnapshot>) -> CloneSnapshotFacts {
-    return CloneSnapshotFacts { clone: String::from(CLONE), clone_createtxg: CLONE_CREATETXG, live: Reading::Read(LiveInventory { dataset: String::from(CLONE), dataset_guid: guid(7), objects }), recorded: recorded_names };
+    let plan_stands: bool = !recorded_names.is_empty();
+    return CloneSnapshotFacts { clone: String::from(CLONE), clone_createtxg: CLONE_CREATETXG, live: Reading::Read(LiveInventory { dataset: String::from(CLONE), dataset_guid: guid(7), objects }), plan_stands, recorded: recorded_names };
 }
 
 /// A clone with no snapshot of its own passes,
@@ -118,15 +119,34 @@ fn a_destroyed_name_the_pool_lost_agrees() {
     assert!(matches!(answer, CheckOutcome::Pass { .. }), "{answer:?}");
 }
 
-/// An own snapshot no line of the plan names is a finding.
+/// An own snapshot made after the plan's first write is late history:
+/// the removal's next amendment records it,
+/// so the line names it and passes.
 #[test]
-fn an_unrecorded_own_snapshot_is_a_finding() {
-    let answer: CheckOutcome = check_clone_snapshots(&facts(vec![own("late", 31, 30)], Vec::new()));
-    let CheckOutcome::Finding { field, detail } = answer else {
-        panic!("an unrecorded own snapshot is a finding: {answer:?}");
+fn an_own_snapshot_after_the_plans_first_write_is_named_and_passes() {
+    let mut held: CloneSnapshotFacts = facts(vec![own("own", 21, 18), own("late", 31, 30)], vec![recorded("tank/wt/fix-flaky-test@own", 21, SnapshotOutcome::Planned)]);
+    held.plan_stands = true;
+    let answer: CheckOutcome = check_clone_snapshots(&held);
+    let CheckOutcome::Pass { detail } = answer else {
+        panic!("late history passes: {answer:?}");
     };
-    assert_eq!(field, "snapshots");
-    assert!(detail.contains("no line of the plan names it"), "{detail}");
+    assert!(detail.contains("@late"), "{detail}");
+    assert!(detail.contains("next amendment records"), "{detail}");
+    assert!(!detail.contains("disagree with the pool"), "{detail}");
+}
+
+/// A plan that stands and holds no line keeps an own snapshot late history,
+/// because "no plan" and "a plan with no line" are two states.
+#[test]
+fn a_plan_that_stands_with_no_line_keeps_the_snapshot_late() {
+    let mut held: CloneSnapshotFacts = facts(vec![own("own", 21, 18)], Vec::new());
+    held.plan_stands = true;
+    let answer: CheckOutcome = check_clone_snapshots(&held);
+    let CheckOutcome::Pass { detail } = answer else {
+        panic!("a plan with no line passes: {answer:?}");
+    };
+    assert!(detail.contains("next amendment records"), "{detail}");
+    assert!(detail.contains("every one of the plan's 0 name(s)"), "{detail}");
 }
 
 /// A name whose GUID moved is a finding naming both GUIDs.
