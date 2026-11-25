@@ -238,8 +238,11 @@ fn the_arm(fixture: &LivePoolFixture, operation: MountOperation, destroy_one: bo
     let table: ATable = ATable { at_the_slot: true };
     let slot: CancelRequest = CancelRequest { slot: String::from(SLOT) };
     let common: PathBuf = fixture.common();
+    // The fixture's repository lives under its root, so the checkout the slot's pointer is proved against is the
+    // common directory's own parent and never the fixture root.
+    let checkout: PathBuf = common.parent().expect("the common directory is inside the fixture's checkout").to_path_buf();
     let input: TheCancelCommand<'_> = TheCancelCommand {
-        checkout: fixture.root.as_path(),
+        checkout: checkout.as_path(),
         common_dir: common.as_path(),
         home: fixture.root.as_path(),
         request: &slot,
