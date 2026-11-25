@@ -342,16 +342,53 @@ a removal of a bound clone runs the lineage proof, the inventory and the bookmar
 held to the merge bar by the `source_guard` scan `removal_command_path_writes_nothing_tests.rs`, which step 16 deletes when it calls `enter_the_removal`;
 its arms ran through the built wrapper on a file-backed pool in a guest (healthy, promoted, reverse promotion, live and stale bookmarks, same-name replacement);
 on the merged result `source_guard` gave 88 of 88, the removal module 108 with its guest arm ignored, the route 9 and the binding record 75;
-step 15's wiring runs since 2026-11-24T23:50-05:00 (`pi-zfs-step-15-wire-the-deferred-origin-checks`, brief `~/temp/agent/zfs-step-15-wire-the-deferred-origin-checks-2026-11-24/prompt.md`),
-placing its checks in the writing path behind that cut, with the plan's mark-between-the-checks measurement in a guest through the library path;
+step 15's wiring merged as `00ade823e5` (report `keep/report-pi-zfs-step-15-wire-the-deferred-origin-checks.md` in `~/temp/agent/zfs-step-15-wire-the-deferred-origin-checks-2026-11-24/`):
+`destroy_the_removal` continues `enter_the_removal`, runs step 15's check before each chunk and before the head destroy,
+and records each per-name answer in the plan, still reached by no command;
+its guest arm on a file-backed pool showed a mark refused at the look with nothing written, at the first check with nothing sent,
+and at the head check with the batch's two snapshots gone and named in the refusal;
+`main`'s merge into it brought two doc files only, so its tip's logs stood for the merged code;
+the gap it leaves is the plan's `requested` line before a request, which is step 16's;
+step 16 runs behind the same cut since 2026-11-25T05:16:02-05:00
+(`pi-zfs-step-16-destruction-and-settle-behind-the-cut`, brief `~/temp/agent/zfs-step-16-destruction-and-settle-behind-the-cut-2026-11-25/prompt.md`):
+the whole step on the writing path (batch, split, head destroy, loss report, resume and adopting a kept plan, origin cleanup, Git settle),
+with the command path left cut, because step 15's refusals name `cancel-worktree-removal`, which is step 17's,
+and a release printing a command it lacks would make a refused removal worse than `main`'s;
+its report lists what the switch waits on, and the switch is a round of its own;
 the root modes' eleven choices are answered (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`),
 and the seventh revision wrote them in, merged as `295759966f` (report `keep/report-pi-zfs-root-modes-seventh-revision.md` in `~/temp/agent/zfs-root-modes-seventh-revision-2026-11-24/`):
 every choice section states its answer, no printed guard holds a lexer, the lint pin compares lint-level anchors with `reason` items skipped,
 the three function-wide allows narrow to their statement, and `mount-path-descendant` gains two `zfs mount` refusals and a fixed proof order;
 its commit `610e0de110` lost two words of its subject to shell expansion (corrected by a commit comment, not amended);
-the one-program build runs since 2026-11-25T00:33-05:00 (`pi-build-the-root-modes-into-the-one-wrapper-executable`,
-brief `~/temp/agent/build-the-root-modes-into-the-one-wrapper-executable-2026-11-25/prompt.md`),
-building what the design's change list assigns to the one-program change and leaving steps 18 and 19's parts;
+the one-program build merged as `b97c09746f`
+(report `keep/report-pi-build-the-root-modes-into-the-one-wrapper-executable.md` in `~/temp/agent/build-the-root-modes-into-the-one-wrapper-executable-2026-11-25/`):
+one `[[bin]]`, the dispatch as `main`'s first statements, `root_mode_names.rs`, `record-checkout` and `mount-path-descendant`,
+the release lists, `native:install`'s check and `doctor`'s paths read from the two constants,
+and every test that started the second program now starting the wrapper; steps 18 and 19's parts stay unbuilt;
+it regenerated `toolchain.lock.json` with `mpm-shadow.ts install --lockfile-only --offline` where its brief said to stop and report;
+the diff is the `bins` row and the digest alone, `toolchain:lock:check` passes, and `toolchain:install` never ran;
+it departs from the design in five places it names
+(the installed-name fixture in `binary/binary_support_installed_name.rs`, `attach_with_attributes` made public for the new mode's mount,
+36 lint anchors, and two comment edits the raw-line scan needed), which the release read should look at, `attach_with_attributes` first;
+on the merged tree (`14fb2e0fe8`) check, Clippy, `source_guard` 100, the removal modules, `worktree_clone_mount_handler` 236,
+`started_as_git` 15 and the four root-mode binary controls passed (`keep/premerge-*.log`);
+its guest run passed adoption, the step 9 arms, holder scan and unmount through the built wrapper,
+and the sweep arm failed its stale-flags case:
+`line_about` (`binary_zfs_sweep_guest_tests.rs:268`) finds a clone's line by `contains`,
+so asked about slot `c64` it returned `c643`'s line, a test defect already on `main` that fires when the pool lists a prefix slot last
+(the report's "race" label is not the cause; `binary_zfs_step9_m_arms_tests.rs:204` has the same lookup);
+`pi-sweep-guest-arms-find-a-clone-by-its-whole-name` runs since 2026-11-25T05:16:06-05:00 to fix the lookup and run the arm to its end through the one wrapper,
+since the replaced-mount and rename-swap cases after the failing one have not run through it;
+two `commit::capture_invocation` controls fail on this host at `capture_invocation_tests.rs:412` (`EILSEQ`), the same on `main` at `0152f18bb7`,
+in a file issue 6448's first round did not reach (the issue is still open);
+`pi-non-utf8-capture-invocation-controls-on-a-utf8only-home` runs since 2026-11-25T05:16:21-05:00 to finish it;
+mvm's guest agent lost the status of the round's long in-guest build four times
+("the guest agent did not answer a status request"), so it drove a sixth guest by hand;
+the new modes' device-open failure reuses the dataset-read refusal, whose sentence speaks of a dataset (wording the round left);
+the gate on `main` at `b97c09746f` runs since 2026-11-25T05:14:00-05:00 (unit `gate-on-main-at-b97c09746f`);
+the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees
+(`5832100ff723f37e05b7e204050d9077`, `860ac88661a0f23f1a31eb7b490f26b8`, `b10ce79fa8d9f51c7935474923718ad1`),
+which the fixed build's `service stop-units-of-removed-worktrees` clears after this batch;
 the reads' `work/` folders hold the logs their reports cite, and the fourth round's `scratch/` is cited by the proposal, so those stay;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
@@ -1108,16 +1145,16 @@ fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
 The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
-The next alpha waits for the one-program build round:
-the record says "alpha.45 shipped with the second program,"
-and "the change starts with the release after it"
-(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
-so a release cut before the second `[[bin]]` is gone would ship it again.
+The one-program build merged as `b97c09746f`, so the next alpha ships one program
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it").
+It waits for the gate on `main` at `b97c09746f` and for `pi-sweep-guest-arms-find-a-clone-by-its-whole-name`:
+the sweep is what the ZED hook starts, its guest arm failed in the one-program round,
+and the arm's replaced-mount and rename-swap cases have not yet run through the one wrapper.
 
 Next:
 merge each round when it ends;
 put L4's options to the owner;
-release the next alpha once the one-program build has merged.
+release the next alpha once that gate and that round have ended.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
