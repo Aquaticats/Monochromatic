@@ -17,6 +17,33 @@ import { spawnSync, } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, } from 'node:fs';
 import { join, } from 'node:path';
 
+/**
+ What the shared container-limit module of `package/git-policy/cli` gives: the one bound every container gets, and the
+ `podman build` options that bound an image build make of it.
+
+ It is loaded at run time because this package's TypeScript project holds only its own files (its `rootDir` is the package
+ directory), so the module another package owns cannot be reached by an import specifier here.
+ */
+type SharedContainerLimit = {
+  readonly buildLimitArguments: (limits: {
+    readonly memory: string;
+    readonly cpus: number;
+    readonly pidsLimit: number;
+  },) => readonly string[];
+  readonly defaultContainerLimits: {
+    readonly memory: string;
+    readonly cpus: number;
+    readonly pidsLimit: number;
+  };
+};
+
+/**
+ The shared bound and its build-argument builder, from the one copy `package/container-limit/core` holds.
+ */
+const { buildLimitArguments, defaultContainerLimits } = await import(
+  new URL('../../git-policy/cli/bin/container-limits.ts', import.meta.url,).href,
+) as SharedContainerLimit;
+
 //region Constants
 
 /** The image this package's step 2 gate runs in; never the plain `development`. */
@@ -182,6 +209,11 @@ try {
   console.log(`base image: ${base}`);
   run('podman', [
     'build',
+    // `podman build` has no weight, CPU or process option, so memory and a CFS period and quota are what bound it, and
+    // they are the shared bound every container gets unless its task asks for another, rather than a figure invented
+    // here. This build compiles nothing: it copies the two crates and the Containerfile runs `cargo fetch` for their
+    // locked dependencies, which is less than the fuzz sidecar's image build next door does at the same bound.
+    ...buildLimitArguments(defaultContainerLimits,),
     '--file',
     join(context, 'gate.Containerfile'),
     '--build-arg',
