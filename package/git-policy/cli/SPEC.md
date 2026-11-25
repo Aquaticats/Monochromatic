@@ -5609,6 +5609,11 @@ A refusal changes nothing at all:
 the plan folder is not created,
 the clone's intent property keeps its value,
 and no record is rewritten.
+The writing path's own refusals are the same,
+with one difference its first step makes:
+a removal takes the slot's claim before it reads anything,
+so a refusal there leaves the record folder and one claim file that says `released`,
+which is what tells a second command that this one is not working on the slot.
 
 The whole removal is built on one writing path,
 `worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
