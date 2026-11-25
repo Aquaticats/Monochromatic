@@ -24,6 +24,12 @@
 //!  The stream's own file description is shared,
 //! so the thread writes to the same descriptor the caller would have written to,
 //! and nothing about where the lines go changes.
+//!  The queue and its thread are `foundation/lines_written_by_a_thread.rs`,
+//!  which the command's diagnostic lines share;
+//!  this file is the policy that makes that mechanism the service's log:
+//!  its callers never wait,
+//!  a stream that refused a write is asked again by the next line or the end of the process,
+//!  and a stream that is gone leaves the thread taking the lines that still come.
 //!  A process about to end waits,
 //! once and bounded,
 //! for the lines it handed over,
@@ -43,15 +49,20 @@
 //! hand(`${stamped}\n`); // false: dropped and counted
 //! ```
 
-/// Writing one line into a stream,
-/// and the error it may give.
+/// The bounded queue, its thread and its control hooks,
+/// which this file gives the service's log words and rules.
+use crate::lines_written_by_a_thread::{QueuePolicy, SharedQueue, hand as queue_hand, start_the_queue, write_what_waits as queue_write_what_waits};
+/// The queue's control hooks,
+/// which only a control reads.
+#[cfg(test)]
+use crate::lines_written_by_a_thread::{
+    dropped_so_far as queue_dropped_so_far, give_the_thread as queue_give_the_thread, queued as queue_queued,
+};
+/// Writing one line into the stream,
+/// which a control of the queue gives the thread.
 use std::io::Write;
-/// The queue,
-/// the condition the thread waits on,
-/// and the one-time start.
-use std::sync::{Condvar, Mutex, OnceLock};
-/// The queue of lines waiting for the stream.
-use std::collections::VecDeque;
+/// The one-time start of the queue.
+use std::sync::OnceLock;
 
 /// The most lines that wait for the stream.
 ///
@@ -104,178 +115,74 @@ pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = std::time::Duration::from_m
 /// a handful of syscalls at the very end of a process and none during its work.
 pub const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Duration::from_millis(5);
 
-/// What the queue of one process holds,
-/// and where the lines of a control go.
-struct Queue {
-    /// The lines waiting for the stream,
-    /// oldest first.
-    lines: VecDeque<Vec<u8>>,
-    /// How many lines found no room since the last one that got through.
-    dropped: u64,
-    /// Whether the stream takes nothing more:
-    /// a write that failed for any reason other than a momentary lack of room
-    /// leaves a stream that no wait can bring back,
-    /// so the end of the process is answered `false` at once rather than at its bound.
-    stream_is_gone: bool,
-    /// Whether the thread holds a line it has not written yet.
-    /// The queue being empty is not enough for a caller that waits for the stream:
-    /// the last line is out of the queue and in the stream only once this is false again.
-    writing: bool,
-    /// Where the control's lines go,
-    /// or nothing when they go to this process's standard error.
-    /// A control sets it once,
-    /// before its first line,
-    /// so the thread it starts writes into a stream the control holds.
-    writer: Option<Box<dyn Write + Send>>,
+/// What a gap in the log says, built from the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const droppedNotice = (dropped) => new TextEncoder().encode(DROPPED_NOTICE_HEAD + dropped + DROPPED_NOTICE_TAIL);
+/// ```
+fn dropped_notice(dropped: u64) -> Vec<u8> {
+    // What:     `format!` builds the sentence with the count inside it, and `into_bytes()` takes the UTF-8 bytes the
+    //           queue keeps.
+    // Why:      The queue writes bytes, and the person reads how many entries the gap holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return encoder.encode(`${DROPPED_NOTICE_HEAD}${dropped}${DROPPED_NOTICE_TAIL}`);
+    // ```
+    return format!("{DROPPED_NOTICE_HEAD}{dropped}{DROPPED_NOTICE_TAIL}").into_bytes();
 }
 
-/// The one queue of this process and the condition its thread waits on.
-/// Lock kept:
-///  the lines waiting for the service's own log stream,
-///  and how many found no room,
-///  because a caller hands a line and goes on while one thread takes lines and waits on the stream,
-///  so the hand and the take are the two ends of one queue and neither may see the other's half.
-///  Under it one line is pushed or popped and the writer is handed out or given back;
-///  the write itself,
-///  which may wait for the reader as long as the reader takes,
-///  runs outside it,
-///  and no Git process,
-///  no file and no other lock runs under it.
-static QUEUE: OnceLock<&'static (Mutex<Queue>, Condvar)> = OnceLock::new();
+/// The stream the lines go to when no control gave one:
+/// this process's standard error, which is the journal under the service's unit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const defaultStream = () => process.stderr;
+/// ```
+fn default_stream() -> Box<dyn Write + Send> {
+    // What:     `Box::new(std::io::stderr())` puts the process's error handle behind the one shape the queue writes
+    //           through: an owning writer that may travel to the thread.
+    // Why:      The thread writes the lines, so the stream must be its own value rather than a borrow of the caller's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return process.stderr;
+    // ```
+    return Box::new(std::io::stderr());
+}
+
+/// The service's log queue:
+///  its callers never wait,
+///  a refused write waits for the next ask rather than a tick,
+///  and a stream that is gone leaves the thread running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_POLICY = { threadName: 'service log lines', droppedNotice, defaultStream, callersWaitForTheirLine: false, retriesOnATick: false, endsWhenTheStreamIsGone: false, threadRefused: ['serviceLog', '...'], tag: 'serviceLog' };
+/// ```
+static THE_POLICY: QueuePolicy = QueuePolicy {
+    thread_name: "service log lines",
+    dropped_notice,
+    default_stream,
+    callers_wait_for_their_line: false,
+    retries_on_a_tick: false,
+    ends_when_the_stream_is_gone: false,
+    thread_refused: Some((
+        "serviceLog",
+        "the thread that writes the service's log lines could not be started",
+    )),
+    tag: "serviceLog",
+};
+
+/// The one queue of this process,
+/// made on the first line.
+static QUEUE: OnceLock<SharedQueue> = OnceLock::new();
 
 /// The queue,
 /// started on the first line.
-fn queue() -> &'static (Mutex<Queue>, Condvar) {
-    return QUEUE.get_or_init(start_the_queue);
-}
-
-/// What:
-///  The queue of this process,
-///  made once and given its thread.
-/// Why:
-///   The thread waits on the same queue for as long as the process runs,
-/// so the value has to outlive the call that made it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const startTheQueue = () => { const queue = { lines: [], dropped: 0, writer: null }; spawn(() => writeEveryLine(queue)); return queue }
-/// ```
-fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
-    {
-        let started: &'static (Mutex<Queue>, Condvar) = Box::leak(Box::new((
-            Mutex::new(Queue { lines: VecDeque::new(), dropped: 0, stream_is_gone: false, writing: false, writer: None }),
-            Condvar::new(),
-        )));
-        // The thread holds the queue for as long as this process runs; a failure to start it leaves the lines uncounted,
-        // which is the one state this file cannot report, so the process says it once and goes on writing by hand.
-        let spawned = std::thread::Builder::new().name(String::from("service log lines")).spawn(move || {
-            write_every_line(started);
-        });
-        if spawned.is_err() {
-            crate::diagnostic_log::warn("serviceLog", "the thread that writes the service's log lines could not be started");
-        }
-        return started;
-    }
-}
-
-/// What:
-///  Writes the lines of the queue for as long as the process runs,
-///  and keeps whatever a stream did not take.
-/// Why:
-///   This thread may wait for the stream as long as the stream takes;
-/// the landing that handed it a line does not.
-///  A line leaves this thread only when all of its bytes are in the stream,
-/// because the end of a process promises exactly that much and a write can end short:
-/// a stream with no room now (`WouldBlock`) takes the rest of the line later,
-/// so the rest stays here and this thread is asked again,
-/// by the next line or by the end of the process;
-/// a partial write takes what it took,
-/// and the remainder stays here,
-/// so nothing else is written into the middle of one line;
-/// a signal that ended the call (`Interrupted`) changed nothing about the stream,
-/// so the attempt is made again at once;
-/// and a stream that is gone (a closed pipe,
-/// a descriptor nothing holds) takes nothing ever again,
-/// so the rest of the line is dropped and the whole queue answers `false` from then on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (;;) { const line = take(); if (!line) return; while (line.hasBytes) { const wrote = tryWrite(line.bytes); if (ended) return; if (!wrote) waitToBeAskedAgain() } }
-/// ```
-fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
-    let (queue, ready) = started;
-    loop {
-        let next: Option<Vec<u8>> = {
-            let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            loop {
-                if let Some(line) = held.lines.pop_front() {
-                    let dropped: u64 = std::mem::take(&mut held.dropped);
-                    // Out of the queue and not yet in the stream: a caller that waits for the stream has to be told the
-                    //  difference between the two.
-                    held.writing = true;
-                    break Some(if dropped == 0 { line } else { [format!("{DROPPED_NOTICE_HEAD}{dropped}{DROPPED_NOTICE_TAIL}").as_bytes(), line.as_slice()].concat() });
-                }
-                // The queue is empty, and this thread waits for the next line rather than ending: a second line after a pause
-                // is the ordinary case for a service that runs for hours.
-                held = match ready.wait(held) {
-                    Ok(ready_now) => ready_now,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-            }
-        };
-        let Some(line) = next else {
-            return;
-        };
-        let mut writer: Box<dyn Write + Send> = {
-            let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            match held.writer.take() {
-                Some(writer) => writer,
-                // No control owns the stream, so the lines are this process's own standard error.
-                None => Box::new(std::io::stderr()),
-            }
-        };
-        // What: the bytes of this line the stream has not taken yet.
-        // Why:  a line leaves this thread only when all of it is in the stream.
-        let mut unwritten: &[u8] = line.as_slice();
-        while !unwritten.is_empty() {
-            match writer.write(unwritten) {
-                // A stream that took nothing is one to ask again later, not one that refused.
-                Ok(0) => {}
-                Ok(taken) => {
-                    unwritten = &unwritten[taken..];
-                    continue;
-                }
-                // A signal ended the call and nothing about the stream changed.
-                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                // A stream with no room now: the rest of the line waits here.
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
-                // The stream is gone, and no wait brings a reader back: the rest of this line is dropped and the queue
-                //  says so to whoever asks.
-                Err(_gone) => {
-                    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                    held.stream_is_gone = true;
-                    drop(held);
-                    break;
-                }
-            }
-            // Nothing more can be written now, so this thread waits to be asked again, by the next line handed over or
-            //  by the end of the process, and never on the stream itself.
-            let held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            let _woken = match ready.wait(held) {
-                Ok(ready_now) => ready_now,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-        }
-        let _flushed = writer.flush();
-        let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if held.writer.is_none() {
-            held.writer = Some(writer);
-        }
-        held.writing = false;
-        drop(held);
-        // A caller waiting at the end of the process is woken by the very line it waits for.
-        ready.notify_all();
-    }
+fn queue() -> SharedQueue {
+    return QUEUE.get_or_init(|| start_the_queue(&THE_POLICY));
 }
 
 /// What:
@@ -290,38 +197,21 @@ fn write_every_line(started: &'static (Mutex<Queue>, Condvar)) {
 /// const hand = (line) => { if (queue.length < QUEUED_LINES) { queue.push(line); notify(); return true } dropped++; return false }
 /// ```
 pub fn hand(line: &str) -> bool {
-    return hand_bytes(line.as_bytes().to_vec());
-}
-
-/// What:
-///  `hand` for a line already in bytes,
-///  which is the shape the queue keeps.
-/// Why:
-///   The line is moved into the queue once and never copied again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const handBytes = (line: Uint8Array) => queue.length < QUEUED_LINES ? (queue.push(line), true) : (dropped++, false)
-/// ```
-fn hand_bytes(line: Vec<u8>) -> bool {
-    let (queue, ready) = queue();
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if held.lines.len() >= QUEUED_LINES {
-        held.dropped = held.dropped.saturating_add(1);
-        return false;
-    }
-    held.lines.push_back(line);
-    drop(held);
-    ready.notify_one();
-    return true;
+    // What:     `hand(...)` queues the line's own bytes and answers its number, or nothing when the queue had no room.
+    // Why:      The service's callers never wait, so the number is not read; whether it came back is the whole answer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return handBytes(line) !== undefined;
+    // ```
+    return queue_hand(queue(), line.as_bytes().to_vec(), QUEUED_LINES).is_some();
 }
 
 /// How many lines have been dropped since the last one that got through,
 /// which a control reads and no release path asks for.
 #[cfg(test)]
 pub fn dropped_so_far() -> u64 {
-    let (queue, _ready) = queue();
-    return queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).dropped;
+    return queue_dropped_so_far(queue());
 }
 
 /// What:
@@ -362,28 +252,8 @@ pub fn dropped_so_far() -> u64 {
 pub fn write_what_waits(within: std::time::Duration) -> bool {
     // No line was ever handed over, so no thread exists to wait for, and starting one here would be the cost this
     //  function exists to avoid.
-    let Some((queue, ready)) = QUEUE.get() else { return true };
-    let deadline: std::time::Instant = std::time::Instant::now() + within;
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    loop {
-        // A stream that is gone takes nothing more, so no wait brings a reader back and the answer is owed now.
-        if held.stream_is_gone {
-            return false;
-        }
-        if held.lines.is_empty() && !held.writing {
-            return true;
-        }
-        let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
-            return false;
-        };
-        // The thread keeps what a stream refused and tries again when it is asked to: this is the asking, and the tick
-        //  is what makes a reader's room, wherever in the bound it appears, the thread's next attempt.
-        ready.notify_all();
-        held = match ready.wait_timeout(held, left.min(THE_END_ASKS_AGAIN_EVERY)) {
-            Ok((woken, _its_time_was_up)) => woken,
-            Err(poisoned) => poisoned.into_inner().0,
-        };
-    }
+    let Some(queue) = QUEUE.get() else { return true };
+    return queue_write_what_waits(queue, within);
 }
 
 /// What:
@@ -399,10 +269,7 @@ pub fn write_what_waits(within: std::time::Duration) -> bool {
 /// ```
 #[cfg(test)]
 pub fn give_the_thread(writer: Box<dyn Write + Send>) {
-    let (queue, _ready) = queue();
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    held.writer = Some(writer);
-    drop(held);
+    queue_give_the_thread(queue(), writer);
 }
 
 /// What:
@@ -417,8 +284,7 @@ pub fn give_the_thread(writer: Box<dyn Write + Send>) {
 /// ```
 #[cfg(test)]
 pub fn queued() -> usize {
-    let (queue, _ready) = queue();
-    return queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).lines.len();
+    return queue_queued(queue());
 }
 
 /// What the thread does with a full stream is a control in the test module.
