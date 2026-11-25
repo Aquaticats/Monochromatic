@@ -1103,7 +1103,8 @@ A root named by a `[[bin]]` path anywhere else is not read for code.
 ### The allow list a rule may take
 
 A crate that switches a layout rule on does not become correct at once.
-Its findings go into a list, one entry per finding,
+Its findings go into a list,
+one entry per finding,
 and the rule then tolerates exactly the entries of that list:
 
 ```jsonc
@@ -1113,7 +1114,7 @@ and the rule then tolerates exactly the entries of that list:
   "rules": {
     "rust/folder-uses-links": {
       "severity": "error",
-      "allow": "package/git-policy/cli/layout-allow-list-folder-rule.txt",
+      "allow": "package/git-policy/cli/layout-allow-list/folder-rule.txt",
     },
   },
 }
@@ -1136,7 +1137,8 @@ and a line that reads as none of them fails the run:
 - `file-uses <folder> <file> -> <file>` does the same for one use between two files of one folder.
 - every other line is the exact key of one finding of the rule.
 
-A path in an entry is relative to the package folder, the way findings show it,
+A path in an entry is relative to the package folder,
+the way findings show it,
 never absolute and never climbing out with `..`,
 and no line may repeat another.
 
@@ -1158,8 +1160,10 @@ The list only shrinks:
 - A use added between two folders or two files that the list already tolerates in one loop is a finding.
   It carries no key,
   so no round can record a new loop edge:
-  the use is removed, or that loop is untangled first.
-- A loop finding carries no key, and neither does the use added inside a tolerated loop,
+  the use is removed,
+  or that loop is untangled first.
+- A loop finding carries no key,
+  and neither does the use added inside a tolerated loop,
   so no entry can tolerate a loop.
 
 Two things the list cannot do:
@@ -1169,7 +1173,8 @@ because the rule offers no key for either.
 Writing a line by hand for a new finding is a review blocker:
 every line is one of today's findings,
 and the decision to keep one belongs to the round that fixes it.
-Which package's list a line belongs to is the rule's file, so the two rules of a crate take two lists.
+Which package a list belongs to is the rule's file,
+so the two rules of a crate take two lists.
 
 ### Known limits
 
