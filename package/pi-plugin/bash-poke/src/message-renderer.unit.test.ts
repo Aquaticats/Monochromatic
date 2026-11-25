@@ -229,7 +229,16 @@ await describe({
              */
             const component = renderer(
               pokeMessage({ details: detailsWith({ exitCode: 0, }, ), content: 'done', }, ),
-              { expanded: false, outputPad: 0, },
+              {
+                expanded: false,
+                outputPad: 0,
+                keyText(): string {
+                  return '';
+                },
+                keyHint(): string {
+                  return '';
+                },
+              },
               plainTheme(),
             );
             if (component === undefined)

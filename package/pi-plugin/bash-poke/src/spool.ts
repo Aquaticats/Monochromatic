@@ -73,7 +73,7 @@ type SpoolWriter = {
  ```
  */
 async function spoolDirectory(
-  { tmp, }: { readonly tmp?: string | undefined; },
+  { tmp, }: { readonly tmp?: string; },
 ): Promise<string> {
   /**
    Directory holding complete captured output for this package.
@@ -170,7 +170,7 @@ async function openSpoolWriter(
     /**
      Directory ensured per job so a temp cleanup between jobs cannot break it.
      */
-    const dir = await spoolDirectory({ tmp, }, );
+    const dir = await spoolDirectory(tmp === undefined ? {} : { tmp, }, );
 
     /**
      File carrying this job's complete output.
