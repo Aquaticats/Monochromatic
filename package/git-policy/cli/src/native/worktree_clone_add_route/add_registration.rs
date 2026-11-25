@@ -37,7 +37,7 @@ use crate::worktree_clone_binding_record::registration_finder::EntryFacts;
 use crate::worktree_clone_binding_record::registration_home::record_name_of;
 use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, RecipeRefusal, ToClear, clear_registration, complete_a_cut_short_lock};
 use crate::worktree_clone_binding_record::registration_resume::{EntryDecision, Finding as RegistrationFinding, ListingDecision, find_registrations};
-use crate::worktree_clone_managed_lock::lock_classification::classify_the_managed_lock;
+use crate::worktree_clone_managed_lock::lock_classification::classify_with_a_known_slot_identity;
 use crate::worktree_clone_managed_lock::lock_installation::{InstallAnswer, write_the_lost_lock};
 use crate::worktree_clone_managed_lock::lock_state::{Classification, ManagedLockState};
 use crate::worktree_clone_managed_lock::lock_state_words::the_lines;
@@ -187,7 +187,10 @@ fn with_a_way_forward(sentence: String) -> String {
 ///  and the sentence a person reads is the classification's own.
 fn settle_the_lock(input: &ScanInput<'_>, registration: &Path) -> Result<Option<String>, String> {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
-    let classification: Classification = classify_the_managed_lock(input.common_dir, input.slot, input.slot_path, &mounts);
+    // A record whose add was killed before its own identity write stands at phase `claimed`,
+    // and this command made the folder, so the identity the proof compares is its own reading.
+    let known: Option<FolderIdentity> = FolderIdentity::of_folder(input.slot_path).ok();
+    let classification: Classification = classify_with_a_known_slot_identity(input.common_dir, input.slot, input.slot_path, &mounts, known);
     match &classification.state {
         ManagedLockState::Managed { .. } => return Ok(None),
         ManagedLockState::CutShort { .. } => {

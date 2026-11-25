@@ -72,20 +72,30 @@ impl World {
     /// with the facts the lock's classification reads,
     /// through the writer the add itself uses.
     fn write_the_add_s_record(&self) {
+        self.write_the_record_at(Phase::Slot);
+    }
+
+    /// The same record at one phase,
+    /// so a control can plant the shape an add killed before its own identity
+    /// write leaves.
+    fn write_the_record_at(&self, phase: Phase) {
         let home: std::fs::File = open_or_create_home(self.common.as_path()).expect("the home opens");
         let guid = |value: &str| return DatasetGuid::parse(value).expect("the fixture guid reads");
         let record: BindingRecord = BindingRecord {
             claim: 1,
             nonce: self.nonce.clone(),
             request: Request::with_argument(RequestForm::Branch, b"topic"),
-            phase: Phase::Slot,
+            phase,
             settle_reason: None,
             checkout_dataset: String::from("tank/monochromatic-git-checkout"),
             checkout_dataset_guid: guid("4815162342109876543"),
             repository: self.common.as_os_str().as_encoded_bytes().to_vec(),
             repository_identity: FolderIdentity::of_folder(self.common.as_path()).expect("the common directory's identity reads"),
             slot: self.slot_path.as_os_str().as_encoded_bytes().to_vec(),
-            slot_identity: Some(FolderIdentity::of_folder(self.slot_path.as_path()).expect("the slot's identity reads")),
+            slot_identity: match phase {
+                Phase::Claimed => None,
+                _other => Some(FolderIdentity::of_folder(self.slot_path.as_path()).expect("the slot's identity reads")),
+            },
             registration: None,
             registration_identity: None,
             pool: String::from("tank"),
@@ -190,6 +200,25 @@ fn a_lost_lock_is_written_again_and_the_line_printed() {
     assert!(line.contains("had lost its managed Git lock"), "{line}");
     assert!(line.contains("wrote it again for add nonce"), "{line}");
     assert_eq!(std::fs::read(world.registration().join("locked")).expect("the lock reads"), lock_file_bytes(&world.nonce), "the lock holds the sentence and Git's newline");
+    world.close();
+}
+
+/// What:
+///  A record whose add was killed before its own slot-identity write,
+///  beside a complete registration this add's lock covers.
+/// Why:
+///  The identity the two-fact proof compares is then the one this command reads
+///  from the folder it made,
+///  and the registration is adopted rather than refused as one nothing explains.
+#[test]
+fn a_record_with_no_slot_identity_is_adopted_by_the_command_that_made_the_folder() {
+    let world: World = World::new("scan-claimed-record");
+    world.a_complete_registration();
+    world.write_the_record_at(Phase::Claimed);
+    let outcome: ScanOutcome = world.scan().expect("the record's own folder identity answers");
+    let ScanOutcome::Adopt { registration, wrote_the_lock } = outcome else { panic!("the registration is adopted") };
+    assert_eq!(registration.path, world.registration());
+    assert!(wrote_the_lock.is_none(), "the lock stands whole, so no line is owed");
     world.close();
 }
 

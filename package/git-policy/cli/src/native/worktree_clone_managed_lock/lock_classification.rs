@@ -42,6 +42,7 @@ use super::reading_a_bounded_file::Reading;
 use super::recorded_lock_facts::{RecordedLockFacts, read_the_recorded_facts};
 use super::registration_finding::{TheRegistration, find_the_slot_registration};
 use super::registration_proof_two_facts::{TwoFactRefusal, prove_the_registration};
+use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::lock_words::{LOCK_WORDS_MAXIMUM_BYTES, LockStanding, lock_standing_of};
 use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_binding_record::registration_resume::EntryDecision;
@@ -170,11 +171,26 @@ fn state_of_the_found_registration(repository: &Path, slot: &str, slot_path: &Pa
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const classification = classifyTheManagedLock(commonDir, slot, slotPath);
+/// const classification = classifyTheManagedLock(commonDir, slot, slotPath, mounts);
 /// ```
 pub fn classify_the_managed_lock(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets) -> Classification {
+    return classify_with_a_known_slot_identity(repository, slot, slot_path, mounts, None);
+}
+
+/// What:
+///  The same classification,
+///  with the slot folder's identity the caller already holds,
+///  for a record that has not written its own yet.
+/// Why:
+///  The add records the slot's identity in a write of its own,
+///  and one whose add was killed before that write stands at phase `claimed`,
+///  so the resume that made the folder is the one caller that knows the identity
+///  the proof compares.
+///  Every other reader passes nothing,
+///  and a record with no identity is then refused rather than guessed at.
+pub fn classify_with_a_known_slot_identity(repository: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, known_slot_identity: Option<FolderIdentity>) -> Classification {
     let pointer: Reading = read_the_slot_pointer(slot_path);
-    let facts: RecordedLockFacts = match read_the_recorded_facts(repository, slot) {
+    let mut facts: RecordedLockFacts = match read_the_recorded_facts(repository, slot) {
         Ok(found) => found,
         Err(refusal) => {
             let home: PathBuf = home_folder(repository);
@@ -182,6 +198,9 @@ pub fn classify_the_managed_lock(repository: &Path, slot: &str, slot_path: &Path
             return Classification { state: ManagedLockState::NotTheAddsWords { cause }, pointer };
         }
     };
+    if facts.slot_identity.is_none() {
+        facts.slot_identity = known_slot_identity;
+    }
     let state: ManagedLockState = match facts.registration.as_ref() {
         Some(recorded) if recorded.is_dir() => match state_of_the_recorded_registration(&facts, repository, recorded.as_path(), mounts) {
             Some(answered) => answered,

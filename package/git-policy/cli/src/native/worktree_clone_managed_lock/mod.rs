@@ -76,7 +76,7 @@ pub mod lock_release;
 pub use clone_destruction_proof::{CloneDestructionProof, DestructionRefusal, TheLiveCloneAnswer, prove_the_recorded_clone_is_gone};
 pub use lexical_path_resolution::the_lexical_path;
 pub use lock_and_pointer_readings::{LOCK_FILE_NAME, SLOT_POINTER_NAME, lock_file_path, read_the_lock, read_the_slot_pointer, slot_pointer_path};
-pub use lock_classification::classify_the_managed_lock;
+pub use lock_classification::{classify_the_managed_lock, classify_with_a_known_slot_identity};
 pub use lock_installation::{InstallAnswer, line_of_an_installed_lock, write_the_lost_lock};
 pub use lock_release::{ReleaseOutcome, ReleaseRefusal, release_the_managed_lock};
 pub use lock_state::{Classification, LockOwnership, ManagedLockState, TheWordsCause};
