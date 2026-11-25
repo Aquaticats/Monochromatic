@@ -220,22 +220,24 @@ impl SlotIdentityStore {
 
     /// What:
     ///  Every slot name the folder lists,
-    ///  and every known staging name it removed on the way,
+    ///  with every known staging name a killed writer left removed on the way,
     ///  from one listing of the folder.
     /// Why:
-    ///  The adoption needs both answers of the same instant:
+    ///  The adoption needs the whole set and the removal of the same instant:
     ///  its first listing keeps every name that is a slot record and refuses a foreign name,
     ///  and the same pass removes the known staging names before the adoption stages its own record,
     ///  so a killed writer's litter costs the folder one visit and not two.
+    ///  The names the removal took are logged where they go and answered no further,
+    ///  because the adoption decides on the set alone.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const { names, removed } = store.listAndRemoveStagingEntries();
+    /// const names = store.listAndRemoveStagingEntries();
     /// ```
     ///
     /// # Errors
     /// Everything the listing or a removal refuses.
-    pub fn list_and_remove_staging_entries(&self) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
+    pub(crate) fn list_and_remove_staging_entries(&self) -> Result<Vec<String>, StoreRefusal> {
         return super::slot_identity_store_reading::listed_slot_names_removing_staging_entries(&self.folder, self.path.as_path());
     }
 
