@@ -381,7 +381,7 @@ fn new_loop_uses(
                 file: proof.file.clone(),
                 line: proof.line,
                 message: format!(
-                    "{} uses the folder {} (`{}`), and both sit inside one loop the allow list tolerates today; a tolerated loop may only lose uses, so a new use inside it is a new loop edge.",
+                    "{} uses the folder {} (`{}`), and both sit inside one loop the allow list tolerates today; that loop holds this use, and no line of the list records it, so a tolerated loop may only lose uses.",
                     shown(from, base),
                     shown(to, base),
                     proof.text
