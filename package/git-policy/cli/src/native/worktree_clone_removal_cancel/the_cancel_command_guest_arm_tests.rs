@@ -28,6 +28,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_intent::intent_text;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock, enter_the_removal};
 use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
@@ -170,6 +171,34 @@ impl RemovalUnmount for ADoneUnmount {
     }
 }
 
+/// A process id no process can have,
+/// because `/proc/sys/kernel/pid_max` is at most 4,194,304 on this kernel.
+const A_PID_NO_PROCESS_CAN_HAVE: i64 = 9_000_001;
+
+/// What:
+///  The plan a removal that was killed left:
+///  the entry's own record,
+///  with a writer that no longer runs.
+/// Why:
+///  The arm runs the removal's entry in the test's own process,
+///  and a plan whose owner is alive is a running removal,
+///  which the command refuses by design.
+///  The killed state is the same record with a dead owner,
+///  and a pid above `pid_max` cannot be alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlanADeadRemovalLeft(common, recorded);
+/// ```
+fn the_plan_a_dead_removal_left(common: &Path, recorded: &crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding) {
+    let mut plan: DestructionPlan = crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(common, recorded.clone_guid)
+        .expect("the entry's plan reads")
+        .expect("the entry wrote a plan");
+    plan.facts.owner = format!("{A_PID_NO_PROCESS_CAN_HAVE}:linux:0");
+    let folder: PathBuf = plans_folder(common);
+    std::fs::write(folder.join(recorded.clone_guid.file_name()), plan.encode().expect("the plan encodes")).expect("the plan file");
+}
+
 /// The slot's `.git` pointer,
 /// which the proof reads and which the fixture's add would have written.
 fn write_the_pointer(fixture: &LivePoolFixture) {
@@ -194,6 +223,7 @@ fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
     let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
     enter_the_removal(&entry, &reads, &unmount, &TheLiveClock).expect("the removal's own entry writes its plan");
+    the_plan_a_dead_removal_left(common.as_path(), &recorded);
     let plan_path: PathBuf = plans_folder(common.as_path()).join(recorded.clone_guid.file_name());
     assert!(plan_path.exists(), "positive control: the removal's entry wrote a plan the command can prove");
     // The request the clone carries is the state a killed removal leaves:
