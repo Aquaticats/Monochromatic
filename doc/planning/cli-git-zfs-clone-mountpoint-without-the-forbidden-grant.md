@@ -897,11 +897,6 @@ The transcript is in that round folder's
 `/home/user/temp/agent/zfs-clone-mountpoint-design-second-revision-2026-11-25/keep/guest-logs/`
 as `setup-and-negative-control-2026-11-25.log`.
 
-The positive control on the same clone,
-`userprop`,
-succeeded,
-so the refusals are about `mountpoint` and not about the clone being unreadable or the account being wrong.
-
 ### The separating control: a container with an ordinary mountpoint (log one)
 
 A second container was created at `mountpoint=/home/cloneprobe-other`,
@@ -1146,7 +1141,7 @@ so the surviving-change case becomes a refused add rather than a wrong clone tha
   (`:390` to `:392`),
   and its "Send it in clone `props` only if the delegated creation path is verified" is about that user property,
   not about `mountpoint`.
-  The sentence that would change is none.
+  No sentence there changes.
 - The design proposal's "Dataset and path layout" needs no edit either:
   `:283` already says "Clones must inherit `mountpoint=legacy`".
 - Tests,
@@ -1228,7 +1223,7 @@ and it has its own issue:
 doctor reads no create-time ZFS grant,
 and its forbidden check skips named sets".
 This round's guest measured that the creation-time grant is effective
-(`## A's second shape`),
+(the section `### A's second shape: the creation-time grant, measured this round`),
 so the issue is not hypothetical.
 
 ## The gate review's findings, and where each is answered
@@ -1267,8 +1262,8 @@ and each answer is in this document.
   and reads "C > B > A" with a reason for each adjacent pair.
 - "The window's scenario is never stated,
   and its key negative control was not run":
-  `## What a person or `zfs mount -a` does with a clone before the handler attaches` opens with the
-  interrupted-add-then-boot scenario,
+  the section "What a person or `zfs mount -a` does with a clone before the handler attaches" opens
+  with the interrupted-add-then-boot scenario,
   and `## The guest probe` records the account's refused `zfs set mountpoint` and `zfs inherit mountpoint`
   with its `userprop` positive control.
 - "'So this is not an escalation' is unsupported":
@@ -1286,7 +1281,7 @@ and each answer is in this document.
   and trims the list to what they do not cover.
 - "C's safety rests on a grant that doctor checks incompletely":
   `### A` now gives A's second shape,
-  `## The `doctor` gap this decision leans on` names the gap and its issue,
+  the section "The `doctor` gap this decision leans on" names the gap and its issue,
   and the review's two "cannot be narrowed" claims are corrected in the same two places.
 
 ### Low
@@ -1296,8 +1291,8 @@ and each answer is in this document.
   `:605` to `:659` for `zfs_secpolicy_setprop` with its return at `:658`,
   `dsl_dataset.c:1291` for the end of `dsl_dataset_create_sync_dd`,
   and `mount_zfs.c:320` to `:330` for the helper's check,
-  all corrected in `## How the kernel refuses the property` and
-  `## What a person or `zfs mount -a` does with a clone before the handler attaches`.
+  all corrected in `## How the kernel refuses the property` and in the section
+  "What a person or `zfs mount -a` does with a clone before the handler attaches".
 - "`zfs mount <clone>` refuses because `zfs mount` passes `zfsutil`":
   corrected to the CLI's own check at `zfs_main.c:7240` to `:7248`,
   with the helper's `zfsutil` check at `mount_zfs.c:309` named as the one the CLI never reaches.
