@@ -67,6 +67,12 @@ fn a_commit_with_no_service_manager_stops_plainly_and_changes_nothing() {
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
         .filter(|name| { return name.starts_with("monochromatic-git-policy-cli") || name.starts_with("cli-git"); })
+        // The wrapper's own account of the processes it started (`lock/lock_holder_records.rs`,
+        //  `HOLDER_FOLDER`): every command writes it before its first Git, and a later command's pass
+        //  removes it once every process it names is gone, so it is bookkeeping and not a scratch
+        //  directory or a record of an unfinished commit (`binary_commit_form_refusal_tests.rs` says
+        //  the same of the same folder).
+        .filter(|name| { return name != "cli-git-lock-holders"; })
         .collect();
     assert!(leftovers.is_empty(), "no scratch directory or record is left: {leftovers:?}");
     remove_settled(&fixture);
