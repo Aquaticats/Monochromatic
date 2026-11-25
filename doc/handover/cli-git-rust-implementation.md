@@ -343,8 +343,11 @@ and runs the proof read-only inside the refusal;
 issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
 a `source_guard` check that fails any `set_current_dir` in the crate,
 and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
-its branch conflicts with `main` in `entry_zfs_slot_commands.rs` (the move refusal's read order),
-so the round resumed at 2026-11-24T20:58-05:00 to merge `main` and resolve it (`pi-fix-tests-that-change-the-process-directory-merge-main`);
+its one conflict with `main` (`entry_zfs_slot_commands.rs`, the move refusal's read order) was resolved keeping both,
+the word first and then the given directory, with `main`'s order check still red on a planted read,
+and it merged as `ac6fce8e3b` (`source_guard` 87 of 87; issue 6454 closed);
+the reads of the process's directory that remain, each its own process's entry or reached by no control, are listed in its report
+(`report-pi-fix-tests-that-change-the-process-directory.md` in `~/temp/agent/fix-tests-that-change-the-process-directory-2026-11-24/keep/`);
 the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
 choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
 and its Sonnet read runs since then (`~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`);
