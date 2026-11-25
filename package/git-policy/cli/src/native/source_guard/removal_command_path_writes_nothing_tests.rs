@@ -38,7 +38,9 @@ const THE_REMOVAL_FOLDER: &str = "worktree_clone_removal_proof_and_plan/";
 const THE_WRITING_ENTRY: &str = "enter_the_removal";
 
 /// The call this release's removal command makes instead.
-const THE_READING: &str = "read_the_removal";
+/// The opening parenthesis is part of it, because an import names it too:
+/// the check is about the call the command path makes, not the name in a `use` line.
+const THE_READING_CALL: &str = "read_the_removal(&";
 
 /// The removal's command path.
 const THE_COMMAND_PATH: &str = "worktree_copying/worktree_removal_of_a_bound_clone.rs";
@@ -94,7 +96,7 @@ fn callers_of_the_writing_entry(root: &Path, roots: &[CrateRoot]) -> Result<(Vec
         if file.path == THE_ENTRY_FILE && code.contains("fn enter_the_removal(") {
             the_entry_is_declared = true;
         }
-        if file.path == THE_COMMAND_PATH && code.contains(THE_READING) {
+        if file.path == THE_COMMAND_PATH && code.contains(THE_READING_CALL) {
             the_command_path_reads = true;
         }
         if !file.path.starts_with(THE_REMOVAL_FOLDER) && code.contains(THE_WRITING_ENTRY) {
@@ -121,7 +123,7 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
     let root = source_root();
     let (callers, the_command_path_reads, the_entry_is_declared) = callers_of_the_writing_entry(root.as_path(), real_roots().as_slice()).expect("the crate's release source tree reads");
     assert!(the_entry_is_declared, "positive control: `{THE_ENTRY_FILE}` still declares `{THE_WRITING_ENTRY}`, so the name this check bans is a name in the tree");
-    assert!(the_command_path_reads, "`{THE_COMMAND_PATH}` must call `{THE_READING}`: this release's removal proves its lineage read-only and writes nothing");
+    assert!(the_command_path_reads, "`{THE_COMMAND_PATH}` must call `{THE_READING_CALL}…)`: this release's removal proves its lineage read-only and writes nothing");
     assert!(
         callers.is_empty(),
         "no release file outside `{THE_REMOVAL_FOLDER}` may name `{THE_WRITING_ENTRY}` until plan step 16 wires it, and these do: {callers:?}"
