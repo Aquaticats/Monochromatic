@@ -56,6 +56,20 @@ use std::time::Instant;
 /// every launcher record stays counted.
 const LONGEST_LOCK: u64 = SMALL_FILE_LIMIT;
 
+/// The bytes of a launcher record this release reads,
+/// past which the file at that name is no record it can read.
+///  A record is one JSON object holding a tool's name, its scope and two paths,
+/// and every path the kernel accepts is at most 4,096 bytes (`getconf PATH_MAX /`, measured 2026-11-25),
+/// so a record this release writes stays some hundred bytes
+/// and the longest one a kernel can hand a writer stays under ten kilobytes.
+///  The bound is `SMALL_FILE_LIMIT`,
+/// the one the lock and a registration's `gitdir` are read at,
+/// because the record is read the way those are;
+/// a file past it is refused rather than read into memory,
+/// and a refusal leaves the record alone,
+/// which is what a record this release cannot read already gets.
+const LONGEST_RECORD: u64 = SMALL_FILE_LIMIT;
+
 /// What:
 ///  The launcher names this worktree's lock declares,
 ///  which are the names an install may rewrite a record for,
@@ -601,6 +615,9 @@ thread_local! {
     pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
     /// Whether this thread's removal stops once a record is aside, which no release build can do.
     pub(crate) static KILLED_AFTER_THE_RECORD_IS_ASIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The replacement a control stands in the window between a record's name being looked at and its open with,
+    /// which no release build has.
+    pub(crate) static WHEN_THE_RECORD_IS_OPENED: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Where mpm-shadow keeps the launchers and their records,
@@ -667,6 +684,26 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
+///  Run the replacement a control queued, once,
+///  at the one instruction before this release opens a launcher record.
+/// Why:
+///   A record is a file another command may replace at any moment,
+///  and the window between a look at its name and its open cannot be timed from a fixture;
+///  a control that shows what the read does in that window stands in it here.
+///  The slot is per thread and absent from a release build,
+///  so controls running beside each other never see one another's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aControlMayReplaceTheRecordNow() { const replace = take(); if (replace) replace(); }
+/// ```
+#[cfg(test)]
+fn a_control_may_replace_the_record_now() {
+    let Some(replace) = WHEN_THE_RECORD_IS_OPENED.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| return cell.borrow_mut().take()) else { return };
+    replace();
+}
+
+/// What:
 ///  The lock file a launcher record names,
 /// when the record can be read and holds the key.
 ///  `Option<PathBuf>` is "the path,
@@ -693,6 +730,8 @@ fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
     if !regular {
         return None;
     }
+    #[cfg(test)]
+    a_control_may_replace_the_record_now();
     let text: String = std::fs::read_to_string(path).ok()?;
     let record: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
     let lock: &str = record.get(LOCK_KEY).and_then(serde_json::Value::as_str)?;
