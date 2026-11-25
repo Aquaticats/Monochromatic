@@ -427,16 +427,18 @@ so nothing here bounds it.
   The third revision's 122 and 148 came from `rg` without `--hidden`,
   which skips `.github/workflows/cargo-publish.yml`.
 - The citations the third read checked hold,
-  except the four whose files moved since its base:
-  `SPEC.md`'s sentence (19261 at `f3d81e0910`, 19588 at this branch's base),
-  `README.md`'s five hits (1912, 7188, 7195 and 8038 at `f3d81e0910`;
-  1925, 7275, 7282 and 8131 here, with `:11` unmoved),
+  except those in the four files that moved since its base,
+  and each of the moved ones gives both commits' lines:
+  `SPEC.md`'s sentence (19261 at `f3d81e0910`, 19588 here),
+  its three mode command lines (7652, 21812 and 21992 there; 7943, 22139 and 22319 here),
+  `README.md`'s four hits (1912, 7188, 7195 and 8038 there; 1925, 7275, 7282 and 8131 here,
+  with `:11` unmoved),
   `lib.rs`'s second-executable paragraph and module line
-  (415 to 428 and 429 at `f3d81e0910`; 444 to 457 and 458 here),
-  and `add_preflight.rs`'s `OpenedDevice::open` call (113 at `f3d81e0910`, 139 here).
+  (415 to 428 and 429 there; 444 to 457 and 458 here),
+  and `add_preflight.rs`'s `OpenedDevice::open` call (113 there, 139 here).
   Each is cited with the sentence it belongs to,
   so a reader on a later commit can find it again
-  (run keep/citations-at-this-rounds-base.txt).
+  (run keep/citations-at-this-rounds-base.txt and keep/citation-drift-fourth.log).
 - `mise.toml:268` named the package's e2e task,
   and the root `mise.toml` has different text on that line.
   The citation now names the package's file,
@@ -3898,8 +3900,10 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   "## The two executables and shipped policies" (`:249`) becomes
   "## The single executable and shipped policies" and says how the root modes are reached;
   `:255` and `:266` name the family through the words or the one file;
-  `:7652`,
-  `:21812` and `:21992` name a mode's command and become the words;
+  `:7943`,
+  `:22139` and `:22319` name a mode's command and become the words
+  (`:7652`,
+  `:21812` and `:21992` at `f3d81e0910`);
   the sentence "and the executable does not read the name it was started under" is at `:19588`
   (`:19261` at `f3d81e0910`) and is rewritten as "The guard change,
   exactly" gives it;
