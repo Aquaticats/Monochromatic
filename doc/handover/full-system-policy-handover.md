@@ -388,14 +388,14 @@ checked all 809 expected profile artifacts and live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-keepassxc-flock-fix-2026-11-24T03-00-00-0500.json`.
+The latest such report is `verified-selected-spectacle-drag-fix-2026-11-25T13-23-05-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-24T03-01-29-0500`.
-All 20
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T13-24-20-0500`.
+All 21
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.

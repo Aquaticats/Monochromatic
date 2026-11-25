@@ -2,8 +2,8 @@
 
 ## Status
 
-The narrow policy change and confined payload read are verified. The full-cache build and the
-owner's real drag retry remain open, so this is not a final or approved completion report.
+The narrow policy change, confined payload read, and complete cache rebuild are verified. The
+owner's real drag retry remains open, so this is not a final or approved completion report.
 
 ## Symptom
 
@@ -97,8 +97,12 @@ d47075e07d3ea4604a00509cc267720e732f6b2c19c0272794992636c9da1ac3  /tmp/Spectacle
 ```
 
 This matches the independent unconfined hash byte for byte. It proves the exact file read, not
-merely parser success or a successful reload. A complete browser drag remains the user-boundary
-check.
+merely parser success or a successful reload.
+
+`verified-selected-spectacle-drag-fix-2026-11-25T13-23-05-0500.json` records all 809 expected
+cache artifacts, exact live feature bytes, successful cache hits including Helium, selection,
+reload, and rollback preservation. The confined hash check passed again after selection. A
+complete browser drag remains the user-boundary check.
 
 ## Verified workarounds
 
