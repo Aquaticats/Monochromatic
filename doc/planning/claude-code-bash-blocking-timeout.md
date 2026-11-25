@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:24:11-05:00.
+State recorded 2026-11-25T17:29:22-05:00.
 
 ## Requirement as stated
 
@@ -100,6 +100,11 @@ A successful foreground `cd` can now persist when the command finishes before th
 A `cd` in a command that moves to the background still does not persist.
 This timing-dependent working-directory behavior differs from the old always-background policy
 and requires an explicit consumer-boundary probe.
+The user accepted this consequence in `Q2 A`,
+whose option text explicitly named working-directory persistence at the threshold.
+Later relative-path commands can therefore run in a different directory depending on command duration;
+this is an accepted native consequence,
+not an unresolved design branch.
 
 ### Explicit background calls
 
@@ -139,6 +144,10 @@ so a filtered sleep can still be wrapped in the pipeline that starts with `set -
 The exemption therefore must not be described as proof that native Claude Code sees a leading `sleep`.
 Its real wrapped and unwrapped behavior remains a required probe.
 A chained command such as `sleep 2 && make` is eligible when its timeout is absent.
+The user accepted in `Q6 B` that chained sleeps can terminate.
+Because filtering can change the leading command seen by Claude Code,
+a filtered chain can move while an unwrapped leading-sleep chain terminates.
+That native divergence is accepted and must be probed in both forms.
 Unit suffixes,
 extra arguments,
 redirects,
@@ -179,6 +188,11 @@ Sessions still carrying the old `off` setting return to the enabled default unle
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is a misconfiguration for this policy.
 The hook warns the user once per session but otherwise applies the selected policy normally.
 A synchronous `SessionStart` handler in this same plugin emits `systemMessage` on startup.
+Its registration uses matcher `startup`,
+not `startup|resume`,
+and the plugin needs an entry point or event dispatch that handles this event separately from PreToolUse.
+The warning detector is the exact value `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` named by the user;
+other values and native modes are not claimed to trigger it.
 It has no persistent warning marker and does not re-warn on resume or clear.
 The warning fires only when our timeout policy is enabled.
 If both native background tasks and our policy are disabled,
@@ -202,6 +216,11 @@ Both handler return paths must compose the same execution-policy result with or 
 Only the literal `run_in_background: true` field is the explicit-background branch.
 Shell background syntax is not a substitute for that field.
 The rewrite spreads the complete original Bash input so `description` and unrelated fields survive.
+The output-filter script reads stdin to EOF before emitting filtered text.
+A moved filtered command therefore has no filtered output available mid-run,
+and a filtered command terminated at its foreground timeout can lose output buffered in the filter.
+This is an accepted limitation of retaining the existing filter under the chosen timeout policy,
+not a reason to invent a streaming-filter redesign in this change.
 
 Only `agent_id` identifies a native subagent for this boundary.
 A main session started with `--agent` can carry `agent_type` without `agent_id` and remains in scope.
@@ -235,12 +254,63 @@ Its concern that filter-skipped commands currently lose all execution rewrites w
 `package/claude-code-plugin/source/src/handler/bash-output-filter/index.ts`:
 the current denylist branch already returns `updatedInput` when forced backgrounding applies.
 The new implementation must preserve that composition rather than introduce it as new behavior.
-A Claude Sonnet gate review is still pending.
+A Claude Sonnet gate review then examined snapshot `cd9231b72b`.
+It judged that snapshot not ready.
+Its composition and verification-list findings overlapped changes already made in `ccfa538859`,
+which the review worktree did not contain.
+Its sleep-termination and cwd questions were already covered by `Q6 B` and `Q2 A`.
+Those answers and the accepted consequences are now explicit in this record.
+Its new output-buffering and startup-registration findings are folded in.
+A fresh cross-vendor re-review of the final record and probe evidence remains required before confirmation.
 
 ## Rejected recommendations
 
 Including native subagents in the new timeout policy was suggested during the initial draft
 and is retracted after the user's correction.
+
+## Native probe evidence
+
+Disposable hooks and session logs live under
+`/home/user/temp/agent/claude-bash-timeout-native-probes-2026-11-25/keep/`.
+All probes ran on Claude Code 2.1.332.
+
+### Bare numeric sleeps
+
+Unwrapped and output-filter-wrapped `sleep 3` calls both remained exempt from the injected default.
+Their hook outputs contained no `timeout`,
+and both completed normally with no output.
+This confirms the chosen exemption but does not bound a bare sleep to one second.
+
+### Chained leading sleeps
+
+The unwrapped `sleep 3 && printf done` hook output added `timeout: 1000`.
+Claude Code returned exit code 143 with `Command timed out after 1s`.
+The chained `printf` never ran.
+
+The identical command through the real output-filter wrapper also received `timeout: 1000`,
+but the executed command began with `set -o pipefail`.
+Claude Code moved it to background task `blhskwhvo` at one second.
+The native result explicitly said no output had been read when it moved.
+The task later exited 0,
+and its output file contained `done`.
+This proves the accepted filter-dependent termination versus auto-background divergence.
+
+### Timeout input matrix
+
+A disposable session exercised six input shapes through the real filter wrapper:
+
+- `printf quick` with neither execution field received `timeout: 1000`
+  and returned `quick` synchronously.
+- A caller's `timeout: 500` survived unchanged.
+  Its command returned output and a background task ID rather than being rewritten to `1000`.
+- A caller's `timeout: 600000` survived unchanged and returned its quick output synchronously.
+- A caller's `timeout: 0` survived unchanged and returned its quick output synchronously.
+- Explicit `run_in_background: true` with no timeout stayed without a timeout.
+  It returned a background task ID immediately and later exited 0.
+- Explicit `run_in_background: false` with no timeout received `timeout: 1000`
+  and returned its quick output synchronously.
+
+Every rewrite preserved the caller's `description`.
 
 ## Verification still owed
 

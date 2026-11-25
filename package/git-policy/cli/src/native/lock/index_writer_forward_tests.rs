@@ -130,7 +130,8 @@ fn a_git_child_that_a_signal_ended_keeps_its_signal_when_no_scratch_place_is_giv
 /// Why:
 ///   The two tests of the deaths above differ only in whether the run has a scratch place,
 /// so one helper keeps them
-///  the same in everything else.
+///  the same in everything else,
+/// and one fixture name for both is safe because every call of `fixture` makes a folder of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

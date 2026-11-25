@@ -706,8 +706,9 @@ const A_STALL_BOUND: Duration = Duration::from_secs(30);
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
-    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
@@ -754,8 +755,9 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
-    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
