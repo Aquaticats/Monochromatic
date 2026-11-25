@@ -186,15 +186,6 @@ pub fn clear_other_adds_records(home: &Path, slot: &str, nonce: &RequestNonce) -
     return Ok(());
 }
 
-/// What:
-///  The story the add prints when it cleared another add's records.
-/// Why:
-///  The person may have waited on a pending worktree the text named, and one
-///  line says what the run did about it.
-pub fn cleared_records_note(slot: &str) -> String {
-    return format!("monochromatic-git-policy-cli: another add's unfinished capture at {slot} was cleared, and this add took the slot.\n");
-}
-
 /// Publish `bytes` under `staging` and then under `name`, replacing nothing.
 fn publish_once(home: &std::fs::File, staging: &str, name: &str, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;

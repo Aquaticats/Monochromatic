@@ -650,6 +650,11 @@ mod hooks_off_escape;
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;
 
+/// A commit whose standard error is a full pipe nobody drains:
+/// the command returns and the commit lands.
+#[path = "binary_commit_stalled_standard_error_tests.rs"]
+mod commit_stalled_standard_error;
+
 /// The fault injection and the recovery invariants of the operating conditions in the README.
 #[path = "binary_fault_support.rs"]
 mod fault;

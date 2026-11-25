@@ -374,18 +374,17 @@ pub(crate) const PATHSPEC_FILE_LIMIT: u64 = 1 << 30;
 ///  Every reason to decline answers with nothing,
 /// because the staging hands the file to Git itself and Git then reports what it finds,
 /// which is the answer that was right before this reading.
+///  The file is read through `plain_file::read_plain_file`,
+/// so a named pipe at its name answers at once instead of holding the commit for a writer that may never come,
+/// and the handle's own type decides what is read rather than a look at the path that a swap could change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const elements = selection.pathspecFile ? pathspecsOfFile(readFile(selection.pathspecFile), selection.nul) : selection.pathspecs;
+/// const elements = selection.pathspecFile ? pathspecsOfFile(readPlainFile(selection.pathspecFile, PATHSPEC_FILE_LIMIT), selection.nul) : selection.pathspecs;
 /// ```
 pub(crate) fn selection_elements(selection: &IndexSelection) -> Option<Vec<OsString>> {
     let Some(file) = selection.pathspec_file else { return Some(selection.pathspecs.to_vec()); };
-    let size: u64 = std::fs::metadata(file).map(size_of).ok()?;
-    if size > PATHSPEC_FILE_LIMIT {
-        return None;
-    }
-    let bytes: Vec<u8> = std::fs::read(file).ok()?;
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(file, PATHSPEC_FILE_LIMIT).ok()?;
     return pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul);
 }
 
@@ -395,10 +394,13 @@ pub(crate) fn selection_elements(selection: &IndexSelection) -> Option<Vec<OsStr
 /// Why:
 ///   Telling an exact file name from a directory or a pattern needs the elements,
 /// and a file's elements are the same selection a command line carries.
+///  The file is read on the handle's own type (`plain_file::read_plain_file`),
+/// so a named pipe at its name is one this reader cannot take rather than a wait for a writer,
+/// and a file past the bound is still passed to Git as a file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const selected = pathspecFile ? readFile(pathspecFile).length <= LIMIT ? items(pathspecsOfFile(...)) : { kind: 'file' } : items(pathspecs);
+/// const selected = pathspecFile ? readPlainFile(pathspecFile, ITEMS_BYTES_LIMIT).length <= LIMIT ? items(pathspecsOfFile(...)) : { kind: 'file' } : items(pathspecs);
 /// ```
 pub(crate) fn selection_items(selection: &IndexSelection) -> Selected {
     let Some(file) = selection.pathspec_file else {
@@ -407,22 +409,17 @@ pub(crate) fn selection_items(selection: &IndexSelection) -> Selected {
         }
         return Selected::Items(selection.pathspecs.to_vec());
     };
-    let Ok(size) = std::fs::metadata(file).map(size_of) else { return Selected::Unreadable };
-    if size > ITEMS_BYTES_LIMIT {
-        return Selected::File;
-    }
-    let Ok(bytes) = std::fs::read(file) else { return Selected::Unreadable };
+    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(file, ITEMS_BYTES_LIMIT) {
+        Ok(read) => read,
+        // A file past the bound is handed to Git as a file; any other refusal is one this reader cannot take.
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => return Selected::File,
+        Err(_unreadable) => return Selected::Unreadable,
+    };
     let Some(items) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else { return Selected::Unreadable };
     if items.is_empty() {
         return Selected::Empty;
     }
     return Selected::Items(items);
-}
-
-/// The length of a file's metadata,
-/// for the bound on the bytes a pathspec file may name.
-fn size_of(held: std::fs::Metadata) -> u64 {
-    return held.len();
 }
 
 /// Whether one byte is a pattern character of the glob mode:

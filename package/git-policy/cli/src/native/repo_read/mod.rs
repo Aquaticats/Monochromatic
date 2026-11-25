@@ -108,9 +108,6 @@ pub mod repo_read_layout_environment_rules;
 /// the `-C` directory.
 pub mod repo_read_layout_disk_and_directory_facts;
 
-/// The layout reader's answer with some global options and variables left out.
-pub mod repo_read_layout_without;
-
 /// In-process repository reads:
 /// the layout turned into the shapes the wrapper's existing queries answer with.
 pub mod repo_read_adapter;

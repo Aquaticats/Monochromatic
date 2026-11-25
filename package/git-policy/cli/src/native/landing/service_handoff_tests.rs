@@ -757,3 +757,37 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
     std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
     remove(root.as_path());
 }
+
+/// A held record that is a named pipe is answered at once,
+/// and so is a pending one:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and both readings run on every command of the worktree (issue 6415).
+/// A record that cannot be read still says what its own file name holds,
+/// so each reading answers one line and neither pipe is moved or removed.
+#[test]
+fn a_record_that_is_a_named_pipe_is_answered_at_once() {
+    let root: std::path::PathBuf = fixture("handoff-named-pipe");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD);
+    crate::private_storage::create_private_directory_all(held.as_path()).expect("held");
+    let name: String = format!("{}-{OID}", WorkKind::Push.name());
+    let held_pipe: std::path::PathBuf = held.join(name.as_str());
+    crate::subvolume_sync_attrs::make_fifo(held_pipe.as_path(), 0o600).expect("a pipe where a held record goes");
+    let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
+    crate::private_storage::create_private_directory_all(pending.as_path()).expect("pending");
+    let pending_pipe: std::path::PathBuf = pending.join(format!("{}-{PARENT}", WorkKind::Push.name()));
+    crate::subvolume_sync_attrs::make_fifo(pending_pipe.as_path(), 0o600).expect("a pipe where a pending record goes");
+    crate::plain_file::open_without_blocking(pending_pipe.as_path()).expect("the pipe opens without a writer").set_modified(std::time::SystemTime::now() - crate::service_handoff::PUSH_QUEUED_AFTER * 4).expect("an old record");
+    let inside: std::path::PathBuf = handoff.git_dir.clone();
+    let answered = crate::test_support::finished_within(move || {
+        let held_lines: Vec<String> = held_push_notices(inside.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken());
+        let queued_lines: Vec<String> = queued_push_notices(inside.as_path(), std::time::SystemTime::now(), &TheRemoteHolds(false), &the_service_is_not_woken());
+        return (held_lines, queued_lines);
+    });
+    let Some((held_lines, queued_lines)) = answered else { panic!("a record that is a named pipe held the notices") };
+    assert_eq!(held_lines.len(), 1, "the one record still says what its own file name holds: {held_lines:?}");
+    assert_eq!(queued_lines.len(), 1, "and the one pending record names its commit from its name: {queued_lines:?}");
+    assert!(held_pipe.exists() && pending_pipe.exists(), "neither pipe is moved or removed, because neither was read as a record");
+    remove(root.as_path());
+}

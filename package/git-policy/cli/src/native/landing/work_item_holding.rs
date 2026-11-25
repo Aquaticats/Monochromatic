@@ -134,7 +134,8 @@ pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict,
 /// ```
 fn write_verdict(work_dir: &Path, id: &str, holding: &Holding, durable: bool) -> bool {
     let path: PathBuf = state_directory(work_dir, HELD).join(id);
-    let Ok(text) = std::fs::read_to_string(path.as_path()) else {
+    // A named pipe at a held record's name is a record this pass cannot read, answered at once rather than waited on.
+    let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else {
         return false;
     };
     let Some(record) = with_holding(text.as_str(), holding) else {
@@ -246,7 +247,8 @@ pub fn undecided_commits(work_dir: &Path, branch_ref: &str) -> Vec<String> {
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
-        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
+        // A record that cannot be read names no branch: a pipe there answers at once instead of waiting for a writer.
+        let Ok(text) = crate::plain_file::read_plain_text(&entry.path()) else { continue };
         // The branch is the record's,
         // and a record this module cannot read names no branch:
         // it is left to the line every command prints for it.
@@ -439,7 +441,7 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
             None => continue,
         };
         // A record that cannot be read is still a verdict on a commit the gate refused, so it keeps the commit and says nothing more.
-        let read: Option<BlockedVerdict> = match std::fs::read_to_string(path.as_path()) {
+        let read: Option<BlockedVerdict> = match crate::plain_file::read_plain_text(path.as_path()) {
             Ok(text) => blocked_verdict_of(text.as_str(), commit.as_str()),
             Err(_unreadable) => None,
         };
@@ -493,7 +495,7 @@ fn refused_while_held(work_dir: &Path) -> Vec<BlockedVerdict> {
     entries.sort();
     let mut refusals: Vec<BlockedVerdict> = Vec::new();
     for (_name, path) in entries {
-        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else { continue };
         let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
         if item.kind != WorkKind::Push {
             continue;

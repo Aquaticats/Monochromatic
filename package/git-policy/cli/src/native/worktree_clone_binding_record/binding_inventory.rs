@@ -22,7 +22,6 @@
 //! const bytes = [HEADER, `kind=${kind}`, ..., `entries=${entries.length}`, ...entries.map(e => `entry=${e.kind} ${e.guid} ${e.createtxg} ${e.name}`)].join('\n') + '\n';
 //! ```
 
-use super::binding_bound::{INVENTORY_ENTRY_LINE_MAXIMUM_BYTES, INVENTORY_FIXED_BYTES};
 use super::binding_words::INVENTORY_HEADER;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
@@ -182,13 +181,5 @@ impl InventoryRecord {
             text.push_str(format!("entry={} {} {} {}\n", entry.kind.word(), entry.guid.file_name(), entry.createtxg, entry.name).as_str());
         }
         return text.into_bytes();
-    }
-
-    /// The widest bytes a file of this set may hold,
-    /// which is its fixed lines and every entry line at its widest:
-    /// no total cap is shipped,
-    /// so this only describes the file the caller holds.
-    pub fn widest_bytes_for_its_count(&self) -> u64 {
-        return INVENTORY_FIXED_BYTES + self.entries.len() as u64 * INVENTORY_ENTRY_LINE_MAXIMUM_BYTES;
     }
 }
