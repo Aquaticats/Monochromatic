@@ -207,9 +207,26 @@ fn what_a_folder_holds(label: &str, folder: &Path) -> String {
     return format!("{label} {} holds: {}{tail}", folder.display(), names.join(", "));
 }
 
+/// How many fixture folders this binary test process has made,
+/// which names each call's folder its own.
+/// Why:
+///   A run of `cargo test` is many tests as threads of one process,
+/// and two tests that pass one name took one folder,
+/// whose removal each made while the other was writing in it
+/// (`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md`).
+static FIXTURES_MADE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The number this call's folder is named with:
+/// one number for every call, in the order the process makes them.
+fn the_number_of_this_fixture() -> u64 {
+    return FIXTURES_MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Create a fixture in `directory`,
 /// which may be on another filesystem than the build;
 /// see `fixture`.
+/// Every call names a folder of its own,
+/// so two tests that pass the same name never share one.
 pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     forbid_core_dumps();
     if let Err(error) = std::fs::create_dir_all(directory) {
@@ -217,7 +234,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
         //  to say what became of it: the report names the root, its parent and its grandparent.
         panic!("fixture directory root: {error}; {}", missing_fixture_root_report(directory));
     }
-    let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
+    let created: PathBuf = directory.join(format!("native-binary-{}-{}-{name}", std::process::id(), the_number_of_this_fixture()));
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }

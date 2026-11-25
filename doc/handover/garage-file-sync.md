@@ -15,6 +15,21 @@ Personal infrastructure,
 placeholder names,
  never values.
 
+## Client check at 2026-11-25T16:54:53-05:00
+
+The CachyOS timer is enabled and waiting.
+Its 16:01 run exited successfully after checking 20,664 entries with no changes.
+An authenticated read-only `rclone lsf garage:files` returned `Plain/`;
+TLS verification succeeded and the expected unauthenticated root request returned HTTP 403.
+
+The local `main.kdbx` was saved at 16:48,
+after that sync,
+so the remote still held the preceding database at this check.
+The next scheduled run is 17:00:30.
+The four older `main.kdbx.conflict*` files remain on both sides;
+they are historical artifacts,
+not evidence that the latest sync failed.
+
 ## What this builds
 
 - Garage v2.3.0 single-node S3 store on the Coolify host,
