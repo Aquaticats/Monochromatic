@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T13:23:05-05:00
+## Status at 2026-11-25T16:49:54-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -111,8 +111,11 @@ Unprofiled development processes remain a residual risk.
   and the two observed udev metadata files.
   This exposes directory
   metadata without granting unrelated file contents.
-  Save and rename behavior at the selected
-  database path remains unexercised.
+  On 2026-11-25, the selected database rule gained Qt's exact
+  `main.kdbx* -> #@{int}` atomic-save relationship and `#@{int}` read/write access.
+  The confined create-write-rename-readback fixture passed without modifying the real database.
+  The owner's real save retry remains open; see
+  `doc/troubleshooting/keepassxc-database-atomic-save-tempfile.md`.
 - On 2026-11-24, the same local KeePassXC rule gained `k` on its existing state-file paths after
   Qt 6.12.0's `QLockFile` blocked the GUI during Helium native messaging.
   The exact `KeePassXCrc.lock` fallback received the same narrow permission.
@@ -388,14 +391,14 @@ checked all 809 expected profile artifacts and live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-spectacle-drag-fix-2026-11-25T13-23-05-0500.json`.
+The latest such report is `verified-selected-keepassxc-atomic-save-fix-2026-11-25T16-48-29-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T13-24-20-0500`.
-All 21
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T16-49-54-0500`.
+All 22
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
