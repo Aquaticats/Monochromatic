@@ -92,7 +92,6 @@ binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run,
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_unmount_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
-command/command_test_support.rs | the command folder is not moved yet; a later round takes it folder by folder
 commit/commit_preparation_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
 commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
 commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
@@ -175,17 +174,11 @@ repair/package_repair_command_tests.rs | the repair folder is not moved yet; a l
 repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
 repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
 repair/package_repair_toolchain_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
-repo_read/repo_read_batch_tests.rs | the repo_read folder is not moved yet; a later round takes it folder by folder
-repo_read/repo_read_query_quiet_tests.rs | the repo_read folder is not moved yet; a later round takes it folder by folder
-repo_read/repo_read_query_quiet_tests.rs | the repo_read folder is not moved yet; a later round takes it folder by folder
-repo_read/repo_read_tree_cached_tests.rs | the repo_read folder is not moved yet; a later round takes it folder by folder
-shadow/replay_reverse_apply_test_support.rs | the shadow folder is not moved yet; a later round takes it folder by folder
-standards_review/standards_review_client_tests.rs | the standards_review folder is not moved yet; a later round takes it folder by folder
 testing/fixture_executable.rs | the testing folder is not moved yet; a later round takes it folder by folder
 testing/fixture_git_commands.rs | the testing folder is not moved yet; a later round takes it folder by folder
 testing/run_progress_tests.rs | the testing folder is not moved yet; a later round takes it folder by folder
 testing/smart_http_support.rs | the testing folder is not moved yet; a later round takes it folder by folder
-transaction/transaction_git_tests.rs | the transaction folder is not moved yet; a later round takes it folder by folder
+transaction/transaction_git_tests.rs | the control proves the fixture ends the fake Git a failed test left, so its child must outlive the test thread
 worktree/worktree_clone_conversion_size_read_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
 worktree/worktree_convert_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
 worktree_clone_mount_handler/per_slot_root_claim_tests.rs | the worktree_clone_mount_handler folder is not moved yet; a later round takes it folder by folder
