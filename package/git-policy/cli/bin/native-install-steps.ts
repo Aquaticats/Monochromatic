@@ -109,6 +109,23 @@ export const rootModeWords = [
 ] as const;
 
 /**
+ The first release that answered the root modes' words.
+
+ Every release before it ends an install refused after the wrapper is installed and the lock moved, because its build
+ cannot answer `<the words> --version` at all; a release at or after it that answers nothing here has lost the dispatch,
+ or the wrapper on `PATH` is another release. Naming it is what tells a person rolling back that the release, not the
+ archive the lock names, is the cause
+ (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`, and the release that carried the
+ change).
+
+ @example
+ ```ts
+ rootModesFirstRelease; // '0.6.1-alpha.46'
+ ```
+ */
+export const rootModesFirstRelease = '0.6.1-alpha.46';
+
+/**
  The text the installed build's `--version` prints for one release.
 
  The root modes print `<the words> <version>` (`worktree_clone_mount_handler::handler_install_paths::version_line`), so
