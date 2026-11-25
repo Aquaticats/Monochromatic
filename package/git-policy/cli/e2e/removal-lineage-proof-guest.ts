@@ -24,8 +24,9 @@
  of reporting a green suite.
  */
 import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
 import {
+  basename,
   join,
   resolve,
 } from 'node:path';
@@ -189,9 +190,19 @@ function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; re
  */
 function guestStart({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): void {
   const seconds = Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS;
-  const inner = [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`,].join('\n');
-  const command = `test "$(hostname)" = ${chosen.name} && setsid nohup sh -ec ${shellQuote(inner)} < /dev/null > /dev/null 2>&1 &`;
-  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', command,], {
+  // The step and the launcher are files, not one command line: `mvm exec` hands its argument to one shell, and a
+  // detached job written inline nested that shell inside another and the ampersand ended up inside the inner quoting,
+  // so the host waited for the whole build instead of its start.
+  const step = join(chosen.logDir, `${log}.step.sh`);
+  writeFileSync(step, [`timeout ${seconds} sh -ec ${shellQuote(script)} > /mnt/shared/${log} 2>&1`, 'status=$?', `echo "DONE=$status" >> /mnt/shared/${log}`, ''].join('\n'), { mode: 0o600, });
+  const launch = join(chosen.logDir, `${log}.launch.sh`);
+  writeFileSync(launch, [`setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`, 'exit 0', ''].join('\n'), { mode: 0o600, });
+  // `mvm push` lands each file in the guest's shared folder under the destination's own name, which is where the
+  // launcher looks for the step.
+  for (const from of [step, launch,]) {
+    host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, from, `/shared/${basename(from)}`,], log: `guest-push-${log}.log`, });
+  }
+  const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'sh', `/mnt/shared/${log}.launch.sh`,], {
     stdio: 'ignore',
     timeout: HOST_COMMAND_TIMEOUT_MS,
   });
@@ -217,7 +228,7 @@ function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; read
   const deadline = Date.now() + timeout;
   let finished = false;
   while (Date.now() < deadline) {
-    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', `tail --lines=1 ${path} 2>/dev/null || true`,], {
+    const answer = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'tail', '--lines=1', path,], {
       encoding: 'utf8',
       timeout: HOST_COMMAND_TIMEOUT_MS,
     });
