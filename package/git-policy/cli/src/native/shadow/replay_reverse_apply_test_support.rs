@@ -42,7 +42,8 @@ pub(super) struct ReverseCase {
 /// Run real Git in a fixture with `input` on its standard input,
 /// and require success.
 fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output {
-    let mut child: std::process::Child = Command::new(REAL_GIT)
+    let mut command: Command = Command::new(REAL_GIT);
+    command
         .current_dir(directory)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -50,9 +51,9 @@ fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output 
         .args(arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("native Git fixture command");
+        .stderr(Stdio::piped());
+    // Owned, so a case that fails while the input is written leaves no Git waiting for it.
+    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
     let mut stdin: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
     // A writer thread keeps a large input from blocking on a full pipe while Git writes its output.
     let (output, written): (Output, std::io::Result<()>) = std::thread::scope(|scope| {
