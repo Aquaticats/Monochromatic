@@ -446,7 +446,11 @@ async function main(): Promise<number> {
    */
   const modesReported = (await runGateCommandOrThrow({
     program: gitProgram,
-    args: [...rootModeWords, '--version',],
+    args: [
+      rootModeWords[0],
+      rootModeWords[1],
+      '--version',
+    ],
     deadlineMilliseconds: gitDeadlineMilliseconds,
     environment: {
       ...process.env,
