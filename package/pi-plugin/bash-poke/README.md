@@ -229,11 +229,23 @@ The nested Pi it starts uses an empty `PI_CODING_AGENT_DIR`,
 and `PI_OFFLINE=1`,
 so it has no credentials and cannot reach a provider.
 
+The host suite,
+`src/busy-agent-delivery.unit.test.ts`,
+runs in the default run.
+It starts a disposable Pi in RPC mode with the built bundle
+and the guarded fixture `src/busy-agent-host-fixture.ts`,
+whose scripted fake model keeps calling a slow tool.
+It checks that a poke lands after the current tool batch while the agent works,
+starts a run when the agent is idle,
+and is dropped when Pi clears its queue as Escape does.
+The fake model has no network transport,
+so this suite does not skip inside a Pi session.
+Switching the poke back to `deliverAs: "followUp"` fails its busy case.
+
 ### Manual check with a real model
 
-The automated suites stop at the poke,
-because the isolated agent directory has no provider.
-To verify the turn itself:
+The host suite checks the turn against a scripted fake model.
+To check it against a real model:
 
 1. Add the package path to `~/.pi/agent/settings.json` under `packages`.
 2. Run `/reload` in Pi.

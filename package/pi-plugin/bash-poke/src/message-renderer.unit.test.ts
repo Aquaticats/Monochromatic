@@ -258,7 +258,7 @@ await describe({
       name: deliverPoke.name,
       children: [
         it({
-          name: 'sends a custom message that triggers a follow-up turn',
+          name: 'sends a custom message that triggers a turn and steers into a busy agent',
           fn: async () => {
             const fake = createFakePi();
             const delivery = deliverPoke({

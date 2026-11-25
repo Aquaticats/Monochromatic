@@ -6,9 +6,12 @@ Diagnosed by a Claude Code session on 2026-11-25T18:05:00-05:00
 from Pi's installed source, bash-poke's own log, its spool files, and the live session file.
 bash-poke now steers its poke into a busy agent (commit `6795da19a6`);
 the busy-agent probe in "Busy-agent probe" shows the change.
+The probe is now the package test `package/pi-plugin/bash-poke/src/busy-agent-delivery.unit.test.ts`
+(commit `c4540bf992`),
+in the default unit run;
+with the poke switched back to `followUp`,
+its busy case failed (`expected 15 to be below 14`) and passed again once restored.
 Not yet done:
-the probe harness lives only in the kept scratch folder named in "Busy-agent probe",
-not in the repository or a package test;
 hosted-source permalinks for the Pi citations,
 and a drive of the interactive Escape key itself
 (the queue-clearing call it makes was exercised;
