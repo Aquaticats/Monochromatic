@@ -3672,7 +3672,7 @@ with the same force:
   with a record of its own
   (`src/native/worktree/worktree_removal_takes_its_pending_deletions.rs`),
   because a name is no proof of what stands at it:
-  an entry of that shape that is no subvolume is somebody else's and is refused with every other
+  an entry of that shape that is no subvolume is somebody else's and is treated with every other
   volume below the root.
   The proof is made again after a destroy the kernel refused,
   because a worktree can be added below this one
@@ -11706,10 +11706,6 @@ on the commit path:
   a greeting three seconds late was read as that state on 2026-11-12,
   and the restart and the manager-wide reload that followed ended the desktop session
   (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
-  The service survives being ended by design
-  (its journal,
-  its held commits and its work records are durable),
-  so the commit gets its answer instead of failing
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
