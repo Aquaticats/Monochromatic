@@ -430,7 +430,7 @@ and the owner is free to pick any of the six.
   (run, this round's log, arms `o-capture-plain`, `o-capture-k2-adaptive` and `o-capture-k-shipped`).
   Shown through `cat -A`, K2's whole capture is `Cloning into '/work/clones/probe'...$`, and K's is 8586 bytes of
   `^[[Kremote: ...` progress, each update ending `^M` except the last update of a line, which ends `$`, with an
-  `^[[K` before every relayed line: that is the change no flag removes.
+  `^[[K` at the start of a relayed progress line: that is the change no flag removes.
   A refusal, where Git draws nothing, is C's bytes under a shipped K (sixth round, `refusal-k-pty-raw` and
   `refusal-c-relay`, identical), so the change needs a command that draws something.
   K2 costs `+0.74 ms` where K costs `+0.85 ms`, a difference this harness does not resolve, so cost decides
