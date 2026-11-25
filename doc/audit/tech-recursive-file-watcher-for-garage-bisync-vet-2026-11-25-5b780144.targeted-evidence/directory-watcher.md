@@ -869,6 +869,31 @@ Tracker sample rule: with at most 20 matching items, inspect all.
   Those appear here under the skill's own gates and are marked as overlay gates,
   so they are not counted as vet-report hard constraints in the summary.
 
+## Open items and limits of this record
+
+- Not executed, by this run's rule:
+  no install, build, test, script, binary or container of the candidate.
+  Every behavioural statement is a source reading,
+  including the busy behaviour, the queue, the watch-limit failure and the exclusion rules.
+- Not verified on the real tree:
+  a start on `~/Plain` with its Japanese and Chinese names, spaces, parentheses, brackets and quotes
+  was not run, so GW-14's quoting conclusion is from source and the project's own guide,
+  not from an end-to-end execution.
+- Not attempted: a reproducible rebuild of any release asset.
+  GW-03 maps artifacts to the tagged commit through the workflow and the bot-created tag,
+  which is strong but is not a byte-for-byte reproduction.
+- Not measured: the macOS descriptor cost (GW-21) and any Windows runtime behaviour.
+  Both need a run on those machines; GW-21's number is arithmetic, not a measurement.
+- Not in scope of this run: how the watcher behaves inside a systemd user unit,
+  its interaction with `rclone-bisync-garage.service`, and the 5-minute timer.
+  Those belong to the design record and to finalist validation.
+- Translations in this file are mine.
+  The source comments and commit messages quoted above are Korean,
+  and each translation is marked where it appears.
+- The account of `directory-watcher`'s own docs in the vet report was written from documentation only.
+  This record confirms the doc-derived claims about queueing, exclusion, notification and duplication
+  against source, and adds the limits GW-12, GW-20 and GW-21.
+
 ## Summary against the hard constraints
 
 Each line names the verdict and the record that decides it.
@@ -904,28 +929,3 @@ Overlay and other gates:
   Active releases with a single maintainer, no issue or pull request history,
   and a security policy that covers only the latest release.
 - Tests and CI: pass, GW-24.
-
-## Open items and limits of this record
-
-- Not executed, by this run's rule:
-  no install, build, test, script, binary or container of the candidate.
-  Every behavioural statement is a source reading,
-  including the busy behaviour, the queue, the watch-limit failure and the exclusion rules.
-- Not verified on the real tree:
-  a start on `~/Plain` with its Japanese and Chinese names, spaces, parentheses, brackets and quotes
-  was not run, so GW-14's quoting conclusion is from source and the project's own guide,
-  not from an end-to-end execution.
-- Not attempted: a reproducible rebuild of any release asset.
-  GW-03 maps artifacts to the tagged commit through the workflow and the bot-created tag,
-  which is strong but is not a byte-for-byte reproduction.
-- Not measured: the macOS descriptor cost (GW-21) and any Windows runtime behaviour.
-  Both need a run on those machines; GW-21's number is arithmetic, not a measurement.
-- Not in scope of this run: how the watcher behaves inside a systemd user unit,
-  its interaction with `rclone-bisync-garage.service`, and the 5-minute timer.
-  Those belong to the design record and to finalist validation.
-- Translations in this file are mine.
-  The source comments and commit messages quoted above are Korean,
-  and each translation is marked where it appears.
-- The account of `directory-watcher`'s own docs in the vet report was written from documentation only.
-  This record confirms the doc-derived claims about queueing, exclusion, notification and duplication
-  against source, and adds the limits GW-12, GW-20 and GW-21.
