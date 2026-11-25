@@ -233,7 +233,7 @@ fn kept_and_restorable(state: &LinkRepair, facts: &LinkFacts) -> Vec<String> {
         LinkRepair::Intact => vec![
             format!("kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`", facts.clone_dataset),
             String::from("restorable: nothing needs restoring, and `git worktree prune` keeps this registration because the pointer stands"),
-            String::from("next safe command: nothing here; run Git in the worktree while the clone is mounted, or the removal to be rid of it"),
+            format!("next safe command: nothing here; run Git in the worktree while the clone is mounted, and to be rid of it, {}", crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
         ],
         LinkRepair::Damaged => vec![
             format!("kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`", facts.clone_dataset),

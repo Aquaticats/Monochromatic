@@ -846,7 +846,7 @@ Read-only commands,
   takes the ordinary ladder instead of this route,
   because this release has no way to clean up after a restore that fails at a
   slot;
-  that decline ends when plan step 14's settle lands.
+  that decline ends when plan step 16's settle lands.
   Every other source the route cannot copy stops the add before it writes
   anything.
   `SPEC.md`,
@@ -2423,9 +2423,12 @@ while it is unmounted Git's own move really moves the registration,
 and the wrapper's refusal is the only protection there.
 The message says the slot is fixed,
 that nothing was moved,
-and that the removal and a new add are the way to move the work.
+that moving the work means removing the clone and settling its registration first,
+and that this release has no removal for a clone,
+so the clone and its record stay until it does.
 
 `git worktree remove` is refused for a slot the binding record proves is a whole worktree,
+whatever options the command carries (`-f -f` and every other spelling Git accepts),
 because Git's removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
@@ -2453,9 +2456,8 @@ because destroying the last clone would destroy that snapshot in the same transa
 (`SPEC.md`,
 "Removal of a ZFS worktree clone";
 `doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
-After the unmount the refusal says the clone stays unmounted,
-the removal stays pending with its own record,
-and `cancel-worktree-removal <slot>` is the way back,
+After the unmount the refusal says the clone stays unmounted
+and the removal stays pending with its own record,
 and its sentence names every snapshot the plan already records as destroyed,
 so a later refusal never hides a loss an earlier one caused.
 A refusal prints no destructive command.

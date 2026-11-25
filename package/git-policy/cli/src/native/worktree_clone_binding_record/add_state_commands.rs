@@ -162,6 +162,18 @@ pub enum NextCommand {
 /// which the wrapper's own executable answers.
 pub const SETTLING_COMMAND_WORDS: &str = "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
+/// The words every refusal and report prints where a removal would be the way
+/// out.
+/// Why:
+///  No command of this release removes a clone,
+///  so naming one as the way out would send a person to a command that does not
+///  exist;
+///  this file is where the project states the one command a state names,
+///  and it says here that this one is not built
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone").
+pub const NO_REMOVAL_WORDS: &str = "this release has no removal for a clone, so the clone and its record stay until it does";
+
 /// What:
 ///  The command one state names.
 /// Why:
@@ -261,7 +273,9 @@ impl NextCommand {
                 "run `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, after reading the evidence above"
             ),
             NextCommand::GitWorktreeRemove => format!("run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"),
-            NextCommand::TheRemoval => format!("run the removal this slot's destruction plan belongs to; it resumes from the plan and ends it"),
+            NextCommand::TheRemoval => format!(
+                "the removal this slot's destruction plan belongs to resumes from the plan and ends it, and {NO_REMOVAL_WORDS}"
+            ),
             NextCommand::TheFinishPass => String::from(
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",
             ),

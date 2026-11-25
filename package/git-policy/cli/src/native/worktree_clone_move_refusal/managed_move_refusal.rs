@@ -90,8 +90,9 @@ pub struct ManagedMoveRefusal {
 /// Why:
 ///  It says the slot is fixed,
 ///  why renaming the folder does not move the clone,
-///  and the one route that does move the work,
-///  so a person is not left with a refusal and no way forward.
+///  and what moving the work would need,
+///  including that this release has no removal for a clone,
+///  so a person is not left with a refusal and a command that does not exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,8 +100,9 @@ pub struct ManagedMoveRefusal {
 /// ```
 fn bound_sentence(slot: &str, clone_dataset: &str, phase: Phase) -> String {
     return format!(
-        "`git worktree move` is refused: the slot `{slot}` is fixed because a managed clone is bound to it at `phase={}`. The clone's dataset is `{clone_dataset}`, and this route derives a clone's slot from that dataset's own name, so renaming the folder does not move the clone and leaves the binding record and the Git registration naming different paths. Nothing was moved. To move the work, run the removal, which destroys the clone and settles its registration, then add the worktree where you want it.",
-        phase.word()
+        "`git worktree move` is refused: the slot `{slot}` is fixed because a managed clone is bound to it at `phase={}`. The clone's dataset is `{clone_dataset}`, and this route derives a clone's slot from that dataset's own name, so renaming the folder does not move the clone and leaves the binding record and the Git registration naming different paths. Nothing was moved. Moving the work means removing the clone and settling its registration first, then adding the worktree where you want it; {}.",
+        phase.word(),
+        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     );
 }
 

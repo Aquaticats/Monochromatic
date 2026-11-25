@@ -158,7 +158,8 @@ pub fn before_a_prune(command: &ResolvedCommand, common_dir: Option<&Path>, stde
         }
     }
     refusal.push_str(&format!(
-        "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, or run the removal, then run the prune again.\n"
+        "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again; {}.\n",
+        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     ));
     return Some(Action::Exit { code: REFUSAL_STATUS, stdout: String::new(), stderr: refusal });
 }

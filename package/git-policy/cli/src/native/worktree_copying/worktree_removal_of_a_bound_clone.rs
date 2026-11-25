@@ -138,8 +138,9 @@ pub fn refuse_the_removal_with(facts: &CopyFacts, reads: RemovalReads<'_>, sourc
         return None;
     }
     let mut stderr: String = format!(
-        "the removal of `{}` is refused: a whole managed clone is bound to this slot, and this release has no removal for a clone, so the clone and its record stay until it does. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
-        target.display()
+        "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
+        target.display(),
+        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     );
     for line in at.lines() {
         stderr.push_str(line.as_str());

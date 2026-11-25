@@ -369,13 +369,13 @@ impl RemovalStop {
     pub fn message(&self) -> String {
         return match self {
             RemovalStop::NoBinding { slot, reason } => format!(
-                "the binding the add wrote for the slot `{slot}` could not be read ({reason}), so nothing proves which clone, origin or registration this removal is about. Nothing was destroyed, and the registration stands. Ways forward: run `monochromatic-git-policy-cli doctor`, which reports the binding record; a removal never repairs or removes one."
+                "the binding the add wrote for the slot `{slot}` could not be read ({reason}), so nothing proves which clone, origin or registration this removal is about. Nothing was destroyed, and the registration stands. Ways forward: read the binding record filed under the slot's name in the wrapper's record folder, and run the removal again once it reads; a removal never repairs or removes one."
             ),
             RemovalStop::BindingIncomplete { slot, field } => format!(
-                "the binding the add wrote for the slot `{slot}` carries no `{field}`, so the removal cannot prove the clone's lineage. Nothing was destroyed, and the registration stands. Ways forward: run `monochromatic-git-policy-cli doctor` and read the binding record; a slot whose add never reached the clone has nothing for a removal to destroy."
+                "the binding the add wrote for the slot `{slot}` carries no `{field}`, so the removal cannot prove the clone's lineage. Nothing was destroyed, and the registration stands. Ways forward: read the binding record under the slot's name and run the removal again once it carries the field; a slot whose add never reached the clone has nothing for a removal to destroy."
             ),
             RemovalStop::DoesNotAnswer { object, reason } => format!(
-                "the pool does not answer for `{object}` ({reason}), so the removal cannot prove its lineage and stops before its first delete. Nothing was destroyed, and the registration stands. Ways forward: run `monochromatic-git-policy-cli doctor`, and run the removal again once the pool answers."
+                "the pool does not answer for `{object}` ({reason}), so the removal cannot prove its lineage and stops before its first delete. Nothing was destroyed, and the registration stands. Ways forward: run the removal again once the pool answers for that name."
             ),
             RemovalStop::IdentityDiffers { object, field, recorded, live } => format!(
                 "`{object}` answers with {field} `{live}` and the add recorded `{recorded}`, so this object is not the one the add made and the removal stops before its first delete. Nothing was destroyed, and the registration stands. Ways forward: an administrator has to recover the lineage; the wrapper never changes a recorded identity to match the pool."
@@ -423,10 +423,10 @@ impl RemovalStop {
             }
             RemovalStop::OriginCheckRefused { refusal, history } => refusal.message(history),
             RemovalStop::TheSnapshotSetIsNotSendable { said, sent } => format!(
-                "this removal cannot submit its verified snapshots as one request: {said} No snapshot request was sent for that set, and {sent} request(s) this run already sent are recorded in the plan. The removal stops with the clone unmounted and the intent and the plan standing. Ways forward: read the plan with `monochromatic-git-policy-cli doctor`; the set is rebuilt from a fresh inventory before the next attempt, and a byte budget sized to the set is what removes this stop."
+                "this removal cannot submit its verified snapshots as one request: {said} No snapshot request was sent for that set, and {sent} request(s) this run already sent are recorded in the plan. The removal stops with the clone unmounted and the intent and the plan standing. Ways forward: read the plan's file in the wrapper's plan folder; the set is rebuilt from a fresh inventory before the next attempt, and a byte budget sized to the set is what removes this stop."
             ),
             RemovalStop::ThePlanCouldNotHoldTheAnswer { path, said } => format!(
-                "the destruction plan at {} could not hold an answer the kernel gave ({said}), so the plan now says less about this clone's own snapshots than the pool does. No further request was sent, the clone stands, and the intent and the plan are kept. Ways forward: read the plan and the clone's own snapshots with `monochromatic-git-policy-cli doctor`; a name the plan calls `planned` may already be gone, and a later attempt settles such a name by a fresh read before anything is sent for it.",
+                "the destruction plan at {} could not hold an answer the kernel gave ({said}), so the plan now says less about this clone's own snapshots than the pool does. No further request was sent, the clone stands, and the intent and the plan are kept. Ways forward: read the plan's file in the wrapper's plan folder and the clone's own snapshots; a name the plan calls `planned` may already be gone, and a later attempt settles such a name by a fresh read before anything is sent for it.",
                 path.display()
             ),
             RemovalStop::APlanStands { slot, path } => format!(
@@ -464,13 +464,13 @@ impl RemovalStop {
                 path.display()
             ),
             RemovalStop::NoLiveIntent { clone } => format!(
-                "a destruction plan stands for `{clone}`, and the clone's own `unmount` property names no request this run may go on from, so nothing proves the unmount the plan claims. Nothing was destroyed. Ways forward: run `git worktree add` at the slot again if the worktree must come back, or read the plan with `monochromatic-git-policy-cli doctor`; a removal never removes the property a person wrote."
+                "a destruction plan stands for `{clone}`, and the clone's own `unmount` property names no request this run may go on from, so nothing proves the unmount the plan claims. Nothing was destroyed. Ways forward: run `git worktree add` at the slot again if the worktree must come back, or read the plan's file in the wrapper's plan folder; a removal never removes the property a person wrote."
             ),
             RemovalStop::ThePlanContradictsThePool { head, clone } => format!(
-                "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan with `monochromatic-git-policy-cli doctor` and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
+                "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan's file in the wrapper's plan folder and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
             ),
             RemovalStop::TheSettleRefused { step, said } => format!(
-                "the clone is proved destroyed, and the settle stopped at `{step}` ({said}). The plan keeps the record of what was destroyed, and the origin cleanup record stands. Ways forward: read the plan with `monochromatic-git-policy-cli doctor`, fix what the step names, and run the removal again; it adopts the plan and finishes the settle without destroying anything twice."
+                "the clone is proved destroyed, and the settle stopped at `{step}` ({said}). The plan keeps the record of what was destroyed, and the origin cleanup record stands. Ways forward: read the plan's file in the wrapper's plan folder, fix what the step names, and run the removal again; it adopts the plan and finishes the settle without destroying anything twice."
             ),
             RemovalStop::TheRecordsCouldNotGo { path, said } => format!(
                 "the clone is proved destroyed and the settle finished, and the removal's own records could not go: {} ({said}). Nothing is destroyed again by a later run. Ways forward: remove what the message names once you have read it; the plan is the last witness and is removed only after the binding's files are proved gone.",
