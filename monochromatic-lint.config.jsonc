@@ -57,6 +57,27 @@
       },
     },
   },
+  // The git wrapper switched the same two layout rules on for the whole crate on 2026-11-25, with the
+  // loops it has and the rest of that day's findings on two allow lists that may only shrink
+  // (doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md). Every line of either list is
+  // one finding of that day; a round deletes the line of each finding it fixes, and the lint fails until
+  // it does, so new code cannot add a folder loop, a file loop, a glob re-export or a missing top-doc entry.
+  {
+    "name": "layout-git-policy-cli",
+    "files": [
+      "package/git-policy/cli/**/*.rs",
+    ],
+    "rules": {
+      "rust/folder-uses-links": {
+        "severity": "error",
+        "allow": "package/git-policy/cli/layout-allow-list/folder-rule.txt",
+      },
+      "rust/file-order-in-folder": {
+        "severity": "error",
+        "allow": "package/git-policy/cli/layout-allow-list/file-rule.txt",
+      },
+    },
+  },
   // The IDE has no finding left, so it holds the line at error severity.
   {
     "name": "closure-check-ide",

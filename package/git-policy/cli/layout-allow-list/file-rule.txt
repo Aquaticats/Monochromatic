@@ -1,0 +1,611 @@
+# The git wrapper's files that use each other today, one line per use.
+# What: the uses of a file loop that the allow list of rust/file-order-in-folder tolerates until a round untangles them.
+# Why: the crate switched the layout rules on with the loops it has on 2026-11-25
+#      (doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md).
+# How: a line is `file-uses <folder> <file> -> <file>`, the folder relative to package/git-policy/cli.
+#      A line matches only while the use is still made and its two files are still in one loop.
+#      A line that matches nothing is a finding, so a round that untangles a use deletes its line.
+file-uses src/native/command command_options.rs -> command_options_long.rs
+file-uses src/native/command command_options.rs -> command_options_short.rs
+file-uses src/native/command command_options_long.rs -> command_options.rs
+file-uses src/native/command command_options_long.rs -> command_options_long_resolution.rs
+file-uses src/native/command command_options_long.rs -> command_options_value.rs
+file-uses src/native/command command_options_long_resolution.rs -> command_options.rs
+file-uses src/native/command command_options_short.rs -> command_options.rs
+file-uses src/native/command command_options_short.rs -> command_options_value.rs
+file-uses src/native/command command_options_value.rs -> command_options.rs
+file-uses src/native/command rule_linked_worktree.rs -> rule_linked_worktree_messages.rs
+file-uses src/native/command rule_linked_worktree_messages.rs -> rule_linked_worktree.rs
+file-uses src/native/commit scratch_step_held_by_the_kernel.rs -> scratch_step_stall_decided_once.rs
+file-uses src/native/commit scratch_step_stall_decided_once.rs -> scratch_step_held_by_the_kernel.rs
+file-uses src/native/conflict conflict_sides.rs -> discarded_prune.rs
+file-uses src/native/conflict discard_audit.rs -> discard_audit_record.rs
+file-uses src/native/conflict discard_audit_record.rs -> discard_audit.rs
+file-uses src/native/conflict discarded_prune.rs -> conflict_sides.rs
+file-uses src/native/conflict discarded_prune.rs -> discarded_report.rs
+file-uses src/native/conflict discarded_report.rs -> conflict_sides.rs
+file-uses src/native/conflict discarded_report.rs -> discarded_prune.rs
+file-uses src/native/dependent_version dependent_version_yaml_lines.rs -> dependent_version_yaml_lines_scalar.rs
+file-uses src/native/dependent_version dependent_version_yaml_lines_scalar.rs -> dependent_version_yaml_lines.rs
+file-uses src/native/foundation diagnostic_lines_off_the_calling_thread.rs -> diagnostic_log.rs
+file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_calling_thread.rs
+file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
+file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
+file-uses src/native/invocation real_git.rs -> real_git_resolution.rs
+file-uses src/native/invocation real_git_resolution.rs -> real_git.rs
+file-uses src/native/kept_references kept_reference_log.rs -> kept_reference_pass.rs
+file-uses src/native/kept_references kept_reference_pass.rs -> kept_reference_log.rs
+file-uses src/native/landing held_commit_settle.rs -> held_commit_settle_move.rs
+file-uses src/native/landing held_commit_settle.rs -> service_land_finish.rs
+file-uses src/native/landing held_commit_settle_move.rs -> held_commit_settle.rs
+file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_durable.rs
+file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_index_prestage.rs
+file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_index_refused_lock.rs
+file-uses src/native/landing owed_index_repair.rs -> owed_index_update.rs
+file-uses src/native/landing owed_index_update.rs -> owed_index_repair.rs
+file-uses src/native/landing push_record_of_a_moved_branch.rs -> service_handoff.rs
+file-uses src/native/landing service_amend_replayed.rs -> service_commit_requests_and_landing_report.rs
+file-uses src/native/landing service_commit.rs -> service_commit_after_a_failure.rs
+file-uses src/native/landing service_commit.rs -> service_landed_aftermath.rs
+file-uses src/native/landing service_commit_after_a_failure.rs -> service_commit.rs
+file-uses src/native/landing service_commit_after_a_failure.rs -> service_landed_aftermath.rs
+file-uses src/native/landing service_commit_requests_and_landing_report.rs -> service_amend_replayed.rs
+file-uses src/native/landing service_durable.rs -> landing_state_carried_by_its_task.rs
+file-uses src/native/landing service_handoff.rs -> push_record_of_a_moved_branch.rs
+file-uses src/native/landing service_index_attempts.rs -> service_index_lock.rs
+file-uses src/native/landing service_index_attempts.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_attempts.rs -> service_index_reclaim.rs
+file-uses src/native/landing service_index_attempts.rs -> service_index_refused_lock.rs
+file-uses src/native/landing service_index_attempts.rs -> service_index_unheld_removal.rs
+file-uses src/native/landing service_index_attempts.rs -> service_land_follow.rs
+file-uses src/native/landing service_index_claim.rs -> landing_state_carried_by_its_task.rs
+file-uses src/native/landing service_index_claim.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_hold.rs -> service_durable.rs
+file-uses src/native/landing service_index_hold.rs -> service_index_ownership.rs
+file-uses src/native/landing service_index_identity.rs -> service_index_marker.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_attempts.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_hold.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_ownership.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_prestage.rs
+file-uses src/native/landing service_index_lock.rs -> service_index_reclaim.rs
+file-uses src/native/landing service_index_lock.rs -> service_land_follow.rs
+file-uses src/native/landing service_index_marker.rs -> service_index_identity.rs
+file-uses src/native/landing service_index_ownership.rs -> landing_state_carried_by_its_task.rs
+file-uses src/native/landing service_index_placement.rs -> service_durable.rs
+file-uses src/native/landing service_index_placement.rs -> service_index_ownership.rs
+file-uses src/native/landing service_index_placement.rs -> service_index_reclaim.rs
+file-uses src/native/landing service_index_prestage.rs -> landing_state_carried_by_its_task.rs
+file-uses src/native/landing service_index_prestage.rs -> service_index_lock.rs
+file-uses src/native/landing service_index_prestage.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_reclaim.rs -> service_index_claim.rs
+file-uses src/native/landing service_index_reclaim.rs -> service_index_lock.rs
+file-uses src/native/landing service_index_reclaim.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_refused_lock.rs -> landing_state_carried_by_its_task.rs
+file-uses src/native/landing service_index_unheld_removal.rs -> service_index_lock.rs
+file-uses src/native/landing service_index_unheld_removal.rs -> service_index_placement.rs
+file-uses src/native/landing service_index_unheld_removal.rs -> service_index_reclaim.rs
+file-uses src/native/landing service_land_copy.rs -> service_index_hold.rs
+file-uses src/native/landing service_land_copy.rs -> service_index_lock.rs
+file-uses src/native/landing service_land_copy.rs -> service_land_follow.rs
+file-uses src/native/landing service_land_finish.rs -> held_commit_settle.rs
+file-uses src/native/landing service_land_follow.rs -> service_index_hold.rs
+file-uses src/native/landing service_land_follow.rs -> service_index_lock.rs
+file-uses src/native/landing service_land_follow.rs -> service_land_copy.rs
+file-uses src/native/landing service_land_side_reference_write.rs -> service_land_without_its_scratch_reference.rs
+file-uses src/native/landing service_land_without_its_scratch_reference.rs -> service_land_side_reference_write.rs
+file-uses src/native/landing service_landed_aftermath.rs -> service_commit.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_failure.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_manager_that_did_not_answer.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_platform.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_service_that_stopped.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_start_that_cannot_come.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_a_start_that_was_asked_and_did_not_come.rs
+file-uses src/native/landing service_messages.rs -> service_messages_of_an_interrupted_commit.rs
+file-uses src/native/landing service_messages_of_a_failure.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_a_manager_that_did_not_answer.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_a_platform.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_a_service_that_stopped.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_a_start_that_cannot_come.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_a_start_that_was_asked_and_did_not_come.rs -> service_messages.rs
+file-uses src/native/landing service_messages_of_an_interrupted_commit.rs -> service_messages.rs
+file-uses src/native/landing service_replay.rs -> service_replay_capture_order.rs
+file-uses src/native/landing service_replay_capture_order.rs -> service_replay.rs
+file-uses src/native/landing service_round.rs -> service_work.rs
+file-uses src/native/landing service_round.rs -> service_work_drains_awaiting.rs
+file-uses src/native/landing service_work.rs -> service_work_drains_awaiting.rs
+file-uses src/native/landing service_work_drain_pending_claims.rs -> service_work_drains_a_snapshot_ahead.rs
+file-uses src/native/landing service_work_drain_pending_claims.rs -> service_work_items_side_by_side.rs
+file-uses src/native/landing service_work_drains_a_snapshot_ahead.rs -> service_work.rs
+file-uses src/native/landing service_work_drains_awaiting.rs -> service_work_drain_pending_claims.rs
+file-uses src/native/landing service_work_items_side_by_side.rs -> service_round.rs
+file-uses src/native/landing work_item.rs -> work_item_enqueue.rs
+file-uses src/native/landing work_item.rs -> work_item_holding.rs
+file-uses src/native/landing work_item.rs -> work_item_queued_ids.rs
+file-uses src/native/landing work_item_enqueue.rs -> work_item.rs
+file-uses src/native/landing work_item_holding.rs -> work_item.rs
+file-uses src/native/landing work_item_queued_ids.rs -> work_item.rs
+file-uses src/native/lfs lfs_upload_plan.rs -> lfs_upload_plan_awaiting.rs
+file-uses src/native/lfs lfs_upload_plan_awaiting.rs -> lfs_upload_plan.rs
+file-uses src/native/lock index_lock_evidence.rs -> index_lock_evidence_words.rs
+file-uses src/native/lock index_lock_evidence_words.rs -> index_lock_evidence.rs
+file-uses src/native/lock index_lock_holder_parsers.rs -> index_lock_holders.rs
+file-uses src/native/lock index_lock_holders.rs -> index_lock_holder_parsers.rs
+file-uses src/native/lock stale_ref_lock_found.rs -> stale_ref_lock_judge.rs
+file-uses src/native/lock stale_ref_lock_judge.rs -> stale_ref_lock_found.rs
+file-uses src/native/lock stale_ref_lock_judge.rs -> stale_ref_lock_walk.rs
+file-uses src/native/lock stale_ref_lock_judge.rs -> stopped_git_locks.rs
+file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_found.rs
+file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_judge.rs
+file-uses src/native/lock stale_ref_lock_retire.rs -> stale_ref_lock_walk.rs
+file-uses src/native/lock stale_ref_lock_walk.rs -> stopped_git_locks.rs
+file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_found.rs
+file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_judge.rs
+file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_retire.rs
+file-uses src/native/lock stale_ref_locks.rs -> stale_ref_lock_walk.rs
+file-uses src/native/lock stopped_git_locks.rs -> stale_ref_lock_judge.rs
+file-uses src/native/lock stopped_git_locks.rs -> stale_ref_locks.rs
+file-uses src/native/merge merge_isolation_carry.rs -> merge_isolation_worktree_entry.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_kept_path.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_notice.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_place.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_plans.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_carry_writes.rs
+file-uses src/native/merge merge_isolation_carry_apply.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_carry_kept_path.rs -> merge_isolation_carry_writes.rs
+file-uses src/native/merge merge_isolation_carry_notice.rs -> merge_isolation_carry_kept_path.rs
+file-uses src/native/merge merge_isolation_carry_notice.rs -> merge_isolation_carry_plans.rs
+file-uses src/native/merge merge_isolation_carry_place.rs -> merge_isolation_carry_writes.rs
+file-uses src/native/merge merge_isolation_carry_place.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_carry_plans.rs -> merge_isolation_carry_writes.rs
+file-uses src/native/merge merge_isolation_carry_writes.rs -> merge_isolation_carry_place.rs
+file-uses src/native/merge merge_isolation_index_reading.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_kept_copies_decisions.rs -> merge_isolation_recovery_records.rs
+file-uses src/native/merge merge_isolation_kept_copies_decisions.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_kept_copies_decisions.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_moved.rs -> merge_isolation_index_reading.rs
+file-uses src/native/merge merge_isolation_moved.rs -> merge_isolation_recovery_cleanup.rs
+file-uses src/native/merge merge_isolation_moved.rs -> merge_isolation_recovery_install.rs
+file-uses src/native/merge merge_isolation_moved.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_moved.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_index_reading.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_moved.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_carry.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_cleanup.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_complete.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_notice.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_reads.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_records.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_recovery_carry.rs -> merge_isolation_carry_apply.rs
+file-uses src/native/merge merge_isolation_recovery_carry.rs -> merge_isolation_carry_notice.rs
+file-uses src/native/merge merge_isolation_recovery_carry.rs -> merge_isolation_carry_writes.rs
+file-uses src/native/merge merge_isolation_recovery_carry.rs -> merge_isolation_recovery_cleanup.rs
+file-uses src/native/merge merge_isolation_recovery_carry.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_cleanup.rs -> merge_isolation_recovery_carry.rs
+file-uses src/native/merge merge_isolation_recovery_cleanup.rs -> merge_isolation_recovery_reads.rs
+file-uses src/native/merge merge_isolation_recovery_cleanup.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_complete.rs -> merge_isolation_recovery_cleanup.rs
+file-uses src/native/merge merge_isolation_recovery_complete.rs -> merge_isolation_recovery_install.rs
+file-uses src/native/merge merge_isolation_recovery_complete.rs -> merge_isolation_recovery_reads.rs
+file-uses src/native/merge merge_isolation_recovery_complete.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_install.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_install.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_recovery_notice.rs -> merge_isolation_recovery.rs
+file-uses src/native/merge merge_isolation_recovery_notice.rs -> merge_isolation_recovery_records.rs
+file-uses src/native/merge merge_isolation_recovery_notice.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_reads.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_reads.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_recovery_records.rs -> merge_isolation_kept_copies_decisions.rs
+file-uses src/native/merge merge_isolation_recovery_records.rs -> merge_isolation_recovery.rs
+file-uses src/native/merge merge_isolation_recovery_records.rs -> merge_isolation_recovery_notice.rs
+file-uses src/native/merge merge_isolation_recovery_records.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_index_reading.rs
+file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_recovery_install.rs
+file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_take_asides.rs
+file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_kept_copies_decisions.rs
+file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_recovery_steps.rs
+file-uses src/native/merge merge_isolation_worktree_entry.rs -> merge_isolation_carry.rs
+file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_git_lines.rs
+file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_report.rs
+file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.rs
+file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
+file-uses src/native/merge merge_second_pass_worktree.rs -> merge_second_pass_worktree_unchanged.rs
+file-uses src/native/merge merge_second_pass_worktree_unchanged.rs -> merge_second_pass_worktree.rs
+file-uses src/native/merge word_merge.rs -> word_merge_invented_text.rs
+file-uses src/native/merge word_merge_invented_text.rs -> word_merge.rs
+file-uses src/native/policy direct_fix_install.rs -> direct_fix_install_judging.rs
+file-uses src/native/policy direct_fix_install.rs -> direct_fix_install_messages.rs
+file-uses src/native/policy direct_fix_install_attributes.rs -> direct_fix_install_attributes_reading.rs
+file-uses src/native/policy direct_fix_install_attributes_reading.rs -> direct_fix_install_attributes.rs
+file-uses src/native/policy direct_fix_install_judging.rs -> direct_fix_install.rs
+file-uses src/native/policy direct_fix_install_messages.rs -> direct_fix_install.rs
+file-uses src/native/policy policy_branch_worktree.rs -> policy_checks.rs
+file-uses src/native/policy policy_checks.rs -> policy_branch_worktree.rs
+file-uses src/native/policy policy_checks.rs -> policy_linked_worktree.rs
+file-uses src/native/policy policy_linked_worktree.rs -> policy_checks.rs
+file-uses src/native/policy policy_linked_worktree.rs -> policy_linked_worktree_nested_repositories.rs
+file-uses src/native/policy policy_linked_worktree_nested_repositories.rs -> policy_checks.rs
+file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
+file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
+file-uses src/native/process signal_relay.rs -> signal_relay_descriptor.rs
+file-uses src/native/process signal_relay.rs -> signal_report.rs
+file-uses src/native/process signal_relay_descriptor.rs -> signal_relay.rs
+file-uses src/native/process signal_report.rs -> signal_relay.rs
+file-uses src/native/push auto_push.rs -> auto_push_awaiting.rs
+file-uses src/native/push auto_push.rs -> auto_push_reconcile.rs
+file-uses src/native/push auto_push.rs -> push_retry_failure.rs
+file-uses src/native/push auto_push.rs -> push_tracking_ref_repair.rs
+file-uses src/native/push auto_push_awaiting.rs -> auto_push.rs
+file-uses src/native/push auto_push_awaiting.rs -> auto_push_reconcile_awaiting.rs
+file-uses src/native/push auto_push_awaiting.rs -> push_tracking_ref_repair.rs
+file-uses src/native/push auto_push_reconcile.rs -> auto_push_reconcile_awaiting.rs
+file-uses src/native/push auto_push_reconcile_awaiting.rs -> push_retry_failure.rs
+file-uses src/native/push auto_push_single_flight.rs -> bounded_push.rs
+file-uses src/native/push auto_push_single_flight.rs -> bounded_query.rs
+file-uses src/native/push blocked_commit_lines.rs -> push_held_back_by_a_blocked_commit.rs
+file-uses src/native/push bounded_push.rs -> auto_push_single_flight.rs
+file-uses src/native/push bounded_push.rs -> push_progress.rs
+file-uses src/native/push bounded_push.rs -> push_server_naming.rs
+file-uses src/native/push bounded_push.rs -> push_wait_until_done.rs
+file-uses src/native/push bounded_query.rs -> auto_push_single_flight.rs
+file-uses src/native/push bounded_query.rs -> bounded_push.rs
+file-uses src/native/push bounded_query.rs -> child_watch.rs
+file-uses src/native/push bounded_query.rs -> push_progress.rs
+file-uses src/native/push bounded_query.rs -> push_wait_until_done.rs
+file-uses src/native/push child_watch.rs -> child_watch_clock_marks_and_stopping.rs
+file-uses src/native/push child_watch.rs -> child_watch_one_shot_run.rs
+file-uses src/native/push child_watch.rs -> child_watch_task_loop_and_notice.rs
+file-uses src/native/push child_watch_clock_marks_and_stopping.rs -> bounded_push.rs
+file-uses src/native/push child_watch_clock_marks_and_stopping.rs -> push_progress.rs
+file-uses src/native/push child_watch_one_shot_run.rs -> child_watch.rs
+file-uses src/native/push child_watch_one_shot_run.rs -> child_watch_clock_marks_and_stopping.rs
+file-uses src/native/push child_watch_task_loop_and_notice.rs -> bounded_push.rs
+file-uses src/native/push child_watch_task_loop_and_notice.rs -> child_watch_clock_marks_and_stopping.rs
+file-uses src/native/push child_watch_task_loop_and_notice.rs -> push_progress.rs
+file-uses src/native/push manual_push_probe.rs -> manual_push_range_published_tips.rs
+file-uses src/native/push manual_push_range.rs -> manual_push_probe.rs
+file-uses src/native/push manual_push_range.rs -> manual_push_range_published_tips.rs
+file-uses src/native/push manual_push_range_published_tips.rs -> manual_push_probe.rs
+file-uses src/native/push manual_push_range_published_tips.rs -> manual_push_range.rs
+file-uses src/native/push push_failure_notice.rs -> push_failure_notice_reports.rs
+file-uses src/native/push push_failure_notice.rs -> push_failure_notice_words.rs
+file-uses src/native/push push_failure_notice_reports.rs -> push_failure_notice.rs
+file-uses src/native/push push_failure_notice_words.rs -> auto_push.rs
+file-uses src/native/push push_failure_notice_words.rs -> push_failure_notice.rs
+file-uses src/native/push push_held_back_by_a_blocked_commit.rs -> blocked_commit_lines.rs
+file-uses src/native/push push_progress.rs -> bounded_push.rs
+file-uses src/native/push push_retry.rs -> push_retry_store.rs
+file-uses src/native/push push_retry_failure.rs -> push_retry.rs
+file-uses src/native/push push_retry_store.rs -> push_failure_notice.rs
+file-uses src/native/push push_server_naming.rs -> bounded_push.rs
+file-uses src/native/push push_server_naming.rs -> bounded_query.rs
+file-uses src/native/push push_stacking.rs -> stacked_merge_push.rs
+file-uses src/native/push push_tracking_ref_repair.rs -> auto_push.rs
+file-uses src/native/push push_wait_until_done.rs -> auto_push_single_flight.rs
+file-uses src/native/push push_wait_until_done.rs -> push_progress.rs
+file-uses src/native/push stacked_merge_push.rs -> push_stacking.rs
+file-uses src/native/repair package_repair_cargo.rs -> package_repair_cargo_jobs.rs
+file-uses src/native/repair package_repair_cargo.rs -> package_repair_prewarm_job.rs
+file-uses src/native/repair package_repair_cargo_jobs.rs -> package_repair_cargo.rs
+file-uses src/native/repair package_repair_prewarm_job.rs -> package_repair_cargo.rs
+file-uses src/native/repair package_repair_relink_notice.rs -> package_repair_toolchain.rs
+file-uses src/native/repair package_repair_toolchain.rs -> package_repair_relink_notice.rs
+file-uses src/native/repo_read git_metadata.rs -> repo_read_hook.rs
+file-uses src/native/repo_read repo_read_diff.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_diff.rs -> repo_read_tree.rs
+file-uses src/native/repo_read repo_read_hook.rs -> git_metadata.rs
+file-uses src/native/repo_read repo_read_hook.rs -> repo_read_query.rs
+file-uses src/native/repo_read repo_read_hook.rs -> repo_read_query_request_answer_and_context.rs
+file-uses src/native/repo_read repo_read_index.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_index.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_layout.rs -> repo_read_hook.rs
+file-uses src/native/repo_read repo_read_object.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_odb.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_odb.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_odb.rs -> repo_read_pack.rs
+file-uses src/native/repo_read repo_read_pack.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_diff.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_query_quiet.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_query_refs.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_query_request_answer_and_context.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_tree.rs
+file-uses src/native/repo_read repo_read_query.rs -> repo_read_tree_cached.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_diff.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_index.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_query_request_answer_and_context.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_tree.rs
+file-uses src/native/repo_read repo_read_query_quiet.rs -> repo_read_tree_cached.rs
+file-uses src/native/repo_read repo_read_query_refs.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_query_refs.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_query_refs.rs -> repo_read_query_request_answer_and_context.rs
+file-uses src/native/repo_read repo_read_query_request_answer_and_context.rs -> repo_read_index.rs
+file-uses src/native/repo_read repo_read_query_request_answer_and_context.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_query_request_answer_and_context.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_query_request_answer_and_context.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_query_request_answer_and_context.rs -> repo_read_tree.rs
+file-uses src/native/repo_read repo_read_tree.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_tree.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_tree.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_tree_cached.rs -> repo_read_diff.rs
+file-uses src/native/repo_read repo_read_tree_cached.rs -> repo_read_layout.rs
+file-uses src/native/repo_read repo_read_tree_cached.rs -> repo_read_object.rs
+file-uses src/native/repo_read repo_read_tree_cached.rs -> repo_read_odb.rs
+file-uses src/native/repo_read repo_read_tree_cached.rs -> repo_read_tree.rs
+file-uses src/native/repo_read repository_facts.rs -> repository_facts_abort_discard.rs
+file-uses src/native/repo_read repository_facts.rs -> repository_facts_ignored_files.rs
+file-uses src/native/repo_read repository_facts.rs -> repository_facts_staged_selection.rs
+file-uses src/native/repo_read repository_facts.rs -> repository_facts_untracked_files.rs
+file-uses src/native/repo_read repository_facts_abort_discard.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_abort_discard.rs -> repository_facts_abort_discard_worktree_entries.rs
+file-uses src/native/repo_read repository_facts_abort_discard.rs -> repository_facts_staged_entries.rs
+file-uses src/native/repo_read repository_facts_abort_discard_worktree_entries.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_ignored_files.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_staged_entries.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_staged_selection.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_untracked_files.rs -> repository_facts.rs
+file-uses src/native/repo_read repository_facts_untracked_files.rs -> repository_facts_ignored_files.rs
+file-uses src/native/service service_files_of_a_stopped_instance.rs -> service_instance.rs
+file-uses src/native/service service_instance.rs -> service_files_of_a_stopped_instance.rs
+file-uses src/native/service service_protocol.rs -> service_protocol_decode_lines_to_messages.rs
+file-uses src/native/service service_protocol_decode_lines_to_messages.rs -> service_protocol_forgetting_programs.rs
+file-uses src/native/service service_protocol_forgetting_programs.rs -> service_protocol.rs
+file-uses src/native/service service_server.rs -> service_server_own_worktree_question.rs
+file-uses src/native/service service_server_own_worktree_question.rs -> service_server.rs
+file-uses src/native/shadow shadow_create.rs -> shadow_drawn.rs
+file-uses src/native/shadow shadow_create.rs -> shadow_pool.rs
+file-uses src/native/shadow shadow_create.rs -> shadow_pool_member.rs
+file-uses src/native/shadow shadow_drawn.rs -> shadow_create.rs
+file-uses src/native/shadow shadow_drawn.rs -> shadow_pool.rs
+file-uses src/native/shadow shadow_drawn.rs -> shadow_pool_member.rs
+file-uses src/native/shadow shadow_pool.rs -> shadow_create.rs
+file-uses src/native/shadow shadow_pool.rs -> shadow_pool_member.rs
+file-uses src/native/shadow shadow_pool_member.rs -> shadow_create.rs
+file-uses src/native/start_probe probe_configuration.rs -> probe_configuration_refusal.rs
+file-uses src/native/start_probe probe_configuration_refusal.rs -> probe_configuration.rs
+file-uses src/native/worktree worktree_convert_phases.rs -> worktree_convert_unrecorded_stage.rs
+file-uses src/native/worktree worktree_convert_unrecorded_stage.rs -> worktree_convert_phases.rs
+file-uses src/native/worktree worktree_ladder_finish.rs -> worktree_ladder_finish_clones.rs
+file-uses src/native/worktree worktree_ladder_finish_clones.rs -> worktree_ladder_finish.rs
+file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_remove_hand_over.rs
+file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_snapshot_ahead.rs
+file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_clears_the_ahead_pool.rs
+file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_interrupted_destroy.rs
+file-uses src/native/worktree worktree_removal_goes_around_a_foreign_volume.rs -> worktree_removal_takes_its_pending_deletions.rs
+file-uses src/native/worktree worktree_removal_goes_around_a_foreign_volume.rs -> worktree_remove_reports.rs
+file-uses src/native/worktree worktree_removal_interrupted_destroy.rs -> worktree_removal_finishes_an_interrupted_destroy.rs
+file-uses src/native/worktree worktree_removal_rescue.rs -> worktree_removal_rescue_removal_state.rs
+file-uses src/native/worktree worktree_removal_rescue_removal_state.rs -> worktree_removal_rescue.rs
+file-uses src/native/worktree worktree_removal_takes_its_pending_deletions.rs -> worktree_remove_hand_over.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_removal_clears_the_ahead_pool.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_removal_goes_around_a_foreign_volume.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_removal_interrupted_destroy.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_removal_takes_its_pending_deletions.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_remove_around.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_remove_hand_over.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_remove_last_look.rs
+file-uses src/native/worktree worktree_remove.rs -> worktree_remove_reports.rs
+file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_goes_around_a_foreign_volume.rs
+file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_interrupted_destroy.rs
+file-uses src/native/worktree worktree_remove_around.rs -> worktree_remove.rs
+file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_goes_around_a_foreign_volume.rs
+file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_interrupted_destroy.rs
+file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_remove.rs
+file-uses src/native/worktree worktree_remove_last_look.rs -> worktree_remove.rs
+file-uses src/native/worktree worktree_remove_reports.rs -> worktree_snapshot_ahead.rs
+file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
+file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_snapshot_ahead_claim.rs
+file-uses src/native/worktree worktree_snapshot_ahead_claim.rs -> worktree_snapshot_ahead.rs
+file-uses src/native/worktree worktree_snapshot_source.rs -> worktree_trash_ignore_rule.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_snapshot_source.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_dispose.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_dispose_awaiting.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_hand_over.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_set_aside.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_set_aside_entries.rs
+file-uses src/native/worktree worktree_trash.rs -> worktree_trash_unaccounted.rs
+file-uses src/native/worktree worktree_trash_dispose.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_dispose.rs -> worktree_trash_own_manifest.rs
+file-uses src/native/worktree worktree_trash_dispose_awaiting.rs -> worktree_trash_dispose.rs
+file-uses src/native/worktree worktree_trash_hand_over.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_hand_over.rs -> worktree_trash_dispose.rs
+file-uses src/native/worktree worktree_trash_ignore_rule.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_own_manifest.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_set_aside.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_set_aside_entries.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_set_aside_entries.rs -> worktree_trash_set_aside.rs
+file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash.rs
+file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_dispose.rs
+file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_hand_over.rs
+file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_own_manifest.rs
+file-uses src/native/worktree_clone_binding_record registration_recipe.rs -> registration_removals.rs
+file-uses src/native/worktree_clone_binding_record registration_removals.rs -> registration_recipe.rs
+file-uses src/native/worktree_clone_mount_handler sweep_configuration.rs -> sweep_configuration_refusal.rs
+file-uses src/native/worktree_clone_mount_handler sweep_configuration_refusal.rs -> sweep_configuration.rs
+file-uses src/native/worktree_clone_mount_handler sweep_one_clone.rs -> sweep_one_clone_answers.rs
+file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_one_clone.rs
+file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_unmount_answers.rs
+file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone.rs
+file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone_answers.rs
+file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_origin_step.rs
+file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_settle_step.rs
+file-uses src/native/worktree_clone_removal_proof_and_plan removal_origin_step.rs -> removal_completion.rs
+file-uses src/native/worktree_clone_removal_proof_and_plan removal_settle_step.rs -> removal_completion.rs
+file-uses src/native/worktree_clone_unmount unmount_record.rs -> unmount_turn.rs
+file-uses src/native/worktree_clone_unmount unmount_turn.rs -> unmount_record.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_after_lock.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_owed_copy.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_recovery.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_registry.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_synchronize.rs
+file-uses src/native/worktree_copying worktree_copy_after_lock.rs -> worktree_copy.rs
+file-uses src/native/worktree_copying worktree_copy_forward.rs -> worktree_removal_of_a_bound_clone.rs
+file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
+file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_interrupted_checkout.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_journal.rs -> worktree_copy_stage.rs
+file-uses src/native/worktree_copying worktree_copy_journal.rs -> worktree_copy_unreadable_record_aside.rs
+file-uses src/native/worktree_copying worktree_copy_journal.rs -> worktree_copy_unreadable_records.rs
+file-uses src/native/worktree_copying worktree_copy_journal_removal.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_interrupted_checkout.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_recovery.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_registry.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_source_still_being_filled.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_stage_claim_reaping.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_swapped_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_synchronize.rs
+file-uses src/native/worktree_copying worktree_copy_owed_copy.rs -> worktree_copy_unfilled_record.rs
+file-uses src/native/worktree_copying worktree_copy_prune.rs -> worktree_copy_selection.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_owed_copy.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_stage_claim_reaping.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_transaction.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_unfilled_record.rs
+file-uses src/native/worktree_copying worktree_copy_recovery.rs -> worktree_copy_unreadable_records.rs
+file-uses src/native/worktree_copying worktree_copy_registry.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_selection.rs -> worktree_copy_prune.rs
+file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_stage_claim_reaping.rs
+file-uses src/native/worktree_copying worktree_copy_source_still_being_filled.rs -> worktree_copy_unfilled_record.rs
+file-uses src/native/worktree_copying worktree_copy_stage.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_stage_binding.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim.rs -> worktree_copy_stage.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_owed_copy_elsewhere.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_owed_copy_elsewhere.rs -> worktree_copy_recovery.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_owed_copy_elsewhere.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_pointer_presence.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_recovery.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_stage_claim_owed_copy_elsewhere.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_stage_claim_swept_files.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_stage_reaping_proof_and_words.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_swapped_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_reaping.rs -> worktree_copy_unreadable_records.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_swept_files.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_swept_files.rs -> worktree_copy_stage_claim_reaping.rs
+file-uses src/native/worktree_copying worktree_copy_stage_claim_swept_files.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_stage_made_object.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_made_object.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_stage_made_object.rs -> worktree_copy_stage_snapshot_origin.rs
+file-uses src/native/worktree_copying worktree_copy_stage_reaping_proof_and_words.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_stage_reaping_proof_and_words.rs -> worktree_copy_stage_snapshot_origin.rs
+file-uses src/native/worktree_copying worktree_copy_stage_snapshot_origin.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_reaping_proof_and_words.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_registry.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_source_still_being_filled.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_transaction.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_install_log.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_stage.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_transaction.rs -> worktree_copy_unfilled_record.rs
+file-uses src/native/worktree_copying worktree_copy_unfilled_record.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_unfilled_record.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_record_aside.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_interrupted_add_settlement.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_journal.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_journal_removal.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_binding.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_claim.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_claim_reaping.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_made_object.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unfilled_record.rs
+file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unreadable_record_aside.rs
+file-uses src/native/worktree_copying worktree_removal_of_a_bound_clone.rs -> worktree_copy_forward.rs
+file-uses src/native/worktree_removal_deferred_origin_check origin_refusal.rs -> planned_origin.rs
+file-uses src/native/worktree_removal_deferred_origin_check planned_origin.rs -> origin_refusal.rs
+file-uses src/native/zfs_mounted_dataset mounted_dataset_refusal.rs -> the_designs_datasets_in_the_mount_table.rs
+file-uses src/native/zfs_mounted_dataset the_designs_datasets_in_the_mount_table.rs -> mounted_dataset_refusal.rs
+foreign-name src/native/worktree_clone_mount/mod.rs attach_arm_tests.rs
+index-item src/native/main.rs function-end_after_the_log
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_attach_step.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_clone_check.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_configuration.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_dataset_facts.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_dataset_reader.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_first_attach.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_one_clone.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_one_clone_answers.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_preconditions.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_run.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_standing_mount_source.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_standing_mounts.rs
+missing-entry src/native/worktree_clone_mount_handler/mod.rs sweep_unmount_answers.rs
+no-file-list src/native/candidate/mod.rs
+no-file-list src/native/command/mod.rs
+no-file-list src/native/commit/mod.rs
+no-file-list src/native/config/mod.rs
+no-file-list src/native/conflict/mod.rs
+no-file-list src/native/dependent_version/mod.rs
+no-file-list src/native/foundation/mod.rs
+no-file-list src/native/index/mod.rs
+no-file-list src/native/invocation/mod.rs
+no-file-list src/native/kept_references/mod.rs
+no-file-list src/native/landing/mod.rs
+no-file-list src/native/lfs/mod.rs
+no-file-list src/native/lock/mod.rs
+no-file-list src/native/markdown/mod.rs
+no-file-list src/native/merge/mod.rs
+no-file-list src/native/policy/mod.rs
+no-file-list src/native/process/mod.rs
+no-file-list src/native/push/mod.rs
+no-file-list src/native/repair/mod.rs
+no-file-list src/native/repo_read/mod.rs
+no-file-list src/native/repository_link_check/mod.rs
+no-file-list src/native/service/mod.rs
+no-file-list src/native/shadow/mod.rs
+no-file-list src/native/standards_review/mod.rs
+no-file-list src/native/subvolume/mod.rs
+no-file-list src/native/transaction/mod.rs
+no-file-list src/native/worktree/mod.rs
+no-file-list src/native/worktree_clone_add_route/mod.rs
+no-file-list src/native/worktree_clone_binding_record/mod.rs
+no-file-list src/native/worktree_clone_link_repair/mod.rs
+no-file-list src/native/worktree_clone_move_refusal/mod.rs
+no-file-list src/native/worktree_clone_origin_cleanup/mod.rs
+no-file-list src/native/worktree_clone_prune_pointer/mod.rs
+no-file-list src/native/worktree_clone_record_settling/mod.rs
+no-file-list src/native/worktree_clone_removal_finish_pass/mod.rs
+no-file-list src/native/worktree_clone_removal_proof_and_plan/mod.rs
+no-file-list src/native/worktree_clone_slot_state/mod.rs
+no-file-list src/native/worktree_clone_snapshot_batch/mod.rs
+no-file-list src/native/worktree_clone_unmount/mod.rs
+no-file-list src/native/worktree_copying/mod.rs
+no-file-list src/native/worktree_removal_deferred_origin_check/mod.rs
+no-file-list src/native/zfs_compatibility_gate/mod.rs
+order src/native/account_companion/mod.rs companion_records.rs companion_file_calls.rs
+order src/native/worktree_clone_mount_handler/mod.rs attaching_sweep_mode.rs per_slot_root_claim.rs
+order src/native/worktree_clone_mount_handler/mod.rs boot_reconcile_mode.rs per_slot_root_claim.rs
