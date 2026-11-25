@@ -365,8 +365,13 @@ a string-aware shared stripper that finishes all 1,472 release files, three asse
 the printed `main.rs` and pin rebased onto `5f904d9fbd`, every printed Rust text compiled and clean under the crate's Clippy table,
 `mount-path-descendant` walking by descriptor with the root-ownership clause dropped and three refusals added,
 choice 5 re-ranked C > A > B on delivery and choice 9 E (`--replace <the kernel's GUID>`) > D > A > C > B;
-its Sonnet read runs since 2026-11-24T22:25-05:00 (brief `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/prompt.md`),
-asked to sort its findings into those that change what the owner is asked and those a revision repairs after the answers;
+its Sonnet read (same vendor, a second pass; `keep/read-of-the-sixth-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/`)
+found no High and judged the eleven choices ready for the owner after five text repairs that change no command, ranking order or boot behaviour
+(B1 choice 5's missing A-over-B reason, B2 the usage line naming two `--replace` tokens, B3 choice 9's C and B window con resting on the refusal's wording,
+B4 choice 4's B-over-C a tie by delivery, B5 choice 5's C carrying choice 2's word);
+the choices went to the owner at 2026-11-24T23:00-05:00 with the read's corrected blocks, so the revision that writes the answers folds B1 to B5 and the after-answers list
+(A1 to A3 guard holes: `br"..."` and comment-then-`r` stripper edges, split and macro-built allows, three function-wide allows, three `#[path]` spellings, `lib.rs` and the Clippy configuration unread;
+A4 `dataset-not-mountable`'s stated reason and two missing `zfs mount` refusals; A5 the proof order; A6 the change list keeping choice 5's A; A7 to A18 labels, citations and counts);
 the fifth read's `work/`, the sixth round's `keep/` and the fourth round's `scratch/` (which the proposal cites) stay until it ends;
 earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
