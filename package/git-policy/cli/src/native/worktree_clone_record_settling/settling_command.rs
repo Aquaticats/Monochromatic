@@ -133,10 +133,12 @@ fn take_the_slots_claim(common_dir: &Path, slot: &str) -> Result<OwnerClaim, Set
 ///  The recipe removes only a pointer whose bytes name this registration,
 ///  and a registration of another identity is another folder's,
 ///  so both stop the run before the plan,
-///  the inventories or the binding are touched
+///  the inventories,
+///  or the binding are touched
 ///  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 ///  "The settling command",
-///  "What it refuses, changing nothing").
+///  "What it refuses,
+/// changing nothing").
 ///
 /// # Throws
 /// A pointer naming another registration,
