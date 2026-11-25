@@ -4,7 +4,7 @@
 //!  and the wiring assertions no text pin can see.
 //! Why:
 //!  Two of the owner's answers meet in one file:
-//!  only the installed ZED history event's name selects a root mode,
+//!  only the ZED history event's own name selects a root mode,
 //!  and every other mode is reached through the words
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,

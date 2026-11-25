@@ -1928,11 +1928,11 @@ One archive carries one executable,
 It is the file a caller runs as `git`;
 root reaches its modes through the words
 `monochromatic-git-policy-cli zfs-root <mode>`
- or through one root-owned file under the installed ZED history event's name,
+ or through one root-owned file under the ZED history event's name,
  and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
 The root modes run these kinds of work:
-no argument at all is the clone-mount sweep the installed ZED event starts,
+no argument at all is the clone-mount sweep ZED's own start runs,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
@@ -2469,6 +2469,12 @@ What this release builds and does not yet run is the rest of that removal,
 on one writing path no command reaches
 (`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
 
+- the slot's per-slot claim,
+  taken before the first read and released after the plan is proved gone,
+  so a second removal of the slot,
+  and an add of it,
+  are refused while one command holds the slot
+  (`src/native/worktree_clone_removal_proof_and_plan/removal_slot_claim.rs`);
 - the snapshot batch and the head destroy,
   with a fresh all-namespace holder scan and the marked-origin check before each request and before
   the head,

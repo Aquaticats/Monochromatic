@@ -318,12 +318,13 @@ pub fn refuse_root_mode_misuse(misuse: RootModeMisuse<'_>) -> i32 {
     let named: String = super::handler_install_paths::root_modes_name();
     let sentence: String = match misuse {
         RootModeMisuse::NoModeWordAfterTheGroupWord => format!(
-            "{named}: `{}` needs a mode word after it. Nothing was done. The modes are {}, and running the installed file with no argument at all runs the clone-mount sweep the ZED event starts. Ways forward: run `{named} --help` for the modes this build accepts.",
+            "{named}: `{}` needs a mode word after it. Nothing was done. The modes are {}, and the clone-mount sweep has no mode word: ZED starts the file under the link name {} with no argument, and that start runs it. Ways forward: run `{named} --help` for the modes this build accepts.",
             super::root_mode_names::ROOT_GROUP_WORD,
-            MODE_WORDS.join(", ")
+            MODE_WORDS.join(", "),
+            super::root_mode_names::ZEDLET_START_NAME
         ),
         RootModeMisuse::WordUnderTheZedletName(word) => format!(
-            "{named}: `{}` is an argument this start does not take: under this file's own name only no argument, `--help` and `--version` are answered. Nothing was done. Ways forward: run the file with no argument for the clone-mount sweep, with `--help` for the modes' usage, or with `--version` alone; every mode is reached through the words, as `{named} <mode>`.",
+            "{named}: `{}` is an argument this start does not take: under this file's own name only no argument, `--help` and `--version` are answered. Nothing was done. Ways forward: run the file with no argument for the clone-mount sweep, with `--help` for the modes' usage, or with `--version` alone; every mode with a word is reached through the words, as `{named} <mode>`.",
             word.to_string_lossy()
         ),
     };

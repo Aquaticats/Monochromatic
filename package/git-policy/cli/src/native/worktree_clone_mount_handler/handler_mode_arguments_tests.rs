@@ -22,7 +22,7 @@ use super::{
 use crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME;
 use crate::worktree_clone_mount_handler::handler_install_paths::version_line;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, root_modes_name};
+use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -43,7 +43,7 @@ fn adoption() -> HandlerMode {
     });
 }
 
-/// No argument at all is the sweep the installed ZED event runs.
+/// No word at all is the sweep the zedlet's own start reads.
 #[test]
 fn no_argument_is_the_sweep() {
     assert_eq!(parse(&arguments(&[])), Ok(HandlerMode::AttachingSweep));
@@ -186,6 +186,39 @@ fn the_usage_names_the_modes_the_paths_and_the_device() {
     assert!(text.contains(&root_modes_name()), "the usage opens with the words: {text}");
     assert!(text.contains(crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME), "the usage names the ZED event's own file name: {text}");
     assert!(text.contains(DEVICE_PATH), "{text}");
+}
+
+/// What:
+///  The usage names the sweep by ZED's own spelling, and no row under the
+///  words names it.
+/// Why:
+///   Every row below the first line hangs under `... zfs-root <mode>`,
+///  so a row there is a mode word,
+///  and `zfs-root` with no mode word after it is refused:
+///  the sweep is the history event link ZED starts with no argument,
+///  never a word a person types after the group word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(usage()).not.toContain('(no argument)');
+/// expect(rows(usage()).every((word) => MODE_WORDS.includes(word))).toBe(true);
+/// ```
+#[test]
+fn the_sweep_is_named_by_the_zed_start_and_never_by_a_row_under_the_words() {
+    let text: String = usage();
+    assert!(!text.contains("(no argument)"), "no row offers the sweep where a mode word belongs: {text}");
+    let mut rows: usize = 0;
+    for rest in text.lines().skip(1).filter_map(|line| return line.strip_prefix("  ")) {
+        if rest.is_empty() || rest.starts_with(' ') {
+            continue;
+        }
+        rows += 1;
+        let word: &str = rest.split(' ').next().expect("a row opens with a word");
+        assert!(word == HELP_WORD || word == VERSION_WORD || MODE_WORDS.contains(&word), "the row `{rest}` names no word the grammar accepts: {text}");
+    }
+    assert!(rows >= MODE_WORDS.len(), "every mode row is found: {rows} rows in {text}");
+    assert!(text.contains(&format!("ZED starts {ZEDLET_INSTALL_PATH} with no argument")), "the sweep is named by ZED's own start: {text}");
+    assert!(text.contains("Every mode with a word is reached through the words"), "the closing sentence says which modes the words reach: {text}");
 }
 
 /// The version line names the program and this build's release.
