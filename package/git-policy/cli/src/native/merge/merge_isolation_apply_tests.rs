@@ -8,7 +8,7 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 /// and what the endings state about the bytes the settle left where they are.
 use crate::merge_isolation_apply_findings::{
     BytesAfterAFailedMerge, a_deferred_save_finding, a_merge_in_the_branch_whose_carry_waits, a_merge_partly_installed_behind_the_lock,
-    a_merge_that_could_not_be_kept, a_merge_the_branch_moved_under,
+    a_merge_that_could_not_be_kept, a_merge_the_branch_moved_before_its_save, a_merge_the_branch_moved_under,
 };
 
 /// What:
@@ -99,6 +99,8 @@ fn the_line_of_a_merge_that_could_not_be_kept_says_what_stands() {
 /// and the line it used to print claimed an unmoved branch and a finish the moved branch breaks
 ///  (the review of `ce51914d2a`,
 /// its second finding).
+///  Its ending is a refusal since issue 6473,
+/// so the line also says that running the merge again is safe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +114,33 @@ fn the_line_of_a_merge_whose_branch_moved_states_the_move() {
     assert!(said.contains("this merge does not land"), "{said}");
     assert!(!said.contains("has not moved"), "the line never claims an unmoved branch: {said}");
     assert!(said.contains("refs/cli-git/carried/1"), "{said}");
-    assert!(said.contains("`git merge feature`"), "the command that repeats the merge is named: {said}");
+    assert!(said.contains("running the merge again is safe"), "the line says the next run is safe: {said}");
+    assert!(said.contains("onto the branch as it is now"), "the line says what a run merges onto: {said}");
+}
+
+/// What:
+///  The line for a merge the branch moved under before it could be saved names the branch,
+///  says nothing of the merge landed,
+///  and says that running the merge again is safe.
+/// Why:
+///  That ending is the refusal of issue 6473:
+/// the merge is kept nowhere,
+/// so the person has to read that it did not land
+///  and that the next run is the whole remedy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = aMergeTheBranchMovedBeforeItsSave('fix/feature', 'main'); expect(said).toContain('main moved while this merge was prepared');
+/// ```
+#[test]
+fn the_line_of_a_merge_the_branch_moved_under_before_its_save_names_the_branch_and_the_next_run() {
+    let said: String = a_merge_the_branch_moved_before_its_save("fix/feature", "main");
+    assert!(said.contains("main moved while this merge was prepared"), "{said}");
+    assert!(said.contains("this merge does not land"), "{said}");
+    assert!(said.contains("nothing of the merge is in the checkout"), "{said}");
+    assert!(said.contains("Nothing of yours was changed"), "{said}");
+    assert!(said.contains("running the merge again is safe"), "{said}");
+    assert!(said.contains("merges fix/feature onto main as it is now"), "{said}");
 }
 
 /// What:
