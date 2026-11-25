@@ -22,7 +22,7 @@
 //! ```
 
 use super::{
-    DispatchPlaces, EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe_as, boot_reconcile_mode, report,
+    DispatchPlaces, EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe_as, boot_reconcile_mode, opening_with_the_words, report,
     run_behind, run_behind_at, shutdown_unmount_mode,
 };
 use super::handler_mode_arguments::{self, HandlerMode};
@@ -185,6 +185,27 @@ fn a_refused_gate_opens_with_the_words() {
     };
     assert!(line.starts_with(&format!("{named}: ")), "the gate's refusal opens with the words: {line}");
     assert!(line.contains("the start-time ZFS compatibility gate refused"), "the gate's own line stays: {line}");
+}
+
+/// A refusal a mode answers gains the words exactly once,
+/// whether its own sentence names its cause first or opens with them already.
+///
+/// The sweep, the boot reconciliation, the holder scan and the unbuilt mode
+/// answer their own sentences without the words, and the gate, the caller's
+/// sentence and the two modes that build a prefix answer with them;
+/// the one place every refusal is printed adds them where they are missing.
+#[test]
+fn a_refusal_a_mode_answers_opens_with_the_words_exactly_once() {
+    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
+    let opening: String = format!("{named}: ");
+    let bare: String = opening_with_the_words(String::from("the clone-mount configuration is empty"));
+    assert!(bare.starts_with(opening.as_str()), "a sentence with no words gains them: {bare}");
+    assert!(bare.ends_with("the clone-mount configuration is empty"), "the mode's own sentence stays: {bare}");
+    let said: String = format!("{named}: checkout-record-differs: the record's GUID is 1 and the kernel shows 2.");
+    assert_eq!(opening_with_the_words(said.clone()), said, "a sentence that opens with the words keeps them once");
+    assert_eq!(opening_with_the_words(said.clone()).matches(named.as_str()).count(), 1, "the words are printed once: {said}");
+    let gate: String = format!("{named}: the start-time ZFS compatibility gate refused: it is absent");
+    assert_eq!(opening_with_the_words(gate.clone()), gate, "the gate's line keeps one opening");
 }
 
 /// A refused gate answers the refusal status,
