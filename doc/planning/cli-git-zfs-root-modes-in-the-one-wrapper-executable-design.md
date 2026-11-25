@@ -3760,15 +3760,18 @@ mounts nothing under a dataset it was not given,
 and unmounts nothing (that is `shutdown-unmount`'s work).
 
 What it does to the one nested dataset at this host's boot,
-after the migration and the first record:
-the dataset is not mounted when the unit starts (`canmount=noauto`),
-the record agrees with the kernel,
-the checkout's mount is open and the record is its root,
-the dataset is in the record's pool and its mountpoint lies strictly under the checkout's,
-its key is available,
-the mountpoint's hops are the account's own plain folders,
-so no refusal fires and the mode mounts it with `noatime`.
-The ownership clause the fifth revision printed would have refused it and left it unmounted.
+after the migration and the first record,
+in the order this revision states it:
+the dataset is not mounted when the unit starts (`canmount=noauto`);
+the record's dataset, GUID, path and container agree with the kernel by name, so step 2 passes;
+the mount table shows the checkout at its recorded path, so step 3 opens it and passes;
+the dataset's eighteen properties read as this round's log records them,
+its key is available and the pool is writable, so step 4 passes;
+the kernel does not show the dataset mounted, so step 5 answers nothing and writes nothing;
+the mountpoint's hops are the account's own plain folders, so step 6 opens the folder;
+and the mode mounts it with `noatime` and the five default pairs.
+No refusal fires, and the ownership clause the fifth revision printed would have refused it and left
+it unmounted.
 
 ### The question the step 19 design leaves to this one
 
