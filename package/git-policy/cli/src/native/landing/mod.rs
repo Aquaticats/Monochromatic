@@ -476,6 +476,16 @@ pub mod service_work_common_directory;
 /// settling and replanning of the service's work.
 pub mod service_work_handlers_replanning_and_acceptance;
 
+/// The bodies a wave of one kind asks of its handler,
+/// and the line one answer that is done writes.
+pub mod service_work_drain_waves_of_one_kind;
+
+/// The push step of one round:
+/// the pushes grouped by branch,
+/// the branches run beside each other,
+/// and each settled as its own answer comes.
+pub mod service_work_drain_pushes_of_each_branch;
+
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
