@@ -15,6 +15,8 @@
 //! ```
 
 use crate::service_messages::rebuild_notice;
+/// Standard error as a stream whose lines a thread of their own writes.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 use crate::wait_ceilings::MOVED_BRANCH_REBUILD_CEILING;
 
 /// The environment variable that sets the ceiling of the rebuilding in whole seconds,
@@ -58,8 +60,12 @@ pub fn rebuild_may_continue(waited: std::time::Duration, ceiling: std::time::Dur
 /// how long it has been,
 /// and when the rebuilding stops.
 fn say_rebuilding(branch: &str, builds: usize, waited: std::time::Duration) {
-    // A closed terminal is not a reason to stop the commit.
-    let _written = std::io::Write::write_all(&mut std::io::stderr(), rebuild_notice(branch, builds, waited, rebuild_ceiling()).as_bytes());
+    // What: The line goes to the thread that writes standard error.
+    // Why:  A closed terminal is not a reason to stop the commit, and neither is a reader that
+    //       stopped draining (`standard_error_off_the_calling_thread.rs`).
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let _written = std::io::Write::write_all(&mut notes, rebuild_notice(branch, builds, waited, rebuild_ceiling()).as_bytes());
+    let _flushed = std::io::Write::flush(&mut notes);
 }
 
 /// Whether a commit whose branch moved is built again now:
