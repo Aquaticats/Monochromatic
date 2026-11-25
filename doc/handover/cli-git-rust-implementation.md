@@ -377,8 +377,13 @@ and the sweep arm failed its stale-flags case:
 `line_about` (`binary_zfs_sweep_guest_tests.rs:268`) finds a clone's line by `contains`,
 so asked about slot `c64` it returned `c643`'s line, a test defect already on `main` that fires when the pool lists a prefix slot last
 (the report's "race" label is not the cause; `binary_zfs_step9_m_arms_tests.rs:204` has the same lookup);
-`pi-sweep-guest-arms-find-a-clone-by-its-whole-name` runs since 2026-11-25T05:16:06-05:00 to fix the lookup and run the arm to its end through the one wrapper,
-since the replaced-mount and rename-swap cases after the failing one have not run through it;
+its fix merged as `7043fe4a5c` (report `keep/report-pi-sweep-guest-arms-find-a-clone-by-its-whole-name.md` in `~/temp/agent/sweep-guest-arms-find-a-clone-by-its-whole-name-2026-11-25/`):
+one whole-name lookup (`printed_line_about`) serves the sweep, step 9 and unmount arms, held by a control red with the old lookup;
+`e2e/mount-git-worktree-clone-datasets-guest.ts all` then passed end to end through the one wrapper in one guest
+(adoption, store fsync, sweep with stale flags, replaced mount and rename swap all refused, holder scan, unmount),
+with its long steps detached from a file and the build at one job with a swap file (18 minutes);
+it also found the driver's cleanup used `zfs destroy --recursive --force`, which the guest's OpenZFS 2.4.4 refuses, so nothing was ever destroyed behind `|| true`;
+the merge of `main` into it conflicted only in that driver's build comment, resolved keeping one job and the swap file under issue 6458's measured explanation;
 two `commit::capture_invocation` controls fail on this host at `capture_invocation_tests.rs:412` (`EILSEQ`), the same on `main` at `0152f18bb7`,
 in a file issue 6448's first round did not reach (the issue is still open);
 `pi-non-utf8-capture-invocation-controls-on-a-utf8only-home` runs since 2026-11-25T05:16:21-05:00 to finish it;
@@ -401,8 +406,10 @@ the Linux template now writes a drop-in with `OOMPolicy=continue`, so a killed c
 so the guest's size, swap or job count is a separate choice the round left open);
 the troubleshooting doc is `doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`;
 mvm's `dist` in the main checkout was rebuilt at 2026-11-25T06:02-05:00 so new templates carry it,
-and `~/.local/share/mvm/images/template-ubuntu.qcow2` (baked 2026-11-18, before the fix) is deleted once no guest runs, so the next `mvm create` bakes it again
+and `template-ubuntu.qcow2` and `template-fedora.qcow2` under `~/.local/share/mvm/images/` (both baked before the fix) were deleted at about 06:25 with no guest running,
+so the next `mvm create` of each bakes it again with the drop-in
 (not `mvm update`, which removes every cached image);
+the gate on `main` at `7043fe4a5c` runs since about 06:29 (unit `gate-on-main-at-7043fe4a5c`), holding `1e562c82c1`, the mvm fix and the sweep fix;
 the session's `git` (build of `ee0cf2268b`) kept three more journals of removed worktrees;
 the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-25T05:36:56-05:00 from the gate worktree's `target/debug`,
 removed 21 such journals (those three among them), stopped 18 units of removed worktrees, left the seven unmatched instances untouched,
@@ -1166,15 +1173,14 @@ The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed 
 
 The one-program build merged as `b97c09746f`, so the next alpha ships one program
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it").
-It waits for a gate on `main` that holds `1e562c82c1` (the gate at `b97c09746f` failed the two typed-ban controls on the missing `clippy.toml`)
-and for `pi-sweep-guest-arms-find-a-clone-by-its-whole-name`:
-the sweep is what the ZED hook starts, its guest arm failed in the one-program round,
-and the arm's replaced-mount and rename-swap cases have not yet run through the one wrapper.
+It waits for the gate on `main` at `7043fe4a5c`, which holds `1e562c82c1`
+(the gate at `b97c09746f` failed the two typed-ban controls on the missing `clippy.toml`);
+the sweep's whole guest suite, which the ZED hook's start rests on, passed through the one wrapper in the round merged as `7043fe4a5c`.
 
 Next:
 merge each round when it ends;
 put L4's options to the owner;
-release the next alpha once that gate and that round have ended.
+release the next alpha once that gate has ended with no failure but the cause-H pair.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
