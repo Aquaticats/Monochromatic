@@ -1,7 +1,7 @@
 //! What:
 //!  The root modes of the one wrapper executable:
 //!  the words `monochromatic-git-policy-cli zfs-root <mode>`,
-//!  the name the installed ZED history event selects,
+//!  the name the ZED history event selects,
 //!  the paths one root-owned build serves,
 //!  the modes whose plan steps have not landed,
 //!  the administrator's parent adoption,
