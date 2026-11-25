@@ -68,8 +68,12 @@ fn main() {
     git_policy_cli::panic_notice::install_payload_free_panic_hook();
     // `vars_os` yields every environment entry as an undecoded name/value pair.
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    // The one read of the directory this command was started in: every reader of it is handed this value instead of
+    //  asking the process again, so no second read can answer with a directory another thread of this process moved.
+    let start_directory: git_policy_cli::start_directory::StartDirectory =
+        git_policy_cli::start_directory::StartDirectory::read_from_the_process();
     // `i32` is the signed 32-bit type of process exit codes.
-    let code: i32 = git_policy_cli::entry::run_process(arguments.as_slice(), environment.as_slice());
+    let code: i32 = git_policy_cli::entry::run_process(arguments.as_slice(), environment.as_slice(), &start_directory);
     end_after_the_log(code);
 }
 

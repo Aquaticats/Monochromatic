@@ -82,8 +82,11 @@ const limitFlags = [
 
 /**
  One option this module reads.
+
+ Exported because a caller that sizes one container differently from another has to know which option the person gave:
+ the gate's image build takes its own memory default, and the person's `--memory` still reaches it.
  */
-type LimitFlag = typeof limitFlags[number];
+export type ContainerLimitFlag = typeof limitFlags[number];
 
 /**
  Limits of one container.
@@ -330,7 +333,7 @@ export function parallelJobs(limits: ContainerLimits,): number {
  One limit option as given on the command line.
  */
 type GivenLimit = {
-  readonly flag: LimitFlag;
+  readonly flag: ContainerLimitFlag;
   readonly value: string;
 };
 
@@ -341,7 +344,7 @@ type GivenLimit = {
 
  @returns true for `--memory`, `--cpus` and `--pids-limit`
  */
-function isLimitFlag(argument: string,): argument is LimitFlag {
+function isLimitFlag(argument: string,): argument is ContainerLimitFlag {
   return limitFlags.some(function isSame(flag,) {
     return flag === argument;
   },);
@@ -364,7 +367,7 @@ function applyLimit({
   value,
 }: {
   readonly limits: ContainerLimits;
-  readonly flag: LimitFlag;
+  readonly flag: ContainerLimitFlag;
   readonly value: string;
 },): ContainerLimits {
   /**
@@ -408,7 +411,8 @@ function applyLimit({
  @param valuelessFlags - arguments of the task's own grammar that take no value, such as a scope switch; they are kept
    alone instead of with the argument after them, so a limit option that follows them is still found
 
- @returns the limits with the defaults for options not given, and the arguments left over
+ @returns the limits with the defaults for options not given, the arguments left over, and which limit options were
+   given, in command-line order with one entry per repeat
 
  @throws CargoMutantsToolingError when an option has no value or a value outside the accepted forms, or when
    `--pids-limit` is given to a task without a process cap
@@ -432,6 +436,7 @@ export function parseContainerLimitOptions({
 },): {
   readonly limits: ContainerLimits;
   readonly rest: readonly string[];
+  readonly givenFlags: readonly ContainerLimitFlag[];
 } {
   /**
    Limit options in command-line order, each with its value.
@@ -496,5 +501,8 @@ export function parseContainerLimitOptions({
       defaultContainerLimits,
     ),
     rest,
+    givenFlags: given.map(function flag(givenLimit,) {
+      return givenLimit.flag;
+    },),
   };
 }

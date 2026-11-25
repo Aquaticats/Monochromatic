@@ -236,7 +236,7 @@ fn a_given_up_relink_leaves_a_notice_naming_the_command() {
         search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
         tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
     };
-    let item: WorkItem = crate::package_repair_relink::item_of(git_dir.as_path(), worktree.as_path(), &entry).expect("the record");
+    let item: WorkItem = crate::package_repair_relink::item_of(git_dir.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     assert!(tell_about_given_up(git_dir.as_path(), std::slice::from_ref(&item)), "the person was not told");
     let lines: Vec<String> = crate::package_repair_relink_notice::take_notices(git_dir.as_path());
     assert_eq!(lines.len(), 1, "one notice per record given up on: {lines:?}");
@@ -319,7 +319,7 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
         search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
         tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
     };
-    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry).expect("the record");
+    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
     let handlers: RelinkRetries = RelinkRetries { said: String::from("pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE") };
@@ -469,7 +469,7 @@ fn given_up_relink_scene(name: &str) -> RelinkScene {
         search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
         tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
     };
-    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry).expect("the record");
+    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
     return RelinkScene { root, common, admin, item, work, passes: std::cell::Cell::new(0) };

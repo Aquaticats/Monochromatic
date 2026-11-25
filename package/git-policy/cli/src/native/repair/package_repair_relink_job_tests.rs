@@ -59,8 +59,13 @@ fn scene(name: &str) -> Scene {
     std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the registration's back-link");
     std::fs::write(admin.join("commondir"), b"../..\n").expect("the registration's common directory");
     let record: PathBuf = root.join("record");
-    let environment: RepairEnvironment =
-        RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 1 };
+    let environment: RepairEnvironment = RepairEnvironment {
+        search_path: Some(bin.clone().into_os_string()),
+        quiet_window: Duration::from_secs(60),
+        ceiling: Duration::from_secs(600),
+        workers: 1,
+        start_directory: crate::start_directory::StartDirectory::at(root.as_path()),
+    };
     return Scene { root, worktree, common, bin, record, environment };
 }
 
@@ -111,7 +116,7 @@ fn installing_toolchain(scene: &Scene, status: u8) -> String {
 /// naming both tools.
 fn item_of_the_scene(scene: &Scene, tools: Vec<RelinkTool>) -> WorkItem {
     let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Set(scene.environment.search_path.clone().expect("the scene's search path")), tools };
-    return item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
+    return item_of(scene.common.as_path(), scene.worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
 }
 
 /// Run the relinking as the service's round does.
@@ -427,7 +432,7 @@ fn an_add_with_no_search_path_does_not_borrow_the_services_path() {
             .expect("the launcher records are read");
     assert!(matches!(needed, crate::package_repair_toolchain::ToolchainNeed::Needed), "the worktree's own link is the program the add resolved");
     let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Toolchain] };
-    let item: WorkItem = item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
+    let item: WorkItem = item_of(scene.common.as_path(), scene.worktree.as_path(), &entry, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))).expect("the record");
     let service_environment: RepairEnvironment = RepairEnvironment { search_path: Some(service_bin.clone().into_os_string()), ..scene.environment.clone() };
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&item, &service_environment)).expect("the relinking runs");
     let named: String = starts(&scene);

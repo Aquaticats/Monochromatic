@@ -34,6 +34,7 @@
 //!  (issue 6450: the add printed a Rust `Debug` value here).
 
 use super::preflight_the_add;
+use super::OpenedDevice;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_add_plan::AddPlan;
@@ -69,9 +70,9 @@ fn a_checkout_the_route_serves(name: &str) -> (PathBuf, RouteFacts, AddPlan) {
         git_dir: repo.join(".git"),
         destination: repo.join(".claude").join("worktrees").join("topic"),
         slot: String::from("topic"),
-        checkout_dataset: String::from("tank/checkouts/checkout"),
-        container_dataset: String::from("tank/clones"),
-        pool: String::from("tank"),
+        checkout_dataset: String::from("preflightfixturepool/checkouts/checkout"),
+        container_dataset: String::from("preflightfixturepool/clones"),
+        pool: String::from("preflightfixturepool"),
     };
     let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
     return (root, route, plan);
@@ -161,22 +162,63 @@ fn a_standing_plan_refuses_the_preflight_in_the_plans_own_sentence() {
 }
 
 /// What:
+///  Every sentence the device step answers for this fixture's own dataset names on
+///  this machine.
+/// Why:
+///  The preflight's first request after the source check is the device's own:
+///  it runs the start-time gate and reads the checkout's and the pool's identities,
+///  so a machine whose `/dev/zfs` does not open answers with the gate's sentence
+///  and one where it does answers with the missing dataset's.
+///  The fixture's pool name is one no machine holds, so every one of those reads
+///  refuses there and the sentence the preflight ends with is one of these,
+///  whichever read the preflight makes first.
+///  The clone container's read is left out because it stands behind them and its
+///  refusal carries words of its own.
+fn the_devices_answers_for_the_fixture(route: &RouteFacts) -> Vec<String> {
+    let mut answers: Vec<String> = Vec::new();
+    let device: OpenedDevice = match OpenedDevice::open() {
+        Ok(device) => device,
+        Err(message) => {
+            answers.push(message);
+            return answers;
+        }
+    };
+    for name in [route.checkout_dataset.as_str(), route.pool.as_str()] {
+        if let Err(message) = device.identity_of(name) {
+            answers.push(message);
+        }
+    }
+    return answers;
+}
+
+/// What:
 ///  A main checkout with one uncommitted file is a source the preflight serves:
 ///  the source check records the changes instead of refusing them,
-///  and the preflight's own answer is never the source's refusal.
+///  the refusal the preflight ends with is the device step's own,
+///  which stands after the source check,
+///  and nothing of the route's own was written.
 /// Why:
 ///  This is the sentence plan step 11 replaces the interim with: until the
 ///  verified dirty restore landed, an add from a dirty main checkout took rung 3
 ///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 1858 to
 ///  1862), and the route now restores the copy instead of declining it.
-///  The fixture has no pool, so the preflight's own answer here is the pool's;
-///  what the control reads is which refusal came first,
-///  and that nothing of the route's own was written.
+///  The fixture names a pool no machine holds, so the device step is where this
+///  add stops on both kinds of machine:
+///  the start-time compatibility gate's sentence where `/dev/zfs` does not open
+///  (the gate's container),
+///  and the missing dataset's where it does (a ZFS host).
+///  `StepRefusal` carries the person's words and an exit status, and no step of
+///  its own, so the control names the step by asking the device layer the same
+///  questions the preflight asks and reading the preflight's sentence among the
+///  answers:
+///  every one of them is this machine's, written down nowhere,
+///  and no refusal of the source check can be one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const source = sourceOrDirty(context, identity); expect(source.dirty).toBeDefined();
 /// expect(preflight(dirtyCheckout).message).not.toContain('cannot be the source of a clone');
+/// expect(deviceAnswersFor(fixturePool)).toContain(preflight(dirtyCheckout).message);
 /// ```
 #[test]
 fn an_uncommitted_file_is_a_source_the_preflight_serves() {
@@ -194,7 +236,8 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
         Err(refusal) => refusal,
     };
     assert!(!refusal.message.contains("cannot be the source of a clone"), "the source check served the dirty checkout, and the preflight refused it for another reason: {}", refusal.message);
-    assert!(refusal.message.contains("does not answer the pool"), "the refusal is the fixture's own missing pool: {}", refusal.message);
+    let devices_own: Vec<String> = the_devices_answers_for_the_fixture(&route);
+    assert!(devices_own.contains(&refusal.message), "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}");
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
     assert!(!route.destination.exists(), "the slot stays empty before the claim");
     remove(root.as_path());

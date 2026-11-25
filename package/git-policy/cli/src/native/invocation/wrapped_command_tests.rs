@@ -71,6 +71,7 @@ fn run(
         stripped.arguments.clone(),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let outcome: WrappedOutcome =
         run_wrapped_command(&stripped, environment.as_slice(), &mut checks);

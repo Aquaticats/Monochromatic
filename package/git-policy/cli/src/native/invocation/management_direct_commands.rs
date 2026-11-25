@@ -274,6 +274,7 @@ pub(crate) fn plan_direct(
     environment: &[(OsString, OsString)],
     git_global_arguments: &[OsString],
     real_git: PathBuf,
+    start: &crate::start_directory::StartDirectory,
 ) -> Action {
     let overlay: Vec<(OsString, OsString)> =
         child_environment_overlay(environment, real_git.as_path());
@@ -285,6 +286,7 @@ pub(crate) fn plan_direct(
         LifecycleContent::Requested(CandidateRequest::Direct(scope)),
         // `Vec::new()` is an empty owned list: no direct-command policy reads the tool caches.
         Vec::<ToolCacheDirectory>::new(),
+        start,
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);

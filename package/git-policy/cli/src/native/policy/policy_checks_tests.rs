@@ -51,6 +51,7 @@ fn checks(values: &[&str], facts: ScriptedFacts) -> ShippedChecks<ScriptedFacts>
         os_arguments(values),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
 }
 
@@ -350,6 +351,7 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
         os_arguments(&["checkout", "bebca846"]),
         LifecycleContent::None,
         allowed.clone(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
     assert_eq!(exempt.facts.asked, location_only(), "an exempt repository needs no status");
@@ -359,6 +361,7 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
         os_arguments(&["reset", "--hard"]),
         LifecycleContent::None,
         allowed,
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(writing.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
     assert_eq!(writing.notices, vec![exemption_notice("OUT_DIR", out_dir.as_path())]);
@@ -398,6 +401,7 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
             &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
             None,
         ),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
     assert_eq!(exempt.notices, vec![exemption_notice("CARGO_TARGET_DIR", build_dir.as_path())]);
@@ -407,6 +411,7 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
         os_arguments(&["checkout", "bebca846"]),
         LifecycleContent::None,
         default_allowed_worktree_dirs(&[], None),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(
         unset.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
@@ -427,6 +432,7 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
             )],
             None,
         ),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     assert_eq!(
         beside.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),

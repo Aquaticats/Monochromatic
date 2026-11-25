@@ -120,15 +120,15 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
 /// ```
-fn command_directory(global_prefix: &[OsString]) -> Result<PathBuf, String> {
+fn command_directory(global_prefix: &[OsString], start: Option<&Path>) -> Result<PathBuf, String> {
     // The caller's own directory, which no option changes: Git moves it only for `-C`.
-    let Ok(cwd) = std::env::current_dir() else {
+    let Some(cwd) = start else {
         return Err(String::from(
             "monochromatic-git-policy-cli could not name the directory this command runs in, so the command was \
              not judged.",
         ));
     };
-    return Ok(chain_directory(cwd.as_path(), global_prefix));
+    return Ok(chain_directory(cwd, global_prefix));
 }
 
 /// What:
@@ -195,6 +195,7 @@ fn refuse_shared_remote_settings(
     change: &SharedRemoteChange,
     shell_directory: Option<&Path>,
     allowed_worktree_dirs: &[ToolCacheDirectory],
+    start: Option<&Path>,
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
         Ok(found) => found,
@@ -222,7 +223,7 @@ fn refuse_shared_remote_settings(
         //  while every other command starts where the caller's `-C` chain ends.
         let directory: PathBuf = match shell_directory {
             Some(found) => found.to_path_buf(),
-            None => match command_directory(facts.transaction_context().global_prefix.as_slice()) {
+            None => match command_directory(facts.transaction_context().global_prefix.as_slice(), start) {
                 Ok(found) => found,
                 Err(message) => return fact_unavailable(message),
             },
@@ -324,6 +325,7 @@ pub(crate) fn check_linked_worktree(
     allowed_worktree_dirs: &[ToolCacheDirectory],
     discarded_limits: Limits,
     notices: &mut Vec<String>,
+    start: Option<&Path>,
 ) -> PolicyOutcome {
     // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
     let seen: &[OsString] = forwarded.arguments.as_slice();
@@ -335,6 +337,7 @@ pub(crate) fn check_linked_worktree(
             change,
             forwarded.shell_directory.as_deref(),
             allowed_worktree_dirs,
+            start,
         );
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
@@ -344,7 +347,7 @@ pub(crate) fn check_linked_worktree(
         LinkedWorktreeDecision::Audited(audited) => {
             // Outside a repository there is no audit file to write, and nothing to name.
             if let Ok(location) = facts.location() {
-                record_audited(facts, seen, *audited, &location);
+                record_audited(facts, seen, *audited, &location, start);
             }
             return clean();
         }

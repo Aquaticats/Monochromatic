@@ -152,6 +152,10 @@ pub fn plan_invocation(
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
 ) -> Action {
+    // The directory this command was started in, already read once by the executable's entry and carried by the
+    //  resolution inputs, so the planning hands it on rather than asking the process again.
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::at(inputs.current_directory.as_path());
     // `if let Some(target) = ... && cond` runs only when a forwarding wrapper left its
     // marker and that marker names this executable.
     if let Some(target) = environment_value(environment, FORWARD_TARGET_VARIABLE)
@@ -184,6 +188,7 @@ pub fn plan_invocation(
             environment,
             inputs,
             &host_filesystem_section,
+            &start,
         );
         if earlier_spelling {
             return with_leading_notice(answer, Some(EARLIER_COMMAND_WORD_NOTICE));
@@ -219,6 +224,7 @@ pub fn plan_invocation(
         resolved.path,
         global_clean,
         &layout,
+        &start,
     );
     // `.as_deref()` lends the optional owned notice as an optional borrowed one.
     return with_leading_notice(action, notice.as_deref());
@@ -244,6 +250,7 @@ fn plan_with_real_git(
     real_git: PathBuf,
     global_clean: Vec<OsString>,
     layout: &GlobalLayout,
+    start: &crate::start_directory::StartDirectory,
 ) -> Action {
     // What: Every Git and git-lfs child of this invocation gets the overlay, which tells it never to ask a person for a
     //  credential, so a missing login fails at once instead of opening a desktop dialog nobody can answer.
@@ -286,6 +293,7 @@ fn plan_with_real_git(
             // `.as_deref()` lends the optional owned path as an optional borrowed one.
             home_directory(environment).as_deref(),
         ),
+        start,
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);
@@ -311,7 +319,7 @@ fn plan_with_real_git(
                 copy_bypassed,
                 &mut checks,
             );
-            return stack_if_push(action, environment, checks.push_destination.clone());
+            return stack_if_push(action, environment, checks.push_destination.clone(), start);
         }
         WrappedOutcome::Exit { code, stderr } => {
             return Action::Exit {
@@ -326,6 +334,8 @@ fn plan_with_real_git(
 
 /// What:
 ///  Run one invocation with the real process facts and return its exit code.
+///       `&StartDirectory` borrows the directory this command was started in,
+///  read once by the executable's entry.
 ///       `i32` is a signed 32-bit integer,
 ///  the type of process exit codes.
 ///       Returns only when Git was not started;
@@ -334,12 +344,20 @@ fn plan_with_real_git(
 ///   This is everything the executable's `main` does;
 ///  keeping it in the library
 ///       lets the same code be measured by tests and mutation runs.
+///  The current directory is an input rather than a read:
+///  it belongs to the whole process,
+///  so a read here could answer with a directory another test
+///  moved the process to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function runProcess(args: string[], environment: [string, string][]): number;
+/// function runProcess(args: string[], environment: [string, string][], start: StartDirectory): number;
 /// ```
-pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+pub fn run_process(
+    arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    start: &crate::start_directory::StartDirectory,
+) -> i32 {
     // The test-only runtime probe answers before anything else of the wrapper runs (nothing in production sets its variable).
     if crate::runtime_probe::is_requested(environment) {
         return crate::runtime_probe::run();
@@ -350,8 +368,8 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // Why:  A lock whose holder the wrapper's own record proves gone protects nothing, and waiting a minute for that process
     //       would be a wait the wrapper could have known to skip. Nothing is cleared on a proof that is not complete, so a
     //       lock of a live Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
-    crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment);
-    let action: Action = match process_resolution_inputs(environment) {
+    crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment, start);
+    let action: Action = match process_resolution_inputs(environment, start) {
         // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
             Some(refusal) => failure(refusal.as_str()),
@@ -444,6 +462,26 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             return write_exit(code, stdout.as_slice(), stderr.as_slice());
         }
     }
+}
+
+/// What:
+///  Run one invocation nested inside this process,
+///  which was started with the directory this process has.
+/// Why:
+///   A merge or a pick the wrapper finishes starts the wrapper's own planning again in this process;
+///  that run inherits the directory the process was started in,
+///  and it is read here once for it,
+///  because the enclosing run carried no directory this far.
+///  Nothing of this process changes that directory,
+///  so the answer is the entry's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runNestedProcess(args: string[], environment: [string, string][]): number;
+/// ```
+pub fn run_nested_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+    return run_process(arguments, environment, &start);
 }
 
 /// The two spellings of the management word:

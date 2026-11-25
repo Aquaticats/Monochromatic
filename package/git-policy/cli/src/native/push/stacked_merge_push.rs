@@ -165,7 +165,10 @@ pub fn gated_merge_push(
     arguments.extend(tokens.iter().cloned());
     arguments.extend(destination.iter().map(OsString::from));
     let environment: Vec<(OsString, OsString)> = marked_environment(git.environment.as_slice());
-    let inputs = process_resolution_inputs(environment.as_slice()).map_err(SingleFlightError::Io)?;
+    // A run nested in this wrapper process inherits the directory the process was started in; it is read here as this
+    //  run's entry, and nothing of this process changes it.
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+    let inputs = process_resolution_inputs(environment.as_slice(), &start).map_err(SingleFlightError::Io)?;
     let action: Action = plan_invocation(arguments.as_slice(), environment.as_slice(), &inputs);
     return Ok(run_planned(action));
 }

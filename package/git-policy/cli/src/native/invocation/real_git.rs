@@ -560,21 +560,23 @@ fn service_unit_below(runtime: OsString) -> Option<PathBuf> {
 }
 
 /// What:
-///  Gather resolution inputs from the running process.
+///  Gather resolution inputs from the running process,
+///  given the directory the process was started in.
 ///       `std::io::Result<T>` is `Result<T, std::io::Error>`.
 /// Why:
 ///   The wrapper must know its own executable to exclude it;
 ///  if the operating
-///       system cannot report it (or the current directory),
+///       system cannot report it (or the current directory it was handed),
 ///  resolution fails rather
 ///       than risk selecting itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function processResolutionInputs(environment: [string, string][]): ResolutionInputs;
+/// function processResolutionInputs(environment: [string, string][], start: StartDirectory): ResolutionInputs;
 /// ```
 pub fn process_resolution_inputs(
     environment: &[(OsString, OsString)],
+    start: &crate::start_directory::StartDirectory,
 ) -> std::io::Result<ResolutionInputs> {
     let platform: Platform = host_platform();
     // A trailing `?` returns the OS error to our caller, or unwraps the value.
@@ -586,7 +588,15 @@ pub fn process_resolution_inputs(
     )]
     let own_executable: PathBuf = std::env::current_exe()?;
     crate::service_route::remember_own_executable(own_executable.as_path());
-    let current_directory: PathBuf = std::env::current_dir()?;
+    // The directory the process was started in is read once, at the executable's entry, and reaches this resolver as an
+    //  input, so no second read can answer with a directory another test moved the process to.
+    let Some(started_in) = start.path() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            start.reason().unwrap_or("the current directory could not be read").to_owned(),
+        ));
+    };
+    let current_directory: PathBuf = started_in.to_path_buf();
     // `.unwrap_or_default()` substitutes an empty value when the variable is unset.
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     let path_extensions: OsString = environment_value(environment, "PATHEXT")

@@ -47,6 +47,9 @@ const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 const EXPECTED_MARKERS = [
   'LOCK mounted slot-identity-answers=no',
   'LOCK mounted classified managed=yes',
+  'LOCK mounted clone-guid-answers=yes',
+  'LOCK mounted cloned-again refused=yes',
+  'LOCK mounted restored-clone managed=yes',
   'LOCK classified managed-nonce=1 pointer=absent',
   'LOCK prune-kept-the-locked-registration=true',
   'LOCK operator class=an-operators-lock',

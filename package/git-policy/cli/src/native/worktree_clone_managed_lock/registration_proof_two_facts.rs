@@ -18,8 +18,11 @@
 //!  the recorded underlay identity cannot be read at that path,
 //!  so the proof compares the mount the kernel shows there instead:
 //!  a mount of the clone the record names is this slot's,
-//!  and any other mount,
-//!  or a mount table that cannot be read,
+//!  and its source dataset must answer the record's own `cloneGuid=`,
+//!  because a dataset made again under the same name carries another GUID;
+//!  any other mount,
+//!  a GUID the pool does not answer,
+//!  or a mount table that cannot be read
 //!  refuses rather than calling the clone's own root another folder
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "What proves ownership",
@@ -28,15 +31,17 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const proof = proveTheRegistration(facts, repository, registration, mounts); // throws the fact that differed
+//! const proof = proveTheRegistration(facts, repository, registration, mounts, guids); // throws the fact that differed
 //! ```
 
+use super::dataset_guid_reads::DatasetGuidReads;
 use super::lexical_path_resolution::the_lexical_path;
 use super::reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
 use super::recorded_lock_facts::RecordedLockFacts;
 use crate::hooks_path_values::without_trailing_newlines;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_mount::clone_slot_git_pointer::POINTER_BOUND;
+use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, clone_mount_of, read_mount_rows, slot_mount_of};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
 use std::os::unix::ffi::OsStrExt as _;
@@ -104,6 +109,29 @@ pub enum TwoFactRefusal {
         /// What the read answered.
         reason: String,
     },
+    /// A mount of the record's clone stands at the slot,
+    /// and the record holds no GUID to compare the mount's source with.
+    NoRecordedCloneGuid {
+        /// The clone the record names.
+        dataset: String,
+    },
+    /// A mount of the record's clone stands at the slot,
+    /// and the pool did not answer the GUID of the dataset its source names.
+    TheClonesGuidWasNotRead {
+        /// The clone the record names.
+        dataset: String,
+        /// What the read answered.
+        reason: String,
+    },
+    /// The dataset the mount's source names answers another GUID than the record holds.
+    TheDatasetAtTheSlotHasAnotherGuid {
+        /// The clone the record names.
+        dataset: String,
+        /// The GUID the record holds.
+        recorded: DatasetGuid,
+        /// The GUID the pool answers for that name now.
+        found: DatasetGuid,
+    },
     /// The record holds no slot identity to compare,
     /// which every phase after `claimed` writes.
     NoRecordedSlotIdentity,
@@ -138,6 +166,17 @@ impl TwoFactRefusal {
             TwoFactRefusal::TheMountTableWasNotRead { reason } => {
                 format!("the mount table could not be read ({reason}), so nothing says whether a mount covers the slot and the record's own folder is not compared through one")
             }
+            TwoFactRefusal::NoRecordedCloneGuid { dataset } => format!(
+                "a mount stands at the recorded slot path and names the clone `{dataset}` this slot's record names, and the record holds no `cloneGuid=`, so nothing was removed or rewritten; Ways forward: read the record's fields, then run the add again"
+            ),
+            TwoFactRefusal::TheClonesGuidWasNotRead { dataset, reason } => format!(
+                "a mount stands at the recorded slot path and names the clone `{dataset}`, and the pool did not answer that dataset's GUID ({reason}), so nothing was removed or rewritten; Ways forward: run `zfs get -H -o value guid {dataset}` on the machine that holds the pool, then run the add again"
+            ),
+            TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid { dataset, recorded, found } => format!(
+                "a mount stands at the recorded slot path and names the clone `{dataset}`, and the pool answers GUID `{}` for that name while this slot's record holds `{}`, so a dataset made again under the same name stands where the recorded clone stood and nothing was removed or rewritten; Ways forward: check `zfs get -H -o value guid {dataset}` against the record's `cloneGuid=`, then run the add again",
+                found.file_name(),
+                recorded.file_name()
+            ),
             TwoFactRefusal::NoRecordedSlotIdentity => String::from("the record holds no slot identity, which every phase after the claim writes"),
             TwoFactRefusal::Unreadable { what, cause } => format!("{what} could not be read ({})", cause.words()),
         };
@@ -180,8 +219,11 @@ fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<P
 ///  While a mount covers the slot that folder is the clone's root and not the underlay
 ///  the record identified,
 ///  so a record whose clone the mount table shows at the slot is proved through the
-///  clone's name instead,
-///  and any other mount there is refused rather than compared.
+///  clone's own recorded GUID instead,
+///  and any other mount there,
+///  a GUID the pool does not answer,
+///  or a record with no GUID to compare
+///  is refused rather than compared.
 ///
 /// # Errors
 /// The fact that differed,
@@ -189,9 +231,9 @@ fn named_in_the_registration(reading: &Reading, registration: &Path) -> Option<P
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// proveTheRegistration(facts, repository, registration, mounts);
+/// proveTheRegistration(facts, repository, registration, mounts, guids);
 /// ```
-pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets) -> Result<(), TwoFactRefusal> {
+pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, registration: &Path, mounts: &dyn MountedDatasets, guids: &dyn DatasetGuidReads) -> Result<(), TwoFactRefusal> {
     let gitdir: Reading = record_bytes(registration, GITDIR_FILE_NAME)?;
     if let Reading::Refused(cause) = gitdir {
         return Err(TwoFactRefusal::Unreadable { what: format!("`{}`", registration.join(GITDIR_FILE_NAME).display()), cause });
@@ -216,8 +258,9 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
     let recorded: FolderIdentity = facts.slot_identity.ok_or(TwoFactRefusal::NoRecordedSlotIdentity)?;
     return match the_cover_at(facts, mounts) {
         // A mount of the record's clone stands at the slot, so the folder there is the clone's root
-        // and not the underlay the add identified: the mount's own source is what names this slot.
-        CloneMount::AtItsSlot => Ok(()),
+        // and not the underlay the add identified: the clone's own GUID is what names this slot,
+        // because a dataset made again under the same name answers another one.
+        CloneMount::AtItsSlot => proven_through_the_clone(facts, guids),
         // Anything else standing at the slot is not this record's clone, and a table nothing read
         // proves neither the mounted fact nor the unmounted one.
         CloneMount::SomethingElseAtTheSlot { described } => Err(TwoFactRefusal::AMountThatIsNotTheRecords { found: described, recorded: facts.clone.dataset.clone() }),
@@ -233,6 +276,27 @@ pub fn prove_the_registration(facts: &RecordedLockFacts, repository: &Path, regi
                 false => Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder { recorded, found }),
             }
         }
+    };
+}
+
+/// What:
+///  The mounted fact:
+///  the clone dataset the mount's source names answers the record's `cloneGuid=`.
+/// Why:
+///  The mount table compares a name,
+///  and a name alone passes a dataset made again under it after the recorded one was destroyed,
+///  so the pool's own answer about that name is the second fact,
+///  and a record with no GUID,
+///  a pool that does not answer,
+///  and an answer that differs
+///  are three refusals rather than a pass.
+fn proven_through_the_clone(facts: &RecordedLockFacts, guids: &dyn DatasetGuidReads) -> Result<(), TwoFactRefusal> {
+    let dataset: String = facts.clone.dataset.clone();
+    let recorded: DatasetGuid = facts.clone.guid.ok_or_else(|| return TwoFactRefusal::NoRecordedCloneGuid { dataset: dataset.clone() })?;
+    let found: DatasetGuid = guids.guid_of(dataset.as_str()).map_err(|reason| return TwoFactRefusal::TheClonesGuidWasNotRead { dataset: dataset.clone(), reason })?;
+    return match found == recorded {
+        true => Ok(()),
+        false => Err(TwoFactRefusal::TheDatasetAtTheSlotHasAnotherGuid { dataset, recorded, found }),
     };
 }
 

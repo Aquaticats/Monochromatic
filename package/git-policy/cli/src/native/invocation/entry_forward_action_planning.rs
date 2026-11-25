@@ -74,7 +74,7 @@ pub(crate) fn forward_action(
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice());
+    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice(), checks.start_directory.path());
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
@@ -107,10 +107,10 @@ pub(crate) fn forward_action(
     // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; plan step 12).
     #[cfg(target_os = "linux")]
     {
-        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(&command, common_directory(&location.identity)) {
+        if let Some(ending) = crate::entry_zfs_slot_commands::move_refusal_of(&command, common_directory(&location.identity), checks.start_directory.path()) {
             return ending;
         }
-        crate::entry_zfs_slot_commands::before_a_repair(&command, common_directory(&location.identity), &mut stderr);
+        crate::entry_zfs_slot_commands::before_a_repair(&command, common_directory(&location.identity), &mut stderr, checks.start_directory.path());
         if let Some(ending) = crate::entry_zfs_slot_commands::before_a_prune(&command, common_directory(&location.identity), &mut stderr) {
             return ending;
         }
@@ -126,13 +126,13 @@ pub(crate) fn forward_action(
         };
     }
     let creates: bool = creates_worktrees(&command);
-    let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command) } else { None };
+    let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command, checks.start_directory.path()) } else { None };
     // The person's `--quiet` comes from the same reading of the words, whether or not the ladder serves
     // the form, so an add it hands to plain Git still prints no line a quiet add would suppress.
     let quiet: bool = creates && add_is_quiet(command.arguments.as_slice(), command.subcommand_index);
-    let destination: Option<PathBuf> = if creates { plan_copy_destination(&command) } else { None };
+    let destination: Option<PathBuf> = if creates { plan_copy_destination(&command, checks.start_directory.path()) } else { None };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
-        plan_worktree_remove(&command, common_directory(&location.identity))
+        plan_worktree_remove(&command, common_directory(&location.identity), checks.start_directory.path())
     } else {
         None
     };
@@ -184,27 +184,26 @@ pub(crate) fn forward_action(
 /// What:
 ///  The plan of a `git worktree add` in a form the cheap-worktree ladder serves,
 /// read from the resolved command and the
-///  process's working directory.
+///  directory this command was started in.
 /// Why:
 ///   The destination is relative to the directory Git starts in,
 /// which the global `-C` options move;
-/// an unreadable
-///  working directory or a form outside the table leaves the command to plain Git.
+/// a directory the caller could
+///  not name or a form outside the table leaves the command to plain Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWorktreeAdd(command: ResolvedCommand): AddPlan | undefined;
+/// function planWorktreeAdd(command: ResolvedCommand, current?: string): AddPlan | undefined;
 /// ```
-fn plan_worktree_add(command: &ResolvedCommand) -> Option<AddPlan> {
-    let current: PathBuf = std::env::current_dir().ok()?;
-    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+fn plan_worktree_add(command: &ResolvedCommand, current: Option<&Path>) -> Option<AddPlan> {
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
     return parse_add_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
 }
 
 /// What:
 ///  The destination of a `git worktree add` in any form of Git's documented options,
 /// read from the resolved command and the
-///  process's working directory.
+///  directory this command was started in.
 /// Why:
 ///   The ignored-state copy goes to the worktree this command created,
 /// which the command line names;
@@ -214,18 +213,17 @@ fn plan_worktree_add(command: &ResolvedCommand) -> Option<AddPlan> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planCopyDestination(command: ResolvedCommand): string | undefined;
+/// function planCopyDestination(command: ResolvedCommand, current?: string): string | undefined;
 /// ```
-fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
-    let current: PathBuf = std::env::current_dir().ok()?;
-    let start: PathBuf = copy_start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+fn plan_copy_destination(command: &ResolvedCommand, current: Option<&Path>) -> Option<PathBuf> {
+    let start: PathBuf = copy_start_directory(&command.arguments[..command.subcommand_index], current?)?;
     return parse_copy_destination(command.arguments.as_slice(), command.subcommand_index, start.as_path());
 }
 
 /// What:
 ///  The plan of a plain `git worktree remove <directory>`,
-/// read from the resolved command and the process's working
-///  directory.
+/// read from the resolved command and the directory this
+///  command was started in.
 /// Why:
 ///   The directory is relative to where Git starts,
 /// which the global `-C` options move,
@@ -237,11 +235,10 @@ fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string): RemovePlan | undefined;
+/// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string, current?: string): RemovePlan | undefined;
 /// ```
-fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>) -> Option<RemovePlan> {
-    let current: PathBuf = std::env::current_dir().ok()?;
-    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>, current: Option<&Path>) -> Option<RemovePlan> {
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current?)?;
     return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
 }
 

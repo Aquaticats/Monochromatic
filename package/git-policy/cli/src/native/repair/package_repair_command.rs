@@ -181,7 +181,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// What:
 ///  The first executable file named `name` in a search path,
-///  named by its absolute path.
+///  named by its absolute path,
+///  with a relative entry read from the directory this command was started in.
 /// Why:
 ///   The program is the one the person's environment resolves;
 /// a missing one is a verdict,
@@ -196,7 +197,11 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// ```ts
 /// function findProgram(name: string, searchPath?: string): string | undefined;
 /// ```
-pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> {
+pub fn find_program(
+    name: &str,
+    search_path: Option<&OsStr>,
+    start: &crate::start_directory::StartDirectory,
+) -> Option<PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     let search: &OsStr = search_path?;
     for directory in std::env::split_paths(search) {
@@ -204,13 +209,18 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
         if directory.as_os_str().is_empty() {
             continue;
         }
-        let candidate: PathBuf = directory.join(name);
+        // A name that is already absolute is kept as the person wrote it; only a relative one needs the directory this
+        //  command was started in, which is where the person's own shell would read it.
+        let candidate: PathBuf = match start.path() {
+            Some(started_in) => started_in.join(&directory).join(name),
+            None if directory.is_absolute() => directory.join(name),
+            None => return None,
+        };
         let runnable: bool = match std::fs::metadata(&candidate) {
             Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
             Err(_) => false,
         };
         if runnable {
-            // A name that is already absolute is kept as the person wrote it; only a relative one needs this directory.
             return std::path::absolute(candidate).ok();
         }
     }

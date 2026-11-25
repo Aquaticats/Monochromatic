@@ -302,12 +302,17 @@ pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
 /// A working directory this process cannot read,
 /// so no record could say what `bin` meant,
 /// and a search path that cannot be written back.
-fn entry_with_an_absolute_search_path(entry: &RelinkEntry) -> Result<RelinkEntry, String> {
+fn entry_with_an_absolute_search_path(
+    entry: &RelinkEntry,
+    start: &crate::start_directory::StartDirectory,
+) -> Result<RelinkEntry, String> {
     let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else { return Ok(entry.clone()) };
     if !names_a_relative_directory(search_path) {
         return Ok(entry.clone());
     }
-    let add: PathBuf = std::env::current_dir().map_err(no_working_directory)?;
+    let Some(add) = start.path() else {
+        return Err(no_working_directory(start.reason()));
+    };
     let mut absolute: Vec<PathBuf> = Vec::new();
     for directory in std::env::split_paths(search_path) {
         if directory.as_os_str().is_empty() || directory.is_absolute() {
@@ -354,8 +359,11 @@ fn names_a_relative_directory(search_path: &std::ffi::OsStr) -> bool {
 /// ```ts
 /// const noWorkingDirectory = (error) => `the directory this command runs in cannot be read (${error}), so a relative search path names no program it could resolve`;
 /// ```
-fn no_working_directory(error: std::io::Error) -> String {
-    return format!("the directory this command runs in cannot be read ({error}), so a relative search path names no program it could resolve");
+fn no_working_directory(reason: Option<&str>) -> String {
+    return format!(
+        "the directory this command runs in cannot be read ({}), so a relative search path names no program it could resolve",
+        reason.unwrap_or("the caller named none")
+    );
 }
 
 /// What:
@@ -386,9 +394,14 @@ fn unrecordable_search_path(error: std::env::JoinPathsError) -> String {
 /// ```ts
 /// const itemOf = ({ commonDir, destination, entry }) => { const created = new Date().toISOString(); return { kind: 'relink', repository: destination, gitDir: commonDir, ref: RELINK_REFERENCE, oid: objectNameOf(destination, created), parent: encode(entry), created, tries: 0 }; };
 /// ```
-pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<WorkItem, String> {
+pub fn item_of(
+    common_dir: &Path,
+    destination: &Path,
+    entry: &RelinkEntry,
+    start: &crate::start_directory::StartDirectory,
+) -> Result<WorkItem, String> {
     let created: String = now_iso();
-    let recorded: RelinkEntry = entry_with_an_absolute_search_path(entry)?;
+    let recorded: RelinkEntry = entry_with_an_absolute_search_path(entry, start)?;
     return Ok(WorkItem {
         kind: WorkKind::Relink,
         repository: destination.to_path_buf(),
@@ -433,8 +446,14 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// ```ts
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
-pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), NotTaken> {
-    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
+pub fn hand_over_to_the_service(
+    context: &GitContext,
+    common_dir: &Path,
+    destination: &Path,
+    entry: &RelinkEntry,
+    start: &crate::start_directory::StartDirectory,
+) -> Result<(), NotTaken> {
+    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT }, start);
 }
 
 /// What:
@@ -449,8 +468,15 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// ```ts
 /// handOverWith({ context, commonDir, destination, entry, reach });
 /// ```
-pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<(), NotTaken> {
-    let item: WorkItem = item_of(common_dir, destination, entry).map_err(not_written)?;
+pub fn hand_over_with(
+    context: &GitContext,
+    common_dir: &Path,
+    destination: &Path,
+    entry: &RelinkEntry,
+    reach: &Reach<'_>,
+    start: &crate::start_directory::StartDirectory,
+) -> Result<(), NotTaken> {
+    let item: WorkItem = item_of(common_dir, destination, entry, start).map_err(not_written)?;
     let work_dir: PathBuf = work_directory(common_dir);
     let id: String = item.id();
     match enqueue(work_dir.as_path(), &item) {
@@ -629,8 +655,8 @@ type ClientConfig = crate::service_client::ClientConfig;
 /// const handOverInAJob = ([context, commonDir, destination, entry]) => handOverToTheService(context, commonDir, destination, entry);
 /// ```
 pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
-    let (context, common_dir, destination, entry): TheHandOver = state;
-    return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), &entry);
+    let (context, common_dir, destination, entry, start): TheHandOver = state;
+    return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), &entry, &start);
 }
 
 /// What a hand-over job reads:
@@ -646,7 +672,7 @@ pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), NotTaken> {
 /// ```ts
 /// type TheHandOver = [GitContext, string, string, RelinkEntry];
 /// ```
-pub(super) type TheHandOver = (GitContext, PathBuf, PathBuf, RelinkEntry);
+pub(super) type TheHandOver = (GitContext, PathBuf, PathBuf, RelinkEntry, crate::start_directory::StartDirectory);
 
 /// Relink controls stay out of the release executable.
 #[cfg(test)]

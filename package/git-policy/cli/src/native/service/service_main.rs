@@ -230,7 +230,9 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 /// ```
 fn git_is_wrapper(git: &std::path::Path) -> bool {
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    return match crate::real_git::process_resolution_inputs(environment.as_slice()) {
+    // This service is a process of its own: the directory it was started in is read here, once, as its entry.
+    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+    return match crate::real_git::process_resolution_inputs(environment.as_slice(), &start) {
         Ok(inputs) => matches!(crate::real_git_candidate::classify_candidate(git, inputs.own_executable.as_path()), crate::real_git_candidate::CandidateKind::Wrapper),
         // Without its own path only a launcher's record can be recognised.
         Err(_) => crate::real_git_candidate::is_wrapper_launcher(git, None),

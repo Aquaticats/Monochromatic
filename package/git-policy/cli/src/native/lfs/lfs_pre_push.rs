@@ -203,45 +203,52 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
 
 /// What:
 ///  The first executable file named `git-lfs` in the directories of a `PATH` value,
-/// in order.
+/// in order,
+///  read from the directory the started `git-lfs` runs in.
+///  `&Path` borrows that directory.
 /// Why:
 ///   A stat per directory answers it without starting any process;
-/// an empty entry means the current directory,
+/// an empty entry means the running directory,
 /// as
 ///  `PATH` lookup treats it.
 /// The upload starts exactly this file,
 /// so the pre-check and the start agree about which
 ///  `git-lfs` runs even though the child's `PATH` leads with the real Git's directory.
+///  A relative entry is read from the directory the child runs in,
+///  which is why that directory is an input:
+///  a lookup that asked the process instead answered with whatever directory another
+///  test of the crate had moved the process to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// path.split(':').map((dir) => join(dir || '.', 'git-lfs')).find(isExecutableFile)
 /// ```
-pub fn find_program(path: &OsStr) -> Option<std::path::PathBuf> {
+pub fn find_program(path: &OsStr, directory: &Path) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
-    for directory in std::env::split_paths(path) {
-        let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
-        let candidate: std::path::PathBuf = base.join(LFS_PROGRAM);
+    for entry in std::env::split_paths(path) {
+        let base: &Path = if entry.as_os_str().is_empty() { Path::new(".") } else { entry.as_path() };
+        let candidate: std::path::PathBuf = directory.join(base).join(LFS_PROGRAM);
         let is_executable_file: bool = match std::fs::metadata(&candidate) {
             Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
             Err(_) => false,
         };
         if is_executable_file {
-            // A relative `PATH` entry is relative to where the lookup happens; the child may start elsewhere (`-C`).
+            // A relative `PATH` entry is relative to the directory the child runs in; an absolute one is kept.
             return std::path::absolute(candidate).ok();
         }
     }
     return None;
 }
 
-/// Whether `git-lfs` is an executable file in one of the directories of a `PATH` value.
+/// Whether `git-lfs` is an executable file in one of the directories of a `PATH` value,
+///  read from the given directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// findProgram(path) !== undefined
+/// findProgram(path, directory) !== undefined
 /// ```
-pub fn program_on_path(path: &OsStr) -> bool {
-    return find_program(path).is_some();
+pub fn program_on_path(path: &OsStr, directory: &Path) -> bool {
+    return find_program(path, directory).is_some();
 }
 
 /// What:

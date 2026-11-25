@@ -342,6 +342,7 @@ fn converge_fixture(fixture: &Fixture) -> CommitConvergence {
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
         Vec::<ToolCacheDirectory>::new(),
+        &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,

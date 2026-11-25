@@ -28,12 +28,12 @@ fn a_push_is_refused_only_when_the_program_is_missing() {
     std::fs::create_dir(&full).expect("directory");
     executable(full.join("git-lfs").as_path(), b"#!/bin/sh\n");
     let region: Vec<OsString> = words(&["origin", "main"]);
-    let refusal: String = lfs_refusal(&[], region.as_slice(), path_environment(&empty).as_slice()).expect("refused");
+    let refusal: String = lfs_refusal(&[], region.as_slice(), path_environment(&empty).as_slice(), std::path::Path::new("/")).expect("refused");
     let search: ProgramSearch = ProgramSearch::of(path_environment(&empty).as_slice());
     assert_eq!(refusal, missing_program_message(&search));
     assert!(refusal.contains(&empty.display().to_string()), "the refusal names the folder it searched: {refusal}");
-    assert_eq!(lfs_refusal(&[], region.as_slice(), path_environment(&full).as_slice()), None);
-    assert!(lfs_refusal(&[], region.as_slice(), &[]).is_some(), "an unset PATH finds nothing");
+    assert_eq!(lfs_refusal(&[], region.as_slice(), path_environment(&full).as_slice(), std::path::Path::new("/")), None);
+    assert!(lfs_refusal(&[], region.as_slice(), &[], std::path::Path::new("/")).is_some(), "an unset PATH finds nothing");
     remove(root.as_path());
 }
 
@@ -50,13 +50,13 @@ fn a_push_that_runs_no_hook_is_never_refused() {
         words(&["origin", "main", "--no-verify"]),
         words(&["--dry-run", "origin", "main"]),
     ] {
-        assert_eq!(lfs_refusal(&[], region.as_slice(), environment.as_slice()), None, "{region:?}");
+        assert_eq!(lfs_refusal(&[], region.as_slice(), environment.as_slice(), std::path::Path::new("/")), None, "{region:?}");
     }
     let off: Vec<OsString> = words(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"]);
-    assert_eq!(lfs_refusal(off.as_slice(), words(&["origin"]).as_slice(), environment.as_slice()), None);
+    assert_eq!(lfs_refusal(off.as_slice(), words(&["origin"]).as_slice(), environment.as_slice(), std::path::Path::new("/")), None);
     let region_after_terminator: Vec<OsString> = words(&["origin", "--", "--no-verify"]);
     assert!(
-        lfs_refusal(&[], region_after_terminator.as_slice(), environment.as_slice()).is_some(),
+        lfs_refusal(&[], region_after_terminator.as_slice(), environment.as_slice(), std::path::Path::new("/")).is_some(),
         "a word after -- is a refspec, not an option"
     );
     remove(root.as_path());
@@ -66,5 +66,5 @@ fn a_push_that_runs_no_hook_is_never_refused() {
 #[test]
 fn a_region_git_would_refuse_is_left_to_git() {
     let environment: Vec<(OsString, OsString)> = Vec::new();
-    assert_eq!(lfs_refusal(&[], words(&["--no-such-option"]).as_slice(), environment.as_slice()), None);
+    assert_eq!(lfs_refusal(&[], words(&["--no-such-option"]).as_slice(), environment.as_slice(), std::path::Path::new("/")), None);
 }

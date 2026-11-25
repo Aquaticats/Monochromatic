@@ -340,8 +340,40 @@ so a follow-up round makes it compare the GUID (`pi-fix-managed-lock-mounted-pro
 step 14's wiring runs since then too (`pi-zfs-step-14-wire-the-removal-proof`),
 held to the merge bar: until step 16 is wired it files no intent, unmounts nothing and writes no plan,
 and runs the proof read-only inside the refusal;
-running since 2026-11-24T19:10-05:00:
-issue 6454's fix, seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
+issue 6454's round ended with the start directory read once in `main.rs` and passed down through 71 files,
+a `source_guard` check that fails any `set_current_dir` in the crate,
+and one deliberate change (the `git-lfs` lookup resolves a relative `PATH` entry against the directory `git-lfs` runs in);
+its one conflict with `main` (`entry_zfs_slot_commands.rs`, the move refusal's read order) was resolved keeping both,
+the word first and then the given directory, with `main`'s order check still red on a planted read,
+and it merged as `ac6fce8e3b` (`source_guard` 87 of 87; issue 6454 closed);
+the reads of the process's directory that remain, each its own process's entry or reached by no control, are listed in its report
+(`report-pi-fix-tests-that-change-the-process-directory.md` in `~/temp/agent/fix-tests-that-change-the-process-directory-2026-11-24/keep/`);
+the root modes design's fifth revision merged as `6681fdf4e5` (whole-file pins of `main.rs` and the names module, eleven choices,
+choice 9's `--replace <the record's GUID>` ranked first, choice 11 the deadline variable),
+and its Sonnet read (same vendor, a second pass) ended with no High and seven Mediums
+(`keep/report-sonnet-read-of-the-fifth-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-fifth-revision-2026-11-24/`):
+the shared comment stripper is blind to the end of three real release files after a glob string, so an allow and a read appended there pass every release-wide guard;
+the pins miss the module declaration, the `[[bin]] path` and the command word;
+the printed scan rules fail the crate's `shadow_reuse` deny;
+the printed `main.rs` is stale against `558bd72198`;
+`mount-path-descendant`'s root-ownership clause may refuse the one nested dataset at boot, and it lacks three of `zfs mount`'s refusals;
+choice 9 contradicts itself on option C's window;
+choice 11's printed control lacks the words;
+the read names M4 to M7 as needing a fix before the choices go to the owner, and ranks choice 5 C over A under the repository's ranking rule;
+the sixth revision merged as `a0dad3adb7` (report `keep/report-pi-zfs-root-modes-sixth-revision.md` in `~/temp/agent/zfs-root-modes-sixth-revision-2026-11-24/`):
+a string-aware shared stripper that finishes all 1,472 release files, three assertions on the module declaration, `COMMAND_WORD.current` and the `[[bin]] path`,
+the printed `main.rs` and pin rebased onto `5f904d9fbd`, every printed Rust text compiled and clean under the crate's Clippy table,
+`mount-path-descendant` walking by descriptor with the root-ownership clause dropped and three refusals added,
+choice 5 re-ranked C > A > B on delivery and choice 9 E (`--replace <the kernel's GUID>`) > D > A > C > B;
+its Sonnet read (same vendor, a second pass; `keep/read-of-the-sixth-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/`)
+found no High and judged the eleven choices ready for the owner after five text repairs that change no command, ranking order or boot behaviour
+(B1 choice 5's missing A-over-B reason, B2 the usage line naming two `--replace` tokens, B3 choice 9's C and B window con resting on the refusal's wording,
+B4 choice 4's B-over-C a tie by delivery, B5 choice 5's C carrying choice 2's word);
+the choices went to the owner at 2026-11-24T23:00-05:00 with the read's corrected blocks, so the revision that writes the answers folds B1 to B5 and the after-answers list
+(A1 to A3 guard holes: `br"..."` and comment-then-`r` stripper edges, split and macro-built allows, three function-wide allows, three `#[path]` spellings, `lib.rs` and the Clippy configuration unread;
+A4 `dataset-not-mountable`'s stated reason and two missing `zfs mount` refusals; A5 the proof order; A6 the change list keeping choice 5's A; A7 to A18 labels, citations and counts);
+the fifth read's `work/`, the sixth round's `keep/` and the fourth round's `scratch/` (which the proposal cites) stay until it ends;
+earlier, issue 6454's fix ran as seven tests that change the process's directory so parallel `cargo test` runs read each other's fixtures (`pi-fix-tests-that-change-the-process-directory`);
 step 12's move refusal now reads `worktree move` before the working directory, so other forwarded commands pay no read for it,
 held by a `source_guard` control red before the fix (merged `12e46acc3a`, `source_guard` 84 of 84 at its tip);
 running since 2026-11-24T19:25-05:00:
@@ -355,16 +387,44 @@ the command's lines beside it);
 7 instances no record names stay untouched,
 and the 6322 round's own worktree keeps its journal of five fresh finished batches until a client could no longer read them,
 when the same command clears it;
-the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt;
-the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
+the session's `git` is still the build of `ee0cf2268b` from 2026-11-22, so its removals keep journals until it is rebuilt
+(the day's removals kept nine; the fixed build's `service stop-units-of-removed-worktrees`, run at 2026-11-24T22:06-05:00 from the gate worktree's `target/debug`,
+removed those nine, stopped two removed worktrees' units, left the seven instances it cannot match to a worktree untouched, and took the count from 80 to 71;
+backup `~/temp/agent/clear-kept-journals-of-removed-worktrees-2026-11-24/keep/service-state-before-the-second-clearing.tar.zst`);
+the gate on `main` at `0152f18bb7` (run `native-VeMLmC`, 2026-11-24T21:47:39-05:00 to 22:04:19-05:00, for the batch of 6454, the GUID follow-up, 6455, 6456 and the preflight control)
+gave `11062 tests run: 11060 passed (5 slow), 2 failed, 43 skipped`, the cause-H pair alone, each with cause H's own message,
+and its only AppArmor denials were `umount`'s two `dac_override`;
+before it, the gate on `main` at `a467773fbf` (run `native-S1Mngy`, for step 12's merge) gave `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`:
 the cause-H pair and `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
 which asserts the pool's refusal text, while the gate's container has no `/dev/zfs` and the compatibility gate refuses first;
 its only AppArmor denials were `umount`'s two `dac_override`, which stay refused;
 its image build compiles the tests under the shared 2 GiB container default and stalls against it (issue 6455),
 which lifts the machine-wide memory stall that pauses new starts;
-running since 2026-11-24T19:50-05:00, once that stall was falling:
-the round that makes that control hold without `/dev/zfs` (`pi-fix-preflight-dirty-source-test-without-dev-zfs`)
-and the round that measures the image build and sizes its bound (`pi-size-the-gate-image-build-memory`);
+that control now derives the refusal it expects from the device layer, so it holds with and without `/dev/zfs`
+(merged `c12b45dfc4`; red then green in the gate image itself),
+and its round found the crate's lib tests killed with `SIGKILL` while compiling at `podman run --memory=2g` and compiling at `4g`
+(added to issue 6455 and to `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`);
+the image build now has its own measured bound, 8 GiB against a measured peak of 5,363.4 MiB uncapped,
+while the suite's and Clippy's containers keep 2 GiB and a person's `--memory` still sets both
+(merged `5c0ee1a448`, issue 6455 closed; the measurement is in `doc/planning/git-policy-cli-cachyos-test-containers.md`);
+that round also found `package/container-limit/core`'s ledger test failing on `main`:
+16 files added since 2026-11-10 (13 of them this package's gate scripts) are unlisted,
+and `package/ide/app/task.ts` lints in a container without the root `clippy.toml` (issue 6456);
+fixed and merged as `b7ab8cf80a` (issue 6456 closed): every file listed under its role,
+the gate runner `bin/native-gate-container.ts` now takes its container limits as its own argument,
+the ZFS package's gate image build carries the shared bound,
+and the ide marker was stale (the file hands the root file through `bin/run-bounded.ts`, probed);
+`.github/workflows/advisory-core.yml`'s fast unit subset now runs `//package/container-limit/core:test:unit` so the ledger cannot fall behind silently (`3574042c16`);
+a manual dispatch (run 45529509832) showed the step had never reached it:
+`task-run` reads `task.ts` only, `package/upstream-fork/p-map/task.ts` had no `test:unit` since `592d78b143` (2026-10-29),
+so the step stopped there on every admitted run, and `package/container-limit/core` had no `task.ts` at all;
+`144814293a` adds both, and the second dispatch (run 45531170934) ran the ledger in CI (`[the container start sites ledger] [PASS]`);
+push runs of that workflow show green only because its rate window skips the core job;
+that dispatch's remaining red steps: the unit step now stops at `//package/forbidden-strings/cli:test`, whose `cargo nextest` the runner lacks (issue 6457, two routes named there),
+the committed-file drift and Rust frozen install (both issue 6398, the Slint catalog floor),
+and pnpr config drift, fixed by regenerating `package/config/pnpr/config.yaml` (five packages added without it, `//package/config/pnpr:check:config` clean after);
+the merged GUID follow-up (`b92b6783b8`): with a mount covering the slot, the lock's proof now also compares `cloneGuid=` with the pool's answer for the mounted dataset,
+and its guest arm refuses a clone made again under the same name;
 with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 fixed by moving the companion's reaping onto the crate's one reaper (`reap_soon_pid` beside `reap_soon`), so no thread of its own and one fewer exception row,
@@ -625,10 +685,9 @@ no pin on `main`'s refusal arm and no binary control of it,
 choice 9 silent on what a restore or the migration's rollback does to the nested dataset's unit,
 and choice 7's deadline variable able to turn a missed deadline into a pass;
 the owner blocks for all ten choices are in that report.
-The fifth revision, briefed to weigh whole-file pins of `main.rs` and the names module against more spelling lists
-and to pose the deadline variable as its own choice, has its brief at `~/temp/agent/zfs-root-modes-fifth-revision-2026-11-24/prompt.md`
-and runs since 2026-11-24T20:21-05:00 (`pi-zfs-root-modes-fifth-revision`; the fourth round's `scratch/` stays until it ends, since the brief points at it);
-a Sonnet read of it follows, then the choices go to the owner.
+The fifth revision chose whole-file pins of `main.rs` and the names module and posed the deadline variable as its own choice;
+its read and the sixth revision are in the ZFS State paragraph;
+a Sonnet read of the sixth follows, then the choices go to the owner.
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).

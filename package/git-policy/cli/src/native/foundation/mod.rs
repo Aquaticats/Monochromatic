@@ -35,6 +35,11 @@ pub mod scratch_entry_removal;
 ///  never the system temporary directory.
 pub mod scratch_location;
 
+/// The directory a command was started in,
+///  read from the process once where the command begins
+///  and handed to the code that needs it.
+pub mod start_directory;
+
 /// The common Git directory a worktree's own Git directory belongs to,
 /// read from its `commondir` file.
 pub mod common_directory_of_a_git_directory;

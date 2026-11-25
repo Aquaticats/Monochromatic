@@ -25,7 +25,8 @@ use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
 use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
 use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
-use crate::worktree_clone_mount_protocol::RequestNonce;
+use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
+use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
@@ -87,6 +88,56 @@ impl MountedDatasets for ScriptedMounts {
             Ok(_covered_by_a_parent) => Ok(Some(MountHoldingAPath { dataset: Some(String::from("pool/monochromatic-git-checkout")), filesystem_type: String::from("zfs"), mount_point: path.parent().unwrap_or(path).to_path_buf() })),
             Err(reason) => Err(reason.clone()),
         };
+    }
+}
+
+/// What:
+///  The pool's answers a control writes,
+///  instead of asking a pool.
+/// Why:
+///  The mounted arm compares a GUID,
+///  so a control must answer one without a device,
+///  and a control whose arm never reads the pool gets an answer that panics if it is asked,
+///  which is how the unmounted arms prove they do not read it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const guids = ScriptedGuids.answering('pool/clones/locked-slot', '18446744073709551615'); // or .refusing(reason), or .neverAsked()
+/// ```
+pub struct ScriptedGuids {
+    /// The datasets this control answers for,
+    /// each with the answer it gives.
+    pub answers: Vec<(String, Result<String, String>)>,
+}
+
+impl ScriptedGuids {
+    /// One dataset answering the GUID the record holds.
+    pub fn answering(dataset: &str, guid: &str) -> ScriptedGuids {
+        return ScriptedGuids { answers: vec![(String::from(dataset), Ok(String::from(guid)))] };
+    }
+
+    /// One dataset whose read the pool refused.
+    pub fn refusing(dataset: &str, reason: &str) -> ScriptedGuids {
+        return ScriptedGuids { answers: vec![(String::from(dataset), Err(String::from(reason)))] };
+    }
+
+    /// A pool this arm must not read at all.
+    pub fn never_asked() -> ScriptedGuids {
+        return ScriptedGuids { answers: Vec::new() };
+    }
+}
+
+impl DatasetGuidReads for ScriptedGuids {
+    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String> {
+        for (named, answer) in &self.answers {
+            if named == dataset {
+                return match answer {
+                    Ok(guid) => Ok(DatasetGuid::parse(guid.as_str()).expect("the control's GUID reads")),
+                    Err(reason) => Err(reason.clone()),
+                };
+            }
+        }
+        panic!("the pool was asked for `{dataset}`, and this control answers no mount's read");
     }
 }
 

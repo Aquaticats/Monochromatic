@@ -37,6 +37,7 @@ use crate::worktree_clone_binding_record::registration_finder::EntryFacts;
 use crate::worktree_clone_binding_record::registration_home::record_name_of;
 use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, RecipeRefusal, ToClear, clear_registration, complete_a_cut_short_lock};
 use crate::worktree_clone_binding_record::registration_resume::{EntryDecision, Finding as RegistrationFinding, ListingDecision, find_registrations};
+use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
 use crate::worktree_clone_managed_lock::lock_classification::classify_with_a_known_slot_identity;
 use crate::worktree_clone_managed_lock::lock_installation::{InstallAnswer, write_the_lost_lock};
 use crate::worktree_clone_managed_lock::lock_state::{Classification, ManagedLockState};
@@ -122,6 +123,9 @@ pub struct ScanInput<'a> {
     /// This add's nonce,
     /// which recomposes the sentence.
     pub nonce: &'a RequestNonce,
+    /// The pool's GUID read,
+    /// which the lock's mounted arm compares the record's `cloneGuid=` with.
+    pub guids: &'a dyn DatasetGuidReads,
 }
 
 /// What:
@@ -190,7 +194,7 @@ fn settle_the_lock(input: &ScanInput<'_>, registration: &Path) -> Result<Option<
     // A record whose add was killed before its own identity write stands at phase `claimed`,
     // and this command made the folder, so the identity the proof compares is its own reading.
     let known: Option<FolderIdentity> = FolderIdentity::of_folder(input.slot_path).ok();
-    let classification: Classification = classify_with_a_known_slot_identity(input.common_dir, input.slot, input.slot_path, &mounts, known);
+    let classification: Classification = classify_with_a_known_slot_identity(input.common_dir, input.slot, input.slot_path, &mounts, input.guids, known);
     match &classification.state {
         ManagedLockState::Managed { .. } => return Ok(None),
         ManagedLockState::CutShort { .. } => {

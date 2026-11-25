@@ -57,7 +57,7 @@
 //! ```
 
 use crate::child_environment::{CHILD_SET_PREFIX, environment_value};
-use crate::entry::run_process;
+use crate::entry::run_nested_process;
 use crate::forwarded_command::ResolvedCommand;
 use crate::merge_isolation_git_reads::{editor_would_open, stdin_and_stdout_are_one_terminal};
 use crate::merge_second_pass_finish_stops::{Operation, Stops, merge_stops, pick_stops, saved_pick_stops};
@@ -428,7 +428,7 @@ fn todo_needs_editor(git_dir: &Path) -> bool {
 /// nested one level deeper.
 fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
     NESTED_FINISHES.fetch_add(1, Ordering::SeqCst);
-    let code: i32 = run_process(arguments, environment);
+    let code: i32 = run_nested_process(arguments, environment);
     NESTED_FINISHES.fetch_sub(1, Ordering::SeqCst);
     return code;
 }

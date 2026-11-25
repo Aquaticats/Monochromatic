@@ -142,7 +142,7 @@ impl GitQueryAwaiting for PushQueryAwaiting<'_> {
 pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, SingleFlightError> {
     let region: &[OsString] = arguments.get(1..).unwrap_or_default();
     if git.lfs {
-        if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice()) {
+        if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice(), git.cwd.as_path()) {
             return Ok(PushAttempt {
                 exit_code: REFUSED_EXIT_CODE,
                 signal: None,
@@ -210,7 +210,7 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
         let looked_up: PushGit = git.clone();
         let region_owned: Vec<OsString> = region.to_vec();
         let refusal: Option<String> = run_blocking_job_within_the_budget(move || {
-            return lfs_refusal(&[], region_owned.as_slice(), looked_up.environment.as_slice());
+            return lfs_refusal(&[], region_owned.as_slice(), looked_up.environment.as_slice(), looked_up.cwd.as_path());
         })
         .await
         .map_err(refused_job)?;

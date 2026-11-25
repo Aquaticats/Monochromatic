@@ -77,6 +77,7 @@ fn plan_with(
         controls,
         &[],
         inputs,
+        &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
     );
 }
 
@@ -701,11 +702,11 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
         asked.borrow_mut().push(viewpoint.checkout.map(Path::to_path_buf).unwrap_or_default());
         return String::from("section text\n");
     };
-    let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
+    let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
     let (code, stdout, stderr) = exit_parts(doctor);
     assert_eq!((code, stdout.as_str(), without_fsmonitor_line(stderr.as_str()).as_str()), (0, "", "section text\n"));
     assert_eq!(*asked.borrow(), vec![repo.clone()]);
-    let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
+    let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
     assert!(matches!(help, Action::Exit { code: 0, .. }));
     assert_eq!(asked.borrow().len(), 1, "help does not ask for the section");
     remove(root.as_path());
@@ -728,7 +729,7 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
     environment.push((OsString::from("XDG_STATE_HOME"), state.as_os_str().to_os_string()));
     let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
     let doctor = || -> (i32, String, String) {
-        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }));
+        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path())));
     };
     let (quiet_code, _, quiet_stderr) = doctor();
     assert_eq!(quiet_code, 0);
@@ -963,7 +964,7 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     let status_in = |global: &[OsString], extra: &[(OsString, OsString)]| -> (i32, String, String) {
         let mut seen: Vec<(OsString, OsString)> = environment.clone();
         seen.extend(extra.iter().cloned());
-        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); });
+        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
         let Action::Exit { code, stdout, stderr } = planned else {
             panic!("the status exits");
         };
@@ -999,7 +1000,7 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     // an invocation the reader does not resolve is unresolved,
     // never counted as any service.
     let nameless: ResolutionInputs = no_git(root.as_path());
-    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); });
+    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(nameless.current_directory.as_path()));
     let Action::Exit { code: unresolved_code, stdout: unresolved_out, stderr: unresolved_err } = unresolved else {
         panic!("the status exits");
     };
@@ -1101,6 +1102,7 @@ fn the_doctors_link_line_reads_the_home_the_invocation_names() {
         environment.as_slice(),
         &inputs,
         &host_filesystem_section,
+        &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
     );
     let (code, _stdout, stderr) = exit_parts(action);
     assert_eq!(code, 0, "{stderr}");

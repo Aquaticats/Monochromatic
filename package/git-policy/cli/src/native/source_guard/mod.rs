@@ -43,6 +43,12 @@ mod diagnostic_door_tests;
 #[path = "no_self_invocation_tests.rs"]
 mod no_self_invocation_tests;
 
+/// The mechanical ban on changing the directory of the process:
+/// a control that wants the code under test to start somewhere passes that directory as an input.
+#[cfg(test)]
+#[path = "no_test_changes_the_process_directory_tests.rs"]
+mod no_test_changes_the_process_directory_tests;
+
 /// The owner's move to tokio needs its workers to await:
 /// no thread,
 /// no sleeping clock,
