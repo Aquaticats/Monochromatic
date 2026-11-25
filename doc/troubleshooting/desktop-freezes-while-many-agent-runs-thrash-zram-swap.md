@@ -1194,6 +1194,16 @@ which half of the change carries the effect,
 because compaction's result outlasts its window and makes A after B no control;
 and whether the rates stay down as builds fragment memory again over hours.
 
+One longer reading under the chosen setting,
+from 2026-11-25T13:59:11-05:00 to 14:29:11-05:00 (1800 s, eight build rounds running, `keep/long-window.txt`):
+`pgsteal_kswapd` 19.39 GiB, `pgsteal_direct` 3.51 GiB, `pswpout` 9.53 GiB, `pswpin` 3.87 GiB,
+stall 5.3 s, 5987 compaction stalls,
+and 296285 hugepage faults allocated against 588196 fallen back.
+Per 120 seconds that is about 1.29 GiB reclaimed by kswapd and 0.64 GiB swapped out,
+against window 1's 23.70 GiB and 18.22 GiB;
+the load differs between the two readings,
+so this is a reading beside window 1 and not a ratio to a control.
+
 Persisted for boots:
 `/etc/tmpfiles.d/thp.conf`,
 which replaces the distribution's file of the same name,
