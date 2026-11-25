@@ -162,3 +162,25 @@ fn a_repository_without_records_gets_nothing() {
     assert!(stderr.is_empty(), "{stderr}");
     remove(root.as_path());
 }
+
+/// What:
+///  A plain registered worktree that shares its last name with a bound slot
+///  gets no report about that slot,
+///  and the move of one is not the other slot's to refuse.
+/// Why:
+///  The record is keyed by the slot's last name,
+///  so a reader that stopped at the key would print the other slot's dataset and
+///  a repair command for a worktree nothing here endangers.
+#[test]
+fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
+    let bound: Slot = slot("command-same-leaf");
+    let registration: PathBuf = bound.common.join("worktrees").join("one");
+    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    let other: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
+    git(bound.root.join("repository").as_path(), &["worktree", "add", "--quiet", "--no-checkout", other.to_str().expect("utf-8"), "HEAD"]);
+    let mut stderr: String = String::new();
+    before_a_repair(&command_of(&["worktree", "repair", other.to_str().expect("utf-8")]), Some(bound.common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
+    assert!(stderr.is_empty(), "a plain worktree's repair printed the other slot's report: {stderr}");
+    remove(bound.root.as_path());
+}
