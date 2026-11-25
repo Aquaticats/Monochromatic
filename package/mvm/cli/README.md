@@ -375,15 +375,15 @@ Push and pull read and write the guest's own files through the QEMU guest agent:
 - A status request that the guest agent does not answer is asked again.
   mvm gives up when the domain is gone or when requests stay unanswered for five minutes.
 - A command a signal ended reports exit status 128 plus the signal number.
-- A command runs as a child of the guest agent,
-  in the agent's systemd unit `qemu-guest-agent.service`,
+- On a systemd guest a command runs as a child of the guest agent,
+  in the agent's unit `qemu-guest-agent.service`,
   so the guest kernel's out-of-memory killer ends it there when the guest runs out of memory.
   systemd's default `OOMPolicy=stop` then stops that unit,
   which kills the agent and the command with it,
   and the agent holds every started command's process ID and captured output in memory only,
   so every command started before the stop loses its result,
   and `guest-exec-status` answers that the process ID does not exist.
-  mvm's Linux guests carry
+  mvm's systemd Linux guests carry
   `/etc/systemd/system/qemu-guest-agent.service.d/mvm-command-oom.conf`,
   which sets `OOMPolicy=continue`:
   the kernel's kill ends the one process and not the agent,

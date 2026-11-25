@@ -141,6 +141,11 @@ and a command the kernel ended reports 128 plus the signal number
 while every other command's result is still there.
 The file lands when an image's template is baked.
 
+An Alpine guest runs its agent under OpenRC,
+which has no such setting and no such stop:
+a kernel kill of a command there leaves the agent running already,
+and only a kernel that picks the agent itself loses the table.
+
 - A template baked by an earlier mvm keeps the distro's default.
   Bake it again with `mvm update`,
   or delete the template file once no running guest's disk is backed by it,
