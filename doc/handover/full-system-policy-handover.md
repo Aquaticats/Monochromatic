@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T16:49:54-05:00
+## Status at 2026-11-25T16:50:32-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -114,7 +114,8 @@ Unprofiled development processes remain a residual risk.
   On 2026-11-25, the selected database rule gained Qt's exact
   `main.kdbx* -> #@{int}` atomic-save relationship and `#@{int}` read/write access.
   The confined create-write-rename-readback fixture passed without modifying the real database.
-  The owner's real save retry remains open; see
+  Three subsequent real KeePassXC atomic saves then completed successful open, link, and rename
+  syscalls with no new denial. See
   `doc/troubleshooting/keepassxc-database-atomic-save-tempfile.md`.
 - On 2026-11-24, the same local KeePassXC rule gained `k` on its existing state-file paths after
   Qt 6.12.0's `QLockFile` blocked the GUI during Helium native messaging.

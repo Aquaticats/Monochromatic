@@ -2,9 +2,8 @@
 
 ## Status
 
-The measured policy repair, confined create-write-rename-readback fixture, and complete cache
-rebuild pass. The owner's real database save retry remains open, so this is not a final or approved
-completion report.
+The measured policy repair, confined create-write-rename-readback fixture, real KeePassXC atomic
+saves, and complete cache rebuild pass. This is an evidence record, not an owner approval.
 
 ## Symptom
 
@@ -150,6 +149,17 @@ for writing or modified by this verification.
 cache artifacts, exact live feature bytes, a KeePassXC cache hit, selection, reload, and rollback
 preservation.
 
+## Real application confirmation
+
+After the reload, real KeePassXC PID 4823 opened `/home/user/Plain/#10992481`; its paired `openat`
+returned descriptor 33 with `success=yes`. It then linked `main.kdbx.hdhXcz` to that temporary file
+and renamed the link over `main.kdbx`. Both `linkat` and `rename` returned `0` with `success=yes`,
+and a subsequent database read returned a descriptor. Two later real saves used `#11006776` and
+`#11258139` and completed the same successful sequence. No real KeePassXC denial occurred after the
+rule change, and those temporary paths were absent afterward.
+
+This confirms the real application's save boundary without reading or exposing database contents.
+
 ## Current configuration boundary
 
 KeePassXC's source defaults to `UseAtomicSaves=true`, `UseDirectWriteSaves=false`, and
@@ -158,9 +168,9 @@ KeePassXC's source defaults to `UseAtomicSaves=true`, `UseDirectWriteSaves=false
 Neither current settings file overrides those entries. This repair therefore covers the active
 atomic-save configuration without adding permissions for disabled backup or alternate save modes.
 
-The fixture proves the exact AppArmor file and rename boundary. It does not claim that the owner's
-real GUI save succeeded, that a different database path is authorized, or that optional backups
-and non-atomic modes were exercised. The owner must retry the real save for that separate result.
+The fixture and real process events prove the exact AppArmor file and rename boundary for the
+selected database. They do not show that a different database path is authorized, or that optional
+backups and non-atomic modes were exercised.
 
 ## Upstream disposition
 
