@@ -590,13 +590,13 @@ pub fn process_resolution_inputs(
     crate::service_route::remember_own_executable(own_executable.as_path());
     // The directory the process was started in is read once, at the executable's entry, and reaches this resolver as an
     //  input, so no second read can answer with a directory another test moved the process to.
-    let Some(current_directory) = start.path() else {
+    let Some(started_in) = start.path() else {
         return Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             start.reason().unwrap_or("the current directory could not be read").to_owned(),
         ));
     };
-    let current_directory: PathBuf = current_directory.to_path_buf();
+    let current_directory: PathBuf = started_in.to_path_buf();
     // `.unwrap_or_default()` substitutes an empty value when the variable is unset.
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     let path_extensions: OsString = environment_value(environment, "PATHEXT")

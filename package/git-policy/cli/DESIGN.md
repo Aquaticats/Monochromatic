@@ -131,6 +131,51 @@ Each is recorded here with its measurement.
   A waiter could give up after 95 s on a holder that was still legitimately working,
   and waiters retry every 20 ms with no order among them.
 
+## The directory a command starts in is an input
+
+The current directory belongs to the whole process.
+`cargo test` runs a crate's tests as threads of one process,
+so a control that moved it made every other control read that control's fixture,
+or a fixture it had already deleted,
+and issue 6454 measured exactly that:
+seven controls called `std::env::set_current_dir`,
+and a module run read another control's directory.
+
+The release executable reads its own directory once,
+at the entry,
+(`src/native/foundation/start_directory.rs`),
+and hands it down as an input:
+`ResolutionInputs::current_directory` for the search for the real Git,
+`ShippedChecks::start_directory` for the guard,
+the shell directory,
+the worktree plans and the policies,
+`CommitCommand::start_directory` for a commit's own relative options,
+`RepairEnvironment::start_directory` for a tool's relative search path,
+and the `directory` argument of a program lookup.
+A caller that starts somewhere else names that directory instead,
+which is how a control starts the code under test in its own fixture,
+and what the shipped commands decide does not change:
+production passes the directory the process was started in,
+except for the `git-lfs` lookup,
+which is given the directory the started program will run in.
+That lookup exists so the pre-check and the start agree about which file runs,
+and the started program reads its own relative `PATH` entries where it runs;
+the two directories differ only for a command moved by `-C` or for a push whose repository is not the
+wrapper's directory,
+and there the lookup now names the file the child itself would.
+
+`source_guard/no_test_changes_the_process_directory_tests.rs` fails any source of this crate that calls
+`std::env::set_current_dir`,
+so a control that needs a fixture to be the working directory passes its path rather than moving the process.
+
+A path that still reads the process directory directly is a gap to close when a decision depends on it:
+the repository reader,
+the discard audit record's directory,
+the forwarded lock notice,
+the repair environment's own snapshot,
+and the directory a `-C` chain reaches for an interactive upload.
+None of them is reached by a control that used to move the process.
+
 ## What this asks of contributors
 
 These are working suggestions derived from the owner's words and from the history above.

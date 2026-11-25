@@ -20,7 +20,8 @@ const CHANGING_THE_PROCESS_DIRECTORY: &str = "set_current_dir(";
 
 /// The files that name the call without making it,
 /// with why.
-/// This check's own text holds the call twice: the text it searches for and the one its control plants in a fixture.
+/// This check's own text holds the call twice:
+/// the text it searches for and the one its control plants in a fixture.
 /// An entry here that matches nothing is reported,
 /// so a file that moves or stops naming the call shrinks this list.
 const NAMES_THE_CALL_WITHOUT_MAKING_IT: &[(&str, &str)] = &[(

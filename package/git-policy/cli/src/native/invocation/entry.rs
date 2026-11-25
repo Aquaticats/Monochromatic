@@ -472,7 +472,8 @@ pub fn run_process(
 ///  that run inherits the directory the process was started in,
 ///  and it is read here once for it,
 ///  because the enclosing run carried no directory this far.
-///  Nothing of this process changes that directory, so the answer is the entry's.
+///  Nothing of this process changes that directory,
+///  so the answer is the entry's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

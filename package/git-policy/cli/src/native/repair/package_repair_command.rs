@@ -209,20 +209,19 @@ pub fn find_program(
         if directory.as_os_str().is_empty() {
             continue;
         }
-        let candidate: PathBuf = directory.join(name);
+        // A name that is already absolute is kept as the person wrote it; only a relative one needs the directory this
+        //  command was started in, which is where the person's own shell would read it.
+        let candidate: PathBuf = match start.path() {
+            Some(started_in) => started_in.join(&directory).join(name),
+            None if directory.is_absolute() => directory.join(name),
+            None => return None,
+        };
         let runnable: bool = match std::fs::metadata(&candidate) {
             Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
             Err(_) => false,
         };
         if runnable {
-            // A name that is already absolute is kept as the person wrote it; only a relative one needs the directory
-            //  this command was started in.
-            let joined: PathBuf = match start.path() {
-                Some(directory) => directory.join(&candidate),
-                None if candidate.is_absolute() => candidate.clone(),
-                None => return None,
-            };
-            return std::path::absolute(joined).ok();
+            return std::path::absolute(candidate).ok();
         }
     }
     return None;

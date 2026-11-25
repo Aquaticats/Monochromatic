@@ -173,10 +173,10 @@ pub fn before_a_repair(command: &ResolvedCommand, common_dir: Option<&Path>, std
     if !repair {
         return;
     }
-    let Some(current) = current else {
+    let Some(started_in) = current else {
         return;
     };
-    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], current) else {
+    let Some(start) = start_directory(&command.arguments[..command.subcommand_index], started_in) else {
         return;
     };
     let paths: Vec<PathBuf> = repair_paths(command.arguments.as_slice(), command.subcommand_index, start.as_path(), Some(common));

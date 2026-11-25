@@ -99,7 +99,8 @@ pub struct GuardedForwarded {
 ///  so they are left to Git and to whatever the shell
 ///       finally runs.
 ///  The alias value and the shell's own directory both follow from where this command
-///  was started, so that directory is an input rather than a read of the process.
+///  was started,
+///  so that directory is an input rather than a read of the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

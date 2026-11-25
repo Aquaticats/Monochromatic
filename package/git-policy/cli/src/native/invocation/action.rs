@@ -105,7 +105,8 @@ pub struct PushForward {
     ///  read once by the executable's entry,
     ///  and nothing when the caller could name none;
     ///  the run resolves a relative `PATH` entry of its `git-lfs` lookup there and
-    ///  starts its Git children from there, as the caller's own shell would.
+    ///  starts its Git children from there,
+    ///  as the caller's own shell would.
     pub start_directory: Option<PathBuf>,
 }
 
