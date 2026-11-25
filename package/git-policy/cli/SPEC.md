@@ -5453,9 +5453,16 @@ and the removal's command path is
 `src/native/worktree_copying/worktree_removal_of_a_bound_clone.rs`.
 
 A removal is one order,
-and every step of it that decides anything runs before anything is written:
+and every step of it that decides anything runs before anything is written,
+and the slot's per-slot claim is its first step and its last:
 
-1. The add's binding record for the slot,
+1. The per-slot claim on the slot,
+   taken before any record is read,
+   in the add's own folder and under the add's own name,
+   the claim an add of the same slot takes
+   (`worktree_clone_removal_proof_and_plan::removal_slot_claim`,
+   `lock/single_owner_claim.rs`),
+   then the add's binding record for the slot,
    its registration's own identity,
    and the origin-side inventory the add recorded.
 2. The lineage proof:
@@ -5555,10 +5562,34 @@ and every step of it that decides anything runs before anything is written:
    and the lines that name what was destroyed,
    what the head took with it,
    what remains,
-   and what a person still has to do.
+   and what a person still has to do,
+   and then the per-slot claim released,
+   after the plan is proved gone,
+   so no command meets a free slot whose removal's last witness still stands.
 
-Steps 1 to 4 write nothing and unmount nothing,
-and they are what this release's removal command runs.
+Two commands on one slot meet that claim rather than each other's writes:
+a second removal of the slot is refused while the first holds it,
+with the owner's process and claim file named,
+and so is an add of it,
+because the add takes the same claim in the same folder.
+A held slot is refused rather than queued,
+the rule "The per-slot claim" states for the handler's own claim,
+and the add's claim refuses with the owner's process id.
+A removal that is killed before its last step leaves a claim that names a process which no longer
+runs,
+and the claim's own rule lets the next command take the next generation,
+so nothing is left to clean up by hand.
+Every way out of the order before its last step,
+a refusal or an error,
+gives the claim back the same way,
+and a release that cannot rewrite its file is printed in the report rather than swallowed:
+the claim then names the process until the process ends,
+when it stops counting as alive.
+
+Steps 1 to 4 write no removal record and unmount nothing.
+This release's removal command runs their reads through the read-only reading,
+which takes no claim,
+because a claim is a write and this release removes nothing.
 `git worktree remove` of a slot a whole managed clone is bound to refuses,
 prints the slot's report,
 and prints the proof's own answer:
@@ -5579,6 +5610,9 @@ and no record is rewritten.
 The whole removal is built on one writing path,
 `worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
 and no command reaches it.
+That path takes the slot's per-slot claim at its first step and releases it at its last,
+and the read-only reading a command does call takes no claim and writes no claim file:
+this release's removal command still changes nothing at all.
 The removal's command path still calls the read-only reading
 (`worktree_clone_removal_proof_and_plan::removal_reading::read_the_removal`)
 and names none of the three writing functions:
@@ -5665,6 +5699,8 @@ What this release does not do:
 - It removes no clone.
   The refusal above is the whole of its removal behaviour,
   and the writing path that would finish one is built and reachable from no command.
+- It takes no per-slot claim on any command's behalf,
+  so no claim file is written and no command is refused for a slot another one owns.
 - It writes no removal intent,
   unmounts no clone,
   writes no destruction plan,

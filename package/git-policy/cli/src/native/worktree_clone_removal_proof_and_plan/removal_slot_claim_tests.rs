@@ -6,7 +6,8 @@
 //!  taken over from a removal that was killed,
 //!  and the release a person reads when it cannot rewrite its file.
 //! Why:
-//!  Two removals of one slot write the same binding, plan folder and registration,
+//!  Two removals of one slot write the same binding,
+//!  plan folder and registration,
 //!  and this path took no claim at all before this round,
 //!  so the controls assert the state a second command meets rather than a return value:
 //!  the claim file's own record,
