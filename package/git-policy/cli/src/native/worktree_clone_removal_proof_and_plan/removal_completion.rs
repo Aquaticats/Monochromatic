@@ -157,9 +157,9 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
     // the design retries only after identifying the new own snapshot and reproving the plan,
     // never on an unexplained refusal.
     send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
-    let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
-    settle_the_recorded_names(&mut plan, live.as_slice())?;
-    let added = the_new_own_snapshots(&plan, live.as_slice())?;
+    let after_the_batch: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
+    settle_the_recorded_names(&mut plan, after_the_batch.as_slice())?;
+    let added = the_new_own_snapshots(&plan, after_the_batch.as_slice())?;
     let amended: bool = !added.is_empty();
     if amended {
         amend_the_plan(&mut plan, added.as_slice())?;
@@ -170,8 +170,8 @@ fn the_head_present_path(input: &RemovalCompletion<'_>, folder: PlanFolder, ente
         // The own snapshot appeared after this run's first enumeration, so every check runs again and
         // the amendment is submitted once. Every name the first request left keeps its line.
         send_the_remaining(input, &folder, &mut plan, &planned, plan_path.as_path(), pool.as_str(), &mut requests, &mut residual)?;
-        let live: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
-        settle_the_recorded_names(&mut plan, live.as_slice())?;
+        let after_the_amendment: Vec<crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject> = the_live_snapshots(input, &plan)?;
+        settle_the_recorded_names(&mut plan, after_the_amendment.as_slice())?;
         publish_the_plan(&folder, &plan)?;
     }
     let remaining: Vec<String> = the_names_not_destroyed(&plan);
@@ -241,14 +241,14 @@ fn send_the_remaining(
     if remaining.is_empty() {
         return Ok(());
     }
-    let pool: String = String::from(pool);
-    let requested = plan_requests(pool.as_str(), remaining.as_slice(), input.budget).map_err(|refusal| {
+    let the_pool: String = String::from(pool);
+    let requested = plan_requests(the_pool.as_str(), remaining.as_slice(), input.budget).map_err(|refusal| {
         return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
     })?;
     for chunk in requested.chunks() {
         *residual = (*residual).max(refuse_the_holders(input, plan)?);
         refuse_a_marked_or_replaced_origin(input.check, planned, plan)?;
-        let answer: RequestResult = send_request(input.snapshots, pool.as_str(), chunk.as_slice()).map_err(|refusal| {
+        let answer: RequestResult = send_request(input.snapshots, the_pool.as_str(), chunk.as_slice()).map_err(|refusal| {
             return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
         })?;
         let RequestResult::Answered(outcome) = answer else { continue };
@@ -265,8 +265,8 @@ fn send_the_remaining(
 /// the origin attempt,
 /// the settle,
 /// and the records.
-fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, plan: DestructionPlan, plan_path: PathBuf, lost: NamesToBeLost, _pool: String) -> Result<TheRemovalDone, RemovalStop> {
-    let mut plan: DestructionPlan = plan;
+fn the_head_gone_path(input: &RemovalCompletion<'_>, folder: PlanFolder, standing: DestructionPlan, plan_path: PathBuf, lost: NamesToBeLost, _pool: String) -> Result<TheRemovalDone, RemovalStop> {
+    let mut plan: DestructionPlan = standing;
     match crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::the_clone_absence(input.probe, plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)? {
         CloneAbsence::Gone => {}
         CloneAbsence::There { name, guid } => {
@@ -473,7 +473,7 @@ fn attempt_the_origin_cleanup(input: &RemovalCompletion<'_>, plan: &DestructionP
             Ok(OriginCleanupDone::Finished { snapshot: destroyed, line })
         }
         CleanupOutcome::Blocked { record: next, detail } => {
-            folder.publish(&next).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
+            folder.publish(next.as_ref()).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
             let reason: BlockReason = next.block.map_or(BlockReason::Unproved, |held| return held.reason);
             let line: Option<String> = if the_reason_changed(Some(&record), &next) {
                 Some(line_of_a_block(&next, folder.path().join(own_name).as_path(), detail.as_str()))
@@ -533,9 +533,10 @@ fn settle_the_registration(input: &RemovalCompletion<'_>, plan: &DestructionPlan
 
 /// One plan write through the folder that publishes it whole.
 fn publish_the_plan(folder: &PlanFolder, plan: &DestructionPlan) -> Result<(), RemovalStop> {
-    return folder.publish(plan).map(|_path| return ()).map_err(|refusal| {
-        return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: folder.path().join(plan.facts.clone_guid.file_name()), said: refusal.message(folder.path()) };
-    });
+    return match folder.publish(plan) {
+        Ok(_path) => Ok(()),
+        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer { path: folder.path().join(plan.facts.clone_guid.file_name()), said: refusal.message(folder.path()) }),
+    };
 }
 
 /// What:

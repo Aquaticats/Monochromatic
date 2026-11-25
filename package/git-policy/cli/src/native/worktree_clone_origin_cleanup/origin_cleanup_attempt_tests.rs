@@ -143,8 +143,8 @@ impl SnapshotDestroyDevice for ScriptedOne {
 /// One attempt over one pool and device.
 fn attempt(pool: &MutablePool, device: &ScriptedOne) -> CleanupOutcome {
     let record: OriginCleanupRecord = an_owed_record();
-    let attempt: CleanupAttempt<'_> = CleanupAttempt { record: &record, reads: pool, device, attempted_at: NOW };
-    return attempt_the_cleanup(&attempt);
+    let the_attempt: CleanupAttempt<'_> = CleanupAttempt { record: &record, reads: pool, device, attempted_at: NOW };
+    return attempt_the_cleanup(&the_attempt);
 }
 
 #[test]
@@ -234,8 +234,8 @@ fn a_refused_request_keeps_its_errno() {
 fn a_success_whose_absence_proof_still_finds_the_snapshot_is_a_refusal() {
     let pool: MutablePool = MutablePool::free();
     let stubborn: StubbornDevice = StubbornDevice;
-    let record: OriginCleanupRecord = an_owed_record();
-    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt { record: &record, reads: &pool, device: &stubborn, attempted_at: NOW });
+    let standing: OriginCleanupRecord = an_owed_record();
+    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt { record: &standing, reads: &pool, device: &stubborn, attempted_at: NOW });
     match outcome {
         CleanupOutcome::Blocked { record, detail } => {
             assert_eq!(record.block.map(|held| return held.reason), Some(BlockReason::Refused));

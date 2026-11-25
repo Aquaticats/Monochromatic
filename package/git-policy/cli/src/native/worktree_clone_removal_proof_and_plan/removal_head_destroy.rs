@@ -424,9 +424,10 @@ fn settle_the_head(request: &mut HeadDestroyRequest<'_>, head: HeadWord, errno: 
 
 /// One plan write through the folder that publishes it whole.
 fn publish(request: &HeadDestroyRequest<'_>) -> Result<(), RemovalStop> {
-    request.folder.publish(request.plan).map(|_path| return ()).map_err(|refusal| {
-        return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: request.folder.path().join(request.plan.facts.clone_guid.file_name()), said: refusal.message(request.folder.path()) };
-    })
+    return match request.folder.publish(request.plan) {
+        Ok(_path) => Ok(()),
+        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer { path: request.folder.path().join(request.plan.facts.clone_guid.file_name()), said: refusal.message(request.folder.path()) }),
+    };
 }
 
 /// Controls stay out of the release executable.

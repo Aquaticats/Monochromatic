@@ -104,7 +104,7 @@ pub struct LookAnswer {
 /// ```
 pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
     let mut answer: LookAnswer = LookAnswer { lines: Vec::new(), finished: 0, blocked: 0, refused: 0 };
-    let listing: Option<CleanupListing> = match list_the_origin_cleanups(look.common_dir) {
+    let maybe_listing: Option<CleanupListing> = match list_the_origin_cleanups(look.common_dir) {
         Ok(found) => found,
         Err(refusal) => {
             answer.refused += 1;
@@ -112,7 +112,7 @@ pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
             return answer;
         }
     };
-    let Some(listing) = listing else { return answer };
+    let Some(listing) = maybe_listing else { return answer };
     for name in &listing.foreign {
         answer.refused += 1;
         let refusal: CleanupRefusal = CleanupRefusal::at(
@@ -169,13 +169,13 @@ fn attempt_one(look: &OriginCleanupLook<'_>, folder: &CleanupFolder, name: &str,
             }
         }
         CleanupOutcome::Blocked { record: next, detail } => {
-            if let Err(refusal) = folder.publish(&next) {
+            if let Err(refusal) = folder.publish(next.as_ref()) {
                 answer.refused += 1;
                 answer.lines.push(line_of_a_refusal(name, &refusal, path.as_path()));
                 return;
             }
             answer.blocked += 1;
-            if the_reason_changed(Some(&record), &next) {
+            if the_reason_changed(Some(&record), next.as_ref()) {
                 answer.lines.push(line_of_a_block(&next, path.as_path(), detail.as_str()));
             }
         }

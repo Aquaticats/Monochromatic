@@ -278,10 +278,10 @@ fn the_removal_completion_guest_arms() {
     assert!(fixture.registration().exists(), "the registration stands for the next run");
     let scnd: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
     println!("COMPLETION step=arm-4-second-enter");
-    let done: TheRemovalDone = complete(&fixture, &reads, &reader, &scnd, &settle).expect("the second run finishes the settle");
+    let resumed: TheRemovalDone = complete(&fixture, &reads, &reader, &scnd, &settle).expect("the second run finishes the settle");
     assert!(scnd.sent.borrow().is_empty(), "the head-gone path sends no snapshot request");
     assert!(!fixture.registration().exists(), "the second run settled the registration");
-    assert!(done.records.plan_removed, "the second run removed the plan");
+    assert!(resumed.records.plan_removed, "the second run removed the plan");
     println!("COMPLETION resume=finished requests=0 registration=settled");
 
     fixture.teardown();

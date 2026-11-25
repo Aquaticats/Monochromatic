@@ -242,15 +242,15 @@ impl OriginCleanupRecord {
         if self.origin_snapshot.len() != ORIGIN_SNAPSHOT_PREFIX.len() + 32 {
             return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originSnapshot", self.origin_snapshot.clone()));
         }
-        match (self.state, self.attempted_at.is_some(), self.block.is_some()) {
+        return match (self.state, self.attempted_at.is_some(), self.block.is_some()) {
             (CleanupState::Owed, false, false) => Ok(()),
             (CleanupState::Blocked, true, true) => Ok(()),
-            (state, attempted, block) => Err(CleanupRefusal::at(
+            (held_state, attempted, block) => Err(CleanupRefusal::at(
                 CleanupRefusalCause::UnexpectedKey,
                 "state",
-                format!("`{}` with attemptedAt={attempted} and blockedReason={block}", state.word()),
+                format!("`{}` with attemptedAt={attempted} and blockedReason={block}", held_state.word()),
             )),
-        }
+        };
     }
 }
 

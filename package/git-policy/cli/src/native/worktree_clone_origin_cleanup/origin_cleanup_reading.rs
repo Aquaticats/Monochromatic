@@ -108,9 +108,9 @@ pub fn list_the_origin_cleanups(common_dir: &Path) -> Result<Option<CleanupListi
         Err(error) => return Err(CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string())),
     };
     let mut listing: CleanupListing = CleanupListing { records: Vec::new(), foreign: Vec::new(), staging: Vec::new() };
-    for entry in entries {
-        let entry: std::fs::DirEntry = entry.map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string()))?;
-        let name: String = entry.file_name().to_string_lossy().into_owned();
+    for listed in entries {
+        let held: std::fs::DirEntry = listed.map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string()))?;
+        let name: String = held.file_name().to_string_lossy().into_owned();
         if is_a_record_name(name.as_str()) {
             listing.records.push(name);
         } else if is_a_staging_name(name.as_str()) {

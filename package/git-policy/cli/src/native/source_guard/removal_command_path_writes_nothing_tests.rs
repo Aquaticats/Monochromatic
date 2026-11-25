@@ -2,9 +2,10 @@
 //!  The check that the removal's command path runs the read-only reading and no
 //!  entry that writes or destroys.
 //! Why:
-//!  This release has no snapshot batch,
-//!  head destroy,
-//!  origin cleanup or Git settle,
+//!  This release builds the snapshot batch,
+//!  the head destroy,
+//!  the origin cleanup and the Git settle,
+//!  and runs none of them,
 //!  so a removal that filed the intent,
 //!  unmounted the clone,
 //!  wrote the destruction plan and sent the batch would leave a person
@@ -20,9 +21,10 @@
 //!  that is a fact about which functions the release names,
 //!  and this check reads the release source for it.
 //!  The destruction step is step 15's checks and the batch together,
-//!  so the same cut holds it:
-//!  no release file outside the removal's own folder names it either.
-//!  Plan step 16's wiring is the change that names them,
+//!  and the completion is the whole removal from that batch to the report,
+//!  so the same cut holds all three:
+//!  no release file outside the removal's own folder names any of them.
+//!  The round that switches the command path on is the change that names them,
 //!  and it removes this check in the same commit,
 //!  listing it in its round's report.
 //!
@@ -55,9 +57,10 @@ struct WritingName {
 }
 
 /// The functions that wait for the steps which can finish or cancel what they start.
-const THE_WRITING_NAMES: [WritingName; 2] = [
+const THE_WRITING_NAMES: [WritingName; 3] = [
     WritingName { name: "enter_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_entry.rs", what: "files the intent, unmounts the clone and writes the destruction plan" },
     WritingName { name: "destroy_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_destruction.rs", what: "sends the snapshot batch and destroys what it planned" },
+    WritingName { name: "complete_the_removal", declaring_file: "worktree_clone_removal_proof_and_plan/removal_completion.rs", what: "destroys the snapshots and the head, attempts the origin cleanup, settles the registration and removes the records" },
 ];
 
 /// The call this release's removal command makes instead.
@@ -166,7 +169,7 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
     assert!(scan.the_command_path_reads, "`{THE_COMMAND_PATH}` must call `{THE_READING_CALL}…)`: this release's removal proves its lineage read-only and writes nothing");
     assert!(
         scan.callers.is_empty(),
-        "no release file outside `{THE_REMOVAL_FOLDER}` may name a function that writes or destroys until plan step 16 wires it, and these do: {:?}",
+        "no release file outside `{THE_REMOVAL_FOLDER}` may name a function that writes or destroys until the round that switches the command path on, and these do: {:?}",
         scan.callers
     );
 }

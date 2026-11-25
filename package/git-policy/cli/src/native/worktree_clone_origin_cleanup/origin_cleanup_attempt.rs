@@ -55,7 +55,7 @@ pub enum CleanupOutcome {
     /// and its reason is one of the four codes.
     Blocked {
         /// The record with this attempt's state lines.
-        record: OriginCleanupRecord,
+        record: Box<OriginCleanupRecord>,
         /// The detail a person acts on and a printed line reports.
         detail: String,
     },
@@ -106,8 +106,8 @@ pub fn attempt_the_cleanup(attempt: &CleanupAttempt<'_>) -> CleanupOutcome {
         LiveAnswer::Unproved(said) => return blocked(record, attempt.attempted_at, BlockReason::Unproved, said),
         LiveAnswer::Absent => return CleanupOutcome::Finished { destroyed: None },
         LiveAnswer::Live { full_name, identity } => {
-            if let Some((next, detail)) = the_counts(record, attempt.attempted_at, &identity) {
-                return CleanupOutcome::Blocked { record: next, detail };
+            if let Some((next, detail)) = the_counts(record, attempt.attempted_at, identity.as_ref()) {
+                return CleanupOutcome::Blocked { record: Box::new(next), detail };
             }
             let answer: Result<Option<NvList>, DeviceError> = attempt.device.destroy_snaps(pool.as_str(), &[full_name.as_str()]);
             match answer {
@@ -136,7 +136,7 @@ fn blocked(record: &OriginCleanupRecord, attempted_at: &str, reason: BlockReason
 /// which is what an administrator reads for a permission refusal.
 fn blocked_with_errno(record: &OriginCleanupRecord, attempted_at: &str, reason: BlockReason, detail: String, errno: u32) -> CleanupOutcome {
     let block: CleanupBlock = CleanupBlock { reason, errno, clones: 0, holds: 0 };
-    return CleanupOutcome::Blocked { record: record.blocked(block, attempted_at), detail };
+    return CleanupOutcome::Blocked { record: Box::new(record.blocked(block, attempted_at)), detail };
 }
 
 /// What:
@@ -159,7 +159,7 @@ enum LiveAnswer {
         /// The name a destroy request carries.
         full_name: String,
         /// The snapshot's own reply.
-        identity: DatasetIdentity,
+        identity: Box<DatasetIdentity>,
     },
     /// Something the proof needs could not be read or did not match.
     Unproved(String),
@@ -220,7 +220,7 @@ fn the_live_snapshot(attempt: &CleanupAttempt<'_>) -> LiveAnswer {
         }
         let full_name: String = object.full_name();
         return match attempt.reads.identity(full_name.as_str()) {
-            Ok(identity) => LiveAnswer::Live { full_name, identity },
+            Ok(identity) => LiveAnswer::Live { full_name, identity: Box::new(identity) },
             Err(said) => LiveAnswer::Unproved(format!("the snapshot `{full_name}` did not answer ({said})")),
         };
     }

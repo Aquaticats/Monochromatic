@@ -316,6 +316,33 @@ fn a_refused_settle_keeps_the_plan_and_its_binding_and_the_next_run_finishes_wit
     assert!(done.records.plan_removed, "the second run removed the plan");
 }
 
+#[test]
+fn an_incomplete_namespace_read_is_carried_into_the_report() {
+    let fixture: RemovalFixture = a_fixture("completion-incomplete-read");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    let check: Pool = the_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe { pool: check, hidden: Rc::clone(&hidden) };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let head: ScriptedHead = ScriptedHead::succeeding(fixture.plan_folder(), fixture.recorded().clone_guid, Rc::clone(&hidden));
+    let holders: ScriptedHolders = ScriptedHolders::always(crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::a_scan_with_an_incomplete_read());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let done = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &probe,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        budget: the_budget(),
+    })
+    .expect("an incomplete read does not refuse by itself");
+    assert!(done.holder_reads_unfinished >= 1, "the read the scan could not finish is reported, never read as a clear namespace");
+    assert!(done.text().contains("namespace read(s) of the fresh scans could not be completed"), "{}", done.text());
+}
+
 /// What:
 ///  A device that records whether the origin cleanup record stood when each request arrived.
 /// Why:

@@ -432,34 +432,6 @@ impl LivePool {
         ];
         return LivePool { identities, lists: Rc::new(RefCell::new(vec![(String::from(CLONE), clone_list), (String::from(ORIGIN_DATASET), origin_list)])), bookmarks: Rc::new(RefCell::new(Vec::new())) };
     }
-
-    /// What:
-    ///  The same pool with one dataset's list replaced,
-    ///  so a control plants a snapshot the plan does not name.
-    /// Why:
-    ///  The amended-plan rule and the transferred-history refusal are told apart by the
-    ///  transaction group of a live snapshot only.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// pool.withList(CLONE, [...own, aNewSnapshot]);
-    /// ```
-    pub fn with_list(self, dataset: &str, objects: Vec<LiveObject>) -> LivePool {
-        {
-            let mut lists = self.lists.borrow_mut();
-            let mut found: bool = false;
-            for pair in lists.iter_mut() {
-                if pair.0 == dataset {
-                    pair.1 = objects.clone();
-                    found = true;
-                }
-            }
-            if !found {
-                lists.push((String::from(dataset), objects));
-            }
-        }
-        return self;
-    }
 }
 
 impl RemovalPoolReads for LivePool {
