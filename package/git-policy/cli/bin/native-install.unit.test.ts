@@ -99,6 +99,42 @@ const recordedTimingLine = '{"schema":1,"step":"commit","durationMs":37}';
 const journalSinceToleranceMilliseconds = 60_000;
 
 /**
+ The versions that are no release this wrapper ever has, each of which an install refuses before its first step.
+
+ Every one of them would otherwise be handed to `mise run toolchain:update` as a release name.
+ */
+const notReleaseVersions = [
+  'latest',
+  '0.6',
+  '0.6.1-alpha..2',
+  '0.6.x.1',
+  '',
+] as const;
+
+/**
+ The refusal one version that is no release gets.
+
+ @param version - the text an install was asked to order
+
+ @returns the refusal's sentence
+
+ @throws Error when the version was ordered, so a control that expected a refusal fails loudly
+
+ @example
+ ```ts
+ refusalOfVersion({ version: 'latest' });
+ ```
+ */
+function refusalOfVersion({ version }: { readonly version: string; }): string {
+  try {
+    releaseAnswersTheRootModes({ version, });
+  } catch (error) {
+    return (error instanceof NativeGateError) ? error.message : 'a failure that is not a NativeGateError';
+  }
+  throw new Error(`${JSON.stringify(version,)} was ordered, and no release of this wrapper has that shape`);
+}
+
+/**
  Runs the command under test against one fixture.
 
  @param fixture - the throwaway checkout to install into
@@ -205,17 +241,12 @@ await describe({
     it({
       name: 'refuses a version that is not a release it can order, naming what was typed',
       fn: async () => {
-        for (const version of ['latest', '0.6', '0.6.1-alpha..2', '0.6.x.1', '']) {
+        for (const version of notReleaseVersions) {
           /**
-           The refusal one such version gets, or nothing when it was ordered.
+           The refusal this version gets, which the helper throws when it gets none.
            */
-          let refusal: string | undefined;
-          try {
-            releaseAnswersTheRootModes({ version, });
-          } catch (error) {
-            refusal = (error instanceof NativeGateError) ? error.message : 'not a NativeGateError';
-          }
-          expect([version, refusal?.includes(JSON.stringify(version,)) ?? false,],).toEqual([version, true,],);
+          const refusal = refusalOfVersion({ version, });
+          expect([version, refusal.includes(JSON.stringify(version,)),],).toEqual([version, true,],);
         }
       },
     }),

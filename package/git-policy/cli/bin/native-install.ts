@@ -460,6 +460,9 @@ async function main(): Promise<number> {
    so, which is what lets a rollback to one finish.
   */
   if (asksTheRootModes) {
+    /**
+     What the installed build answers the words with.
+     */
     const modesReported = (await runGateCommandOrThrow({
       program: gitProgram,
       args: [

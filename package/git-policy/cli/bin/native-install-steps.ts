@@ -173,12 +173,45 @@ type ParsedRelease = {
   /**
    Major, minor and patch, in that order.
    */
-  readonly core: readonly [number, number, number];
+  readonly core: readonly [
+    number,
+    number,
+    number,
+  ];
   /**
    The dot-separated identifiers after the first hyphen, empty for a release.
    */
   readonly prerelease: readonly string[];
 };
+
+/**
+ Whether a release part is a plain count: one or more ASCII digits and nothing else.
+
+ An index scan, because the repository bans a regex where a string walk answers the same question, and because a release
+ is short text that never needs one.
+
+ @param part - one component of a release's core, or one prerelease identifier
+
+ @returns whether the part is all digits, which is what makes it compare as a number
+
+ @example
+ ```ts
+ isCount('46'); // true
+ ```
+ */
+function isCount(part: string): boolean {
+  if (part === '')
+    return false;
+  for (let index = 0; index < part.length; index += 1) {
+    /**
+     The character at this place, which has to be a digit.
+     */
+    const character = part.charAt(index,);
+    if ((character < '0') || (character > '9'))
+      return false;
+  }
+  return true;
+}
 
 /**
  Splits one release of this wrapper into its core and its prerelease identifiers.
@@ -216,25 +249,42 @@ function parseRelease({ version }: { readonly version: string; }): ParsedRelease
   const parts = coreText.split('.',);
   if (
     (parts.length !== releaseCoreLength)
-      || (!parts.every(function isCount(part) {
-        return /^\d+$/.test(part,);
-      },))
+      || (!parts.every(isCount))
   )
     throw new NativeGateError(notARelease({ version, }));
-  const [major, minor, patch] = parts.map(Number,);
-  if ((major === undefined) || (minor === undefined) || (patch === undefined))
+  /**
+   The core as numbers, in major, minor, patch order.
+   */
+  const numbers = parts.map(Number,);
+  /**
+   Major, minor and patch, which the length check above proved are all there.
+   */
+  const [
+    major,
+    minor,
+    patch,
+  ] = numbers;
+  if (
+    (major === undefined)
+      || (minor === undefined)
+      || (patch === undefined)
+  )
     throw new NativeGateError(notARelease({ version, }));
   /**
    The prerelease identifiers, which each have to be a word or a count.
    */
   const prerelease = hyphenAt === (-1) ? [] : withoutBuild.slice(hyphenAt + 1,)
     .split('.',);
-  if (prerelease.some(function isIdentifier(identifier) {
+  if (prerelease.some(function isEmpty(identifier) {
     return identifier === '';
   },))
     throw new NativeGateError(notARelease({ version, }));
   return {
-    core: [major, minor, patch],
+    core: [
+      major,
+      minor,
+      patch,
+    ],
     prerelease,
   };
 }
@@ -279,8 +329,11 @@ function compareIdentifiers({
   /**
    Whether each identifier is all digits, which is what makes it compare as a number.
    */
-  const leftIsCount = /^\d+$/.test(left,);
-  const rightIsCount = /^\d+$/.test(right,);
+  const leftIsCount = isCount(left,);
+  /**
+   Whether the other identifier is all digits.
+   */
+  const rightIsCount = isCount(right,);
   if (leftIsCount && rightIsCount)
     return Number(left,) - Number(right,);
   if (leftIsCount)
@@ -323,7 +376,18 @@ export function compareReleases({
    The two releases, parsed once each.
    */
   const one = parseRelease({ version: left, });
+  /**
+   The release this one is compared with.
+   */
   const other = parseRelease({ version: right, });
+  /**
+   The first release's prerelease identifiers.
+   */
+  const oneIdentifiers = one.prerelease;
+  /**
+   The second release's prerelease identifiers.
+   */
+  const otherIdentifiers = other.prerelease;
   for (let index = 0; index < releaseCoreLength; index += 1) {
     /**
      The difference of the two numeric components, which decides the answer when it is nonzero.
@@ -333,30 +397,30 @@ export function compareReleases({
       return difference;
   }
   // A release without a prerelease is above every prerelease of the same core.
-  if (one.prerelease.length === 0)
-    return other.prerelease.length === 0 ? 0 : 1;
-  if (other.prerelease.length === 0)
+  if (oneIdentifiers.length === 0)
+    return otherIdentifiers.length === 0 ? 0 : 1;
+  if (otherIdentifiers.length === 0)
     return -1;
   /**
    How many identifiers the two share, which is as far as they are compared pairwise.
    */
   const shared = Math.min(
-    one.prerelease.length,
-    other.prerelease.length,
+    oneIdentifiers.length,
+    otherIdentifiers.length,
   );
   for (let index = 0; index < shared; index += 1) {
     /**
      The difference of the two identifiers at this place, which decides the answer when it is nonzero.
      */
     const difference = compareIdentifiers({
-      left: one.prerelease[index] ?? '',
-      right: other.prerelease[index] ?? '',
+      left: oneIdentifiers[index] ?? '',
+      right: otherIdentifiers[index] ?? '',
     },);
     if (difference !== 0)
       return difference;
   }
   // The identifiers compared equal as far as both go, so the one with more identifiers is above.
-  return one.prerelease.length - other.prerelease.length;
+  return oneIdentifiers.length - otherIdentifiers.length;
 }
 
 /**
