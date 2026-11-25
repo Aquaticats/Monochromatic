@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:48:01-05:00.
+State recorded 2026-11-25T17:56:46-05:00.
 
 ## Requirement as stated
 
@@ -246,7 +246,8 @@ One timing question reopened after the final Sonnet review:
   accept and document result arrival beyond the nominal one-second timeout,
   or treat one second of actual blocking as a hard requirement that needs another mechanism.
 
-The answer waits for controlled wrapped and unwrapped duration probes in headless and interactive sessions.
+Controlled wrapped and unwrapped duration probes in headless and interactive sessions are complete.
+The user can now decide whether the measured native behavior is acceptable.
 
 The final cross-vendor review also found that the scratch sleep predicate rejects `.5` and `5.`,
 which production accepts.
@@ -432,7 +433,33 @@ Wrapped results were:
 
 The measurement files are `duration-unwrapped-measurements.jsonl`
 and `duration-wrapped-measurements.jsonl` in the probe evidence folder.
-The interactive arm is still required before the user answers the timing question.
+
+### Controlled interactive durations
+
+The interactive wrapped arm used a positional prompt and a disposable HOME.
+Earlier PTY driver attempts that never submitted the prompt were discarded as evidence.
+The valid session produced these results:
+
+- Duration 1200:
+  1322 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 1800:
+  1875 ms,
+  complete output with a background ID and no `timedOutAfterMs`.
+- Duration 2500:
+  1959 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+- Duration 5000:
+  1848 ms,
+  `timedOutAfterMs: 1000` and the moved-to-background message.
+
+The shorter-timeout control ran only in the headless arms.
+After the 5000 ms task completed,
+the interactive model did not start the control turn,
+so the probe was stopped rather than treating model inactivity as a native timing measurement.
+That separate observation does not change the four completed tool-result measurements above
+and is not diagnosed as a notification defect.
+The valid measurements are in `duration-interactive-measurements.jsonl`.
 
 ## Verification still owed
 
@@ -459,10 +486,9 @@ must be superseded in place and all implementation and documentation references 
 
 ## Next action
 
-Measure controlled command durations and result arrival in wrapped and unwrapped,
-headless and interactive sessions.
-Record the timing distribution,
-then ask the user whether the observed native behavior is acceptable
-before requesting final shared-understanding confirmation.
+Ask the user whether to accept the measured native result timing
+or require a different mechanism with a strict one-second blocking bound.
+After that answer,
+obtain a fresh final review and present the assembled contract for explicit confirmation.
 
 [tools-reference]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
