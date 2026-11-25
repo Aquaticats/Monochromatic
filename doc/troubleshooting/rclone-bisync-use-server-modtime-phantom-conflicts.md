@@ -402,3 +402,555 @@ The general lesson is narrow and worth keeping:
  the timestamps on the conflict artifacts are stamped by the resolution itself and are not
 evidence about the state that triggered it.
 Read the previous run's upload line instead.
+
+## Upstream report draft (not filed)
+
+Status:
+ agent-drafted 2026-11-25T17:48:32-05:00,
+ never filed,
+ never posted,
+ never reviewed,
+ not approved by the owner.
+Nothing was created on GitHub,
+ the rclone forum or anywhere else while researching this:
+ only searches and reads ran.
+The issue body under [Draft issue body](#draft-issue-body) is a proposal for the owner to
+approve,
+ rewrite or discard,
+ not a record of anything sent.
+
+### What the upstream search found
+
+No existing report and no existing fix.
+No rclone issue,
+ pull request,
+ commit,
+ changelog entry or forum thread describes this upload-path behaviour,
+ and the code that writes the baseline is unchanged between v1.76.0,
+ the latest release,
+ and the default branch.
+
+The behaviour above was recorded on v1.75.0 (see Verification).
+The queries,
+ line numbers and code below are against v1.76.0,
+ which `rclone version` on this machine also reports now.
+`WriteResults` (`cmd/bisync/queue.go`) and the listing updates (`cmd/bisync/listing.go`) are
+ the same in both releases apart from the sub-second `put` rule PR #10012 removed and
+ unrelated refactors,
+ so the line numbers below describe the behaviour that was recorded.
+
+Every query below was run once on 2026-11-25 against rclone's tracker,
+ its forum and its changelog.
+Counts are what each tool reported,
+ and every hit named as relevant was opened and read.
+
+#### How to read the counts
+
+`gh search issues` and `gh search prs` send a multi-word query as one quoted phrase:
+`GH_DEBUG=api` shows `bisync use-server-modtime` going out as
+`q=( "bisync use-server-modtime" )`,
+which matches nothing.
+Splitting the terms into separate arguments sends them unquoted and does return results,
+but GitHub then matches loosely:
+`bisync use-server-modtime` by that route returns #118,
+whose body and comments never mention the flag.
+So counts from `gh search` say which reports exist at all,
+never that a hit is about this behaviour.
+Phrase-precise counts come from
+`gh api --method GET search/issues --raw-field q='repo:rclone/rclone ...'`
+with the phrase quoted inside the query string.
+
+#### GitHub: issues and pull requests
+
+Phrase queries through the search API,
+both states unless noted:
+
+- `bisync "use-server-modtime"`:
+   3 hits,
+   all read,
+   none about the upload path:
+   #9150 (one log line carrying the flag, plus an unrelated bisync critical error on OneDrive),
+   #8629 (a comment asks whether another backend could use the flag),
+   PR #8941 (a backend review checklist mentioning bisync).
+- `"use-server-modtime"` alone:
+   33 hits;
+   the three above are the only ones that also mention bisync.
+- `bisync "time (newer)"`:
+   5 hits,
+   all log excerpts or unrelated reports:
+   PR #10163,
+   #8841,
+   #7555,
+   #3232,
+   PR #7716.
+- `bisync "Updated modification time in destination"`:
+   1 hit,
+   #8101 (`--refresh-times` on an encrypted OneDrive remote),
+   a different defect.
+- `"Updated modification time in destination"` alone:
+   19 hits,
+   the same #8101 being the only bisync one.
+- `bisync "baseline"`:
+   7 hits,
+   none about listing baselines for uploads:
+   #9897,
+   #9416,
+   #2697,
+   #9939,
+   #9961,
+   #9620,
+   #8873.
+   #9939 is covered under [adjacent reports](#adjacent-reports-and-why-none-of-them-is-this-defect).
+- `bisync "phantom"`:
+   3 hits:
+   #9622,
+   #10012,
+   #8886.
+   Only PR #10012 is bisync,
+   and it fixes a different listing-modtime rule.
+- `bisync LastModified`:
+   0 hits.
+- `bisync "server-modtime"` and `bisync "server modtime"`:
+   0 hits each.
+- `"use-server-modtime" in:title`:
+   2 hits,
+   #3629 (a 2019 docs fix) and #2214 (the flag's introduction in 2018).
+
+Loose queries through `gh search`,
+listed for completeness,
+each term a separate argument,
+open plus closed counts in parentheses:
+
+- `bisync use-server-modtime`:
+   12 (4 open, 8 closed);
+   none about the upload path.
+- `bisync modtime baseline`:
+   2 (0 open, 2 closed);
+   #9939 and #8873.
+- `bisync phantom`:
+   0.
+- `bisync File changed time newer`:
+   11 (2 open, 9 closed);
+   all incidental log lines or unrelated reports.
+- `bisync upload modtime listing`:
+   10;
+   none about the upload path.
+- `bisync re-upload`:
+   14;
+   the nearest is #249,
+   a feature request for syncing on filesystem events.
+- `prs bisync use-server-modtime`:
+   15 (1 open, 14 closed);
+   none relevant.
+- `prs bisync modtime`:
+   28 (1 open, 27 closed);
+   the adjacent ones are PR #10012 and PR #10001.
+
+Whole-corpus sweep,
+to catch reports that never use the flag's name:
+
+- Every issue labelled `bisync` (61: 11 open, 50 closed) and every one
+  with `bisync` in the title (71) was downloaded whole,
+  `number`, `title`, `state` and `body`: 77 distinct items.
+  None of the 77 contains `server-modtime` in its body,
+  so no bisync report has yet named the flag,
+  and none describes a file reading back as changed after bisync uploads it.
+  Four of the 77 mention `baseline`,
+  `time (newer)` or `phantom` at all:
+  #7555,
+  #9416,
+  #9620 and
+  #9939,
+  each in an unrelated sense or as a log excerpt.
+
+#### rclone forum
+
+Discourse search (`https://forum.rclone.org/search.json?q=...`,
+read only) and a search restricted to `forum.rclone.org`:
+
+- `bisync use-server-modtime`:
+   2 topics;
+   46636#27,
+   where a maintainer lists `--use-server-modtime` among the S3 modtime quirks to rule out,
+   and 53502#1,
+   release notes.
+- `"use-server-modtime"`:
+   50 posts,
+   one of them bisync (46636#27).
+- `bisync server modtime listing`:
+   21 posts,
+   14 of them in bisync threads;
+   nearest are 46636#7 and 54015#1.
+- `bisync "Updated modification time in destination"`:
+   2 posts,
+   54015#1.
+- `bisync "time (newer)" use-server-modtime`:
+   0.
+- `bisync baseline modtime upload`:
+   0.
+- `bisync LastModified listing`:
+   0.
+- Web search, restricted to the forum:
+   `bisync "use-server-modtime" baseline listing modtime conflict` (11 hits),
+   `bisync "File changed: time (newer)" phantom upload` (2 hits),
+   `bisync uploaded file modtime changes next run server modtime` (5 hits).
+   Every hit was a post of thread 46636 or 51468,
+   or an unrelated thread (54100,
+   53496).
+
+#### Releases and the default branch
+
+- `gh release list` puts v1.76.0 (2026-11-06) as the latest release,
+  so there is no changelog section after v1.76.0 to search.
+- v1.76.0's changelog has two bisync blocks
+  (`docs/content/changelog.md:55` and `:136`);
+  neither mentions an upload mtime,
+  and the bug-fix list's
+  "Fix listings ignoring a modtime less than 1s older" is PR #10012,
+  a different rule.
+- `diff -r` over `cmd/bisync` between the v1.76.0 tag and the default branch (`5e2a70f`)
+  reports only `lockfile.go` and the test files as different,
+  so `listing.go` and `queue.go` are identical and nothing has been fixed after the release.
+- `gh api repos/rclone/rclone/commits?path=cmd/bisync/queue.go&since=2026-11-06`
+  returns nothing,
+  and no commit search hit mentions bisync and the flag together
+  (`gh search commits --repo rclone/rclone use-server-modtime`).
+
+#### Adjacent reports, and why none of them is this defect
+
+- #9939
+  (closed 2026-10-14 as completed by PR #10001),
+  "a one-sided delete is reverted when the paths share no hash type and `--ignore-checksum` is set":
+  a deleted file comes back,
+  which is one of the consequences measured for this defect,
+  but the cause there is a file that never enters the listings at all.
+  Its reporter names forum thread 46636 as the closest match and says it did not diagnose
+  the consequence they reported.
+- PR #10012
+  (merged 2026-10-14),
+  "fix listings ignoring a modtime less than 1s older":
+  `fileList.put` kept an older entry when the new time was less than a second earlier,
+  so the listing recorded a time the file did not have.
+  That body calls the result "a phantom change on the next run",
+  the same shape of harm reached by a different route;
+  it does not touch the mtime bisync takes from the source of a copy.
+- #8359
+  (closed 2025-02-11),
+  "modtime of latest/updated file gets changed matching modtime of the previous revision",
+  over SFTP and a crypt remote:
+  a stale modtime propagated between machines.
+  No S3,
+  no `--use-server-modtime`.
+- Forum thread 46636,
+  "Avoiding Bisync 'times are equal' conflicts with newer?",
+  a bisync user on IDrive (S3) chasing unexpected conflicts,
+  with a maintainer replying:
+  the diagnosis ends at modtimes an application did not update,
+  and the maintainer asks the reporters to rule the flag out rather than reporting it.
+- Forum thread 54015,
+  "Bisync remote conflicting with itself",
+  over SFTP:
+  `File changed: time (older)` on the local side,
+  then `Updated modification time in destination`.
+  The self-heal line matches,
+  the trigger does not:
+  no S3, no flag,
+  and the delta is older, not newer.
+- Forum thread 51468,
+  "Using update and use-server-modtime when syncing causes a few files to be constantly
+  reuploaded":
+  a plain `sync`,
+  and the cause was local mtimes set in 2049.
+- Commit `9f9569ad` (2026-02-26)
+  "docs: note that --use-server-modtime only works on some backends" and #6977:
+  the flag's documentation is scoped to `sync` and `copy`,
+  and `docs/content/bisync.md` never mentions it,
+  which is why nothing warns a bisync user.
+
+### Source pointers in rclone v1.76.0
+
+All paths are relative to the rclone repository at the `v1.76.0` tag (`e982ff3`).
+
+The write side,
+in the order the values flow:
+
+1.  `fs/operations/operations.go:1788-1794`
+    is where bisync first hears about a file it is about to copy,
+    before the copy happens,
+    with no destination object to describe:
+
+    ```go
+    func NeedTransfer(ctx context.Context, dst, src fs.Object) bool {
+    	ci := fs.GetConfig(ctx)
+    	logger, _ := GetLogger(ctx)
+    	if dst == nil {
+    		// ...
+    		logger(ctx, MissingOnDst, src, nil, nil)
+    ```
+
+    A successful copy never reaches the logger again:
+    `operations.Copy` does not call it,
+    and the `s.logger` calls in `fs/sync/sync.go` report errors or directories only.
+    So the result bisync records is a prediction made before the upload.
+2.  `fs/operations/logger.go:203-220`
+    says so in its own words,
+    `Winner predicts which side (src or dst) should end up winning out on the dst.`,
+    and lists the cases it cannot predict.
+3.  `cmd/bisync/queue.go:109-146`
+    (`WriteResults`) turns that call into two JSON result lines,
+    one per side,
+    and takes each side's time from that side:
+
+    ```go
+    result.IsSrc = i == 0
+    result.IsDst = i == 1
+    result.Flags = "-"
+    if side != nil {
+    	result.Size = side.Size()
+    	if !b.queueOpt.ignoreListingModtime {
+    		result.Modtime = side.ModTime(ctx).In(TZ)
+    	}
+    ```
+
+    `result.IsWinner = result.Winner.Obj == side` (line 146) marks the source line,
+    because for both a new file and a changed one the winner is the source object.
+    The destination side contributes no winning entry,
+    so its own time, where it has one (the pre-copy object of a changed file),
+    never reaches the listing.
+4.  `cmd/bisync/listing.go:521-531`
+    builds the winner entries from those results,
+    the destination's from the winning result's time,
+    which is the source's:
+
+    ```go
+    if result.IsSrc && result.Src != "" && ... {
+    	srcWinners.put(result.Name, result.Size, result.Modtime, ...)
+    }
+    if result.IsWinner && result.Winner.Side != "none" && ... {
+    	dstWinners.put(result.Name, result.Size, result.Modtime, ...)
+    }
+    ```
+
+5.  `cmd/bisync/listing.go:568`
+    copies that entry into the destination's listing
+    (`list.put(queueFile, new.size, new.time, ...)`),
+    and `cmd/bisync/listing.go:250-293`
+    writes `fi.time` verbatim into the `.lst` file.
+    Nothing between steps 3 and 5 reads the destination object.
+
+The read side:
+
+1.  `cmd/bisync/operations.go:337-346`
+    compares each side against its own prior listing,
+    `b.findDeltas(fctx, b.fs1, b.listing1, b.march.ls1, "Path1")` and the same for Path2,
+    where `b.march.ls1` was built during this run's march.
+2.  `cmd/bisync/march.go:161-170`
+    takes the time from the object as this run listed it,
+    `modtime = o.ModTime(b.march.marchCtx).In(TZ)`.
+3.  `backend/s3/s3.go:4293-4296`
+    is what that returns under the flag:
+
+    ```go
+    func (o *Object) ModTime(ctx context.Context) time.Time {
+    	if o.fs.ci.UseServerModTime {
+    		return o.lastModified
+    	}
+    ```
+
+    `lastModified` is the S3 `LastModified`,
+    the moment of the upload,
+    second-granularity,
+    not the mtime rclone did not store because of the flag.
+4.  `cmd/bisync/deltas.go:204-214`
+    compares the two values and names the difference:
+
+    ```go
+    if b.opt.Compare.Modtime {
+    	if timeDiffers(fctx, old.getTime(file), now.getTime(file), f, f) {
+    		if old.beforeOther(now, file) {
+    			// ... "time (newer)"
+    ```
+
+    `old` is the prior listing, so `old.getTime` is the time the write side recorded,
+    which is the source mtime, and `now.getTime` is the upload time.
+    The comparison is not wrong about the two numbers;
+    the numbers were never on the same clock.
+5.  `cmd/bisync/compare.go:271-273`
+    is the only other place bisync touches the flag,
+    forcing it on when modtime comparison is off,
+    which is why a `--compare` without `modtime` shows no phantom:
+    `cmd/bisync/queue.go:194` then sets `ignoreListingModtime`,
+    and no time reaches the listing.
+
+One piece of code already does what a fix would need:
+ `cmd/bisync/listing.go:731-762`
+ (`recheck`) lists both sides again after an uncertain result and records each side's own
+ `obj.ModTime(ctxRecheck)` (line 759).
+It runs only for files bisync could not predict,
+ via `filterRecheck.AddFile` at line 572 and the rename branches,
+ never for a successful upload.
+
+A reading of the code,
+ offered as a hypothesis and not as a measurement:
+ the `.lst` line for a conflict artifact carries a correct time because the artifact is made by
+ a server-side move of an object this run already listed
+ (`operations.MoveFile` in `cmd/bisync/resolve.go:320`),
+ and `cmd/bisync/listing.go:596-625` copies that entry to the new name after
+ line 568 has refreshed the old name from the march listing.
+The upload path has no equivalent refresh.
+The document's own measurement,
+ the four server-side-copied objects that took their delete while four uploaded ones were
+ restored,
+ is the evidence; this paragraph only says where the difference sits.
+
+### Draft issue body
+
+The text in the block is a draft for rclone's tracker.
+It is not filed,
+ and it is not approved.
+Paths,
+ remote names,
+ bucket names and timestamps in it are synthetic;
+ the indented lines become code blocks when pasted into an issue.
+
+```text
+Title: bisync: with --use-server-modtime, a file bisync uploads is recorded at the source
+mtime, so the next run reports it as changed
+
+### What is the problem you are having with rclone?
+
+With --use-server-modtime against an S3 remote, bisync records the mtime of the local source
+in its listing for a file it has just uploaded, but the next run compares the object's S3
+LastModified. The two never agree for an uploaded file, so every file bisync uploads is
+logged as changed on the following run even though nothing changed.
+
+The damage is not the extra line. It is what happens when the local file also changes before
+that phantom is healed:
+
+- A run that sees the phantom alone queues a copy remote to local, moves no bytes, and
+  stamps the local mtime to the remote's LastModified, so the phantom clears itself.
+- If the local file changes again before that run, both sides look changed, so a conflict
+  applies. With no --conflict-resolve there is no winner and both copies are renamed:
+  <name>.conflict1 and <name>.conflict2, with the original name left on neither side. With
+  --conflict-resolve newer the winner keeps the name and only the loser is renamed.
+- A local delete made while the phantom is live is reverted: bisync prefers the "changed"
+  remote object over the deleted local file and copies it back.
+
+### What is your rclone version
+
+v1.76.0 (latest release), Linux amd64. Also seen on v1.75.0.
+
+### Which cloud storage system are you using?
+
+S3, a self-hosted S3-compatible server (reproduced on Garage v2.3.0). The mechanism does not
+depend on the provider: it needs a backend where --use-server-modtime makes ModTime return
+the server's upload time instead of the stored mtime.
+
+### The command you were trying to run
+
+    rclone bisync sandbox:sandbox-bucket/notes /srv/sync-test/notes \
+      --use-server-modtime --workdir /srv/sync-test/bisync-workdir -v
+
+### Minimal reproduction
+
+1. Prepare an empty bucket path and an empty local directory, then resync:
+
+    rclone bisync sandbox:sandbox-bucket/notes /srv/sync-test/notes \
+      --use-server-modtime --workdir /srv/sync-test/bisync-workdir --resync -v
+
+2. Create one file and run again, so bisync uploads it:
+
+    printf 'one\n' > /srv/sync-test/notes/a.txt
+    rclone bisync sandbox:sandbox-bucket/notes /srv/sync-test/notes \
+      --use-server-modtime --workdir /srv/sync-test/bisync-workdir -v
+
+3. Compare what the listing recorded with what the server will report:
+
+    grep 'a.txt"' /srv/sync-test/bisync-workdir/*.path1.lst
+    rclone lsl sandbox:sandbox-bucket/notes --use-server-modtime | grep a.txt
+    stat -c %y /srv/sync-test/notes/a.txt
+
+   Path1 is the remote. The listing line carries the local file's mtime, to the
+   nanosecond; the server reports the upload time, to the second.
+
+4. Run again without touching the file:
+
+    rclone bisync sandbox:sandbox-bucket/notes /srv/sync-test/notes \
+      --use-server-modtime --workdir /srv/sync-test/bisync-workdir -v
+
+### Expected behaviour
+
+After an upload, the listing records the mtime the next run will compare against, which under
+--use-server-modtime is the object's LastModified. The fourth step reports no changes.
+
+### Actual behaviour
+
+Step 2 records the source mtime. Step 4 reports:
+
+    INFO  : - Path1    File changed: time (newer) - a.txt
+    INFO  : Path1:    1 changes:    0 new,    1 modified,    0 deleted
+    INFO  : - Path1    Queue copy to Path2       - /srv/sync-test/notes/a.txt
+    INFO  : a.txt: Updated modification time in destination
+
+No size change, no hash change, no transfer: the only difference is the clock the two runs
+used.
+
+### Where it comes from
+
+The logger bisync installs on sync reports a file before the copy, not after it.
+operations.NeedTransfer logs MissingOnDst with no destination object
+(fs/operations/operations.go:1788-1794), and a successful operations.Copy never reaches the
+logger again, so fs/operations/logger.go:203-220 describes its own output as a prediction of
+what the destination will look like.
+
+bisync then takes the time off whichever side it is logging
+(cmd/bisync/queue.go:132-136) and puts the winning result's time into both listings
+(cmd/bisync/listing.go:521-531, then line 568). For a new or changed file the winner is the
+source object, so the destination's entry carries the source mtime, and
+cmd/bisync/listing.go:250-293 writes it to the .lst file unchanged.
+
+The next run takes the time from the object as listed (cmd/bisync/march.go:161-170), which
+under the flag is the S3 LastModified (backend/s3/s3.go:4293-4296), and compares the two
+clocks in cmd/bisync/deltas.go:204-214.
+
+### Suggested fix
+
+After the copies in one direction, refresh the destination entries for the files that were
+actually copied from the destination itself, when fs.GetConfig(ctx).UseServerModTime is set,
+instead of writing the source's time into the destination listing.
+
+The pattern for this already exists in the same file: recheck (cmd/bisync/listing.go:731-762)
+re-lists both sides after an uncertain result and records each side's own ModTime. It lists
+whole trees, which a fix must not do; a per-file lookup of the copied names would cost one
+request per uploaded file per run, proportional to the number of changed files rather than to
+the size of the tree, which is the cost --use-server-modtime is meant to avoid. A narrower
+variant records the destination time only when it is knowable without a new request, for
+example when the copy result already carries the created object.
+
+The alternative shape touches more code: have sync log the object it created, so the result
+carries the destination's real mtime. That changes fs/sync and every backend's returned
+object, and it also changes --dest-after output.
+
+Either way, recording the value the next run will read is the invariant worth stating, since
+the current code records what the destination was expected to contain.
+
+### Workarounds
+
+- --conflict-resolve newer keeps the newer bytes under the original name when the phantom
+  collides with a real local edit, at the cost of a conflict copy.
+- A second identical pass right after the uploading pass clears the phantom before a further
+  local edit can make it a conflict.
+- Dropping --use-server-modtime removes the mismatch entirely and costs one HEAD per object
+  per listing.
+```
+
+### What the owner decides
+
+- Whether to file it at all,
+  and where (an issue, or a discussion first).
+- Whether the wording above is the wording to send.
+- Whether the suggested fix is the one to propose,
+  or whether the report should describe the defect and leave the shape of the fix open.
+- Whether the consequence list in the body (conflicts,
+  reverted deletes) belongs in an issue a maintainer can reproduce in one run,
+  or whether the body should be shortened to the phantom alone.
