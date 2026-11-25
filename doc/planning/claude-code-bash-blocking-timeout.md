@@ -7,7 +7,7 @@ Grilling is in progress.
 This record is unapproved,
 and no implementation is authorized until the user confirms a shared understanding.
 
-State recorded 2026-11-25T17:11:52-05:00.
+State recorded 2026-11-25T17:13:41-05:00.
 
 ## Requirement as stated
 
@@ -150,18 +150,19 @@ Its exact lowercase values `0`,
 and `off` disable the policy.
 An unset variable and every other value leave it enabled.
 
-The first answer about migration said the existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off`
-setting must remain effective.
-A later answer selected primary-over-legacy precedence but added
-"remove support for legacy values."
-Whether that explicitly retracts legacy-variable support is unresolved and must be clarified.
-If legacy support remains,
-the new primary variable wins whenever present.
+The user first chose to preserve the existing `MONOCHROMATIC_BASH_FORCE_BACKGROUND=off` alias,
+then explicitly retracted that choice.
+The legacy variable has no effect.
+Only `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` controls the new policy,
+so no primary-versus-legacy precedence branch remains.
+Sessions still carrying the old `off` setting return to the enabled default unless they migrate.
 
 ### Disabled native background tasks
 
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is a misconfiguration for this policy.
 The hook warns the user once per session but otherwise applies the selected policy normally.
+A synchronous `SessionStart` handler in this same plugin emits `systemMessage` on startup.
+It has no persistent warning marker and does not re-warn on resume or clear.
 It does not suppress the default timeout,
 change the requested background mode,
 block the command,
@@ -177,25 +178,22 @@ The hook adds no second completion notice.
 
 ## Open frontier
 
-The third-round answers leave these questions:
+One dependent warning question remains:
 
-- `legacy-support-reconciliation`:
-  does the latest instruction remove `MONOCHROMATIC_BASH_FORCE_BACKGROUND` support entirely,
-  superseding the earlier decision to preserve its `off` alias?
-- `warning-mechanism`:
-  does once per session mean a synchronous `SessionStart` warning in this same plugin,
-  or a stateful first-eligible-Bash warning?
+- `warning-when-policy-disabled`:
+  should the `SessionStart` warning fire when native background tasks are disabled
+  but `MONOCHROMATIC_BASH_BLOCKING_TIMEOUT_ENABLED` has disabled our policy too?
 
-The exact warning text and final verification matrix depend on these answers.
+After that answer,
+the design frontier is empty.
+A cross-vendor review and native runtime probes remain required before the user is asked
+to confirm shared understanding.
 
-## Current recommendations
+## Current recommendation
 
-These are recommendations to grill,
-not accepted design:
-
-- Treat removal of the legacy variable as the latest explicit instruction if the user confirms the retraction.
-- Emit the once-per-session warning through a synchronous `SessionStart` handler in the same plugin.
-  This needs no persistent marker and makes the warning unavoidable at session startup.
+Warn only when the new timeout policy is enabled.
+When both mechanisms are disabled,
+our hook adds no one-second timeout and therefore has no new termination consequence to explain.
 
 ## Rejected recommendations
 
