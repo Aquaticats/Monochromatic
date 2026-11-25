@@ -49,7 +49,10 @@ fn a_pasted_placeholder_refuses_by_the_flag_it_stands_in() {
     assert!(matches!(digits, SettlingStop::PlaceholderLeft { .. }), "{digits:?}");
 }
 
-/// A missing value, a repeated flag, an unknown option, a second slot and a separator each refuse as usage,
+/// A missing value,
+/// a repeated flag,
+/// an unknown option,
+/// a second slot and a separator each refuse as usage,
 /// and the sentence prints the line that works.
 #[test]
 fn each_malformed_form_refuses_as_usage() {

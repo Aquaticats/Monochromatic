@@ -42,7 +42,8 @@ fn the_removals<'a>(made: &'a TheFixture, record: &'a crate::worktree_clone_reco
     };
 }
 
-/// The whole order removes the pointer, the registration and the three records,
+/// The whole order removes the pointer,
+/// the registration and the three records,
 /// and releases the claim.
 #[test]
 fn the_whole_order_removes_everything() {

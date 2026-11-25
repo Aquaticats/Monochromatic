@@ -407,7 +407,9 @@ pub use worktree_clone_origin_cleanup::*;
 ///  its two modes over the records and the registration,
 ///  and its refusal.
 /// Built ahead of the plan's order and unwired:
-/// no path from a `git` command, `doctor`, the mount handler or a boot unit
+/// no path from a `git` command,
+/// `doctor`,
+/// the mount handler or a boot unit
 /// calls it until the round that switches removal on adds it to the grammar.
 /// It is Linux only,
 /// like the record modes and the pool reads it makes.

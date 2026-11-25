@@ -5701,7 +5701,8 @@ and it is built ahead of the plan's order:
 
 - No management grammar admits it,
   no `git` command reaches it,
-  `doctor`, the mount handler and the boot units do not either,
+  `doctor`,
+  the mount handler and the boot units do not either,
   and the round that switches removal on adds it to the grammar and to every sentence that names it.
 - Its confirmation is three values the record supplies and the person types:
   the slot twice,

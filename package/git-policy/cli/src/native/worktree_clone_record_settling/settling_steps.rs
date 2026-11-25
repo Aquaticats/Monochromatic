@@ -50,7 +50,8 @@ pub enum SettlingStep {
     TheOriginInventory,
     /// `<slot>.clone-inventory`.
     TheCloneInventory,
-    /// `<slot>.binding`, the last witness.
+    /// `<slot>.binding`,
+    /// the last witness.
     TheBinding,
     /// The slot's claim,
     /// released after every record went.

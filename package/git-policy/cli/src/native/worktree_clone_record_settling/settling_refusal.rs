@@ -7,7 +7,8 @@
 //!  what it kept,
 //!  and the one command that goes on
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//!  "The settling command" and "What it refuses, changing nothing").
+//!  "The settling command" and "What it refuses,
+//! changing nothing").
 //!  The command is non-interactive:
 //!  a stop is a sentence and an exit status,
 //!  never a question.
@@ -81,7 +82,8 @@ pub enum SettlingStop {
         /// What its reader said.
         said: String,
     },
-    /// The record names no clone, so there is no clone whose absence is in question.
+    /// The record names no clone,
+    /// so there is no clone whose absence is in question.
     NoCloneRecorded {
         /// The slot's name.
         slot: String,
@@ -163,7 +165,8 @@ pub enum SettlingStop {
         /// What the filesystem said.
         said: String,
     },
-    /// The registration's lock is a person's own words, not this add's sentence.
+    /// The registration's lock is a person's own words,
+    /// not this add's sentence.
     TheLockIsNotThisAdds {
         /// The lock's file.
         path: PathBuf,

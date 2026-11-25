@@ -67,7 +67,8 @@ pub enum TheClonesPresence {
     /// The pool refused the listing or answered it only in part,
     /// and this is what it said.
     Unprovable {
-        /// The refusal, kept for the lines a person reads.
+        /// The refusal,
+        /// kept for the lines a person reads.
         evidence: String,
     },
 }

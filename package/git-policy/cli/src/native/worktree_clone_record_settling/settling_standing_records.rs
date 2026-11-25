@@ -195,7 +195,8 @@ fn refuse_a_disagreement(
 ///  because they are the only record of what a cancelled removal lost,
 ///  and the project chose that the plan goes with them printed
 ///  (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
-///  "A further answer: the settling command and a plan a cancellation kept").
+///  "A further answer:
+/// the settling command and a plan a cancellation kept").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

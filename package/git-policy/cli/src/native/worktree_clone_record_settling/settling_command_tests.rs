@@ -19,7 +19,8 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 /// The clone's dataset name the fixture record carries.
 const CLONE: &str = "tank/monochromatic-git-worktree-clone-datasets/topic";
 
-/// The design's own line, as the person types it.
+/// The design's own line,
+/// as the person types it.
 fn ask() -> SettlingRequest {
     return SettlingRequest { slot: String::from("topic"), confirmed_slot: String::from("topic"), digits: String::from("3102") };
 }
@@ -85,7 +86,8 @@ fn publish_the_plan(made: &TheFixture, head: crate::worktree_clone_removal_proof
     return String::from(lost);
 }
 
-/// A proved absence removes the registration, its lock and the three records,
+/// A proved absence removes the registration,
+/// its lock and the three records,
 /// and the claim is released.
 #[test]
 fn a_proved_absence_settles_the_slot() {

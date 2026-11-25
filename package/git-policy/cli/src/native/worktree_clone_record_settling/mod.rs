@@ -50,7 +50,8 @@
 //!   the registration's identity,
 //!   the slot's entries and the mount table.
 //! - `settling_removals.rs`:
-//!   the removals themselves, proved gone one by one.
+//!   the removals themselves,
+//!   proved gone one by one.
 //! - `settling_lines.rs`:
 //!   the lines a person reads.
 //! - `settling_command.rs`:

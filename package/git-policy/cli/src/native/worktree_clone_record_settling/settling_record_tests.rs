@@ -11,7 +11,8 @@ use crate::worktree_clone_record_settling::settling_record::{confirm_the_record,
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
 
-/// One request, as the design's line gives it.
+/// One request,
+/// as the design's line gives it.
 fn request(slot: &str, digits: &str) -> SettlingRequest {
     return SettlingRequest { slot: String::from(slot), confirmed_slot: String::from(slot), digits: String::from(digits) };
 }

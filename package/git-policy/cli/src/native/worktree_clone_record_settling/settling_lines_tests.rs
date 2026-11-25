@@ -1,5 +1,8 @@
 //! Controls for the lines a person reads:
-//!  the evidence names the record, the slot, the pool's answer, the cleanup and the plan,
+//!  the evidence names the record,
+//! the slot,
+//! the pool's answer,
+//! the cleanup and the plan,
 //!  the removals are numbered in order,
 //!  and the last line names what the wrapper can no longer prove.
 
@@ -27,7 +30,10 @@ fn the_healthy_evidence(made: &TheFixture) -> (TheRecord, TheClonesPresence, The
     return (record, presence, slot);
 }
 
-/// The evidence names the record, the confirmed slot, the absence, the empty cleanup and the empty plan.
+/// The evidence names the record,
+/// the confirmed slot,
+/// the absence,
+/// the empty cleanup and the empty plan.
 #[test]
 fn the_evidence_names_every_read() {
     let made: TheFixture = the_fixture("settling-lines-evidence");

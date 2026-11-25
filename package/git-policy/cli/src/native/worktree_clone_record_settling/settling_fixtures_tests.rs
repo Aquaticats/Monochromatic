@@ -46,7 +46,8 @@ pub(crate) const CLONE_GUID: u64 = 4_821_193_048_571_903_102;
 /// What:
 ///  One fixture's three folders.
 /// Why:
-///  The slot, the registration and the common directory are the three the
+///  The slot,
+/// the registration and the common directory are the three the
 ///  command reads,
 ///  so a control names them once.
 ///
@@ -197,7 +198,8 @@ pub(crate) struct ScriptedProbe {
 }
 
 impl ScriptedProbe {
-    /// A pool that answers `answers`, lists no children and refuses nothing.
+    /// A pool that answers `answers`,
+    /// lists no children and refuses nothing.
     pub(crate) fn answering(answers: Vec<(&str, DatasetIdentity)>) -> ScriptedProbe {
         return ScriptedProbe {
             answers: answers.into_iter().map(|(name, identity)| return (String::from(name), Ok(identity.stats))).collect(),

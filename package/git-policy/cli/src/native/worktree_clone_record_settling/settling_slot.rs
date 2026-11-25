@@ -94,7 +94,8 @@ pub enum TheRegistration {
 }
 
 /// What:
-///  Everything the removals decide from, read once.
+///  Everything the removals decide from,
+/// read once.
 /// Why:
 ///  The lines a person confirms print each entry,
 ///  and the two orders read the checkout answer and the registration's state,

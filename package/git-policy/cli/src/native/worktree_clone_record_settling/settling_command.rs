@@ -81,7 +81,8 @@ pub struct SettlingReads<'a> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SettlingDone {
-    /// The report, in the order it prints.
+    /// The report,
+    /// in the order it prints.
     pub lines: Vec<String>,
     /// The steps the run made,
     /// in order.

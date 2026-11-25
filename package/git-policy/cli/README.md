@@ -2551,7 +2551,8 @@ an origin cleanup record and a destruction plan,
 and removes the registration and the three records once the two flags confirm the record,
 or only the records when a checkout has begun there
 (`SPEC.md`,
-"The settling command, built and reachable from no command").
+"The settling command,
+built and reachable from no command").
 No management grammar admits it yet,
 so the sentences that name it today still send a person to a command this release does not have,
 and the round that switches removal on adds it to the grammar.

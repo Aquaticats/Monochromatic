@@ -12,7 +12,8 @@
 //!  removal of the same eight names,
 //!  and the lock is written again with this add's sentence before it,
 //!  because the command holds the slot and has proved the registration
-//!  (the decision of 2026-11-22, and the lock design's S2).
+//!  (the decision of 2026-11-22,
+//! and the lock design's S2).
 //!  A person's own lock refuses:
 //!  `git worktree unlock` is the way forward and no command removes words it did
 //!  not write.
