@@ -652,7 +652,7 @@ function m7Scan(chosen: Options): void {
     // about.
     'rm --force /root/m7-go',
     `unshare --mount sh -c 'while test ! -f /root/m7-go; do sleep 0.01; done; mount -t zfs ${PROBE_DATASET}@ready /root/m7-late; exec sleep 30' > /dev/null 2>&1 & late=$!`,
-    'CLI_GIT_TEST_ONLY_START_PROBE=hold-attach-place CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $H start-probe > /root/m7-late-run.log 2>&1 & probe=$!',
+    'CLI_GIT_TEST_ONLY_START_PROBE=hold-attach-place CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $R start-probe > /root/m7-late-run.log 2>&1 & probe=$!',
     'attached=false',
     'for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do',
     '  for child in $(cat /proc/$probe/task/$probe/children 2>/dev/null); do',

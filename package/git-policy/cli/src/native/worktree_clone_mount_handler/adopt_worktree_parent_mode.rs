@@ -76,8 +76,10 @@ pub enum AdoptFailure {
 
 impl AdoptFailure {
     /// The refusal in words,
-    /// naming the file or field and what an administrator does next.
+    /// opening with the words every root mode is reached through,
+    /// and naming the file or field and what an administrator does next.
     pub fn message(&self) -> String {
+        let prefix: String = format!("{}: ", super::handler_install_paths::root_modes_name());
         return match self {
             AdoptFailure::NotRoot { effective_user } => {
                 return super::root_mode_caller::NotRootRefusal {
@@ -90,16 +92,16 @@ impl AdoptFailure {
                 .sentence();
             }
             AdoptFailure::Store(refusal) => format!(
-                "the recorded clone slot identities could not be read, so the adoption judged nothing: {}. Nothing was recorded. Ways forward: fix what the store refusal names and run the mode again; the parent record is replaced only after the store reads.",
+                "{prefix}the recorded clone slot identities could not be read, so the adoption judged nothing: {}. Nothing was recorded. Ways forward: fix what the store refusal names and run the mode again; the parent record is replaced only after the store reads.",
                 refusal.message()
             ),
             AdoptFailure::NoParentRecord { path } => format!(
-                "{} holds no record for the `.claude/worktrees` parent folder, so no folder is recorded that a replacement could succeed. Nothing was recorded. Ways forward: let the setup run record the parent identity first (plan step 19), then run the adoption again.",
+                "{prefix}{} holds no record for the `.claude/worktrees` parent folder, so no folder is recorded that a replacement could succeed. Nothing was recorded. Ways forward: let the setup run record the parent identity first (plan step 19), then run the adoption again.",
                 path.display()
             ),
-            AdoptFailure::Decision(refusal) => refusal.message(),
+            AdoptFailure::Decision(refusal) => format!("{prefix}{}", refusal.message()),
             AdoptFailure::Write(refusal) => format!(
-                "the adoption was decided and the parent record could not be written: {}. The recorded parent folder is unchanged. Ways forward: fix what the store refusal names and run the mode again; the decision is made again from the folder as it is then.",
+                "{prefix}the adoption was decided and the parent record could not be written: {}. The recorded parent folder is unchanged. Ways forward: fix what the store refusal names and run the mode again; the decision is made again from the folder as it is then.",
                 refusal.message()
             ),
         };

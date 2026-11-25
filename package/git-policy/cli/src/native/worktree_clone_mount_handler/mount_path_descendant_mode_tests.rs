@@ -260,6 +260,11 @@ fn a_caller_that_is_not_root_is_refused_first() {
     let table: ScriptedTable = ScriptedTable::checkout_mounted(fixture.checkout().as_path());
     let failure: MountPathDescendantFailure = plan(&fixture, &pool, &table, false).expect_err("an account may not mount inside a served checkout");
     assert_eq!(failure, MountPathDescendantFailure::NotRoot { effective_user: 1_000 });
+    assert!(
+        failure.message().starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        "the refusal opens with the words: {}",
+        failure.message()
+    );
     assert!(failure.message().contains("mount-path-descendant"), "the refusal names the mode: {}", failure.message());
 }
 

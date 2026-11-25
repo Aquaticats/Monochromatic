@@ -1931,7 +1931,7 @@ root reaches its modes through the words
  or through one root-owned file under the installed ZED history event's name,
  and a machine that never mounts a ZFS worktree clone leaves the modes unused.
 
-The root modes run six kinds of work:
+The root modes run these kinds of work:
 no argument at all is the clone-mount sweep the installed ZED event starts,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
@@ -8517,8 +8517,8 @@ starts on demand;
 the wrapper never starts it,
 and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
-The release archive holds both executables,
- as cargo-binstall requires of every `[[bin]]`.
+The release archive holds that one executable,
+ which is the only `[[bin]]` the crate declares.
 
 What the service has to do after a command returns is a record in the worktree's Git directory,
 and a command that writes one wakes the service with one line over its socket.

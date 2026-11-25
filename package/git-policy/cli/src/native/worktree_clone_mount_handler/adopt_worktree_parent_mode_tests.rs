@@ -106,6 +106,10 @@ fn a_caller_that_is_not_root_is_refused_before_the_store_is_read() {
         .expect_err("a caller that is not root records nothing");
     assert_eq!(refusal, AdoptFailure::NotRoot { effective_user: 1000 });
     let message: String = refusal.message();
+    assert!(
+        message.starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+        "the refusal opens with the words: {message}"
+    );
     assert!(message.contains("effective user is 1000"), "{message}");
     assert!(message.contains("Nothing was read or recorded"), "{message}");
 }
@@ -139,6 +143,10 @@ fn every_refusal_names_its_cause_and_the_way_forward() {
     ];
     for (refusal, expected) in cases {
         let message: String = refusal.message();
+        assert!(
+            message.starts_with(&format!("{}: ", crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name())),
+            "{refusal:?} opens with the words every root-mode refusal opens with: {message}"
+        );
         assert!(message.contains(expected), "{refusal:?} should say {expected}: {message}");
         assert!(message.contains("Ways forward"), "{refusal:?} should say what to do next: {message}");
     }

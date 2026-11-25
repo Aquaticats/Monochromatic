@@ -1,7 +1,7 @@
 //! What:
-//!  Controls of the configuration keys both executables name.
+//!  Controls of the configuration keys the wrapper and the root modes name.
 //! Why:
-//!  A key two programs read is one fact,
+//!  A key two readers share is one fact,
 //!  and a control that the two spellings are these constants is what keeps a
 //!  later edit from splitting them.
 //!
@@ -24,10 +24,10 @@ fn every_key_is_the_spelling_the_file_holds() {
     assert_eq!(PROBE_CHECKOUT_KEY, "checkout");
 }
 
-/// The two programs' own constants are these,
+/// The wrapper's and the root modes' own constants are these,
 /// so neither can spell a key differently.
 #[test]
-fn both_programs_name_these_constants() {
+fn the_wrapper_and_the_root_modes_name_these_constants() {
     assert_eq!(crate::start_probe::probe_configuration::START_PROBE_KEY, START_PROBE_KEY);
     assert_eq!(crate::start_probe::probe_configuration::DATASET_KEY, PROBE_DATASET_KEY);
     assert_eq!(crate::start_probe::probe_configuration::CHECKOUT_KEY, PROBE_CHECKOUT_KEY);

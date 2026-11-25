@@ -15,6 +15,7 @@ import {
   newestTimingLine,
   stepNameOf,
   summaryLinesOf,
+  rootModesFirstRelease,
   rootModesVersionLine,
   timingReportLine,
   wrapperVersionLine,
@@ -59,6 +60,11 @@ const earlierVersion = '0.6.1-alpha.9';
  A release another process writes into the lockfile while an install of {@link releaseVersion} runs.
  */
 const concurrentlyWrittenVersion = '0.6.1-alpha.11';
+
+/**
+ A release older than the first one that answers the root modes, which is what a rollback asks for.
+ */
+const releaseBeforeTheRootModes = '0.6.1-alpha.45';
 
 /**
  One line of the wrapper's own commit timing record, which a fixture writes beside the common Git directory.
@@ -430,6 +436,27 @@ await describe({
         expect(printed.status,).toBe(1,);
         expect(printed.stderr,).toContain('zfs-root');
         expect(printed.stderr,).toContain('does not answer the root modes');
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
+      },
+    }),
+    it({
+      name: 'names the first release that answers the root modes when an earlier release installs',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseBeforeTheRootModes,
+          options: { withoutRootModes: true, },
+        });
+        /**
+         How the refused rollback ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseBeforeTheRootModes,],
+        });
+        expect(printed.status,).toBe(1,);
+        expect(printed.stderr,).toContain(rootModesFirstRelease,);
+        expect(printed.stderr,).toContain('a release older than it answers nothing here whatever the archive holds',);
+        expect(printed.stderr,).toContain('nothing committed',);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
       },
     }),

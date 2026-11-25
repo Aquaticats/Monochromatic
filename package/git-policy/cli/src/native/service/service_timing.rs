@@ -604,7 +604,7 @@ pub fn log(line: &str) {
 ///  Whether this process is the resident service,
 /// which names its release once at the start (`set_context`).
 /// Why:
-///   Code both programs run (the auto-push's fetch,
+///   Code the service and a client run (the auto-push's fetch,
 /// the shadow's `init`) records Git's words in the service's log in the
 ///  service and as a client entry in the wrapper;
 /// a control that captures the service's entries counts as the service.
