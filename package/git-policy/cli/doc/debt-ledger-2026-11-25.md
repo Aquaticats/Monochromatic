@@ -492,19 +492,35 @@ over-count (inferred, small).
 The round of 2026-11-25 switched the rules on.
 The two rules now run for the whole crate
 in the block `layout-git-policy-cli` of `monochromatic-lint.config.jsonc`.
-Every folder that lacked a `uses/` folder has one.
 Today's findings stand in two lists beside the crate:
 
-- `layout-allow-list/folder-rule.txt` holds 593 entries:
+- `layout-allow-list/folder-rule.txt` holds 1014 entries:
   524 `uses <folder> -> <folder>` lines for today's folder and entry loop edges;
   49 lines for the `pub use folder::*` re-exports,
   which keep the crate's flat module paths;
-  and 20 lines for the findings that `health/` is a group folder
-  with module files beside its child folder.
+  20 lines for the findings that `health/` is a group folder
+  with module files beside its child folder;
+  and 421 lines for the `uses` links the crate does not hold.
 - `layout-allow-list/file-rule.txt` holds 604 entries:
   544 `file-uses <folder> <file> -> <file>` lines for today's file loops;
   59 lines for the folders whose top doc has no file list or misses a name;
   and one for the function that `main.rs` holds beside `fn main`.
+
+The 421 links are recorded rather than written,
+because a link set with mutual uses makes `cargo package --list` walk without end:
+cargo follows every `uses` link and the loops make those paths multiply.
+Measured that day:
+1.9 s with the 109 links the crate had,
+and no answer after 120 s with the 421 added ones;
+the same eight folders in a ring did not answer in 60 s where the same eight in a chain took 0.13 s.
+Two things read that list,
+the control `source_guard::packaged_uses_links_tests` and a release's `cargo publish --dry-run`,
+so a round writes a folder's links when that folder's uses no longer loop,
+and deletes the lines of those links from the list in the same change.
+Seven wrong links went:
+five pointed at the test-only `testing` folder,
+which is outside both rules,
+and two named folders that nothing in their folder uses any more.
 
 Both lists may only shrink:
 a line that matches no finding any more fails the lint;
