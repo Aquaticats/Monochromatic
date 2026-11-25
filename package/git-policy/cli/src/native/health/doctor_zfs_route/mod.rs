@@ -31,8 +31,10 @@
 //!  Every check takes its facts as a value,
 //!  so the wording and the decision are tested on built facts and a control
 //!  never opens this machine's `/dev/zfs`, store or receipts.
-//!  The gathering half reads the live system once and is what the wiring run
-//!  calls;
+//!  The facts themselves are the wiring run's to gather once from the live
+//!  system,
+//!  as the add route's preflight gathers the same delegation through
+//!  `grants_of` and as the guest arm's helpers gather the rest;
 //!  nothing in this folder is reached from the wrapper's command entry,
 //!  the handler or a boot unit until step 18 is wired,
 //!  which is the project's answer of 2026-11-23
