@@ -421,7 +421,7 @@ so nothing here bounds it.
   and the two "last paragraph" pointers name the usage's closing sentences.
 - The occurrence count is measured with `--hidden`:
   128 lines in 55 files without this proposal,
-  which contributes 28 of the 156 in 56,
+  which contributes 29 of the 157 in 56,
   so its own share is left out of the count that matters
   (run keep/occurrences-fourth.txt).
   The third revision's 122 and 148 came from `rg` without `--hidden`,
@@ -2525,12 +2525,13 @@ and every start in `keep/today-installed-name.log` that reached `run_process` cr
 Pros:
 
 - reaches none of the other start-time actions,
-  only the first;
-- the same placement the service mode already proves,
-  so the entry keeps one shape for three kinds of mode;
-- nothing of the wrapper's own start can fail before root's work;
+  only the first,
+  so nothing of the wrapper's own start can fail before root's work;
 - the checks are the two the answer names,
-  so no other placement can claim to follow it.
+  so no other placement can claim to follow it;
+- it is where the service mode already stands,
+  which is a consistency with the entry's existing shape rather than a gain of
+  this placement (design).
 
 Cons:
 
@@ -2820,9 +2821,7 @@ and the stand-in handler's line,
 plus `doctor`'s planned one.
 The design already requires the refusal to print the words and the installed path,
 so a person who needs a command to type has it without the version line's help.
-The cost is a build cost and not what C delivers,
-so it is not why C ranks here;
-what C fails to deliver is a shorter message in the errors a person meets most (design).
+What C fails to deliver is a shorter message in the errors a person meets most (design).
 
 C over B:
 both name something a person runs,
@@ -3832,9 +3831,9 @@ and each line number is given at this branch's base,
 `45ac28ae47`,
 unless it says `f3d81e0910`,
 which is the commit the third revision read and the line has not moved since.
-`rg --hidden -c "mount-git-worktree-clone-datasets"` finds 156 lines in 56 files,
+`rg --hidden -c "mount-git-worktree-clone-datasets"` finds 157 lines in 56 files,
 of which the crate's `doc/` records and one `perf/` measurement are history and stay as they are,
-and this proposal contributes 28 of the lines;
+and this proposal contributes 29 of the lines;
 without it the count is 128 lines in 55 files
 (run keep/occurrences-fourth.txt).
 A run without `--hidden` skips `.github/workflows/cargo-publish.yml`,
@@ -4076,8 +4075,9 @@ and the order is this:
     and the step 10 record says so before the migration
     (record doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md,
     "What the owner was told first").
-    The same step sets `canmount=noauto` on the nested dataset,
-    which is `on` and mounted today
+    The same step's setup runs the `canmount=noauto` change on the nested dataset,
+    which is the owner's act on an existing dataset in the step 19 record,
+    and the property is `on` and the dataset mounted today
     (run keep/host-facts-fourth.log);
 2.  `record-checkout --checkout /home/user/Monochromatic` runs as root.
     It cannot run before the migration:
