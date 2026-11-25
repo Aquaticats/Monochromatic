@@ -1171,16 +1171,27 @@ fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
 The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
-The one-program build merged as `b97c09746f`, so the next alpha ships one program
-(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it").
-It waits for the gate on `main` at `7043fe4a5c`, which holds `1e562c82c1`
-(the gate at `b97c09746f` failed the two typed-ban controls on the missing `clippy.toml`);
-the sweep's whole guest suite, which the ZED hook's start rests on, passed through the one wrapper in the round merged as `7043fe4a5c`.
+`0.6.1-alpha.46` is released, the first with one program
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`: "the change starts with the release after it"):
+the gate on `main` at `7043fe4a5c` (run `native-YA8wZH`, 2026-11-25T06:28:29-05:00 to 06:49:28-05:00)
+gave `11158 tests run: 11156 passed (5 slow), 2 failed, 44 skipped`, the cause-H pair alone,
+with `1e562c82c1`'s two typed-ban controls passing;
+its window's AppArmor denials were `umount`'s three `dac_override` and 186 `git` `dac_override` between 06:45:14 and 06:45:20,
+which came from issue 6448's second round running its touched modules on the host (its log ended 06:45:25),
+not from the gate; a later host run of `commit::capture_invocation` gave two more, so the any-name fixture root's inner half is their source
+(issue 6459, its round `pi-any-name-fixture-root-git-dac-override` running since about 07:00);
+the dry run 45608525311 passed, the release run 45608814865 dispatched at 2026-11-25T06:54:52-05:00 from `f6d7215359` (only a handover commit after the gated tip)
+committed the bump as `955051b29f` and its publish job passed
+(note and logs in `~/temp/agent/release-wrapper-alpha-46-2026-11-25/keep/`; `native:release:wait` follows the publish run);
+issue 6448's second round merged as `f65bbdd316` after the dispatch (22 controls moved to the any-name root; issue closed);
+the release passes run as three Sonnet reads over `alpha.45..955051b29f`
+(`~/temp/agent/release-pass-wrapper-alpha-46-2026-11-25/`: the one program and its root modes, the ZFS add and removal route, and commit, push, LFS, lock and the rest).
 
 Next:
 merge each round when it ends;
 put L4's options to the owner;
-release the next alpha once that gate has ended with no failure but the cause-H pair.
+read the three release passes when they end and brief their fixes;
+refresh the session's `git` from alpha.46 once its archives are published.
 
 #### Markdown line breaks in the files changed on 2026-11-23
 
