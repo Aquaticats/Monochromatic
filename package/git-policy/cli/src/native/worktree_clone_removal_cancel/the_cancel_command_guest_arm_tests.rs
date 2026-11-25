@@ -28,9 +28,10 @@ use crate::worktree_clone_mount_protocol::clone_mount_intent::intent_text;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanFacts, PlanSnapshot};
-use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock, enter_the_removal};
 use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
 use crate::worktree_clone_removal_cancel::the_cancel_command::{TheCancelCommand, TheCancellation, cancel_the_removal};
@@ -152,23 +153,21 @@ impl TheSlotMount for ATable {
     }
 }
 
-/// The plan one removal wrote:
-/// one line per own snapshot,
-/// with the named one destroyed.
-fn a_plan(facts: PlanFacts, snapshots: &[PlanSnapshot], destroyed: Option<&str>) -> DestructionPlan {
-    let mut plan: DestructionPlan = DestructionPlan::first_write(facts, snapshots);
-    if let Some(name) = destroyed {
-        let snapshot: PlanSnapshot = plan.named_snapshots().into_iter().find(|held| return held.name == name).expect("the plan names the snapshot the arm destroyed");
-        plan.record_line(PlanAttempt { snapshot, attempt: 1, outcome: SnapshotOutcome::Destroyed, errno: None }).expect("the destroyed line");
-    }
-    return plan;
+/// What:
+///  The unmount answer the arm gives the removal's entry,
+///  so the arm judges the command and never the mount work.
+/// Why:
+///  The fixture starts no handler,
+///  and an answer this seam gives is the state the removal records for itself.
+struct ADoneUnmount {
+    /// The clone's GUID.
+    clone_guid: DatasetGuid,
 }
 
-/// Write the plan where the removal writes one.
-fn write_the_plan(common: &Path, plan: &DestructionPlan) {
-    let folder: PathBuf = plans_folder(common);
-    crate::private_storage::create_private_directory_all(folder.as_path()).expect("the plan folder");
-    std::fs::write(folder.join(plan.facts.clone_guid.file_name()), plan.encode().expect("the plan encodes")).expect("the plan file");
+impl RemovalUnmount for ADoneUnmount {
+    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    }
 }
 
 /// The slot's `.git` pointer,
@@ -181,66 +180,36 @@ fn write_the_pointer(fixture: &LivePoolFixture) {
 /// What:
 ///  One whole guest arm over the fixture.
 /// Why:
-///  The two arms differ only in the request the clone carries and in the plan they leave,
-///  so one function builds both.
-fn the_arm(fixture: &LivePoolFixture, operation: MountOperation, destroy_one: bool) {
+///  The removal's own entry writes the records the command proves,
+///  so the arm measures the command and never a record this arm built by hand.
+fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
     fixture.build(&[FIRST_SNAPSHOT, SECOND_SNAPSHOT]);
     let recorded = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
     write_the_pointer(fixture);
     let clone: String = fixture.clone();
     let first: String = format!("{clone}@{FIRST_SNAPSHOT}");
-    let second: String = format!("{clone}@{SECOND_SNAPSHOT}");
-    let mut snapshots: Vec<PlanSnapshot> = vec![
-        PlanSnapshot { name: first.clone(), guid: recorded.clone_guid, createtxg: 1 },
-        PlanSnapshot { name: second.clone(), guid: recorded.clone_guid, createtxg: 2 },
-    ];
-    for snapshot in &mut snapshots {
-        let (guid, createtxg) = fixture.identity(snapshot.name.as_str());
-        snapshot.guid = DatasetGuid::parse(guid.to_string().as_str()).expect("the kernel reports a canonical GUID");
-        snapshot.createtxg = createtxg;
-    }
-    let destroyed_name: Option<String> = if destroy_one {
-        fixture.run("zfs", &["destroy", first.as_str()]);
-        Some(first.clone())
-    } else {
-        None
-    };
-    let plan: DestructionPlan = a_plan(
-        PlanFacts {
-            run: a_nonce(),
-            owner: String::from("424242:linux:1"),
-            started: String::from("2026-11-25T12:00:00-05:00"),
-            clone_dataset: recorded.clone_dataset.clone(),
-            clone_guid: recorded.clone_guid,
-            clone_createtxg: recorded.clone_createtxg,
-            origin_dataset: recorded.origin_dataset.clone(),
-            origin_dataset_guid: recorded.origin_dataset_guid,
-            origin_snapshot: recorded.origin_snapshot.clone(),
-            origin_snapshot_guid: recorded.origin_snapshot_guid,
-            origin_snapshot_createtxg: recorded.origin_snapshot_createtxg,
-            registration_id: recorded.registration_id.clone(),
-            admin: String::from("1:1:1"),
-            target: recorded.slot_path.clone(),
-            unmount_nonce: a_nonce(),
-            unmount_mount_id: None,
-        },
-        snapshots.as_slice(),
-        destroyed_name.as_deref(),
-    );
-    write_the_plan(fixture.common().as_path(), &plan);
-    let intent: MountIntent = MountIntent { operation, nonce: a_nonce() };
-    fixture.run("zfs", &["set", format!("{DESIRED_STATE_PROPERTY}={}", intent_text(intent.operation, &intent.nonce)).as_str(), clone.as_str()]);
+    let common: PathBuf = fixture.common();
+    let entry: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
+    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
+    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock).expect("the removal's own entry writes its plan");
+    let plan_path: PathBuf = plans_folder(common.as_path()).join(recorded.clone_guid.file_name());
+    assert!(plan_path.exists(), "positive control: the removal's entry wrote a plan the command can prove");
+    if already_cancelled {
+        // A cancellation's first act is the `mount` request, so this is the state one leaves behind.
+        let intent: MountIntent = MountIntent { operation: MountOperation::Mount, nonce: a_nonce() };
+        fixture.run("zfs", &["set", format!("{DESIRED_STATE_PROPERTY}={}", intent_text(intent.operation, &intent.nonce)).as_str(), clone.as_str()]);
+    } else {
+        // The removal destroyed one snapshot before a holder outlasted it, which the plan records as still planned.
+        fixture.run("zfs", &["destroy", first.as_str()]);
+    }
     let absence: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest has /dev/zfs");
+    let checkout: PathBuf = common.parent().expect("the common directory is inside the fixture's checkout").to_path_buf();
     let request: RecordingRequest =
         RecordingRequest { clone: clone.clone(), slot_path: fixture.slot_path(), clone_guid: recorded.clone_guid, asked: RefCell::new(Vec::new()) };
     let table: ATable = ATable { at_the_slot: true };
     let slot: CancelRequest = CancelRequest { slot: String::from(SLOT) };
-    let common: PathBuf = fixture.common();
-    // The fixture's repository lives under its root, so the checkout the slot's pointer is proved against is the
-    // common directory's own parent and never the fixture root.
-    let checkout: PathBuf = common.parent().expect("the common directory is inside the fixture's checkout").to_path_buf();
     let input: TheCancelCommand<'_> = TheCancelCommand {
         checkout: checkout.as_path(),
         common_dir: common.as_path(),
@@ -255,24 +224,23 @@ fn the_arm(fixture: &LivePoolFixture, operation: MountOperation, destroy_one: bo
     };
     let outcome: TheCancellation = cancel_the_removal(&input).expect("the command proves and reverses the removal");
     let report = outcome.report();
-    let plan_path: PathBuf = plans_folder(fixture.common().as_path()).join(recorded.clone_guid.file_name());
-    if let Some(name) = &destroyed_name {
-        assert_eq!(report.destroyed, vec![name.clone()], "the pool proves exactly the snapshot the arm destroyed");
-        assert!(!report.already_cancelled, "an `unmount` request is not an already-cancelled removal");
-        assert_eq!(request.asked.borrow().len(), 1, "the removal wrote one request");
-        assert!(request.asked.borrow()[0].ends_with(":mount"), "{:?}", request.asked.borrow());
-        assert!(plan_path.exists(), "the plan records a loss and stays");
-        let text: String = report.lines().join("\n");
-        assert!(text.contains("do not come back"), "{text}");
-        assert!(text.contains(name.as_str()), "{text}");
-        println!("CANCEL destroyed={name} plan=kept mounted=at-its-slot");
-    } else {
+    assert_eq!(report.exit_code(), 0);
+    if already_cancelled {
         assert!(report.already_cancelled, "a `mount` request beside a clone at its slot is an already-cancelled removal");
         assert!(request.asked.borrow().is_empty(), "no second request is written");
         assert!(!plan_path.exists(), "the plan that witnessed nothing leaves");
         println!("CANCEL already-cancelled=reported plan=removed requests=0");
+    } else {
+        assert_eq!(report.destroyed, vec![first.clone()], "the pool proves exactly the snapshot the arm destroyed");
+        assert!(!report.already_cancelled, "an `unmount` request is not an already-cancelled removal");
+        assert_eq!(request.asked.borrow().len(), 1, "one mount request is written");
+        assert!(request.asked.borrow()[0].ends_with(":mount"), "{:?}", request.asked.borrow());
+        assert!(plan_path.exists(), "the plan records a loss and stays");
+        let text: String = report.lines().join("\n");
+        assert!(text.contains("do not come back"), "{text}");
+        assert!(text.contains(first.as_str()), "{text}");
+        println!("CANCEL destroyed={first} plan=kept mounted=at-its-slot");
     }
-    assert_eq!(report.exit_code(), 0);
     fixture.teardown();
 }
 
@@ -282,7 +250,7 @@ fn the_cancel_command_guest_arms() {
         println!("SKIPPED: {GUEST_VARIABLE} is not set, so this arm runs only in the throwaway guest");
         return;
     };
-    the_arm(&fixture, MountOperation::Unmount, true);
-    the_arm(&fixture, MountOperation::Mount, false);
+    the_arm(&fixture, false);
+    the_arm(&fixture, true);
     println!("CANCEL done");
 }
