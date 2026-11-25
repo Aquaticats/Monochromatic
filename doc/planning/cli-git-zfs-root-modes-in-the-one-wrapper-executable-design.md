@@ -5111,7 +5111,9 @@ What this round measured itself:
   (run keep/guard-repairs-seventh.log);
 - every printed Rust text compiled and linted under the crate's own `[lints.clippy]` table and its
   `clippy.toml` with this design's two rows:
-  the printed `main.rs` and `root_mode_names.rs` in a stub crate that provides the symbols they call
+  the printed `main.rs` and `root_mode_names.rs` in a stub crate that provides the symbols they call,
+  and the three printed fragments of `handler_install_paths.rs` and `probe_deadline.rs` with both
+  arms of the one Cargo feature they turn on
   (run keep/clippy-printed-main-and-module-seventh.log),
   and every guard text in the probe crate that runs them, with no diagnostic at all
   (run keep/clippy-printed-guards-seventh.log);
@@ -5429,7 +5431,9 @@ This round's folder,
   and its first lines are the md5 of every text it replays;
 - `clippy-printed-main-and-module-seventh.log`:
   the printed `main.rs` and `root_mode_names.rs` compiled and linted in a stub crate under the
-  crate's `[lints.clippy]` table and its `clippy.toml` with this design's two rows;
+  crate's `[lints.clippy]` table and its `clippy.toml` with this design's two rows,
+  and the printed fragments of `handler_install_paths.rs` and `probe_deadline.rs` in a second crate,
+  with and without the feature choice 11 adds;
 - `clippy-printed-guards-seventh.log`:
   the probe crate that holds every printed guard text, linted the same way, with no diagnostic;
 - `statement-allow-scope-seventh.log`:
