@@ -3500,11 +3500,20 @@ What it refuses:
   because without it the mode cannot prove the mountpoint descends from a served checkout;
 - `checkout-record-no-longer-matches`,
   naming the field that differs,
+  and printing both values when the field is the GUID,
+  so the repair choice 9 names is one copy from the boot's own journal,
   when the record's path,
   dataset or GUID no longer agrees with the kernel,
   because every reader of the record refuses one that is stale and this mode reads it whole;
 - `dataset-already-mounted-elsewhere`,
-  when the kernel shows the dataset mounted at a path other than the one its property names.
+  when the kernel shows the dataset mounted at a path other than the one its property names;
+- `encryption-key-not-loaded`,
+  when the dataset's `keystatus` is not `available`,
+  because loading a key is a separate act and a unit has nobody to prompt;
+- `mountpoint-unusable`,
+  when the mountpoint exists and is not a directory,
+  or is not root's,
+  because this mode creates a missing one and never changes an existing one.
 
 It runs behind the gate and as root,
 like every mode that writes.
@@ -5283,9 +5292,13 @@ and its kept upstream sources
 `upstream-libzfs_dataset-zfs-2.4.4.c`.
 
 This round's `scratch/` folder held the compiled scan probe and the throwaway binaries,
-and is removed when the round ends;
-every log above is rebuilt by a kept source,
-and each log's own header names the command that made it.
+and is removed when the round ends.
+Two logs are rebuilt by kept programs:
+`guards-replay-fifth.log` by `sources/guard_replay.py` and the fixtures `sources/` holds,
+and `scan-needles-fifth.log` by `sources/scan-probe/`.
+The rest are command transcripts,
+and each one's own header prints the commands that made it,
+so a reader can run them again as they stand.
 No guest was created this round,
 and no container gate was run,
 because this round changes no code and merges do not wait for one.
