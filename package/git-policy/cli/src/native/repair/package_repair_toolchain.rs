@@ -42,7 +42,7 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file_through_links};
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file_through_links, read_plain_text_at};
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -553,9 +553,9 @@ fn restore_what_a_kill_left_aside(destination: &Path) {
             continue;
         }
         let aside: PathBuf = item.path();
-        // Nothing is put back from a file this release cannot read as a record, and nothing is discarded unseen either.
+        // Nothing is put back from a file this release cannot read as a record, and nothing is discarded unseen either;
+        //  the read says which file it refused and why.
         if lock_named_by_record(aside.as_path()).is_none() {
-            debug(TAG, format!("{} is no record this release reads, so it is left", aside.display()).as_str());
             continue;
         }
         let record: PathBuf = launchers.join(record_name);
@@ -712,27 +712,35 @@ fn a_control_may_replace_the_record_now() {
 ///   A record that cannot be read,
 /// is not JSON or names no lock is left alone,
 /// and each step of reading it may fail the same way.
-/// Only a regular file is opened:
-/// a named pipe with no writer would block the read until a writer came,
-/// which is never.
+///  The record is read the way the lock beside it and a registration's `gitdir` are read
+///  (`read_plain_text_at`):
+///  opened without blocking and without following a link,
+///  refused unless the open handle is a plain file,
+///  and never read past `LONGEST_RECORD`.
+///  A named pipe at that name therefore holds neither the add's thread nor a job of the service's pool,
+///  a name swapped for one after any look is refused at the open rather than waited on,
+///  and no file at that name decides how much memory a command reads.
+///  A record refused there is left alone,
+///  which is what a record this release cannot read already gets:
+///  the add answers and goes on,
+///  the repair asks the record again on its next pass,
+///  the diagnostic log names the file and what refused it,
+///  and the person sees no line of this repair unless another record asks for work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function lockNamedByRecord(path: string): string | undefined;
 /// ```
 fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
-    // Only a regular file is read: opening a named pipe that has no writer blocks until a writer comes, and the add
-    // would then wait for ever on a record it could not learn anything from.
-    let regular: bool = match std::fs::metadata(path) {
-        Ok(found) => found.is_file(),
-        Err(_) => false,
-    };
-    if !regular {
-        return None;
-    }
     #[cfg(test)]
     a_control_may_replace_the_record_now();
-    let text: String = std::fs::read_to_string(path).ok()?;
+    let text: String = match read_plain_text_at(path, LONGEST_RECORD) {
+        Ok(text) => text,
+        Err(error) => {
+            debug(TAG, format!("{} is no launcher record this release reads, so it is left ({error})", path.display()).as_str());
+            return None;
+        }
+    };
     let record: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
     let lock: &str = record.get(LOCK_KEY).and_then(serde_json::Value::as_str)?;
     return Some(PathBuf::from(lock));
