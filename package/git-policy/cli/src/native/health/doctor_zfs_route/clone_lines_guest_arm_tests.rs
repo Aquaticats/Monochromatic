@@ -437,7 +437,9 @@ fn publishes_a_plan(built: &LivePoolFixture, cache: &Path) -> super::route_check
         origin_snapshot_guid: record.origin_snapshot_guid.clone(),
         origin_snapshot_createtxg: record.origin_snapshot_createtxg,
         registration_id: Vec::from(SLOT.as_bytes()),
-        admin: crate::worktree_clone_removal_proof_and_plan::removal_identities::prove_the_adds_registration(common.as_path(), &record).expect("the add's registration proves itself").encode(),
+        // The fixture records a placeholder registration identity, so the plan's admin is the live object's own identity:
+        // the plan names the directory's device, inode and birth time, and proves nothing about the record from it.
+        admin: crate::fs_beneath::identity_of(&std::fs::File::open(built.registration()).expect("the registration opens")).expect("the registration's identity").encode(),
         target: slot_path.clone(),
         unmount_nonce: RequestNonce::parse(NONCE).expect("the arm's nonce"),
         unmount_mount_id: None,

@@ -11,6 +11,10 @@
 //!  One read where the command starts makes that answer an input,
 //!  so a caller that starts somewhere else says so
 //!  and no caller changes the directory of anyone else.
+//!  The command's entry does that read;
+//!  six other places of the release executable still read the process's directory themselves
+//!  (`StartDirectory::read_from_the_process` names them),
+//!  which is why the source guard forbids a test to change it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -48,8 +52,19 @@ impl StartDirectory {
     ///  once,
     ///  where the command begins.
     /// Why:
-    ///   This is the one read of the process's current directory the release executable makes;
-    ///  every other reader takes its answer from here.
+    ///   The command's entry reads it here,
+    ///  and the code that needs it takes that one answer as an input,
+    ///  so no caller has to read the process's directory again and no test moves it.
+    ///  Six places of the release executable still read it themselves,
+    ///  which this type does not serve yet:
+    ///  `lfs/lfs_interactive.rs`,
+    ///  `lock/forwarded_lock_notice.rs`,
+    ///  `conflict/discard_audit.rs`,
+    ///  `repo_read/repo_read_query.rs`,
+    ///  `repo_read/repo_read_layout_disk_and_directory_facts.rs` and
+    ///  `repo_read/git_directory_roots.rs`.
+    ///  A test that changed the process's directory would still be seen by those,
+    ///  which is what the source guard against changing it exists for.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

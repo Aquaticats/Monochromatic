@@ -47,6 +47,11 @@ pub enum Check {
     CheckoutDataset,
     /// The clone container is a legacy filesystem with its decided flags.
     ContainerDataset,
+    /// The checkout dataset's snapshot directory is hidden from a name.
+    CheckoutSnapdir,
+    /// The clone container's snapshot directory is hidden from a name,
+    /// and the clones inherit it.
+    ContainerSnapdir,
     /// Every dataset's encryption key is loaded where it has one.
     Key,
     /// Every clone carries the properties this route attaches it with.
@@ -137,6 +142,8 @@ impl Check {
             Check::Pool => "pool",
             Check::CheckoutDataset => "checkout-dataset",
             Check::ContainerDataset => "container-dataset",
+            Check::CheckoutSnapdir => "checkout-snapdir",
+            Check::ContainerSnapdir => "container-snapdir",
             Check::Key => "key",
             Check::CloneProperties => "clone-properties",
             Check::CheckoutMount => "checkout-mount",

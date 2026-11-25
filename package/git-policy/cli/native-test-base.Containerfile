@@ -23,7 +23,9 @@ FROM ${CACHYOS_IMAGE}
 # --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot give it
 # (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md). The cache mount keeps downloaded packages between
 # builds outside the image. `rust` carries cargo and Clippy. `base-devel` carries the compiler and linker that build the
-# crates. `strace` injects the faults of the fault-injection tests (they check nothing without it). `nodejs` and `pnpm`
+# crates. `strace` injects the faults, delays and counts of the traced controls: losing it fails every one of them
+# instead of passing them unchecked, because the test image acknowledges no absence of the tracer
+# (`src/native/testing/strace_the_controls_run_under.rs`). `nodejs` and `pnpm`
 # serve the controls that run a real pnpm. `man-db` renders the packaged githooks(5) page, which the hook-event guard
 # test reads when no AsciiDoc source is installed (the Git package ships the page, not the source). The step that
 # reinstalls Git when that page is absent repairs the base image's slimmed copy of the package. The remaining packages

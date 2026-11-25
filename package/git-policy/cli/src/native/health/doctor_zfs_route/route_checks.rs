@@ -61,6 +61,7 @@ use super::later_step_checks::{LaterStep, check_later_step};
 use super::mount_checks::{MountCheckFacts, check_checkout_mount, check_checkout_propagation, check_nested_reachability};
 use super::registration_checks::{RegistrationFacts, check_registration};
 use super::removal_plan_checks::{RemovalPlanFacts, check_removal_plan};
+use super::snapshot_directory_checks::snapdir_report;
 use super::staging_folder_checks::{StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder};
 use super::store_listing::{StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries};
 use super::zfs_checks::{AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, PoolFacts, check_abi, check_clone_properties, check_dataset, check_device, check_key, check_pool};
@@ -174,6 +175,9 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
             continue;
         }
         reports.push(CheckReport::new(dataset.check(), check_dataset(dataset)));
+        if let Some(report) = snapdir_report(dataset) {
+            reports.push(report);
+        }
     }
     reports.push(CheckReport::new(Check::Key, check_key(&facts.datasets)));
     let clones: Vec<DatasetFacts> = facts.datasets.iter().filter(|dataset| return matches!(dataset.role, DatasetRole::Clone)).cloned().collect();

@@ -1357,13 +1357,58 @@ so a boot without the old drive's mapping sets up no zram swap at all: that is t
 
 ### The hourly writeback and its budget
 
-`zram-idle-writeback.timer` runs `zram-idle-writeback.service` an hour after boot and hourly after,
+`zram-idle-writeback.timer` runs `zram-idle-writeback.service` 15 minutes after boot and every 15 minutes after
+(hourly with a 4 GiB budget until 2026-11-25T15:27-05:00, shortened so idle pages leave RAM sooner at the same daily ceiling),
 on every zram device with a backing device:
-the budget refilled to 1048576 pages (4 GiB),
-`echo 3600 > idle` marking pages untouched for an hour,
+the budget refilled to 262144 pages (1 GiB),
+`echo 900 > idle` marking pages untouched for 15 minutes,
 then `echo idle > writeback`.
 At most 96 GiB a day is about 35 TB a year,
 about 1% of this drive's life at the wear rate `smartctl` reads.
+The positive control's `echo all > idle` also wrote back pages that were still in use:
+by 15:27 `bd_stat` read `57639 278410 726722`,
+so 278410 of the 726722 pages written had been read back from disk;
+an age threshold is what keeps hot pages in RAM.
+
+What writeback does not do is raise how many builds fit at once.
+At 2026-11-25T15:25:14-05:00, with seven build rounds running, `MemAvailable` was 1928 MiB and the stall rising,
+but the largest user was a one-off `btrfs check` at its 16 GiB cap;
+once it stopped, at 15:27:04, `MemAvailable` read 22343 MiB and the stall avg10 0.02.
+The rounds then sat at 0.03 to 2.40 GiB each and had peaked at 7.15 to 7.97 GiB while compiling (`memory.peak`).
+That compile peak is the limit:
+memory the compiler needs at once, which swap cannot stand in for without slowing the build,
+and zram's own RAM (5.73 GiB on zram0, which gets no backing device until a reboot, and 4.16 GiB on zram1) is the most writeback can return.
+
+The largest holder is neither builds nor zram.
+At 2026-11-25T15:52-05:00 `/proc/meminfo` read `Shmem: 26250 MiB` while every visible tmpfs held about 380 MiB and SysV
+segments 0.02 GiB;
+the cgroups' `memory.stat` `shmem` field put 26.28 GiB of it in `user@1000.service/app.slice/mvm-libvirt-session.service`,
+and `mvm` listed four guests, each of a live round.
+A guest gets 8 GiB (`package/mvm/cli/README.md`), a guest with a virtiofs shared directory gets shared memory backing
+(the same README),
+and the rounds build the wrapper inside the guest (a 7.45 GiB build peak, the round guest note),
+so each guest held about 6.57 GiB of the host for its round's whole life.
+What would return it is measured by its own round (`pi-mvm-guest-memory-held-for-a-rounds-life`):
+free page reporting, dropping the guest's cache after an arm, smaller guests running a host-built binary,
+guests without virtiofs so KSM could merge pages, and destroying guests between arms.
+
+A build's peak is one process.
+Read-only sampling between 2026-11-25T15:44:03-05:00 and 15:56:20-05:00 of builds other sessions ran
+(a same-vendor research pass, not an independent review)
+put the largest `rustc` of a round at the wrapper crate's test harness (`--test --emit=dep-info,link`),
+6147 to 6562 MiB resident;
+the same unit in check mode peaked at 4084 to 4192 MiB, clippy's at 4295 to 4379 MiB,
+the crate without its tests in check mode at 1621 to 1657 MiB,
+and the `forbidden-strings` build script's run at 3756 MiB in every worktree where its output is not fresh.
+From the Cargo, rustc and sccache sources it read, it inferred that `sccache` refuses a test unit (no crate type)
+and that a shared build directory shares nothing for this crate,
+whose unit ids hash its path dependencies outside the workspace by absolute path;
+that fewer jobs can act only on code generation, since the front end is serial;
+and that only compiling less of the crate per round acts on the front end.
+The dev profile already sets `debug = "line-tables-only"` and `incremental = false`, and the linker is already `rust-lld`.
+These effects are inferred, not measured;
+`pi-rust-build-memory-peak-arms` measures them one build at a time against an interleaved control,
+into `package/git-policy/cli/doc/development-profile-measurements.md`.
 
 ### What AppArmor would have stopped
 

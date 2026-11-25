@@ -26,7 +26,7 @@
 /// The trace reader and the counts it returns.
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 /// Finding `strace` on the test process's own `PATH`.
-use super::strace::{strace_available, strace_program};
+use super::strace::{strace_available_or_acknowledged, strace_program};
 /// The fixtures and the wrapped run of every binary-level control.
 use super::support::{Fixture, REAL_GIT, fixture, remove, repository, wrapped};
 /// Paths of the fixture's files.
@@ -91,8 +91,7 @@ fn traced_wrapper_spawns(label: &str, arguments: &[&str]) -> (usize, Output) {
 /// so the wrapper process makes no `clone`-family call at all.
 #[test]
 fn a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no system call was counted");
+    if !strace_available_or_acknowledged("a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper") {
         return;
     }
     for (label, arguments) in [("rev-parse", ["rev-parse", "HEAD"].as_slice()), ("status", ["status", "--short"].as_slice())] {

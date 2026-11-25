@@ -104,6 +104,9 @@ pub(crate) struct DatasetBuilder {
     encryption: String,
     /// The `keystatus` value.
     key_status: u64,
+    /// The `snapdir` index value,
+    /// where the role reads it.
+    snapdir: Option<u64>,
     /// The object-set type.
     object_type: u32,
     /// Whether the kernel called it a snapshot.
@@ -113,7 +116,18 @@ pub(crate) struct DatasetBuilder {
 impl DatasetBuilder {
     /// The design's healthy shape for one dataset.
     pub(crate) fn healthy(name: &str, mountpoint: &str) -> Self {
-        return DatasetBuilder { name: String::from(name), mountpoint: String::from(mountpoint), canmount: None, setuid: 0, devices: 0, encryption: String::from("off"), key_status: 0, object_type: super::zfs_checks::FILESYSTEM_OBJECT_SET, is_snapshot: false };
+        return DatasetBuilder {
+            name: String::from(name),
+            mountpoint: String::from(mountpoint),
+            canmount: None,
+            setuid: 0,
+            devices: 0,
+            encryption: String::from("off"),
+            key_status: 0,
+            snapdir: Some(crate::health::doctor_zfs_route::snapshot_directory_checks::SNAPDIR_DISABLED),
+            object_type: super::zfs_checks::FILESYSTEM_OBJECT_SET,
+            is_snapshot: false,
+        };
     }
 
     /// A container at the design's shape.
@@ -157,6 +171,13 @@ impl DatasetBuilder {
         return self;
     }
 
+    /// The `snapdir` index value,
+    /// or nothing where the reply leaves the default out.
+    pub(crate) fn snapdir(mut self, snapdir: Option<u64>) -> Self {
+        self.snapdir = snapdir;
+        return self;
+    }
+
     /// An encrypted dataset whose key is loaded,
     /// or not where the caller says so.
     pub(crate) fn encrypted(mut self, key_status: u64) -> Self {
@@ -180,6 +201,9 @@ impl DatasetBuilder {
         add_property(&mut properties, "mountpoint", &self.mountpoint);
         if let Some(canmount) = self.canmount {
             add_number_property(&mut properties, "canmount", canmount);
+        }
+        if let Some(snapdir) = self.snapdir {
+            add_number_property(&mut properties, crate::health::doctor_zfs_route::snapshot_directory_checks::SNAPDIR_PROPERTY, snapdir);
         }
         return CloneObjectFacts {
             name: self.name,

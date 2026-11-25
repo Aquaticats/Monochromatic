@@ -20,7 +20,7 @@
 
 use super::commit::remove_settled;
 use super::fault::{Effect, Injection, Ran, When, run_injected_with_environment, staged_repository, verify_recovery};
-use super::strace::strace_available;
+use super::strace::strace_available_or_acknowledged;
 use super::support::{Fixture, fixture};
 use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass, class_of};
 use std::ffi::OsString;
@@ -61,8 +61,7 @@ fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran
 ///  and the next command recovers.
 #[test]
 fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no start was delayed");
+    if !strace_available_or_acknowledged("a_git_step_past_its_bound_fails_the_commit_and_names_the_class") {
         return;
     }
     let fixture: Fixture = fixture("child-bound");

@@ -49,9 +49,10 @@ fn every_check_appears_exactly_once() {
     assert_eq!(
         names,
         vec![
-            "abi", "backup-coverage", "binding-record", "blocked-removal", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "clone-origin", "clone-properties", "clone-retention",
-            "clone-snapshots", "clone-state", "container-dataset", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "nested-reachability", "parent-identity", "pool",
-            "readiness", "registration", "removal-plan", "root-modes", "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries", "unknown-dot-entry", "unresolved-requests", "zed-wiring",
+            "abi", "backup-coverage", "binding-record", "blocked-removal", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "checkout-snapdir", "clone-origin", "clone-properties",
+            "clone-retention", "clone-snapshots", "clone-state", "container-dataset", "container-snapdir", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key",
+            "nested-reachability", "parent-identity", "pool", "readiness", "registration", "removal-plan", "root-modes", "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries",
+            "unknown-dot-entry", "unresolved-requests", "zed-wiring",
         ]
     );
 }
@@ -88,6 +89,41 @@ fn a_gone_pool_is_a_finding_in_the_whole_report() {
     assert!(pool.found(), "{}", pool.line());
 }
 
+/// The snapshot-directory lines follow the dataset lines they report on,
+/// so a person reads one dataset and the property this step adds about it.
+#[test]
+fn each_snapdir_line_follows_its_dataset() {
+    let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
+    let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
+    let at = |wanted: &str| {
+        return names.iter().position(|name| return *name == wanted).unwrap_or_else(|| panic!("{wanted} is in the report: {names:?}"));
+    };
+    assert_eq!(at("checkout-snapdir"), at("checkout-dataset") + 1, "{names:?}");
+    assert_eq!(at("container-snapdir"), at("container-dataset") + 1, "{names:?}");
+}
+
+/// A checkout dataset that lost its `snapdir` moves exactly the snapdir line,
+/// so the setting this step adds is judged on its own and not folded into the
+/// dataset check.
+#[test]
+fn a_container_that_can_show_its_snapshots_moves_one_answer() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    facts.datasets = facts
+        .datasets
+        .into_iter()
+        .map(|dataset| {
+            if dataset.name == crate::health::doctor_zfs_route::route_test_facts::CONTAINER_DATASET {
+                return crate::health::doctor_zfs_route::route_test_facts::dataset(crate::health::doctor_zfs_route::zfs_checks::DatasetRole::Container, DatasetBuilder::container().snapdir(Some(crate::health::doctor_zfs_route::snapshot_directory_checks::SNAPDIR_VISIBLE)).build());
+            }
+            return dataset;
+        })
+        .collect();
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    let findings: Vec<&CheckReport> = reports.iter().filter(|report| return report.found()).collect();
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].check.name(), "container-snapdir");
+}
+
 /// The groups of the step all appear:
 /// the facts about the pool,
 /// the recorded identities and the store,
@@ -99,8 +135,9 @@ fn the_three_groups_of_the_step_all_appear() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
     let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
     for expected in [
-        "device", "abi", "pool", "checkout-dataset", "container-dataset", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation", "handler-installation", "zed-wiring", "readiness",
-        "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders",
+        "device", "abi", "pool", "checkout-dataset", "container-dataset", "checkout-snapdir", "container-snapdir", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation",
+        "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "binding-record", "removal-plan", "clone-snapshots", "clone-origin",
+        "clone-retention", "blocked-removal", "holders",
     ] {
         assert!(names.contains(&expected), "{expected} is in the report's names: {names:?}");
     }

@@ -45,12 +45,14 @@ fn an_unknown_line_carries_the_reason() {
 /// so one report line names one check.
 #[test]
 fn every_check_name_is_unique() {
-    let checks: [Check; 39] = [
+    let checks: [Check; 41] = [
         Check::Device,
         Check::Abi,
         Check::Pool,
         Check::CheckoutDataset,
         Check::ContainerDataset,
+        Check::CheckoutSnapdir,
+        Check::ContainerSnapdir,
         Check::Key,
         Check::CloneProperties,
         Check::CheckoutMount,
