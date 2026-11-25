@@ -1901,7 +1901,7 @@ Run, `keep/run-10-typed-path-with-every-twin.log`, 24 rotated rounds of `git ls-
 loopback, with a twin for every arm and a warm-up that reaches every arm.
 The control's own median is 195.07 ms and its twin's 200.30 ms.
 
-- the floor: `+4.94 ms`, range `-34.13` to `+35.51`, 13 of 24 positive;
+- the floor: `+4.94 ms`, range `-34.13` to `+35.51`, 15 of 24 positive;
 - C: `+5.35 ms`, same-twin floor `-2.59 ms`, 16 of 24, inside the floor;
 - K: `+0.31 ms`, same-twin floor `-2.32 ms`, 12 of 24, inside the floor;
 - K2: `+5.44 ms`, same-twin floor `-8.59 ms`, 13 of 24, inside the floor;
