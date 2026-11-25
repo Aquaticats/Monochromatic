@@ -194,7 +194,7 @@ fn a_reversal_reports_the_destroyed_set_and_the_mount_it_observed() {
     assert!(text.contains("mounted at its slot"), "{text}");
     assert!(text.contains("doctor"), "{text}");
     let taken: Vec<String> = steps(&order);
-    assert_eq!(taken.first().map(|step| return step.starts_with("claim:")), Some(true), "{taken:?}");
+    assert_eq!(taken.first().map(|step| return step.clone()), Some(format!("claim:{}", guid(CLONE_GUID).file_name())), "the claim is taken by the binding's GUID: {taken:?}");
     assert!(taken.iter().any(|step| return step.starts_with("request:mount:")), "{taken:?}");
     assert!(taken.contains(&String::from("staged")), "{taken:?}");
 }

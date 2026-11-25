@@ -38,6 +38,7 @@
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
@@ -295,16 +296,26 @@ pub fn cancel_the_removal(input: &TheCancelCommand<'_>) -> Result<TheCancellatio
     };
     // The records are proved before the claim is taken, so a caller's mistake leaves it untouched.
     let standing: TheRecordsThatStand = prove_the_slot_is_a_removals(&proof)?;
-    let held: ClaimHeld = input.claim.take(standing.recorded.clone_guid)?;
-    let outcome: Result<TheCancellation, CancelRefusal> = act_under_the_claim(input, &proof);
+    let claimed: DatasetGuid = standing.recorded.clone_guid;
+    let held: ClaimHeld = input.claim.take(claimed)?;
+    let outcome: Result<TheCancellation, CancelRefusal> = act_under_the_claim(input, &proof, claimed);
     held.release()?;
     return outcome;
 }
 
 /// Everything after the claim is held,
 /// which is where every deciding read happens again.
-fn act_under_the_claim(input: &TheCancelCommand<'_>, proof: &TheRecordsProof<'_>) -> Result<TheCancellation, CancelRefusal> {
+fn act_under_the_claim(input: &TheCancelCommand<'_>, proof: &TheRecordsProof<'_>, claimed: DatasetGuid) -> Result<TheCancellation, CancelRefusal> {
     let proved: WhatTheRecordsProve = prove_the_slots_records(proof)?;
+    // The claim was taken by the GUID the first proof read, so a record rewritten between the two reads is a
+    // disagreement rather than a second removal's act under the first one's claim.
+    if proved.clone_guid != claimed {
+        return Err(CancelRefusal::TheRecordsDisagree {
+            what: String::from("the binding was rewritten between the records' proof and the one under the claim"),
+            first: claimed.file_name(),
+            second: proved.clone_guid.file_name(),
+        });
+    }
     let recorded: &RecordedBinding = &proved.recorded;
     let where_it_stands = input.mounts.where_the_clone_stands(proved.clone_dataset.as_str(), proved.slot_path.as_path());
     let already: bool = proved.intent.operation == MountOperation::Mount && counts_as_at_its_slot(&where_it_stands);
