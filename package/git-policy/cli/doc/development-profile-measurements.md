@@ -555,6 +555,10 @@ from the 1.9 to 2.4 GiB gap between the check and codegen forms of this unit.
     and 4,875 MiB of `memory.peak`.
     The scaling is not linear in lines: half the test lines bought 30% of the peak,
     because the non-test library, the dependencies and the front end of the remaining tests stay.
+    The project's way to compile less per edit is already decided:
+    the crate split into reusable crates (`doc/planning/cli-git-source-layout.md`, "Splitting into crates (owner, 2026-11-04)"),
+    whose native-layer move waits until the open branches merge (issue 6261, "Defer until branches merge").
+    This arm measures that lever; it adds no new choice.
 2.  Fewer parallel jobs per build.
     Weakened to a small effect at the extreme: `-j 4` changed nothing outside the spread,
     and `-j 1` gained 13% to 15% at most, which the control's own spread cannot separate from host load,
