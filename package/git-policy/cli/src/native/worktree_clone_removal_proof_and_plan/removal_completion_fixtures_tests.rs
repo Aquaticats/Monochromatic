@@ -40,7 +40,9 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
-use crate::worktree_removal_deferred_origin_check::fixtures::{Pool, origin_properties};
+use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
+use crate::worktree_clone_binding_record::registration_home::home_folder;
+use crate::worktree_removal_deferred_origin_check::fixtures::{Answer, Pool, origin_properties};
 use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 use std::rc::Rc;
@@ -542,4 +544,54 @@ impl SnapshotDestroyDevice for ClearingDevice {
         }
         return Ok(None);
     }
+}
+
+/// The origin snapshot's own name,
+/// which begins with the add's prefix and its nonce.
+pub const ORIGIN_OWN_NAME: &str = "git-worktree-clone-origin-445566778899aabbccddeeff00112233";
+
+/// The origin snapshot's full name.
+pub fn the_origin_full_name() -> String {
+    return format!("{ORIGIN_DATASET}@{ORIGIN_OWN_NAME}");
+}
+
+/// What:
+///  One healthy removal fixture whose origin snapshot a record can name.
+/// Why:
+///  The step 14 fixture names its origin snapshot `origin`,
+///  which the cleanup record's grammar refuses,
+///  so every control that reaches the origin record starts from the same tuple
+///  with the add's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fixture = aFixture('x');
+/// ```
+pub fn a_fixture(name: &str) -> RemovalFixture {
+    return RemovalFixture::healthy(name).with_origin_snapshot(the_origin_full_name().as_str());
+}
+
+/// The check's pool,
+/// keyed by the origin snapshot's full name.
+pub fn the_checks_pool() -> Pool {
+    let full: String = the_origin_full_name();
+    return Pool::new(vec![
+        (CLONE, Answer::of(the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, full.as_str()), NvList::new())),
+        (ORIGIN_DATASET, Answer::of(the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), NvList::new())),
+        (full.as_str(), Answer::of(the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""), origin_properties(Some(MARK_OFF), Some(0)))),
+    ]);
+}
+
+/// The budget both of the clone's own snapshots need,
+/// measured from the exact request they become.
+pub fn the_budget() -> RequestBudget {
+    let names: Vec<String> = vec![format!("{CLONE}@{OWN_SNAPSHOT}"), format!("{CLONE}@{SANOID_SNAPSHOT}")];
+    let bytes: usize = encoded_request_bytes(POOL, names.as_slice()).expect("both names pack into a request");
+    return RequestBudget::of_input_bytes(bytes);
+}
+
+/// Whether one record file stands in the wrapper's home,
+/// by the name it is filed under.
+pub fn a_record_stands(fixture: &RemovalFixture, name: &str) -> bool {
+    return std::fs::symlink_metadata(home_folder(fixture.common()).join(name).as_path()).is_ok();
 }
