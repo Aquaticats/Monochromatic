@@ -18,6 +18,32 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: two refusals the removal answers left open, recorded 2026-11-26T17:05-05:00
+
+The round that built your two removal answers (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`;
+branch `fix/git-policy-cli-wrapper-zfs-removal-refusals-for-an-unknown-option-and-an-unreadable-record`) named two points the answers do not decide.
+
+### An unknown option before `-C`, typed outside the repository
+
+Example: in `/home/me`, `git --future-option=x -C checkouts/repo worktree remove -f -f slot-one`.
+The wrapper stops reading at the option it does not know, so it never learns that `-C` names the repository, cannot see the slot records there, and forwards the removal; Git then deletes the bound slot's registration.
+The same command typed inside the repository is refused, as you answered.
+
+- Option A: also refuse a `worktree remove` or `move` behind an unknown global option when the wrapper cannot tell which repository it names, and say so. Pros: no slot is lost to the spelling. Cons: such a command is refused even where the repository has no slot records.
+- Option B: keep forwarding it. Pros: nothing is refused that touches no slot. Cons: the spelling still loses a slot's registration.
+
+Ranking: A > B, because a refused command costs a retype and the forward can lose a slot, the same weighing as your answer.
+
+### Three more slots nothing proves
+
+Your answer refused the removal of a slot whose binding record cannot be read. `SPEC.md` still leaves to Git three more cases where the wrapper cannot prove what a slot holds:
+no record but a mount at the slot, a record naming another path, and a mount table it cannot read.
+
+- Option A: refuse the removal in all three, naming what could not be proved. Pros: no slot the wrapper cannot prove is deleted. Cons: a person must repair the record or the mount before Git can remove the worktree.
+- Option B: leave them to Git. Pros: Git stays usable there. Cons: a removal can delete inside a mounted clone.
+
+Ranking: A > B, because each is a removal that can destroy data, and the refusal names what to repair.
+
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
 The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,
