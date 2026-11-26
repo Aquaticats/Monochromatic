@@ -52,11 +52,11 @@ pub(crate) const STAT: usize = 40;
 
 /// The extension signatures that are dropped:
 /// derived state that Git rebuilds.
-const DROPPED: [&[u8; 4]; 4] = [b"UNTR", b"FSMN", b"EOIE", b"IEOT"];
+const DROPPED: &[&[u8; 4]] = &[b"UNTR", b"FSMN", b"EOIE", b"IEOT"];
 
 /// The extension signatures that make the rewrite decline:
 /// they change what the entries mean.
-const DECLINED: [&[u8; 4]; 2] = [b"link", b"sdir"];
+const DECLINED: &[&[u8; 4]] = &[b"link", b"sdir"];
 
 /// What:
 ///  What a file on disk reports now,

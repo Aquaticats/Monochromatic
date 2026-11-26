@@ -32,7 +32,7 @@ use crate::test_support::{
 use std::path::PathBuf;
 
 /// The files of the first commit.
-const FILES: [(&str, &[u8], bool); 3] = [
+const FILES: &[(&str, &[u8], bool)] = &[
     ("a", b"a one\n", false),
     ("d/x", b"x one\n", false),
     ("z", b"z one\n", false),

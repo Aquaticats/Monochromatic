@@ -76,7 +76,7 @@ fn stderr_text(observed: &Observed) -> String {
 
 /// Every management command that is safe in a plain repository,
 ///  with its options.
-const COMMANDS: [&[&str]; 6] = [
+const COMMANDS: &[&[&str]] = &[
     &["--help"],
     &["doctor"],
     &["check", "--all"],
@@ -91,7 +91,7 @@ const COMMANDS: [&[&str]; 6] = [
 fn the_earlier_word_does_the_same_with_one_notice_for_every_command() {
     let fixture: Fixture = fixture("rename-word");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    for command in COMMANDS {
+    for &command in COMMANDS {
         let mut current: Vec<&str> = vec![COMMAND_WORD.current];
         current.extend(command);
         let mut earlier: Vec<&str> = vec![COMMAND_WORD.earlier];

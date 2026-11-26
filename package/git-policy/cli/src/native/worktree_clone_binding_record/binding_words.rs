@@ -83,7 +83,7 @@ pub const KEYS_EVERY_PHASE_HOLDS: &[&str] = &[
 ];
 
 /// The keys a record holds from one phase on, besides [`KEYS_EVERY_PHASE_HOLDS`].
-pub const KEYS_FROM_EACH_PHASE: [(&str, &[&str]); 6] = [
+pub const KEYS_FROM_EACH_PHASE: &[(&str, &[&str])] = &[
     ("originSnapshot", &["originSnapshot"]),
     ("originDataset", &["originDataset", "originDatasetGuid"]),
     ("slot", &["slotIdentity"]),

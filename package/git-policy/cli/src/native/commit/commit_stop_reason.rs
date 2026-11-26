@@ -128,8 +128,7 @@ const EVERY_ROUTE_A_MESSAGE_IS_NOT: &[&str] = &[
 /// Why:
 ///  `reason_of_events` reads the events of a commit that reported a result,
 ///  so only the routes an event can carry were looked for.
-const EVERY_ROUTE_AN_EVENT_IS_NOT: [&str; 3] =
-    [KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
+const EVERY_ROUTE_AN_EVENT_IS_NOT: &[&str] = &[KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
 
 /// The step name the wrapper gives the `git commit` it builds in a scratch repository.
 /// It is the step a commit Git declined names when the runner noted none.

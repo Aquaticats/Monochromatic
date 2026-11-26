@@ -69,8 +69,8 @@ const ROTATING_LOGS_IN_COMMON_DIRECTORY: &[RenamedName] = &[
 ];
 
 /// The names kept in the common Git directory that do not rotate.
-const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] =
-    [DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER];
+const OTHER_NAMES_IN_COMMON_DIRECTORY: &[RenamedName] =
+    &[DATA_FOLDER, PUSH_TRIGGER_LOG, WORKTREE_COPY_RECORD_FOLDER];
 
 /// The names kept in a worktree's own Git directory.
 const NAMES_IN_WORKTREE_DIRECTORY: &[RenamedName] = &[DATA_FOLDER, MERGE_INTENT_FOLDER];
@@ -248,7 +248,7 @@ fn rename_worktree_directory_names(git_dir: &Path) {
 
 /// Move the names kept in the common Git directory that exist only under the earlier spelling.
 fn rename_common_directory_names(common_dir: &Path) {
-    for name in OTHER_NAMES_IN_COMMON_DIRECTORY {
+    for &name in OTHER_NAMES_IN_COMMON_DIRECTORY {
         let _placed = kept_name_for_use(common_dir, name);
     }
     for &name in ROTATING_LOGS_IN_COMMON_DIRECTORY {

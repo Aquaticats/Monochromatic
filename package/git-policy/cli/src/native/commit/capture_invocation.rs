@@ -287,7 +287,7 @@ const LAYOUT_PATHS: usize = 6;
 /// ```ts
 /// const GIT_DIR_QUESTION = ['rev-parse', '--path-format=absolute', '--absolute-git-dir'];
 /// ```
-const PATH_QUESTIONS: [&[&str]; LAYOUT_PATHS] = [
+const PATH_QUESTIONS: &[&[&str]] = &[
     &["rev-parse", "--path-format=absolute", "--show-toplevel"],
     &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
     &["rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -351,7 +351,7 @@ fn absolute_answers(
     cwd: &Path,
 ) -> Result<[PathBuf; LAYOUT_PATHS], GitFailure> {
     let mut answers: Vec<PathBuf> = Vec::with_capacity(LAYOUT_PATHS);
-    for question in PATH_QUESTIONS {
+    for &question in PATH_QUESTIONS {
         let output: GitOutput = required(context, cwd, question)?;
         answers.push(absolute_reported(cwd, output.stdout.as_slice())?);
     }

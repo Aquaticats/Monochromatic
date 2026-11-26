@@ -77,7 +77,7 @@ fn trailer_is_zero(bytes: &[u8]) -> bool {
 }
 
 /// Sources of the first commit used by most cases.
-const BASE: [(&str, &[u8], bool); 6] = [
+const BASE: &[(&str, &[u8], bool)] = &[
     ("a", b"a one\n", false),
     ("b", b"b one\n", false),
     ("c", b"c one\n", false),

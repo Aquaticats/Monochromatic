@@ -170,8 +170,8 @@ pub(crate) const BRIGHT_COLOR_WORDS: &[&str] = &[
 ];
 
 /// The attribute words Git reads (each also with a `no` or `no-` prefix).
-pub(crate) const ATTRIBUTE_WORDS: [&str; 7] =
-    ["bold", "dim", "ul", "blink", "reverse", "italic", "strike"];
+pub(crate) const ATTRIBUTE_WORDS: &[&str] =
+    &["bold", "dim", "ul", "blink", "reverse", "italic", "strike"];
 
 /// How Git reads the value of one key.
 #[derive(Clone, Copy)]
