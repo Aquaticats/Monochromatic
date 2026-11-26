@@ -62,8 +62,11 @@ Open:
   to `~/.local/share/health-records-git` (`git fsck` clean; last commit `cf05c3f`, 2026-09-25T03:46:26-04:00),
   and `Health/.git` now reads `gitdir: /home/user/.local/share/health-records-git`.
   206 of its 222 tracked files equal `HEAD`; 16 differ (14 Git LFS PDFs in `dist/`, `provider-requests.html`, `runbook-medication-continuity.md`).
-- AppArmor's `git` profile on this PC grants project folders, not `~/Plain` or `~/.local/share`,
-  so Git run in `Text/Reference/Health` or `Text/Reference/Legal` fails with "Permission denied" or "not a git repository".
+- Git works again in `Text/Reference/Health` and `Text/Reference/Legal` on this PC:
+  AppArmor's `git` profile had granted only project folders, and the twelfth batch of local rules
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) grants `~/Plain` and the Health Git directory.
+  Each Git run leaves one lock-holder record in the repository's `.git/cli-git-lock-holders/`,
+  removed by a later run (the Git wrapper's design); in Legal that folder is inside `~/Plain` and syncs.
 - The Mac keeps the files it set aside before its resync in
   `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` until the owner says to remove them.
 - The files this PC ran before the change are in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`
