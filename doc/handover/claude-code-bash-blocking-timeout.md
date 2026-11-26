@@ -1,6 +1,6 @@
 # Claude Code Bash blocking timeout handover
 
-State recorded 2026-11-25T18:43:44-05:00.
+State recorded 2026-11-25T19:04:42-05:00.
 Owner acceptance is not recorded.
 The user approved the design and authorized implementation on 2026-11-25T18:02:17-05:00.
 
@@ -57,20 +57,18 @@ A fresh normal `claude --print` session without `--plugin-dir` applied the live 
 a 1.5-second command returned native background task ID `bw23gwxe0`.
 The plugin is not installed through `claude plugin list`.
 
-## Live configuration gap
+## Live configuration
 
-`/home/user/.claude/settings.json` registers the rebuilt bundle only for `PreToolUse Bash`.
-It has no bash-output-filter `SessionStart` entry,
-so the new disabled-background warning is not wired into normal sessions.
-The existing project `SessionStart` entry runs `ccssh`,
-not this plugin.
-Changing user settings requires explicit owner authorization.
+`/home/user/.claude/settings.json` now registers the rebuilt bundle for both `PreToolUse Bash`
+and startup-only `SessionStart`.
+With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`,
+a fresh normal `claude --print` session emitted the full warning exactly once
+and successfully returned `startupWired` from its Bash command.
 
 ## Open work
 
 - Owner review and acceptance are not recorded.
-- The owner can authorize adding the startup-only bundle invocation to user settings.
 
 ## Next step
 
-The owner can review the committed implementation and decide whether to wire the startup warning into normal sessions.
+The owner can review the committed implementation and live configuration evidence.

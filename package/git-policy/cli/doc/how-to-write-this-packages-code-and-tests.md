@@ -88,6 +88,10 @@ Delete code nothing calls, with the text that describes it (`AGENTS.md`'s XSU; i
 A file over the linter's `rust/max-lines` splits into sibling modules by role, never by stripping docs (MXL).
 Name files, folders and functions by what they do (MKY, VGW), derive values from named constants (MGN),
 and take no lock where atomic rename, `O_EXCL` or one owner per item will do (NLK).
+A list of names, sites or words is a slice, `const NAMES: &[&str] = &[...]`, never `[&str; 47]`:
+a hand-counted length is a magic number every added entry has to edit
+(found 2026-11-25 in the raw-read guard's list, beside 277 such arrays crate-wide; ledger item 19).
+An array keeps a fixed length only where the length is the meaning, such as a header of a fixed byte width.
 
 ## Show that a guard works
 
@@ -103,3 +107,18 @@ The sites the tree still holds are one line each in
 `source_guard/test_children_not_yet_owned.txt`, with why each is not moved yet,
 so moving a site means deleting its line there,
 and a new site fails until it is moved or entered with its reason.
+
+## A control that reads another module's source follows that file
+
+Some controls read another module's file with `include_str!` and assert on its text,
+and then that file's own module tests are not the ones a change to it breaks:
+`foundation/notice_stream_that_does_not_hold_its_writer_tests.rs` reads
+`landing/service_commit_waiting_notices.rs`,
+and `service/wait_ceilings_tests.rs` and `source_guard/hook_self_invocation_tests.rs` read
+`landing/service_commit.rs`.
+Before a merge, name every file the change touches and run the module of each test that reads it
+(`grep -rn 'include_str!' src/native` lists them),
+beside the module of the file you changed.
+The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's notice stream
+and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
+so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
