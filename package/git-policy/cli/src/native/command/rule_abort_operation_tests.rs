@@ -105,7 +105,7 @@ fn pick_sequence() -> OperationState {
 ///  and no other guarded form names one.
 #[test]
 fn only_the_abort_forms_name_an_operation() {
-    for command in GuardedCommand::ALL {
+    for &command in GuardedCommand::ALL {
         let named: Option<AbortOperation> = aborted_operation(command);
         let expected: Option<AbortOperation> = match command {
             GuardedCommand::AbortMerge => Some(AbortOperation::Merge),

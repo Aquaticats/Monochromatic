@@ -34,7 +34,7 @@ use std::path::Path;
 use std::time::Duration;
 
 /// The options of `worktree add` whose value is the next argument.
-const VALUE_OPTIONS: [&str; 3] = ["-b", "-B", "--reason"];
+const VALUE_OPTIONS: &[&str] = &["-b", "-B", "--reason"];
 
 /// How long one tool may show no sign of work before it is stopped;
 /// a hung tool must not hold an add forever,

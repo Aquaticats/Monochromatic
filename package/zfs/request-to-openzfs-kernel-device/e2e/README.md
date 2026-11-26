@@ -563,6 +563,17 @@ beside the recipe itself:
   so its root suite runs the control against the guest's approved module,
   fails on a `SKIP gate_arm` line,
   and requires the `MEASUREMENT gate` line.
+  The control also reads the header length the module's own type-information
+  file states and asserts two things about it:
+  the length the checker reports is that same value,
+  and it is one of the two shapes `btf_header.rs` knows,
+  the 24-byte header Linux 6.8 wrote and the 32-byte header a current tool
+  writes.
+  No length is written into the arm,
+  so a guest whose tools write either header passes,
+  and a module whose file states a length between them,
+  or a report that disagrees with the file,
+  fails.
 - `zfs-gate-arm` runs that same control again on a prepared guest.
 - `zfs-gate-version-arm` patches the built module's release text from
   `2.4.4-1` to `2.4.4-2` and reloads it,

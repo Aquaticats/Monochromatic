@@ -42,11 +42,11 @@ use std::path::{
 
 /// The selection options,
 /// which decide the compatibility check and the pathless-selection rule.
-const SELECTIONS: [&[&str]; 5] = [&[], &["-a"], &["-i"], &["-o"], &["--patch"]];
+const SELECTIONS: &[&[&str]] = &[&[], &["-a"], &["-i"], &["-o"], &["--patch"]];
 
 /// The options that decide whether an empty change is allowed,
 /// and which fixup prefix is in force.
-const EMPTY_CHANGE_OPTIONS: [&[&str]; 7] = [
+const EMPTY_CHANGE_OPTIONS: &[&[&str]] = &[
     &[],
     &["--interactive"],
     &["--allow-empty"],
@@ -59,7 +59,7 @@ const EMPTY_CHANGE_OPTIONS: [&[&str]; 7] = [
 /// The ways of naming paths,
 /// including the two that make Git read the count itself,
 /// and one that matches nothing.
-const PATHS: [&[&str]; 6] = [
+const PATHS: &[&[&str]] = &[
     &[],
     &["--", "a.txt"],
     &["--", "nothing.txt"],
@@ -70,7 +70,7 @@ const PATHS: [&[&str]; 6] = [
 
 /// The command lines whose `--` is an option's value rather than the separator,
 ///  which is the shape that once made the question a real commit.
-const SEPARATORS_AS_VALUES: [&[&str]; 4] = [
+const SEPARATORS_AS_VALUES: &[&[&str]] = &[
     &["-m", "--", "-i"],
     &["-m", "--", "--", "a.txt"],
     &["-F", "--", "-i"],
@@ -82,9 +82,9 @@ const SEPARATORS_AS_VALUES: [&[&str]; 4] = [
 /// after `commit`.
 fn every_line() -> Vec<Vec<String>> {
     let mut lines: Vec<Vec<String>> = Vec::new();
-    for selection in SELECTIONS {
-        for empty_change in EMPTY_CHANGE_OPTIONS {
-            for paths in PATHS {
+    for &selection in SELECTIONS {
+        for &empty_change in EMPTY_CHANGE_OPTIONS {
+            for &paths in PATHS {
                 let mut line: Vec<String> = Vec::new();
                 for token in [selection, empty_change].concat() {
                     line.push(token.to_owned());

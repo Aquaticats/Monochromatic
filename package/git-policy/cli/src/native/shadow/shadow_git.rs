@@ -37,7 +37,7 @@ use std::path::{
 
 /// Variables that would redirect a shadow command to another repository,
 ///  index or store.
-pub const REPOSITORY_REDIRECT_VARIABLES: [&str; 5] = [
+pub const REPOSITORY_REDIRECT_VARIABLES: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
     "GIT_COMMON_DIR",

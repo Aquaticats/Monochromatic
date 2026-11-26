@@ -117,7 +117,7 @@ const SLOW_FLUSH_MICROSECONDS: u64 = 100_000;
 /// `fdatasync` is not listed:
 /// the measured commit made no `fdatasync` in the service or in the Git it starts (2026-11-09),
 ///  so injecting there faulted no call.
-const STORAGE_CALLS: [&str; 5] = ["write", "pwrite64", "fsync", "rename", "renameat2"];
+const STORAGE_CALLS: &[&str] = &["write", "pwrite64", "fsync", "rename", "renameat2"];
 
 /// The calls a kill of the service is swept over:
 /// every state-changing call the service process itself makes in one commit with no forks followed
@@ -137,7 +137,7 @@ const STORAGE_CALLS: [&str; 5] = ["write", "pwrite64", "fsync", "rename", "renam
 /// `mkdirat` and `vfork` are not listed:
 /// the service makes none of them itself in this flow,
 ///  so a kill at each tested nothing while the list said the service was killed there.
-const KILL_CALLS: [&str; 13] = [
+const KILL_CALLS: &[&str] = &[
     "write",
     "pwrite64",
     "ftruncate",
@@ -426,7 +426,7 @@ fn service_case(
     let run = || {
         return run_watched(
             &fixture,
-            &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+            &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
         );
     };
     let output: Output = if matches!(fault.effect, Effect::Kill) {
@@ -466,7 +466,7 @@ fn service_call_count(
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let output: Output = run_watched(
         &fixture,
-        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
     );
     assert_eq!(
         output.status.code(),
@@ -629,7 +629,7 @@ fn require_the_service_kill_list_is_made() {
 fn a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository() {
     sweep_service(
         "full-disk",
-        &STORAGE_CALLS,
+        STORAGE_CALLS,
         Effect::Fail("ENOSPC"),
         When::FromNth,
         true,
@@ -643,7 +643,7 @@ fn a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository() {
 fn storage_that_fails_during_a_commit_leaves_a_recoverable_repository() {
     sweep_service(
         "io-error",
-        &STORAGE_CALLS,
+        STORAGE_CALLS,
         Effect::Fail("EIO"),
         When::FromNth,
         true,
@@ -803,7 +803,7 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let output: Output = run_watched(
         &fixture,
-        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
     );
     let said: String =
         String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
@@ -885,7 +885,7 @@ fn commit_lands_while_calls_are_refused(
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let output: Output = run_watched(
         &fixture,
-        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        &mut unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS),
     );
     let said: String =
         String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
@@ -1249,7 +1249,7 @@ fn merge_recovered(
 /// `openat`,
 /// `ftruncate` and `mkdir` are every other state-changing call the flow makes,
 /// and `openat` counts reads too because `strace --inject` names a call and an ordinal over all of them.
-const MERGE_KILL_CALLS: [&str; 10] = [
+const MERGE_KILL_CALLS: &[&str] = &[
     "write",
     "pwrite64",
     "fsync",
@@ -1269,7 +1269,7 @@ fn merge_flow() -> Flow {
         name: "merge",
         setup: merge_setup,
         arguments: &["merge", "--no-edit", "feature"],
-        killed_at: &MERGE_KILL_CALLS,
+        killed_at: MERGE_KILL_CALLS,
         decided_by_the_file_system: &[],
         recovered: merge_recovered,
     };
@@ -1649,7 +1649,7 @@ fn copy_recovered(
 /// (`may_clone` in `fs_kind`, recorded in `copy_flow`).
 /// `openat` counts reads too,
 /// because `strace --inject` names a call and an ordinal over all of them.
-const COPY_KILL_CALLS: [&str; 14] = [
+const COPY_KILL_CALLS: &[&str] = &[
     "write",
     "pwrite64",
     "fsync",
@@ -1673,7 +1673,7 @@ fn copy_flow() -> Flow {
         name: "copy",
         setup: copy_setup,
         arguments: &["worktree", "add", "--quiet", "-b", "one", "../one"],
-        killed_at: &COPY_KILL_CALLS,
+        killed_at: COPY_KILL_CALLS,
         decided_by_the_file_system: &[("ioctl", may_clone)],
         recovered: copy_recovered,
     };

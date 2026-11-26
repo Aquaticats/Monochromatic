@@ -82,7 +82,7 @@ fn run(
 /// Nine distinct states:
 ///  the initial one and one per allowed change,
 ///  plus one the loop must never store.
-const DISTINCT: [&str; 10] = ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"];
+const DISTINCT: &[&str] = &["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"];
 
 /// `count` proposing passes followed by `last`.
 fn proposing(
@@ -237,7 +237,7 @@ fn the_changed_passes_limit_is_enforced() {
     assert_eq!(settled_log[settled_log.len() - 1], format!("pass {limit}"));
     let (limited, limited_log) = run(
         proposing(limit, PassResult::Proposed).as_slice(),
-        &DISTINCT,
+        DISTINCT,
         None,
     );
     assert_eq!(limited, Convergence::FixPassLimit);

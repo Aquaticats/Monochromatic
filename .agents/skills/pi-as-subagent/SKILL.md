@@ -253,14 +253,22 @@ and routing around the filter needed relaying refused content to other vendors;
 the audit found no correctness difference either way.
 
 - **A writer**, a run that changes code or documents,
-  is DeepSeek V4.1 Flash on the driver's default pools,
-  in the order of `PROVIDER_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`:
-  `--provider=opencode-go --model=deepseek-v4.1-flash` first
-  (the owner,
-  2026-11-16:
-  "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."),
-  then `--provider=neuralwatt --model=deepseek-v4.1-flash-flex`,
-  each with the doubled wall clock those pools get.
+  runs on Pi's virtual writer,
+  `--provider=rate-limit-fallback --model=writer`,
+  whose router asks these members in the owner's order
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order";
+  the owner, 2026-11-26, answered in what order writers take the pools:
+  "Qwen, opencode-go, flex (Recommended)"):
+  `qwen-token-plan-individual/deepseek-v4.1-flash-1017`,
+  then `opencode-go/deepseek-v4.1-flash`,
+  then `neuralwatt/deepseek-v4.1-flash-flex`.
+  The same record has the owner answer "Use the virtual writer (Recommended)" to whether rounds start on it,
+  so a launcher names the virtual writer rather than one pool.
+  A `429` before any output moves the request on to the next member with the same transcript
+  (`package/pi-plugin/rate-limit-fallback/README.md`, "Order and refusal policy").
+  The driver counts such a run against every member pool,
+  `VIRTUAL_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`,
+  and starts it only while every one of those pools has room.
 - **Standard Neuralwatt DeepSeek** (`--provider=neuralwatt --model=deepseek-v4.1-flash`) is closed,
   and no run names it.
   The owner,
@@ -311,12 +319,14 @@ and the four that finished met it 31 to 74 times each
 So a review that ends on a Synthetic 429 moves to the next pool and resumes its session there
 with `--session=<session file>`,
 and how many runs Synthetic takes at once is still to be measured.
-The driver's pool table (`package/pi-shared/subagent-driver/src/pool-limits.ts`) does not list these pools yet:
-until it does,
-a run naming them is in no pool and nothing counts it,
-so count them before starting more.
+The driver's pool table (`package/pi-shared/subagent-driver/src/pool-limits.ts`) lists the qwen plan's DeepSeek pool,
+`opencode-go` and Neuralwatt's DeepSeek flex pool,
+plus the virtual writer and reviewer, whose members are those pools.
+A reviewer that names Synthetic, which belongs to no pool, is counted nowhere:
+count such runs before starting more.
 The DeepSeek pool order in the paragraphs on the 20-run limit is for runs that name no model;
-a writer names its pool's provider and model as a reviewer does.
+a writer names the virtual writer,
+and a reviewer names its pool's provider and model.
 The Kimi pool is closed,
 and its numbers stay in that table's comments.
 Rerun a reviewer's reproduction before believing a finding.

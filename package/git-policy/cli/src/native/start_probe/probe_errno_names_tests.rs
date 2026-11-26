@@ -24,7 +24,7 @@ use super::{
 /// Each listed name maps to its own number and back.
 #[test]
 fn every_name_round_trips() {
-    for (name, value) in ERRNO_NAMES {
+    for &(name, value) in ERRNO_NAMES {
         assert_eq!(errno_of(value), Some(name));
         assert_eq!(errno_name(name), Some(name));
     }
@@ -34,7 +34,7 @@ fn every_name_round_trips() {
 /// so a call's answer names one word.
 #[test]
 fn no_number_is_named_twice() {
-    for (name, value) in ERRNO_NAMES {
+    for &(name, value) in ERRNO_NAMES {
         let matching: usize = ERRNO_NAMES
             .iter()
             .filter(|(_, other)| return *other == value)
@@ -71,7 +71,7 @@ fn the_errno_field_names_or_keeps_the_number() {
 /// and an unknown one is no fallback.
 #[test]
 fn only_the_listed_reason_words_are_known() {
-    for word in REASON_WORDS {
+    for &word in REASON_WORDS {
         assert_eq!(known_reason_word(word), Some(word));
     }
     assert_eq!(known_reason_word("no-such-reason"), None);

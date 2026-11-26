@@ -36,6 +36,18 @@ import {
 export { PROVIDER_ID, } from './model-pools.ts';
 
 /**
+ The two pools and their ordered members, exported so the built-artifact tests reach the shipped order.
+
+ @internal
+ */
+export {
+  type Member,
+  POOL_DEFINITIONS,
+  type PoolDefinition,
+  poolMembers,
+} from './model-pools.ts';
+
+/**
  The native virtual models Pi selects, exported so the built-artifact tests reach the route.
 
  @internal
@@ -53,6 +65,14 @@ export {
  @internal
  */
 export { headerReset, } from './rate-limit-evidence.ts';
+
+/**
+ The lane reading of one NeuralWatt rate-limit response, exported because no shipped pool asks the
+ standard lane since 2026-11-26 and the suites must still reach that branch.
+
+ @internal
+ */
+export { neuralWattEvidence, } from './quota-endpoints.ts';
 
 /**
  Minimum interval between two quota reads of one member, exported so the suites use the shipped

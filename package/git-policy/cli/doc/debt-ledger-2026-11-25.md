@@ -427,6 +427,54 @@ and a control that arms its point in a process of the whole run,
 are the two shapes this item still meets elsewhere:
 the registry's refusal names both at the arming that would hide them.
 
+Round of 2026-11-26,
+issue 6489:
+a control of `landing/service_round_tests.rs` asserted a stall the release no longer has,
+and the whole container gate on `main` at `6543be0d1a` failed it after 10.016 s.
+The control left a named pipe at a worktree's `commondir`
+and spent ten seconds opening it for a writer,
+to end a read it believed was waiting there,
+then asserted that the round's lane read had outlasted its ceiling.
+`98f943d61a` had already moved that file's reader onto `foundation/plain_file.rs`,
+which opens without blocking and takes the type from the open handle,
+and the gates at `2005f92347` and earlier ran the same control without reporting it,
+so the read answered at once and the ten seconds were the control's own wait.
+Reproduced here with the control as the issue found it:
+`0 passed; 1 failed` in 10.01 s alone with `--exact`,
+and its sibling of the same file `1 passed; 0 failed` in 10.11 s,
+which is the same ten seconds of waiting with an assertion loose enough to pass.
+The place the drain's step needs is now held by a job of the control's own,
+awaited no longer than a ceiling and let go on a channel the control owns,
+and the control owns a process of its own for the bound it holds,
+as the setters of this item now require.
+Its sibling asserts what the release does,
+that a pipe at `commondir` answers at once with the directory's own lane;
+with a blocking read put back in `common_directory_of_a_git_directory.rs`
+the sibling answered `0 passed; 1 failed` in 30.01 s,
+so that control is the guard a blocking `commondir` read has to pass.
+Measured after:
+`cargo test --locked --offline --lib --features test-only-switches landing::service_round:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 12 passed; 0 failed; 0 ignored`,
+and each changed control alone answered `1 passed; 0 failed`.
+
+Round of 2026-11-26:
+issue 6495 is fixed by running one control's body in a child of its own
+(`process_wide_state_child_test_support.rs`),
+`worktree::worktree_clean`'s one-place control (`3a4f2ee6d8` and `8ba6a8c5be`).
+Measured there:
+a threaded module run has already made the budget with seven places,
+so `hold_blocking_jobs_to(1)` arrived too late and the control held one place of seven;
+the same control passed in other runs because another test's job happened to be waiting.
+The child reads its bound before the work runs and fails when it is not the one place,
+so a body back in the parent fails at once,
+naming the cause,
+instead of at the holder's ten-second patience.
+That fixes the one site and not the shared helper:
+`hold_the_only_place` holds the process's only place only where it is the process's first
+blocking-job user,
+which is issue 6477,
+and the other call sites of it are unchanged.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
@@ -866,6 +914,56 @@ Fix: one round, after the live rounds touching those files merge, that turns eve
 slice and leaves meaningful lengths, plus a `source_guard` control that refuses a new `const` list of string literals
 with a numeric length; the package guide states the rule since this item.
 Size: up to 277 constants, most of them one-line changes.
+
+Landed 2026-11-26,
+on `refactor/git-policy-cli-fixed-length-lists-become-slices`:
+`14053c4fd5` (run 1:
+276 declarations in 226 files),
+`b37ed74e76` (run 2:
+23 declarations in 21 files and 2 parameters),
+`af3461a08f` (the guard reads a list whose `[` starts on the line below),
+and `a68915d6f3` (the borrows Clippy named),
+after merges of `main`.
+The ledger's search answers 7 lines today:
+4 are the guard's own planted fixtures,
+and the 3 declarations that stay are `REWRITTEN` and `UNTOUCHED`,
+the nine words of one subvolume index record,
+and `WAIT_LIMITS`,
+the window,
+poll and cap one wait destructures.
+Run 1's sweep matched only a declaration whose type and initializer shared a line
+and whose element type held no bracket of its own,
+so 23 declarations and 2 parameters were still arrays
+(the guard named 19 of them;
+four more are a list of a name,
+two of a byte tag and one of a watched signal,
+whose element type names no text):
+`[&[&str]; N]` lists of subcommand words,
+`[(&str, &[u8], bool); N]` case rows,
+and a `= [` on the line below.
+`source_guard/lists_are_slices_tests.rs` refuses a new one:
+a `const` whose element type names a text reference and whose length is a number is a finding in any layout.
+It was shown failing on a planted `const PLANTED_NAMES: [&str; 2] = ["first", "second"];`
+at `foundation/kept_names_in_the_git_directories.rs:65`,
+and green again once the plant was removed.
+Seven fixed-length arrays stay,
+each with a length that is the meaning and none holding text:
+the two index records,
+`WAIT_LIMITS`,
+`PENDING`'s one slot per relayed signal,
+a torn UTF-8 lead byte,
+the four-byte index magic word and the shell's escaped quote.
+Not done:
+the 297 local `let NAME: [&str; N] = [...]` lists
+(`rg ':\s*\[[^]]*(str|String|OsStr|OsString)[^]]*; [0-9]+\]' src` answers 302 lines,
+297 of them `let`,
+almost all in test files),
+because this item measured constants and the guard refuses constants,
+so converting a local is a decision nobody has made.
+No container gate and no independent review ran.
+Status:
+incomplete,
+unapproved and not final.
 
 ## Already in flight, do not duplicate
 

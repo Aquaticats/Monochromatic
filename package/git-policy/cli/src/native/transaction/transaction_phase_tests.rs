@@ -112,7 +112,13 @@ fn malformed_values_are_refused() {
 #[test]
 fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
-    let phases: String = TRANSACTION_TEST_PHASES.map(Phase::name).join(", ");
+    let phases: String = TRANSACTION_TEST_PHASES
+        .iter()
+        .map(|phase| {
+            return phase.name();
+        })
+        .collect::<Vec<&str>>()
+        .join(", ");
     assert_eq!(
         error.to_string(),
         format!(

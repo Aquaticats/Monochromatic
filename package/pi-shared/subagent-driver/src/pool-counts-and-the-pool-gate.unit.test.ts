@@ -602,32 +602,37 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order, which reaches opencode-go first because the qwen plan pool before it takes only its own model, goes on to Neuralwatt flex once opencode-go is full, and skips a pool that takes only its own model',
+          name: 'takes the owner order, which reaches the qwen plan\'s DeepSeek pool first since the owner put it there for writers on 2026-11-26, goes on to opencode-go once it is full and to Neuralwatt flex once both are, and skips a pool that takes only its own model',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(OPENCODE_GO,);
-            // The qwen plan's DeepSeek pool takes only a run that names its own model, so a run naming no model never lands on it.
-            expect(openDefaultPools().map(function nameOf(pool,) {
-              return pool.name;
-            },),).not.toContain(QWEN_PLAN_DEEPSEEK.name,);
-            // Runs going on the qwen plan's DeepSeek pool are counted there, and take no room from the pool a run that names no model
-            // of its own goes to.
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(QWEN_PLAN_DEEPSEEK,);
+            // The qwen plan's DeepSeek pool takes default runs since 2026-11-26, when the owner answered "Qwen, opencode-go, flex
+            // (Recommended)" (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`).
+            expect(openDefaultPools(),).toContain(QWEN_PLAN_DEEPSEEK,);
+            // The pools one model alone takes are never a default run's.
+            expect(openDefaultPools(),).not.toContain(QWEN_PLAN_QWEN4_MAX_PREVIEW,);
+            expect(openDefaultPools(),).not.toContain(NEURALWATT_KIMI_FLEX,);
+            // The first pool is taken until it is full, and only then the next one.
+            expect(firstDefaultPoolWithRoom({
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit - 1,), },),
+            },),).toEqual(QWEN_PLAN_DEEPSEEK,);
             expect(firstDefaultPoolWithRoom({
               tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,), },),
             },),).toEqual(OPENCODE_GO,);
-            // The pool the owner prefers is taken until it is full, and only then the next one.
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit - 1,), },),
-            },),).toEqual(OPENCODE_GO,);
-            expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(OPENCODE_GO, OPENCODE_GO.limit,), },),
+              tallies: talliesOf({
+                runs: [
+                  ...runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,),
+                  ...runsIn(OPENCODE_GO, OPENCODE_GO.limit,),
+                ],
+              },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
-            // With the preferred pool closed by a caller, as when its week is spent, the next one is taken at once.
+            // With the first pool closed by a caller, as when its quota is spent, the next one is taken at once.
             expect(firstDefaultPoolWithRoom({
               tallies: talliesOf({
                 runs: [],
-                pools: poolsWithTheseLimits({ limits: new Map([[OPENCODE_GO.name, 0],]), },),
+                pools: poolsWithTheseLimits({ limits: new Map([[QWEN_PLAN_DEEPSEEK.name, 0],]), },),
               },),
-            },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
+            },),).toEqual(OPENCODE_GO,);
           },
         },),
         it({

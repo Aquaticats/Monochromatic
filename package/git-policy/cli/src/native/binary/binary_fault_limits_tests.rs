@@ -131,7 +131,7 @@ fn limited_commit(
     repo: &Path,
     wrapper: &[Limit],
 ) -> Output {
-    let mut command: Command = unbounded_wrapper(fixture, repo, &COMMIT_ARGUMENTS);
+    let mut command: Command = unbounded_wrapper(fixture, repo, COMMIT_ARGUMENTS);
     for &(kind, soft_value, hard_value) in wrapper {
         // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
         unsafe {
@@ -1575,7 +1575,7 @@ fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
         ..ServiceLaunch::default()
     };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS);
+    let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), COMMIT_ARGUMENTS);
     // SAFETY: the closure calls only `sched_getaffinity` and `sched_setaffinity`.
     unsafe {
         command.pre_exec(super::support::restrict_to_one_cpu);

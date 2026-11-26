@@ -27,7 +27,9 @@ const PROVISIONAL_MAX_TOKENS = 16_384;
 const UNDISPATCHABLE = {
   'before starting a session': { startSession: false, message: 'requires a started Pi session', },
   'with an unknown virtual model': { id: 'unknown-model', message: 'Unknown rate-limit-fallback model', },
-  'with a mismatched registry model': { findModel: () => PHYSICAL_MODELS[1], message: 'Pi registry returned a different model', },
+// The writer pool's head is the qwen plan's member since 2026-11-26, so the stub returns a record of
+  // another pool: a catalog answer that is not the member asked for.
+  'with a mismatched registry model': { findModel: () => PHYSICAL_MODELS[0], message: 'Pi registry returned a different model', },
   'without any registered member': { models: [], message: 'No writer-pool member is registered in Pi', },
   // The pool table is a lookup over the package's own pools, so a key only an object prototype
   // carries is no pool either.

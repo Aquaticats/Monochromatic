@@ -36,7 +36,7 @@ const TEST_ONLY_PREFIX: &str = "CLI_GIT_TEST_ONLY_";
 
 /// The calls that read the environment,
 /// which a test-only switch may reach only through the gated read.
-const ENVIRONMENT_READS: [&str; 4] = ["env::var(", "env::var_os(", "env::vars(", "vars_os("];
+const ENVIRONMENT_READS: &[&str] = &["env::var(", "env::var_os(", "env::vars(", "vars_os("];
 
 /// The release files that name a test-only switch beside an environment read without being a finding,
 /// with why.

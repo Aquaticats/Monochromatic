@@ -46,7 +46,7 @@ use crate::worktree_clone_removal_proof_and_plan::started_moment::is_seconds_wit
 
 /// The keys whose presence the record's state decides,
 /// and so the ones a reader must see absent or present as the state says.
-const STATE_KEYS: [&str; 5] = [
+const STATE_KEYS: &[&str] = &[
     "attemptedAt",
     "blockedReason",
     "blockedErrno",
@@ -208,7 +208,7 @@ fn the_record(held: &[(&str, &str)]) -> Result<OriginCleanupRecord, CleanupRefus
     }
     let blocked: bool = state == CleanupState::Blocked;
     let attempted_at: Option<String> = optional(held, "attemptedAt");
-    for key in STATE_KEYS {
+    for &key in STATE_KEYS {
         let present: bool = value_of(held, key).is_some();
         if present != blocked && key != "attemptedAt" {
             return Err(CleanupRefusal::at(

@@ -153,13 +153,13 @@ fn the_absence_is_unproved() -> ScriptedProbe {
 
 /// The five head words a plan's grammar allows,
 /// which every state control walks.
-const EVERY_HEAD_WORD: [&str; 5] = ["present", "requested", "gone", "refused", "unknown"];
+const EVERY_HEAD_WORD: &[&str] = &["present", "requested", "gone", "refused", "unknown"];
 
 /// A clone that stands is the removal's state whatever the plan's head word says,
 /// because the plan's clone is the same clone however the demand was recorded.
 #[test]
 fn a_clone_that_stands_names_the_removal_for_every_head_word() {
-    for head in EVERY_HEAD_WORD {
+    for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
             format!("stop-stands-{head}").as_str(),
             head,
@@ -182,7 +182,7 @@ fn a_clone_that_stands_names_the_removal_for_every_head_word() {
 /// and the removal where the head was already gone.
 #[test]
 fn a_proved_absence_names_the_command_the_head_word_gives() {
-    for head in EVERY_HEAD_WORD {
+    for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
             format!("stop-gone-{head}").as_str(),
             head,
@@ -208,7 +208,7 @@ fn a_proved_absence_names_the_command_the_head_word_gives() {
 /// whose route is the finish pass and which names no command to run.
 #[test]
 fn an_unproved_absence_names_the_settling_command_unless_the_head_is_gone() {
-    for head in EVERY_HEAD_WORD {
+    for &head in EVERY_HEAD_WORD {
         let route: RouteFacts = a_route_with_a_plan(
             format!("stop-unproved-{head}").as_str(),
             head,

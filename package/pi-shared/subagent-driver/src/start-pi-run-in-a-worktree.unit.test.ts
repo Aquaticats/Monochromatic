@@ -46,6 +46,7 @@ import {
   PROVIDER_POOLS,
   QWEN_PLAN_DEEPSEEK,
   SUMMARY_FILE_NAME,
+  VIRTUAL_WRITER,
   WRAPPER_COMMAND,
   entryLineOf,
   poolTakesNoNewRun,
@@ -1342,23 +1343,23 @@ await describe({
       },
     },),
     it({
-      name: 'takes opencode-go when its command line names no provider, and gives the run that pool\'s provider, model and wall clock',
+      name: 'takes the qwen plan\'s DeepSeek pool when its command line names no provider, and gives the run that pool\'s provider, model and wall clock',
       fn: async () => {
         const answered = await launchThroughTheStandIns({},);
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
         // The unit's own command line is what the pool gate counts, so the run holds the slot it took for its whole life.
-        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
-        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
+        expect(answered.unitWords,).toContain(`--provider=${QWEN_PLAN_DEEPSEEK.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${QWEN_PLAN_DEEPSEEK.model}`,);
         // The pool is named beside the counts a reader weighs, and nothing tells that reader the pool gate chose it.
-        expect(answered.stdout,).toContain(`pool: ${OPENCODE_GO.name},`,);
+        expect(answered.stdout,).toContain(`pool: ${QWEN_PLAN_DEEPSEEK.name},`,);
         expect(answered.stdout,).toContain('the first open pool a run that names no provider may take',);
         expect(answered.stderr,).not.toContain('takes no new run',);
         // A pool that answers more slowly gets more wall clock, as it does when the pool gate moves a run here.
         expect(answered.unitWords,).toContain(`--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({
           wallSeconds: wallSecondsOn({
             wallSeconds: WALL_SECONDS_OF_A_TEST_RUN,
-            wallFactor: OPENCODE_GO.wallFactor,
+            wallFactor: QWEN_PLAN_DEEPSEEK.wallFactor,
           },),
         },),)}`,);
         expect(answered.runsFolderHolds.some(function isTheRunsFolder(entry,) {
@@ -1367,28 +1368,34 @@ await describe({
       },
     },),
     it({
-      name: 'takes Neuralwatt\'s flex pool when opencode-go is closed, and never the closed pool',
+      name: 'takes opencode-go when the qwen plan\'s DeepSeek pool is closed, and never the closed pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
-          environment: { [POOL_LIMITS_VARIABLE]: `${OPENCODE_GO.name}=0`, },
+          environment: { [POOL_LIMITS_VARIABLE]: `${QWEN_PLAN_DEEPSEEK.name}=0`, },
         },);
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.code,).not.toBe(CLOSED_POOL_EXIT_STATUS,);
-        expect(answered.unitWords,).toContain(`--provider=${NEURALWATT_DEEPSEEK_FLEX.provider}`,);
-        expect(answered.unitWords,).toContain(`--model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
-        expect(answered.stdout,).toContain(`pool: ${NEURALWATT_DEEPSEEK_FLEX.name},`,);
+        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
+        expect(answered.stdout,).toContain(`pool: ${OPENCODE_GO.name},`,);
         // The closed pool is named in the counts beside the pool the run took, and not as the pool it took.
-        expect(answered.stdout,).not.toContain(`pool: ${OPENCODE_GO.name},`,);
+        expect(answered.stdout,).not.toContain(`pool: ${QWEN_PLAN_DEEPSEEK.name},`,);
       },
     },),
     it({
-      name: 'takes Neuralwatt\'s flex pool when opencode-go is full, counting the runs the pool gate counts',
+      name: 'takes Neuralwatt\'s flex pool when the two pools before it are full, counting the runs the pool gate counts',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
-          environment: { [POOL_LIMITS_VARIABLE]: `${OPENCODE_GO.name}=1`, },
+          environment: {
+            [POOL_LIMITS_VARIABLE]: `${QWEN_PLAN_DEEPSEEK.name}=1,${OPENCODE_GO.name}=1`,
+          },
           otherLaunchers: [
             {
               name: 'another-run',
+              pool: QWEN_PLAN_DEEPSEEK,
+            },
+            {
+              name: 'another-review',
               pool: OPENCODE_GO,
             },
           ],
@@ -1396,7 +1403,8 @@ await describe({
         expect(answered.unitWasReached,).toBe(true,);
         expect(answered.unitWords,).toContain(`--model=${NEURALWATT_DEEPSEEK_FLEX.model}`,);
         expect(answered.stdout,).toContain(`pool: ${NEURALWATT_DEEPSEEK_FLEX.name},`,);
-        // The count the choice was read from is the one the line prints, so a reader sees the pool that was full.
+        // The count the choice was read from is the one the line prints, so a reader sees the pools that were full.
+        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 1/1`,);
         expect(answered.stdout,).toContain(`${OPENCODE_GO.name} 1/1`,);
       },
     },),
@@ -1550,6 +1558,117 @@ await describe({
         expect(answered.unitWords.filter(function isTheLimitsWord(word,) {
           return word.startsWith(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
         },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says the pools its router may take have room',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: VIRTUAL_WRITER.provider,
+          model: VIRTUAL_WRITER.model,
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.stderr,).not.toContain('takes no new run',);
+        // The unit keeps the virtual pair, because that pair is what lets the plugin's router move a refused request on: rewriting it
+        // into one member's pair would pin the run to that member.
+        expect(answered.unitWords,).toContain(`--provider=${VIRTUAL_WRITER.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${VIRTUAL_WRITER.model}`,);
+        // The line names every pool the router may take, so a reader sees what this run holds of each.
+        for (const pool of VIRTUAL_WRITER.memberPools) {
+          expect(answered.stdout,).toContain(pool.name,);
+        }
+        expect(answered.stdout,).toContain(`pool: ${VIRTUAL_WRITER.provider}/${VIRTUAL_WRITER.model},`,);
+        // The run may last as long as the slowest pool of that order would give it, because the router can land there.
+        expect(answered.unitWords,).toContain(`--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({
+          wallSeconds: wallSecondsOn({
+            wallSeconds: WALL_SECONDS_OF_A_TEST_RUN,
+            wallFactor: Math.max(...VIRTUAL_WRITER.memberPools.map(function wallFactorOf(pool,) {
+              return pool.wallFactor;
+            },),),
+          },),
+        },),)}`,);
+        expect(answered.runsFolderHolds.some(function isTheRunsFolder(entry,) {
+          return entry.startsWith('refused-',);
+        },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'counts a run on the virtual writer in every pool its router may take, so a run that fills one of them leaves the next one to a run started after it',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          environment: { [POOL_LIMITS_VARIABLE]: `${QWEN_PLAN_DEEPSEEK.name}=1`, },
+          otherLaunchers: [
+            {
+              name: 'another-run',
+              pool: {
+                provider: VIRTUAL_WRITER.provider,
+                model: VIRTUAL_WRITER.model,
+              },
+            },
+          ],
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        // A run on the virtual writer holds a slot in the first pool of that order too, so a default run started while it is going
+        // finds that pool full and takes the next one.
+        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
+        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 1/1`,);
+      },
+    },),
+    it({
+      name: 'refuses a run on the virtual writer when one pool its router may take is full, naming that pool and its count, and starts nothing',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: VIRTUAL_WRITER.provider,
+          model: VIRTUAL_WRITER.model,
+          environment: { [POOL_LIMITS_VARIABLE]: `${NEURALWATT_DEEPSEEK_FLEX.name}=1`, },
+          otherLaunchers: [
+            {
+              name: 'another-review',
+              pool: NEURALWATT_DEEPSEEK_FLEX,
+            },
+          ],
+        },);
+        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        // A pool the router may send the run to has no room, and the run would hold a slot there, so it cannot start.
+        expect(answered.stderr,).toContain(`${NEURALWATT_DEEPSEEK_FLEX.name}: full: 1 going of the 1 it takes`,);
+        expect(answered.stderr,).toContain(`--provider=${VIRTUAL_WRITER.provider} --model=${VIRTUAL_WRITER.model}`,);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses a run on the virtual writer when every pool its router may take is full, naming each one with its count',
+      fn: async () => {
+        /**
+         The pools the virtual writer's router may take, each given one slot for this command.
+         */
+        const members = VIRTUAL_WRITER.memberPools;
+        const answered = await launchThroughTheStandIns({
+          provider: VIRTUAL_WRITER.provider,
+          model: VIRTUAL_WRITER.model,
+          environment: {
+            [POOL_LIMITS_VARIABLE]: members.map(function oneSlot(pool,) {
+              return `${pool.name}=1`;
+            },)
+              .join(',',),
+          },
+          otherLaunchers: members.map(function aRunOn(pool,) {
+            return {
+              name: `another-${pool.name}`,
+              pool: {
+                provider: pool.provider,
+                model: pool.model,
+              },
+            };
+          },),
+        },);
+        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        for (const pool of members) {
+          expect(answered.stderr,).toContain(`${pool.name}: full: 1 going of the 1 it takes`,);
+        }
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
       },
     },),
     it({

@@ -29,7 +29,7 @@ use std::path::Path;
 
 /// The executable the release archive holds,
 /// which `.github/workflows/cargo-publish.yml` builds with one `--bin` and copies into one archive.
-const RELEASED_BINS: [&str; 1] = ["monochromatic-git-policy-cli"];
+const RELEASED_BINS: &[&str] = &["monochromatic-git-policy-cli"];
 
 /// What:
 ///  The `[[bin]]` tables of a manifest as `(name, path)` pairs, in the order they are written.

@@ -169,7 +169,7 @@ const READ_BUFFER: usize = 64 * 1024;
 /// The address families asked,
 /// IPv4 first.
 #[cfg(target_os = "linux")]
-const FAMILIES: [libc::c_int; 2] = [libc::AF_INET, libc::AF_INET6];
+const FAMILIES: &[libc::c_int] = &[libc::AF_INET, libc::AF_INET6];
 
 /// Read four bytes at `at` as a native-endian number,
 /// or nothing where the buffer ends first.
@@ -384,7 +384,7 @@ pub fn established_sockets() -> Option<Vec<TcpSocket>> {
         );
     }
     let mut all: Option<Vec<TcpSocket>> = None;
-    for (sequence, family) in (1u32..).zip(FAMILIES) {
+    for (sequence, family) in (1u32..).zip(FAMILIES.iter().copied()) {
         // A family the kernel does not offer (no IPv6) makes no list; the others still answer.
         if let Some(found) = dump_family(descriptor, family, sequence) {
             all.get_or_insert_with(Vec::new).extend(found);

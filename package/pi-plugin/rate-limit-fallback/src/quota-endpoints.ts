@@ -141,6 +141,11 @@ const FLEX_LANE_SUFFIX = '-flex';
  (https://docs.neuralwatt.com/guides/rate-limits.md, "Checking your current limit"). The row names
  the canonical model, so the lane comes from the id the pool asked for, not from the row.
 
+ Exported for the built-artifact suites: standard NeuralWatt left every pool on 2026-11-26, so no
+ dispatch names an id of that lane and the reading is checked directly instead.
+
+ @internal
+
  @param limits - one model's rate-limit response
 
  @param quota - account quota response
@@ -149,7 +154,7 @@ const FLEX_LANE_SUFFIX = '-flex';
 
  @returns qualified ceiling and subscription state
  */
-function neuralWattEvidence({
+export function neuralWattEvidence({
   limits,
   quota,
   memberId,

@@ -191,7 +191,7 @@ pub const HEAD_WINDOW: i64 = 2 * EXCERPT_CONTEXT + 1;
 pub const INPUT_UNIT_CAP: usize = 24000;
 
 /// Name endings that count as code.
-pub const CODE_SUFFIXES: [&str; 6] = [".ts", ".tsx", ".rs", ".js", ".mjs", ".cjs"];
+pub const CODE_SUFFIXES: &[&str] = &[".ts", ".tsx", ".rs", ".js", ".mjs", ".cjs"];
 
 /// What:
 ///  What a landed commit's changed names say before anything is read from Git.

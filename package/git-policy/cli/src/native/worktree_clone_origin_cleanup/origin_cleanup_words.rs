@@ -58,7 +58,7 @@ pub const ORIGIN_CLEANUP_NAME_BYTES: usize =
 ///  One order refuses a repeated key,
 ///  a missing key and a key written out of place with one rule,
 ///  so no reader has to guess which of two lines is the record's.
-pub const ORIGIN_CLEANUP_KEYS_IN_ORDER: [&str; 15] = [
+pub const ORIGIN_CLEANUP_KEYS_IN_ORDER: &[&str] = &[
     "state",
     "startedAt",
     "attemptedAt",

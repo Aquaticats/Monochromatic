@@ -242,7 +242,7 @@ pub fn drain_planned_with(
         lease,
         renewal,
         retrying,
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {
@@ -333,7 +333,7 @@ pub fn drain_common_records_planned(
         now,
         lease,
         retrying,
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
     )) {
         Ok(drained) => drained,
         Err(refusal) => {

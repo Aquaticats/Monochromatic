@@ -47,7 +47,7 @@ const SENDER: i32 = 4_242;
 /// Why:
 ///  The list is the record's own answer to "why does this say unidentified?":
 ///  a control that repeated the module's own constant could not notice that a route went missing from it.
-const ROUTES_A_MESSAGE_IS_NOT: [&str; 7] = [
+const ROUTES_A_MESSAGE_IS_NOT: &[&str] = &[
     KIND_POLICY,
     KIND_CORE_FINDING,
     KIND_ENGINE_FAILURE,
@@ -58,7 +58,7 @@ const ROUTES_A_MESSAGE_IS_NOT: [&str; 7] = [
 ];
 
 /// The routes `reason_of_events` looked for and found absent.
-const ROUTES_AN_EVENT_IS_NOT: [&str; 3] = [KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
+const ROUTES_AN_EVENT_IS_NOT: &[&str] = &[KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
 
 /// A control's finding,
 /// at the severity given.
@@ -233,7 +233,7 @@ fn a_failed_step_is_the_reason_and_an_unknown_route_is_named_as_one() {
     //  and it says which routes were looked for and were not it.
     assert_eq!(
         reason_of_stop(&TransactionStop::Message(String::from("words")), None),
-        CommitStopReason::unidentified(&ROUTES_A_MESSAGE_IS_NOT)
+        CommitStopReason::unidentified(ROUTES_A_MESSAGE_IS_NOT)
     );
     // A transaction failure no step explains keeps the engine's own code.
     let engine: CommitStopReason = reason_of_stop(
@@ -272,7 +272,7 @@ fn the_events_name_the_route_that_explains_the_exit() {
     );
     assert_eq!(
         reason_of_events(&[]),
-        CommitStopReason::unidentified(&ROUTES_AN_EVENT_IS_NOT)
+        CommitStopReason::unidentified(ROUTES_AN_EVENT_IS_NOT)
     );
 }
 
@@ -418,7 +418,7 @@ fn a_signal_names_its_sender_where_the_kernel_names_one() {
 #[test]
 fn a_stop_with_no_route_says_what_was_ruled_out() {
     let line: String = stop_json(Some(&CommitStopReason::unidentified(
-        &ROUTES_A_MESSAGE_IS_NOT,
+        ROUTES_A_MESSAGE_IS_NOT,
     )));
     let parsed: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
     let routes: Vec<&str> = parsed["ruledOut"]

@@ -33,7 +33,7 @@ use crate::source_scan_tests::{
 use std::path::PathBuf;
 
 /// The attributes that name a lint level, and so can silence one.
-const LINT_LEVEL_ATTRIBUTES: [&str; 6] = [
+const LINT_LEVEL_ATTRIBUTES: &[&str] = &[
     "allow(",
     "expect(",
     "warn(",
@@ -45,7 +45,7 @@ const LINT_LEVEL_ATTRIBUTES: [&str; 6] = [
 /// Every release attribute that can set a lint level, with the file it stands in: the whole set.
 /// An anchor is the squeezed text from `#[` through the attribute's closing `]`,
 /// so an attribute split over two lines is one anchor and a reason's prose is not part of it.
-const LINT_LEVELS: [(&str, &str); 36] = [
+const LINT_LEVELS: &[(&str, &str)] = &[
     (
         "foundation/call_catching_panics.rs",
         "#[cfg_attr(dylint_lib=\"monochromatic_lint_closure\",expect(avoidable_closure))]",

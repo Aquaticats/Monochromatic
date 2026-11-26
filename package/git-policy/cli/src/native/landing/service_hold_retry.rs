@@ -65,7 +65,7 @@ const LOCK_REFUSAL: &str = "index.lock";
 const DIE_STATUS: i32 = 128;
 
 /// Options of `git add` that change nothing about its input and read no standard input.
-const ADD_OPTIONS: [&str; 20] = [
+const ADD_OPTIONS: &[&str] = &[
     "-v",
     "-n",
     "-f",
@@ -89,7 +89,7 @@ const ADD_OPTIONS: [&str; 20] = [
 ];
 
 /// Options of `git rm` that read no standard input.
-const REMOVE_OPTIONS: [&str; 10] = [
+const REMOVE_OPTIONS: &[&str] = &[
     "-f",
     "-n",
     "-q",
@@ -103,7 +103,7 @@ const REMOVE_OPTIONS: [&str; 10] = [
 ];
 
 /// Options of `git mv` that read no standard input.
-const MOVE_OPTIONS: [&str; 8] = [
+const MOVE_OPTIONS: &[&str] = &[
     "-f",
     "-k",
     "-n",
@@ -134,9 +134,9 @@ pub fn may_run_again(
     after_word: &[OsString],
 ) -> bool {
     let known: &[&str] = match word {
-        b"add" => &ADD_OPTIONS,
-        b"rm" => &REMOVE_OPTIONS,
-        b"mv" => &MOVE_OPTIONS,
+        b"add" => ADD_OPTIONS,
+        b"rm" => REMOVE_OPTIONS,
+        b"mv" => MOVE_OPTIONS,
         _ => return false,
     };
     for argument in after_word {

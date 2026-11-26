@@ -7,13 +7,13 @@ use super::*;
 
 /// Every class,
 /// so a relation is checked for each.
-const CLASSES: [ChildClass; 2] = [ChildClass::Plumbing, ChildClass::Object];
+const CLASSES: &[ChildClass] = &[ChildClass::Plumbing, ChildClass::Object];
 
 /// Subcommands that move bytes,
 /// or compare the index with the worktree,
 /// or talk to a remote:
 ///  inputs for the claim that anything not named a query is a bulk step.
-const BULK_STEPS: [&str; 10] = [
+const BULK_STEPS: &[&str] = &[
     "pack-objects",
     "index-pack",
     "add",
@@ -84,7 +84,7 @@ fn steps_that_move_bytes_or_compare_the_index_are_bulk_work() {
 #[test]
 fn no_bulk_step_is_in_the_query_list() {
     for name in BULK_STEPS {
-        assert!(!PLUMBING_SUBCOMMANDS.contains(&name), "{name}");
+        assert!(!PLUMBING_SUBCOMMANDS.contains(name), "{name}");
     }
 }
 

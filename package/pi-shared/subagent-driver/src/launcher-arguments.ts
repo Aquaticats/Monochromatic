@@ -63,14 +63,17 @@ export function wallSecondsOn({
  options the caller left out appended.
 
  A run that took the first pool with room gets that pool's provider and model, and its wall clock multiplied by how much slower
- that pool answers. A run that resumes a session, or that names a model only one pool takes, keeps what its caller wrote and no
- wall factor is applied: it stays on the pool it named.
+ that pool answers. A run on a virtual selection keeps the provider and model it named, so its router can still move a request on,
+ and gets the largest wall factor of the pools that router may take. A run that resumes a session, or that names a model only one
+ pool takes, keeps what its caller wrote and no wall factor is applied: it stays on the pool it named.
 
  @param commandLine - the words the caller wrote
 
  @param pool - the pool the run goes on, when it goes on one
 
  @param movesTheRun - whether the gate chose the pool rather than the caller
+
+ @param wallFactor - how much longer a run on a virtual selection may last, when the run takes one
 
  @param wallSeconds - the wall clock the caller asked for, when it asked for one
 
@@ -89,6 +92,7 @@ export function launcherArgumentsOf({
   commandLine,
   pool,
   movesTheRun,
+  wallFactor,
   wallSeconds,
   sessionFile,
   runsFolder,
@@ -96,10 +100,16 @@ export function launcherArgumentsOf({
   readonly commandLine: readonly string[];
   readonly pool?: ProviderPool;
   readonly movesTheRun: boolean;
+  readonly wallFactor?: number;
   readonly wallSeconds?: number;
   readonly sessionFile?: string;
   readonly runsFolder: string;
 }): LauncherArguments {
+  /**
+   How much longer the run may last: the pool's own factor when the gate moved the run onto it, the factor a caller hands over for
+   a run that keeps the virtual selection it named, and none at all for a run whose wall clock stays as its caller wrote it.
+   */
+  const factor = wallFactor ?? (((movesTheRun) && (pool !== undefined)) ? pool.wallFactor : undefined);
   /**
    The words written so far.
    */
@@ -107,19 +117,19 @@ export function launcherArgumentsOf({
     if (word.startsWith(SESSION_OF_OPTION,)) {
       return `${SESSION_OPTION}${sessionFile ?? ''}`;
     }
-    if ((!movesTheRun) || (pool === undefined)) {
-      return word;
+    if (movesTheRun && (pool !== undefined)) {
+      if (word.startsWith(PROVIDER_OPTION,)) {
+        return `${PROVIDER_OPTION}${pool.provider}`;
+      }
+      if (word.startsWith(MODEL_OPTION,)) {
+        return `${MODEL_OPTION}${pool.model}`;
+      }
     }
-    if (word.startsWith(PROVIDER_OPTION,)) {
-      return `${PROVIDER_OPTION}${pool.provider}`;
-    }
-    if (word.startsWith(MODEL_OPTION,)) {
-      return `${MODEL_OPTION}${pool.model}`;
-    }
-    return (word.startsWith(WALL_OPTION,) && (wallSeconds !== undefined))
+    return (word.startsWith(WALL_OPTION,) && (wallSeconds !== undefined)
+      && (factor !== undefined))
       ? `${WALL_OPTION}${String(wallSecondsOn({
         wallSeconds,
-        wallFactor: pool.wallFactor,
+        wallFactor: factor,
       },),)}`
       : word;
   },);

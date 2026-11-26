@@ -43,7 +43,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
 use std::path::PathBuf;
 
 /// Every head word a pass must leave alone.
-const OTHER_HEADS: [HeadWord; 4] = [
+const OTHER_HEADS: &[HeadWord] = &[
     HeadWord::Present,
     HeadWord::Requested,
     HeadWord::Refused,
@@ -80,7 +80,7 @@ fn a_repository_with_no_plan_folder_is_looked_at_once_and_says_nothing() {
 
 #[test]
 fn a_plan_whose_head_is_not_gone_is_left_without_a_word() {
-    for head in OTHER_HEADS {
+    for &head in OTHER_HEADS {
         let name: String = format!("finish-pass-head-{}", head.word());
         let fixture: RemovalFixture = RemovalFixture::healthy(name.as_str());
         let plan = a_plan_for(&fixture, head);

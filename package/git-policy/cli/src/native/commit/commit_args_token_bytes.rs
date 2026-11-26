@@ -29,7 +29,7 @@ use std::ffi::{
 };
 
 /// Short-value options whose clustered form can carry the value in the same token.
-const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
+const SHORT_VALUE_OPTIONS: &[&str] = &["-m", "-F", "-C", "-c", "-t", "-U"];
 
 /// Short commit options with an optional attached value (`-S[<keyid>]`,
 /// `-u[<mode>]`).

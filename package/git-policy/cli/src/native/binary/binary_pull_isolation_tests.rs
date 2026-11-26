@@ -574,7 +574,7 @@ fn sorted_milliseconds(times: &[std::time::Duration]) -> Vec<u128> {
 #[ignore = "a measurement for the handover, not a control"]
 fn measure_the_split_pull_against_native_git() {
     const ROUNDS: usize = 9;
-    const ARMS: [&str; 5] = [
+    const ARMS: &[&str] = &[
         "native first",
         "wrapper split",
         "wrapper leaves it to native",

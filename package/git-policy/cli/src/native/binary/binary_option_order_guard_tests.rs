@@ -351,7 +351,7 @@ fn the_checks_catch_a_wrapper_option_after_the_separator_and_a_quiet_nobody_type
 
 /// The commands the guard runs besides commits,
 /// each with a pathspec after the person's `--`.
-const OTHER_COMMANDS: [&[&str]; 9] = [
+const OTHER_COMMANDS: &[&[&str]] = &[
     &["add", "--", "a.txt"],
     &["reset", "--", "a.txt"],
     &["restore", "--staged", "--", "a.txt"],
@@ -477,7 +477,7 @@ fn no_other_command_the_wrapper_builds_has_its_own_option_after_the_separator() 
     let mut service: Running = start(&fixture, name.as_str());
     let mut found: Vec<String> = Vec::new();
     let mut started: usize = 0;
-    for command in OTHER_COMMANDS {
+    for &command in OTHER_COMMANDS {
         let paths: Vec<&str> = command
             .iter()
             .copied()

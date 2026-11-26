@@ -368,7 +368,7 @@ pub fn look_at(
 
 /// The kernel functions a process sleeps in while it reads a Unix socket an answer is expected on.
 ///  Linux's `af_unix.c` waits in the first for a stream socket with no data yet.
-const ANSWER_WAIT_CHANNELS: [&str; 2] = ["unix_stream_read_generic", "unix_stream_data_wait"];
+const ANSWER_WAIT_CHANNELS: &[&str] = &["unix_stream_read_generic", "unix_stream_data_wait"];
 
 /// The kernel function a process sleeps in,
 /// or `?` when the kernel does not say.

@@ -472,7 +472,9 @@ the bounded fuzz smoke and
 the guest run in
 [`doc/step-2-merge-checks-2026-11-19.md`](doc/step-2-merge-checks-2026-11-19.md),
 and the live arms' measured values in
-[`doc/guest-measurements-2026-11-19.md`](doc/guest-measurements-2026-11-19.md).
+[`doc/guest-measurements-2026-11-19.md`](doc/guest-measurements-2026-11-19.md),
+and the gate arm's two header lengths in
+[`doc/gate-arm-header-lengths-2026-11-26.md`](doc/gate-arm-header-lengths-2026-11-26.md).
 
 ## Using it
 
