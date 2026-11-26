@@ -147,6 +147,12 @@
 //!   the witness of the live index file as the landing found it under the index lock,
 //!   recorded in the journal,
 //!   and the comparison a replay makes with it.
+//! - `owed_index_repair_the_entries_it_reads.rs`:
+//!   what the repair reads about one path:
+//!   the entries in which the commit's own index differs from the live index,
+//!   and the object the worktree holds there.
+//! - `owed_index_repair_the_commit_index_writes.rs`:
+//!   the writes the repair makes to the commit's own index.
 //! - `owed_index_repair.rs`:
 //!   the repair that repeats a landed batch's owed index update for the entries the landing left.
 //! - `service_message.rs`:
@@ -798,6 +804,14 @@ pub mod conclusion_state_copy;
 
 /// The record of an index update a landed batch owes.
 pub mod owed_index_update;
+
+/// What the repair reads about one path:
+/// the entries in which the commit's own index differs from the live index,
+/// and the object the worktree holds there.
+pub mod owed_index_repair_the_entries_it_reads;
+
+/// The writes the repair makes to the commit's own index.
+pub mod owed_index_repair_the_commit_index_writes;
 
 /// The repair that repeats a landed batch's owed index update for the entries the landing left.
 pub mod owed_index_repair;

@@ -54,6 +54,14 @@
 //! const left = await excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex);
 //! ```
 
+use super::owed_index_repair_the_commit_index_writes::{
+    set_to_head_paths,
+    set_to_head_with,
+};
+use super::owed_index_repair_the_entries_it_reads::{
+    moved_since,
+    worktree_object,
+};
 use crate::owed_index_entries::{
     Entry,
     head_entries,
@@ -62,7 +70,6 @@ use crate::owed_index_entries::{
     is_zero_byte,
     moved_since_listing,
     names_in,
-    specs_of,
     tree_entries,
 };
 use crate::owed_index_update::Owed;
@@ -73,10 +80,7 @@ use crate::transaction_git::{
     run_git,
 };
 use std::collections::BTreeMap;
-use std::ffi::{
-    OsStr,
-    OsString,
-};
+use std::ffi::OsString;
 use std::path::{
     Path,
     PathBuf,
@@ -99,143 +103,6 @@ fn names_of(
         owed.new.as_str(),
     )?;
     return Ok(names_in(names.as_slice()));
-}
-
-/// What:
-///  The paths in which a commit's own index differs from the live index.
-/// Why:
-///   A writer replaces the index file whole,
-/// so a live index that is another file than the one the commit copied may
-///  hold entries the commit's copy does not:
-/// the paths that differ are where the copy is older.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// movedSince(liveIndex, commitIndex) // `git write-tree` then `diff-index --cached <tree>` on the copy
-/// ```
-fn moved_since(
-    git: &GitContext,
-    repository: &Path,
-    live_index: &Path,
-    commit_index: &Path,
-) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let mut tree: GitRequest = GitRequest::new(repository, &["write-tree"]);
-    tree.index = Some(live_index.to_path_buf());
-    let written = match run_git(git, &tree) {
-        Ok(answer) if answer.succeeded() => answer,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    let held: String = String::from_utf8_lossy(written.stdout.as_slice())
-        .trim()
-        .to_string();
-    let mut moved: GitRequest = GitRequest::new(
-        repository,
-        &["diff-index", "--cached", "--name-only", "-z", held.as_str()],
-    );
-    moved.index = Some(commit_index.to_path_buf());
-    let listing = match run_git(git, &moved) {
-        Ok(output) if output.succeeded() => output,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    return Ok(names_in(listing.stdout.as_slice()));
-}
-
-/// What:
-///  Sets an index to the worktree's head at `paths`,
-/// removing whatever it held there and below them first,
-/// and leaves the file exactly as it was when any step fails.
-/// Why:
-fn set_to_head_with(
-    git: &GitContext,
-    repository: &Path,
-    index: &Path,
-    paths: &[Vec<u8>],
-    _named: &Path,
-) -> Result<(), FailureCode> {
-    if paths.is_empty() {
-        return Ok(());
-    }
-    let kept: PathBuf = index.with_extension("before-head");
-    if let Err(error) = std::fs::copy(index, kept.as_path()) {
-        crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index cannot be copied aside before it is set to the head ({error})").as_str());
-        return Err(FailureCode::Unavailable);
-    }
-    let restored: Result<(), FailureCode> = set_to_head_unchecked(git, repository, index, paths);
-    if restored.is_err()
-        && let Err(error) = std::fs::copy(kept.as_path(), index)
-    {
-        crate::diagnostic_log::warn(
-            "servicePrepare",
-            format!("the commit's own index could not be put back after a refused step ({error})")
-                .as_str(),
-        );
-    }
-    let _gone: std::io::Result<()> = std::fs::remove_file(kept.as_path());
-    return restored;
-}
-
-/// The two steps of `set_to_head`,
-/// each of which may refuse.
-fn set_to_head_unchecked(
-    git: &GitContext,
-    repository: &Path,
-    index: &Path,
-    paths: &[Vec<u8>],
-) -> Result<(), FailureCode> {
-    let specs: Vec<OsString> = specs_of(paths);
-    let mut prune_words: Vec<&OsStr> = vec![
-        OsStr::new("rm"),
-        OsStr::new("--cached"),
-        OsStr::new("-r"),
-        OsStr::new("--force"),
-        OsStr::new("--ignore-unmatch"),
-        OsStr::new("--quiet"),
-        OsStr::new("--"),
-    ];
-    prune_words.extend(specs.iter().map(OsString::as_os_str));
-    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice()).own_pathspecs();
-    prune.index = Some(index.to_path_buf());
-    match run_git(git, &prune) {
-        Ok(output) if output.succeeded() => {}
-        _ => return Err(FailureCode::Unavailable),
-    }
-    if crate::service_land_follow::reset_entries(git, repository, Some(index), "HEAD", paths)
-        .is_ok()
-    {
-        return Ok(());
-    }
-    // A `reset` this wrapper refuses is not the only way to the head: the entries are written where the head's tree has them.
-    let head: BTreeMap<Vec<u8>, Entry> = head_entries(git, repository, paths)?;
-    let mut listing: Vec<u8> = Vec::new();
-    for path in paths {
-        let (mode, object) = match head.get(path) {
-            Some((mode, object)) => (mode.clone(), object.clone()),
-            // The head holds nothing there, so the entry goes.
-            None => (String::from("0"), String::from("0".repeat(40))),
-        };
-        listing.extend_from_slice(format!("{mode} {object} 0\t").as_bytes());
-        listing.extend_from_slice(path.as_slice());
-        listing.push(0);
-    }
-    let mut write: GitRequest =
-        GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
-    write.index = Some(index.to_path_buf());
-    write.input = Some(listing);
-    return match run_git(git, &write) {
-        Ok(answer) if answer.succeeded() => Ok(()),
-        _ => Err(FailureCode::Unavailable),
-    };
-}
-
-/// `set_to_head` for paths whose old entry is no record's,
-/// with the worktree's head as the entry to take.
-fn set_to_head_paths(
-    git: &GitContext,
-    repository: &Path,
-    index: &Path,
-    paths: &[Vec<u8>],
-) -> Result<(), FailureCode> {
-    return set_to_head_with(git, repository, index, paths, index);
 }
 
 /// What:
@@ -492,83 +359,6 @@ pub fn exclude_with_note(
         }
     }
     return Ok(left);
-}
-
-/// What:
-///  The object the worktree holds at one path,
-/// or nothing when it holds no file there.
-/// Why:
-///   A worktree that still holds the entry the index holds means the person staged what they have,
-/// so the
-///  entry is their own statement and nothing may be changed there;
-/// a worktree that holds something
-///  else is an index that no longer describes it,
-/// which is what a failed index update leaves.
-/// The object is
-///  asked of the file itself,
-/// so no stat cache can answer for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// worktreeObject(name) // `git hash-object -- <path>`
-/// ```
-fn worktree_object(
-    git: &GitContext,
-    repository: &Path,
-    name: &[u8],
-) -> Result<Option<(String, String)>, FailureCode> {
-    let path: OsString = <OsString as std::os::unix::ffi::OsStringExt>::from_vec(name.to_vec());
-    let held: std::path::PathBuf = repository.join(path.as_os_str());
-    // A file that is not there is absent, which is evidence; one that is there and cannot be read is no evidence at all.
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(held.as_path()) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(_) => return Err(FailureCode::Unavailable),
-    };
-    // Git stores a link as the text of its target, so that text is what is hashed: hashing through the link would read the
-    //  referent (when it exists) or fail (when it does not), neither of which is the entry Git made.
-    let linking: bool = metadata.file_type().is_symlink();
-    let mut request: GitRequest = GitRequest::new(
-        repository,
-        &[OsStr::new("hash-object"), OsStr::new("--stdin")],
-    );
-    if linking {
-        let target: std::path::PathBuf = match std::fs::read_link(held.as_path()) {
-            Ok(target) => target,
-            Err(_) => return Err(FailureCode::Unavailable),
-        };
-        use std::os::unix::ffi::OsStringExt as _;
-        request.input = Some(target.into_os_string().into_vec());
-    } else {
-        request = GitRequest::new(
-            repository,
-            &[
-                OsStr::new("hash-object"),
-                OsStr::new("--"),
-                path.as_os_str(),
-            ],
-        );
-    }
-    let object: String = match run_git(git, &request) {
-        Ok(answer) if answer.succeeded() => String::from_utf8_lossy(answer.stdout.as_slice())
-            .trim()
-            .to_string(),
-        _ => return Err(FailureCode::Unavailable),
-    };
-    #[cfg(unix)]
-    let mode: String = {
-        use std::os::unix::fs::PermissionsExt as _;
-        if metadata.file_type().is_symlink() {
-            String::from("120000")
-        } else if metadata.permissions().mode() & 0o111 != 0 {
-            String::from("100755")
-        } else {
-            String::from("100644")
-        }
-    };
-    #[cfg(not(unix))]
-    let mode: String = String::from("100644");
-    return Ok(Some((mode, object)));
 }
 
 /// What:
