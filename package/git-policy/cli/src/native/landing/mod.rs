@@ -155,6 +155,13 @@
 //!   the writes the repair makes to the commit's own index.
 //! - `owed_index_repair.rs`:
 //!   the repair that repeats a landed batch's owed index update for the entries the landing left.
+//! - `service_message_the_identity.rs`:
+//!   the identities a commit the service lands records.
+//! - `service_message_the_text_steps.rs`:
+//!   the text steps of a commit's message in the order Git applies them.
+//! - `service_message_what_a_commit_says.rs`:
+//!   the message and subject of an existing commit,
+//!   read for an amend or a fixup.
 //! - `service_message.rs`:
 //!   the message and identities of a service commit,
 //!   made as native `git commit` makes them.
@@ -1027,6 +1034,16 @@ pub mod service_route;
 
 /// The message and identities of a service commit,
 /// made as native `git commit` makes them.
+/// The identities a commit the service lands records.
+pub mod service_message_the_identity;
+
+/// The message and subject of an existing commit,
+/// read for an amend or a fixup.
+pub mod service_message_what_a_commit_says;
+
+/// The text steps of a commit's message in the order Git applies them.
+pub mod service_message_the_text_steps;
+
 pub mod service_message;
 
 /// What an amend takes from the commit it replaces:
