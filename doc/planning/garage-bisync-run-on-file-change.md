@@ -11,7 +11,7 @@ Nothing in this file is decided until the owner answers the open questions it li
 
 This section is the design as it stands after eight owner rounds and two reviews;
 the sections after it are the record of how each part was decided and measured.
-Status: not implemented, not confirmed by the owner, not final.
+Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed"); not implemented.
 
 ### Scope
 
@@ -110,7 +110,7 @@ Then the decision record for directory-watcher is written.
 - The rclone root cause is drafted upstream and not posted (owner's decision).
 - `TimeoutStartSec=3000` applies per pass (measured),
   so a stalled two-pass sync can hold every follow-up and timer start for up to 6000 s before it fails and alerts;
-  put to the owner.
+  accepted by the owner at 2026-11-25T20:54:22-05:00 ("Keep 3000, accept 100 min").
 - With two writers, `--conflict-resolve newer` compares one side's authoring time with the other side's upload time,
   so it can pick the older content as the winner;
   the loser is kept as a `.conflictN` copy (bisync's default `--conflict-loser num`), so nothing is lost outright.
