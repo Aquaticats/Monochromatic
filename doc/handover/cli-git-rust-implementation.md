@@ -151,7 +151,10 @@ Rounds started earlier run on the pool they named.
   merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`.
   Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-14-release-review-2026-11-26/keep/review.md`) found no High;
   its two Mediums (a listed `own-file-loop` line lets the loop grow with no finding; a nested group's own-file use is never searched)
-  and its Lows go to the `alpha.15` fix round, window `monochromatic-lint-alpha-14-release-pass-fixes`, on the virtual writer.
+  and its Lows were fixed by the `alpha.15` round, merged as `6976fefd42`, released from `464773a972`, locked as `34181a0b2a`
+  (no allow-list key shape changed, so no list was regenerated).
+  Its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-15-release-review`
+  (`~/temp/agent/monochromatic-lint-alpha-15-release-review-2026-11-26/keep/review.md`).
   The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
   clean `git archive` exports of `main` give 0.
 
