@@ -54,6 +54,37 @@ Give them to the child it starts instead (`Command::current_dir`, `env`, `env_cl
 async-signal-safe functions).
 Issue 6454 removed the current-directory changes; keep them out.
 
+The same holds for what a test reads:
+`crate::run_progress::look` and `look_now` add up every task of this process,
+so a control that judges the run's own figures runs its reading in a helper process of the test's own
+(`testing/helper_process_test_support.rs`),
+as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
+
+A control that gives this process room for blocking jobs,
+holds its bound on them,
+or sets any other fact that belongs
+to the whole process runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`):
+the room and the bound are made once for a process,
+so two controls of a threaded run cannot both have theirs,
+and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
+The setters refuse in any other process and name the starter,
+as the descriptor limit's setter does.
+The switch that keeps a control's durability syncs in the page cache is one of those facts:
+it belongs to the process,
+so a control that sets it runs its body in a child,
+and without that a control that proves a sync was refused fails by which test ran first
+(issue 6498,
+`foundation/private_storage_syncs_test_support.rs`).
+A child makes its own fixtures;
+nothing here counts this process's descriptors.
+A threaded run moves those counters on other tests' threads,
+and the comparison then fails on a figure the control never named.
+The four share one comparison,
+`the_figures_did_not_move` in `testing/run_progress_tests.rs`,
+which refuses a look where a task that is not the control's own moved between two looks
+and says which helper runs the body alone.
+
 ## One fixture folder per test
 
 A test takes its folder from `testing/test_support.rs`.
@@ -93,6 +124,16 @@ and nowhere else: `ChildTest` is the request (`started` hands back the running c
 and `testing/test_process_owner.rs` is the ownership it stands on.
 Six bodies built that command their own way until 2026-11-25,
 and most of their children were owned by nothing (debt ledger item 10).
+The guard a body starts with reads `if <starter>(...) { return; }`:
+`started_within_a_child_of_its_own` and `ran_in_child` answer true in the process that started the child,
+so an inverted guard runs the body there as well,
+and a body that sets what belongs to the whole process then sets it for every test of the run
+(issue 6496 lowered the run's own thread limit,
+so three other controls failed at their fixture's first Git start).
+The setters refuse outside the child and name the starter,
+so an inverted guard fails at its own first line,
+which is what the two refusals in `testing/no_threads_child_test_support.rs` and
+`subvolume/subvolume_file_write_steps_sync_counts_test_support.rs` are for.
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
 and judges the ending itself; a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.

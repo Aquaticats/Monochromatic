@@ -7,6 +7,7 @@
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
 use crate::parallel_test_support::ONE_PLACE;
+use crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to;
 use std::sync::atomic::AtomicUsize;
 use std::sync::{
     Condvar,
@@ -179,12 +180,18 @@ fn a_job_gives_its_value() {
 /// The budget is the process's own and says how many places it holds.
 #[test]
 fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_budget_is_at_least_one_place_and_a_cap_holds_it_lower",
+    ) {
+        return;
+    }
     // The cap only lowers what the CPUs allow, so the control gives the process room for the bound it measures.
     let _room: usize = crate::parallel_test_support::room_for(
         "the_budget_is_at_least_one_place_and_a_cap_holds_it_lower",
         BOUND_HELD_TO,
     );
-    hold_blocking_jobs_to(BOUND_HELD_TO);
+    hold_the_blocking_jobs_to(BOUND_HELD_TO);
     assert_eq!(
         budgeted_blocking_jobs(),
         BOUND_HELD_TO,
@@ -199,12 +206,18 @@ fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
 /// so the peak below is the peak of the whole burst and not its arrival order.
 #[test]
 fn no_more_jobs_run_at_once_than_the_budget_allows() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "no_more_jobs_run_at_once_than_the_budget_allows",
+    ) {
+        return;
+    }
     // Two of the burst's jobs must really run at once, so the balance of places must be as wide as the number of places.
     let _room: usize = crate::parallel_test_support::room_for(
         "no_more_jobs_run_at_once_than_the_budget_allows",
         BOUND_HELD_TO,
     );
-    hold_blocking_jobs_to(BOUND_HELD_TO);
+    hold_the_blocking_jobs_to(BOUND_HELD_TO);
     let shared: Arc<Concurrency> = Concurrency::new();
     let burst_shared: Arc<Concurrency> = Arc::clone(&shared);
     // The burst runs on a thread of its own: the control has to count it while it runs, and a count taken after it is the
@@ -254,7 +267,13 @@ fn no_more_jobs_run_at_once_than_the_budget_allows() {
 /// so the next job does not wait for a place that nothing holds.
 #[test]
 fn a_job_that_panics_gives_its_place_back() {
-    hold_blocking_jobs_to(1);
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_job_that_panics_gives_its_place_back",
+    ) {
+        return;
+    }
+    hold_the_blocking_jobs_to(1);
     let (refused, after) = run_on_runtime(async {
         let refused =
             run_blocking_job_within_the_budget(|| -> u8 { panic!("the job panicked") }).await;
@@ -285,13 +304,19 @@ fn a_job_that_panics_gives_its_place_back() {
 ///  thread leaves it queued with nothing to run it.
 #[test]
 fn where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back",
+    ) {
+        return;
+    }
     if crate::no_threads_child_test_support::ran_in_child(
         module_path!(),
         "where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back",
     ) {
         return;
     }
-    hold_blocking_jobs_to(1);
+    hold_the_blocking_jobs_to(1);
     let ran: Arc<std::sync::atomic::AtomicBool> =
         Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
@@ -348,13 +373,19 @@ const POOL_THREADS_FOR_THE_CONTROL: usize = 8;
 /// because only a refused thread start queues a job this way.
 #[test]
 fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_job_the_pool_queued_after_a_refusal_does_not_run",
+    ) {
+        return;
+    }
     if crate::no_threads_child_test_support::ran_in_child(
         module_path!(),
         "a_job_the_pool_queued_after_a_refusal_does_not_run",
     ) {
         return;
     }
-    hold_blocking_jobs_to(BOUND_HELD_TO);
+    hold_the_blocking_jobs_to(BOUND_HELD_TO);
     // A runtime with a pool deep enough for the jobs below, built while a thread may start.
     crate::no_threads_child_test_support::let_threads_start_again()
         .expect("the process limit rises");
@@ -422,8 +453,14 @@ const AFTER_THE_CANCEL: Duration = Duration::from_secs(2);
 ///  and then lets the pool run.
 #[test]
 fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_job_whose_caller_stopped_waiting_does_not_run_afterwards",
+    ) {
+        return;
+    }
     crate::lazy_runtime::cap_workers(ONE_PLACE);
-    hold_blocking_jobs_to(BOUND_HELD_TO);
+    hold_the_blocking_jobs_to(BOUND_HELD_TO);
     let (holding, held) = std::sync::mpsc::channel::<()>();
     let (release, waiting) = std::sync::mpsc::channel::<()>();
     let busy = crate::lazy_runtime::spawn_on_runtime(async move {
@@ -653,13 +690,19 @@ fn tell_and_wait_inside(
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound",
+    ) {
+        return;
+    }
     if crate::no_threads_child_test_support::ran_in_child(
         module_path!(),
         "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound",
     ) {
         return;
     }
-    hold_blocking_jobs_to(ONE_PLACE);
+    hold_the_blocking_jobs_to(ONE_PLACE);
     // The runtime is built while a thread may start,
     // because the workers the control reads the bound beside are threads too.
     crate::no_threads_child_test_support::let_threads_start_again()
@@ -746,7 +789,13 @@ const SLOW_JOB_PATIENCE: Duration = Duration::from_secs(2);
 /// ```
 #[test]
 fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_jobs() {
-    hold_blocking_jobs_to(TWO_PLACES);
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_jobs",
+    ) {
+        return;
+    }
+    hold_the_blocking_jobs_to(TWO_PLACES);
     let (inside, has_inside) = std::sync::mpsc::channel::<()>();
     let (release, waiting) = std::sync::mpsc::channel::<()>();
     let slow = crate::lazy_runtime::spawn_on_runtime(async move {

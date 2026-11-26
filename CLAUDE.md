@@ -541,6 +541,10 @@ OPA:
  best first,
  marked "(Recommended)".
 
+PVQ:
+ A question preview showing a draft quotes its real text;
+ a summary such as "[link]" or "disclosure line" reads as a placeholder left in the draft.
+
 QRX:
  Asking for decisions:
  batch them in the question tool and re-explain each item's context in plain words;

@@ -11,6 +11,11 @@
 //! "the process's one bound on blocking jobs").
 //! The room is set before the runtime is built and before the bound is made,
 //!  so both the runtime's blocking pool and the bound on blocking jobs take it.
+//! It belongs to the whole process,
+//!  because a runtime and a bound are made once for it,
+//!  so a control sets it in a child process of its own
+//! (`testing/process_wide_state_child_test_support.rs`),
+//!  and `for_a_control` refuses in any other process (issue 6487).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,6 +40,10 @@ static ROOM: AtomicUsize = AtomicUsize::new(0);
 /// a runtime and a bound that are already made keep their sizes,
 ///  so a later call changes nothing.
 pub(crate) fn for_a_control(jobs: usize) -> usize {
+    #[cfg(test)]
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the room a control gives this process for blocking jobs",
+    );
     ROOM.store(jobs.max(1), Ordering::SeqCst);
     return jobs.max(1);
 }

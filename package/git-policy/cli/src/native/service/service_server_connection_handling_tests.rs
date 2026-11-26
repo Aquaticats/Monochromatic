@@ -867,6 +867,12 @@ async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
 /// ```
 #[test]
 fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held",
+    ) {
+        return;
+    }
     let places: usize = CONTROL_PLACES;
     let _room: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(places);
     let (shared, mut jobs) =
