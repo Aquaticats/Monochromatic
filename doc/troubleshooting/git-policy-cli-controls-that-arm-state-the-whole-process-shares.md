@@ -123,15 +123,15 @@ that control fails at its first line on every run
 
 ```text
 THE_READ_IS_HELD, the hold every read of this process waits at before its Git run belongs to the whole process,
-and `cargo test` runs a crate's tests as threads of one process, so arming it here changes every test of this run:
-run this control in a child of its own,
-which `crate::alone_in_its_process_child_test_support::ran_alone_in_a_child_of_its_own` starts
+and `cargo test` runs a crate's tests as threads of one process, so setting it here reaches every other test of that
+run: set it in a child of the control's own,
+which `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts
 ```
 
 With the `refuse_outside_the_child` call taken out of `a_control_holds_the_read`
 and the same control still running beside the others,
 the run passes (`1 passed; 0 failed`):
-the control armed a seam of the whole process and nothing said so,
+the control set a hold of the whole process and nothing said so,
 which is what the refusal is for.
 
 The refusal and the child's own answer also have permanent controls,
@@ -142,9 +142,10 @@ and the other is a body that runs in its child and asserts that the child saw it
 ## Not covered
 
 - The other modules of this crate hold the same debt
-  (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`, item 3, items 3a to 3g),
-  and issues 6483 to 6487 record five more failures of the class.
-  This change moves one module's controls.
+  (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`, item 3, items 3a to 3g);
+  this change moves one module's controls,
+  and the rounds that fixed 6487, 6486 and 6484 moved others.
+- Issues 6483 and 6485 are still open on `origin/main` at `73f1091ce0`.
 - The container gate was not run for this change: the round ran the module on this host, as issue 6493 measured it,
   and the whole library on this host is not run (a whole-library threaded run hangs, see
   `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
