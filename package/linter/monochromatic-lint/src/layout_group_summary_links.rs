@@ -24,7 +24,7 @@ use crate::{
     layout_finding::{LayoutFinding, key_path, shown},
     layout_folder_uses::{FolderUses, Proof},
     layout_group_entries::{entry_of, owner_of},
-    layout_link_entries::{Link, USES_FOLDER, link_command, read_links},
+    layout_link_entries::{Link, USES_FOLDER, link_command, link_loop_hazard, read_links},
 };
 /// Import ordered collections and native paths.
 use std::{
@@ -184,8 +184,9 @@ fn missing_summary(group: &Path, entry: &Path, used: &SummaryUse, base: &Path) -
             shown(entry, base)
         ),
         help: Some(format!(
-            "Create the link: {}",
-            link_command(group, entry, base)
+            "Create the link: {}. {}",
+            link_command(group, entry, base),
+            link_loop_hazard()
         )),
         key: format!(
             "summary-missing {} {}",

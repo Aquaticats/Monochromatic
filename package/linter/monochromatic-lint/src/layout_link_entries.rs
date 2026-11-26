@@ -122,6 +122,22 @@ pub fn link_command(folder: &Path, target: &Path, base: &Path) -> String {
 }
 
 /// What:
+///  The warning that a link written into a loop of folders makes `cargo package` walk without end.
+/// Why:
+///  `cargo package` follows the links, so a link into a loop packs the same folders over and over:
+///  the wrapper measured 1.9 seconds with its 109 links and no answer after 120 seconds with 421 links in place.
+///  A finding that only says `Create the link:` sends a looped crate into that hang,
+///  so every link command carries the hazard and what ends it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LINK_LOOP_HAZARD = 'A crate whose folders still use each other in a loop must untangle the loop first: ...';
+/// ```
+pub fn link_loop_hazard() -> &'static str {
+    return "A crate whose folders still use each other in a loop must untangle that loop first: `cargo package` follows a link into a loop without end (1.9 seconds with 109 links, no answer after 120 seconds with 421), and a package that keeps its links needs `exclude = [\"**/uses\"]` in its `Cargo.toml`.";
+}
+
+/// What:
 ///  Check one entry of a `uses` folder.
 /// Why:
 ///  An entry is good only when it is a link whose target exists,

@@ -14,6 +14,9 @@
 //!  they suppress that one use, so every loop needs all of its uses on the list;
 //!  an entry that names no finding any more says so,
 //!  because a list that keeps dead lines is not a list of today's findings;
+//!  a key names one finding,
+//!  so the rule numbers a finding that would share an earlier one's key,
+//!  and one line never tolerates a finding a later edit added;
 //!  paths in an entry are relative to the package folder,
 //!  the way findings show them,
 //!  and never absolute and never climb out with `..`,

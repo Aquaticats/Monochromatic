@@ -36,7 +36,7 @@ use crate::{
     },
     layout_group_entries::{entry_of, find_groups},
     layout_group_folders::{entry_uses, group_findings, group_loops, links_group},
-    layout_link_entries::{USES_FOLDER, link_command, read_links},
+    layout_link_entries::{USES_FOLDER, link_command, link_loop_hazard, read_links},
     layout_module_tree::ModuleTree,
     layout_module_uses::{ModuleUse, folder_of},
     layout_path_resolution::resolve_path,
@@ -67,7 +67,11 @@ fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFin
             proof.text,
             shown(from, base)
         ),
-        help: Some(format!("Create the link: {}", link_command(from, to, base))),
+        help: Some(format!(
+            "Create the link: {}. {}",
+            link_command(from, to, base),
+            link_loop_hazard()
+        )),
         key: format!(
             "missing-link {} -> {}",
             key_path(from, base),
