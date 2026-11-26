@@ -327,7 +327,10 @@ impl fmt::Display for PlayerError {
     /// ```ts
     /// toString(): string { switch (this.kind) { ... } }
     /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What:     `match self { ... }` inspects which variant `self` currently
         //           is and runs the matching arm. Each arm pattern (`PlayerError::Io(e)`
         //           etc.) binds the wrapped inner value to a name (`e` or `m`) BY
@@ -485,7 +488,7 @@ impl From<std::io::Error> for PlayerError {
         // ```ts
         // return { kind: "io", cause: e };
         // ```
-        return PlayerError::Io(e)
+        return PlayerError::Io(e);
     }
 }
 
@@ -523,7 +526,7 @@ impl From<symphonia::core::errors::Error> for PlayerError {
         // ```ts
         // return { kind: "decode", cause: e };
         // ```
-        return PlayerError::Decode(e)
+        return PlayerError::Decode(e);
     }
 }
 
@@ -560,7 +563,7 @@ impl From<opus::Error> for PlayerError {
         // ```ts
         // return { kind: "opus", cause: e };
         // ```
-        return PlayerError::Opus(e)
+        return PlayerError::Opus(e);
     }
 }
 
@@ -594,7 +597,7 @@ impl PlayerError {
     /// const noAudioTrack = () => new PlayerError.Unsupported("no audio track");
     /// ```
     pub(crate) fn no_audio_track() -> PlayerError {
-        return PlayerError::Unsupported("no audio track".to_string())
+        return PlayerError::Unsupported("no audio track".to_string());
     }
 
     /// What:
@@ -609,7 +612,7 @@ impl PlayerError {
     /// const noAudioCodecParameters = () => new PlayerError.Unsupported("track has no audio codec parameters");
     /// ```
     pub(crate) fn no_audio_codec_parameters() -> PlayerError {
-        return PlayerError::Unsupported("track has no audio codec parameters".to_string())
+        return PlayerError::Unsupported("track has no audio codec parameters".to_string());
     }
 
     /// What:
@@ -623,7 +626,7 @@ impl PlayerError {
     /// const opusNoAudioCodecParameters = () => new PlayerError.Unsupported("opus: no audio codec parameters");
     /// ```
     pub(crate) fn opus_no_audio_codec_parameters() -> PlayerError {
-        return PlayerError::Unsupported("opus: no audio codec parameters".to_string())
+        return PlayerError::Unsupported("opus: no audio codec parameters".to_string());
     }
 
     /// What:
@@ -638,7 +641,7 @@ impl PlayerError {
     /// const seekTrackNotFound = () => new PlayerError.Unsupported("seek: track not found");
     /// ```
     pub(crate) fn seek_track_not_found() -> PlayerError {
-        return PlayerError::Unsupported("seek: track not found".to_string())
+        return PlayerError::Unsupported("seek: track not found".to_string());
     }
 
     /// What:
@@ -653,7 +656,7 @@ impl PlayerError {
     /// const seekUnknownSampleRate = () => new PlayerError.Unsupported("seek: unknown sample rate");
     /// ```
     pub(crate) fn seek_unknown_sample_rate() -> PlayerError {
-        return PlayerError::Unsupported("seek: unknown sample rate".to_string())
+        return PlayerError::Unsupported("seek: unknown sample rate".to_string());
     }
 
     /// What:
@@ -671,6 +674,6 @@ impl PlayerError {
     /// const engineWorkerGone = <E>(_failure: E) => new PlayerError.Unsupported("engine worker gone");
     /// ```
     pub(crate) fn engine_worker_gone<SendFailure>(_failure: SendFailure) -> PlayerError {
-        return PlayerError::Unsupported("engine worker gone".to_string())
+        return PlayerError::Unsupported("engine worker gone".to_string());
     }
 }
