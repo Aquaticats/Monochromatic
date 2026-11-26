@@ -301,31 +301,38 @@ filing is the owner's decision.
 On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 
 ~~~md
-ivpn-ui 3.15.15-1 fails in prepare() when the builder's ~/.npmrc contains a prefix= (or globalconfig=) line:
+`ivpn-ui` 3.15.15-1 fails in `prepare()` when the builder's `~/.npmrc` has a `prefix=` (or `globalconfig=`) line:
 
     Your user’s .npmrc file (${HOME}/.npmrc)
     has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
     Run `nvm use --delete-prefix v22.12.0` to unset it.
 
-nvm 0.40.8 checks "${HOME}/.npmrc" after `nvm install` (nvm.sh lines 3194-3206 at v0.40.8) and returns 10.
-_ensure_local_nvm moves NVM_DIR into $srcdir but keeps the builder's HOME, so the result depends on the
-builder's dotfiles. A prefix= line is a common way to install npm globals without root.
+After `nvm install`, nvm 0.40.8 checks [`${HOME}/.npmrc` and returns 10][nvm] when such a line is there.
+[`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`,
+so whether the package builds depends on the builder's dotfiles.
+A `prefix=` line is a common way to install npm globals without root.
 
-Setting HOME inside the helper fixes it; with this change the package builds with the same ~/.npmrc:
+Setting `HOME` inside the helper fixes it; with this change the package built with the same `~/.npmrc`:
 
     export NVM_DIR="${srcdir}/.nvm"
     export HOME="${srcdir}/.home"
     mkdir -p "${HOME}"
 
-npm and electron-builder then cache under $srcdir, so a clean build downloads them again.
+npm and electron-builder then cache under `$srcdir`, so a clean build downloads them again.
+
+This comment was prepared with an AI assistant; the build results above were run on the commenter's machine.
+
+[nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
+[recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 ~~~
 
-[aur-recipe]: https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h=ivpn-ui&id=d18e66dec2b72b366a3718a7085de7f2f4d6e6e7#n26
+[aur-recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
 [nvm-user-npmrc]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
 [nvm-bad-news]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3091-L3098
 [shelly-env]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/852e56e4c4db255eb93b4d6feca12a86aa9e9485/Shelly.PackageManager/src/aur/builder/builder.zig#L263-L292
 [shelly-reserved]: https://github.com/Seafoam-Labs/Shelly-ALPM/blob/852e56e4c4db255eb93b4d6feca12a86aa9e9485/Shelly.PackageManager/src/aur/shellybuild.zig#L415-L432
 
 The `nvm` and Shelly links were opened in `agent-browser` on `2026-11-26T01:41:13-05:00` and land on the quoted lines.
-The AUR link could not be opened there (Anubis "Access Denied");
-its lines were checked with `git show d18e66dec2b72b366a3718a7085de7f2f4d6e6e7:PKGBUILD` in a clone.
+The AUR site refused `agent-browser` (Anubis "Access Denied"),
+so the recipe is linked through the AUR's GitHub mirror (`archlinux/aur`, same commit),
+which `agent-browser` opened on 2026-11-26 and which shows the quoted lines; so do the two links in the comment draft.
