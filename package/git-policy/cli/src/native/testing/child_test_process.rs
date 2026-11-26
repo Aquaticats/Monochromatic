@@ -35,12 +35,13 @@
 ///  The siblings a reader might expect are `BufRead`, which adds line reading this file does not need,
 ///  and `AsFd`, which names a descriptor it cannot read through.
 /// Why:
-///  The read below needs both: `read` for the bytes and the descriptor to ask whether more are already there.
+///  `what_the_pipe_holds` needs both: `read` for the bytes and the descriptor to ask whether more are already there.
 use std::io::Read;
 /// What:
 ///  `AsRawFd` gives the number of the descriptor a pipe is.
 /// Why:
-///  The read below makes the pipe non-blocking through that number, so it never waits for a writer that keeps it open.
+///  `what_the_pipe_holds` makes the pipe non-blocking through that number, so it never waits for a writer that keeps it
+///  open.
 use std::os::fd::AsRawFd;
 /// What:
 ///  `CommandExt` adds `arg0` (the name a program sees itself under) and `pre_exec` (the work between `fork` and `exec`).
@@ -275,7 +276,7 @@ impl Default for ChildTest<'_> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function started(request: ChildTest): Child { return spawnOwned(theCommand(request)); }
+/// function started(request: ChildTest): Child { return spawnOwned(commandOf(request)); }
 /// ```
 pub(crate) fn started(request: ChildTest<'_>) -> Child {
     let takes_its_own_session: bool = request.takes_its_own_session;
@@ -400,8 +401,8 @@ pub(crate) fn command_of(request: ChildTest<'_>) -> Command {
         }
     };
     command.args(request.arguments_before_the_test_name);
-    // `--exact` matches the path exactly, `--nocapture` lets the child's own prints reach the pipe read above, and one
-    //  thread keeps the child's body the only test it runs.
+    // `--exact` matches the path exactly, `--nocapture` lets the child's own prints reach the pipe `finished` reads, and
+    //  one thread keeps the child's body the only test it runs.
     command.args(["--exact", request.exact_test, "--nocapture", "--test-threads=1"]);
     if request.ignored {
         command.arg("--ignored");
@@ -451,7 +452,7 @@ fn what_the_pipe_holds(pipe: Option<impl Read + AsRawFd>) -> Vec<u8> {
         eprintln!("the child's output could not be read without waiting for its end (errno {flags}): nothing of it is collected");
         return Vec::new();
     }
-    // SAFETY: as above; the flag is set on this copy of the descriptor only.
+    // SAFETY: the descriptor still belongs to `pipe`, and the flag is set on this process's copy of it only.
     let _set: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
     let mut collected: Vec<u8> = Vec::new();
     let mut buffer: [u8; 8_192] = [0; 8_192];

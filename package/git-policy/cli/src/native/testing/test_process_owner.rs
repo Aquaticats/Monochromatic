@@ -132,7 +132,7 @@ pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
     // SAFETY: between `fork` and `exec` only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
-    //  A test binary ended by `SIGKILL`, or by the `abort`s of `run_progress`, runs no guard at all, so the group kill below
+    //  A test binary ended by `SIGKILL`, or by the `abort`s of `run_progress`, runs no guard at all, so `own_group`'s kill
     //  never happens; the kernel's parent-death signal is what ends the child then.
     unsafe {
         command.pre_exec(|| {
