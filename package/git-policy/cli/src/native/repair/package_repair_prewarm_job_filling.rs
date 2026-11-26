@@ -70,11 +70,10 @@ use crate::package_repair_tree_clone::{
     Cloned,
     clone_tree_awaiting,
 };
-/// Import the rename that never replaces.
-use crate::rename_that_never_replaces::{
-    rename_noreplace,
-    rename_unsupported,
-};
+/// Import the rename that never replaces,
+/// and the test for a filesystem that cannot do it.
+use crate::private_storage::rename_noreplace;
+use crate::rename_that_never_replaces::rename_unsupported;
 /// Import the owned argument a command is started with.
 use std::ffi::OsString;
 /// Import native paths.

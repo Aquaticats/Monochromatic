@@ -6,6 +6,7 @@
 //! and a dead claimer never blocks anyone.
 
 use super::*;
+use crate::private_storage::rename_noreplace;
 use crate::service_fault::hooks;
 use crate::service_index_claim::{
     CLAIM_INFIX,
@@ -18,7 +19,6 @@ use crate::service_index_marker::{
     marker_of_file,
     own_identity,
 };
-use crate::service_index_placement::rename_noreplace;
 use crate::test_support::{
     fixture,
     remove,

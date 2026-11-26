@@ -18,6 +18,29 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: should a slot whose record cannot be read refuse its removal as it refuses its move? Recorded 2026-11-26T09:50-05:00
+
+The alpha.47 release pass on the ZFS route (`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`, finding 12)
+ran a bound slot whose binding record was overwritten with garbage:
+`git worktree move` refuses with the unreadable record's reason,
+while `git worktree remove -f -f one` exits 0 and Git deletes the registration and the slot folder.
+That is the decided text of `package/git-policy/cli/SPEC.md:5424` ("a slot nothing proves [is] left to Git"),
+so no round changes it without you.
+With the clone mounted and the mount table unreadable, Git would delete inside the clone; that arm needs a guest and was not run.
+It can reach a person only after plan step 19 puts a checkout on the route.
+
+### Option A: refuse the removal too, as the move does
+
+Pros: one rule for both commands, and nothing of a slot the wrapper cannot prove is deleted.
+Cons: a person with a corrupt record must repair or remove the record by hand before Git can remove the worktree.
+
+### Option B: keep the decided text
+
+Pros: Git stays usable on a slot the wrapper cannot read.
+Cons: the removal may delete files inside a mounted clone.
+
+Ranking: A > B, because a removal is the one of the two that destroys data, and the refusal names what to repair.
+
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
 The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,
@@ -105,6 +128,13 @@ the round each point holds is named beside it.
   Holds round 9.
 - Whether `repairs_the_service_runs_for_a_new_worktree` stays a program folder.
   Holds round 7.
+- Which file owns the clone-and-settle copy path once `copy_file_exclusive` leaves `worktree_copying/worktree_copy_stage_leaf_copying.rs`:
+  the plan sends it to `saving_private_files` (`foundation/private_storage.rs` today),
+  but its body reads `worktree_copying`'s file stamps and `subvolume`'s clone,
+  and `private_storage` may use neither without new allow-list lines, which the list may not gain.
+  Split round 1 (2026-11-26T09:10-05:00) stopped that one move and recorded the point under step 2
+  of `doc/planning/cli-git-source-layout-target-tree.md`.
+  Holds the rest of step 2.
 
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 

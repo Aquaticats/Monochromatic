@@ -6940,20 +6940,71 @@ it says which branch a step still needs.
   the changes that are not loop breaks.
   `copy_file_exclusive`'s error type landed as `36affbb3ec`,
   after the red test `6f5a74db22`.
-  Not landed:
-  the `worktree_command_facts` move (no such file),
-  the two hint functions (`policy/event_hints.rs` still defines `engine_failure_hint` and `push_hint_field`),
-  `rename_noreplace`'s move to `private_storage`
-  (the file is `foundation/rename_that_never_replaces.rs`,
-  created by `a2e8d98f2d`,
-  and the library it would move to does not exist),
-  `copy_file_exclusive`'s own move (it is still in `worktree_copying/worktree_copy_stage_leaf_copying.rs`),
-  and the removal of the named re-exports
-  (53 `pub use folder::*;` lines in `src/native/lib.rs`,
-  two of them `pub(crate)`,
-  and 512 named `pub use` lines elsewhere,
-  248 of those in `mod.rs` files;
-  the 2026-11-07 text counted 28 flat lines and 126 named ones).
+  The rest landed in round 1 of the split,
+  branch `refactor/git-policy-cli-split-single-item-moves`,
+  one commit per change:
+  - the `worktree_command_facts` move,
+    `a0f32f0766`.
+    `CopyFacts` left `worktree_copying/worktree_copy_forward.rs`,
+    `AddPlan` left `worktree/worktree_add_plan.rs`
+    and `RemovePlan` left `worktree/worktree_remove_plan.rs`,
+    and the three now sit in the new file
+    `src/native/worktree/worktree_command_facts.rs`.
+    The folder the plan names for it,
+    `starting_git_and_describing_a_run`,
+    is step 7's to create,
+    and no folder of today's tree is it:
+    a new top-level folder needs another flat re-export in `lib.rs`,
+    which is a new allow-list line,
+    and `src/native/invocation`,
+    the folder three of that target folder's files come from,
+    is a group folder,
+    which the layout rule forbids holding files.
+    So the file sits beside `worktree_identity`,
+    whose struct `CopyFacts` holds,
+    until step 7 carries it.
+  - the two hint functions,
+    `5c3ddf5b83`.
+    `engine_failure_hint` and `push_hint_field` left `policy/event_hints.rs`
+    for `config/invocation_config.rs`,
+    which the plan calls `settings_of_the_worktree_a_command_runs_in`,
+    and the two controls that judge them followed into `invocation_config_tests.rs`.
+  - `rename_noreplace`,
+    `7bd5cb6af6`.
+    It left `foundation/rename_that_never_replaces.rs` for
+    `foundation/private_storage.rs`,
+    the file the plan calls `saving_private_files`,
+    so it moved as far as today's tree allows without creating a library.
+    What is left is the library itself,
+    the lift of `safe-file-saving`,
+    and with it a home for `rename_unsupported` and
+    `rename_noreplace_on_the_blocking_pool`,
+    which the table names nowhere and which stayed where they were.
+  - `copy_file_exclusive`'s own move:
+    stopped.
+    It is still in `worktree_copying/worktree_copy_stage_leaf_copying.rs`,
+    because its body is `copy_file_exclusive_with(source, destination, try_clone)`:
+    that reads `FileStamp` and the settled-stamp clock from
+    `worktree_copying/worktree_copy_manifest.rs`,
+    and `try_clone` calls `subvolume/fs_clone_exchange.rs`'s `clone_file`.
+    Moving it into `foundation/private_storage.rs` would make `foundation`
+    use `worktree_copying` and `subvolume`,
+    and neither pair has a line in `layout-allow-list/folder-rule.txt`,
+    so it would need a new line.
+    The library's own form of the exclusive copy,
+    a create-new open,
+    a copy and a sync,
+    is not a move of this code.
+    The open point the next round waits on is which file owns
+    the clone-and-settle path after the copy leaves.
+  - the removal of the named re-exports is step 6's round and did not run here:
+    no move above needed one line of it deleted.
+    Those counts are unchanged,
+    53 `pub use folder::*;` lines in `src/native/lib.rs`,
+    two of them `pub(crate)`,
+    and 512 named `pub use` lines elsewhere,
+    248 of those in `mod.rs` files;
+    the 2026-11-07 text counted 28 flat lines and 126 named ones.
 - Step 3,
   the loop breaks:
   no loop the 2026-11-07 breaks named has closed,

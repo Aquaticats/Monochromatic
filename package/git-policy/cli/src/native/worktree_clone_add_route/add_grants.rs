@@ -105,7 +105,8 @@ pub const THE_ADDS_OWN_STEPS: &[(GrantPlace, &str)] = &[
 ///  "Scoped delegation").
 ///  The two `destroy` grants are the pair choice 3C keeps here until the add's
 ///  own failure path destroys,
-///  which is plan step 14's settle.
+///  whose settle is plan step 16's Git settle and no command of this release
+///  reaches it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

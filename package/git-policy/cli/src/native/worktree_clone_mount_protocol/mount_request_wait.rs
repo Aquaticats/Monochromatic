@@ -31,7 +31,11 @@ use crate::foundation::blocking_job::{
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::CloneMountReceipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::ReceiptsRefusal;
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{
+    NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT,
+    RESULTS_DIRECTORY,
+    ReceiptsRefusal,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::path::PathBuf;
@@ -320,7 +324,7 @@ impl WaitRefusal {
             WaitRefusal::Unread {
                 refusal,
             } => format!(
-                "no receipt could be read because the read could not be given to the blocking pool ({refusal}), so the mount was not confirmed in the caller's view. Nothing was matched, mounted or unmounted on a receipt. Ways forward: check the process limit (`ulimit -u`) and the control group's `pids.max`, then read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`."
+                "no receipt could be read because the read could not be given to the blocking pool ({refusal}), so the mount was not confirmed in the caller's view. Nothing was matched, mounted or unmounted on a receipt. Ways forward: check the process limit (`ulimit -u`) and the control group's `pids.max`, then read the receipt files under {RESULTS_DIRECTORY}. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}."
             ),
             WaitRefusal::TimedOut {
                 request,
@@ -332,7 +336,7 @@ impl WaitRefusal {
                     None => String::from("No receipt was on the file at the deadline."),
                 };
                 format!(
-                    "no result for this request was filed within {deadline_millis} milliseconds, so the mount was not confirmed in the caller's view. The request is operation `{}` under nonce {} for dataset GUID {} in boot {}. {observed} A deadline is not cancellation: the durable request stays on the clone and a later sweep may still act on it, so inspect before writing another request. Ways forward: run `monochromatic-git-policy-cli doctor` and read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs; the `doctor` command reports a receipt once plan step 10 adds it; do not retry a conflicting request until the clone's intent and mount state have been verified.",
+                    "no result for this request was filed within {deadline_millis} milliseconds, so the mount was not confirmed in the caller's view. The request is operation `{}` under nonce {} for dataset GUID {} in boot {}. {observed} A deadline is not cancellation: the durable request stays on the clone and a later sweep may still act on it, so inspect before writing another request. Ways forward: read the receipt files under {RESULTS_DIRECTORY}, one per clone dataset and named for that dataset's GUID, and run the add again once the request's answer or the slot's state is clear. {NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT}; do not retry a conflicting request until the clone's intent and mount state have been verified.",
                     request.operation.word(),
                     request.nonce.as_str(),
                     request.dataset.file_name(),

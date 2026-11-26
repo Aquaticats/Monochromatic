@@ -137,6 +137,7 @@ use crate::worktree_branch_reflog::{
     branch_made_at,
     branch_moved_onto,
 };
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_landed_registrations::{
     RegisteredBefore,
     Registration,
@@ -162,7 +163,6 @@ use crate::worktree_remove::{
     remove_with,
 };
 use crate::worktree_remove_hand_over::hand_over_worktree_removal;
-use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{

@@ -25,12 +25,10 @@
 //! const { path, notice } = placeKeptName(gitDir, DATA_FOLDER); // renames cli-git to monochromatic-git-policy-cli if only cli-git exists
 //! ```
 
-/// The rename that fails when the target exists,
-///  and the test for a filesystem that cannot do it.
-use crate::rename_that_never_replaces::{
-    rename_noreplace,
-    rename_unsupported,
-};
+/// The rename that fails when the target exists.
+use crate::private_storage::rename_noreplace;
+/// The test for a filesystem that cannot do that rename.
+use crate::rename_that_never_replaces::rename_unsupported;
 /// The pair of names the move works on.
 use crate::wrapper_names_old_and_new::{
     MESSAGE_PREFIX,

@@ -25,8 +25,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // in the parent: if (startedWithinAChildOfItsOwn(import.meta.url, 'the_control')) return;
-//! // in the child:  // ...the body, free to set what belongs to this process...
+//! // in the parent: runTheBodyInAChildOfItsOwn(import.meta.url, 'the_control', () => { /* ...the body... */ });
+//! // in the child:  the same body runs here, free to set what belongs to this process.
 //! ```
 
 /// What:
@@ -59,6 +59,9 @@ const CHILD_VARIABLE: &str = "CLI_GIT_PROCESS_WIDE_STATE_CHILD";
 /// What:
 ///  Whether this process is a child this file started,
 ///  which is the only process a control may set state that belongs to the whole process in.
+///  `mod tests` is a child module and reaches it;
+///  nothing outside this file does,
+///  so no control can ask the question instead of handing the starter its body.
 /// Why:
 ///  The refusal and the control's own body ask this one question,
 ///  so a process is the child,
@@ -69,7 +72,7 @@ const CHILD_VARIABLE: &str = "CLI_GIT_PROCESS_WIDE_STATE_CHILD";
 /// ```ts
 /// function thisProcessIsTheChild(): boolean { return process.env[CHILD_VARIABLE] !== undefined; }
 /// ```
-pub(crate) fn this_process_is_the_child() -> bool {
+fn this_process_is_the_child() -> bool {
     return std::env::var_os(CHILD_VARIABLE).is_some();
 }
 
@@ -94,35 +97,59 @@ pub(crate) fn refuse_outside_the_child(state: &str) {
         this_process_is_the_child(),
         "{state} belongs to the whole process, and `cargo test` runs a crate's tests as threads of one process, so \
          setting it here reaches every other test of that run: set it in a child of the control's own, which \
-         `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts"
+         `crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own` starts"
     );
 }
 
 /// What:
-///  Start this same control in a child process of this test binary,
-///  and answer whether this call is the parent that started it (which then returns at once) or the child that runs
-///  the body.
+///  Run `body` in a child of this test binary that holds one test,
+///  `name` of `module`,
+///  and fail this call with the child's own words when that child's one test did not pass.
+///  `module` is `module_path!()` of the test,
+///  `name` its function name,
+///  and `body` what the test does.
 /// Why:
-///  The body is one function in both processes,
-///  so this answer is what tells them apart,
-///  and a child that panics,
-///  hangs or runs no test fails the control that started it with the child's own words
-///  instead of leaving the parent's other tests to fail.
+///  A runtime,
+///  the room a process gives blocking jobs,
+///  the bound on them,
+///  and a hold every read of the process consults
+///  all belong to the whole process,
+///  so a control that sets one where the run holds them fails or deadlocks the rest of that run (issue 6487).
+///  The child is a process of its own,
+///  so what the body sets reaches nothing else,
+///  and its one passing test is this call's whole assertion.
+///  The body travels as a closure the parent never calls,
+///  so no caller holds an answer it could read inverted:
+///  while this file answered a yes or a no,
+///  a control that read the answer inverted ran its body in the parent,
+///  the process the body was written to keep its state out of (issue 6503).
+/// Gotcha:
+///  Everything the body needs is made inside it,
+///  because nothing before this call runs in the child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function startedWithinAChildOfItsOwn(module: string, name: string): boolean {
-///   if (thisProcessIsTheChild()) return false;
+/// function runTheBodyInAChildOfItsOwn(module: string, name: string, body: () => void): void {
+///   if (thisProcessIsTheChild()) { body(); return; }
 ///   passed({ exactTest: `${module.split('::').slice(1).join('::')}::${name}`, environment: [[CHILD_VARIABLE, thePath]] });
-///   return true;
 /// }
 /// ```
-pub(crate) fn started_within_a_child_of_its_own(
+pub(crate) fn run_the_body_in_a_child_of_its_own(
     module: &str,
     name: &str,
-) -> bool {
+    body: impl FnOnce(),
+) {
+    // What:     the child is the process under the control's own state, so the body runs here and its panic is this
+    //           child's ending.
+    // Why:      the parent never runs it, which is the whole reason the body travels as a closure.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (thisProcessIsTheChild()) { body(); return; }
+    // ```
     if this_process_is_the_child() {
-        return false;
+        body();
+        return;
     }
     // What:     the path libtest answers to: the module path without the crate's own first segment, and the test's
     //           name.
@@ -155,12 +182,12 @@ pub(crate) fn started_within_a_child_of_its_own(
     // ```ts
     // passed({ exactTest: path, environment, ...plainRequest() });
     // ```
+    // The parent's whole assertion is this child's result, and a child that ran no test fails here.
     let _output = passed(ChildTest {
         exact_test: path.as_str(),
         environment: environment.as_slice(),
         ..ChildTest::default()
     });
-    return true;
 }
 
 /// What:

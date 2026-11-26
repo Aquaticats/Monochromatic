@@ -7,6 +7,117 @@
 //! Why:
 //!  The facts about processes are shared by locks and pushes.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `descriptor_record.rs`:
+//!   one descriptor's own record,
+//!   opened only when the text of its link says it can be the file a scan looks for,
+//!   and never past a bound.
+//! - `open_file_of_a_descriptor.rs`:
+//!   the device and the inode of the file an open descriptor refers to,
+//!   read from the kernel's own copy of the descriptor.
+//! - `output_capture.rs`:
+//!   output of a child captured into anonymous files,
+//!   so that the child outlives the command that started it.
+//! - `pid_namespace.rs`:
+//!   the PID namespace an owner record names,
+//!   and the rule for owners of another one.
+//! - `process_identity.rs`:
+//!   process-birth identities in the incumbent's exact spelling.
+//! - `process_start.rs`:
+//!   process start times for lock owners,
+//!   read from `/proc`,
+//!   `ps` or the Windows process table.
+//! - `process_tree.rs`:
+//!   the processes below one process,
+//!   read before it is stopped and signalled only while they are still the ones found.
+//! - `member_signalled_through_its_pidfd.rs`:
+//!   signalling one member of a tree through a descriptor opened while the number still named it,
+//!   and what each signal came to.
+//! - `child_number_told_at_start.rs`:
+//!   the number of the child a caller waits for,
+//!   published the moment the child starts.
+//! - `process_use.rs`:
+//!   the processes of this host that use a directory or a file.
+//! - `quiet_ledger.rs`:
+//!   the longest quiet gap of every Git step and tool this process ran,
+//!   kept until a timing record takes it.
+//! - `signal_relay_descriptor.rs`:
+//!   the descriptor the relay sends through:
+//!   made once,
+//!   pointed at the child being waited for,
+//!   and the pidfd that names that child.
+//! - `signal_relay_without_relay.rs`:
+//!   the guard of a system that has no signal relay,
+//!   which keeps the relay's name at every call site.
+//! - `signal_report.rs`:
+//!   what the kernel's own report of a signal says:
+//!   whether a process sent it,
+//!   and which one,
+//!   which the relay and the wait both read.
+//! - `stop_waits_while_a_member_cannot_be_interrupted.rs`:
+//!   when a stop that asked its tree to end may force the end:
+//!   at the end of its grace,
+//!   and not before the ceiling while a member is in uninterruptible sleep.
+//! - `stop_of_the_service_noticed_by_its_children.rs`:
+//!   how a stop of the commit service reaches the Git processes it waits for:
+//!   the handler records it,
+//!   the shutdown tells the waiters,
+//!   and each waiter ends the child it owns.
+//! - `stop_word.rs`:
+//!   a stop's signal and the process the kernel named as its sender,
+//!   kept as one word so a delivery or a kill cannot pair one stop's signal with another's sender.
+//! - `signal_relay_relayed_stop.rs`:
+//!   the stop signal this process relayed to a child,
+//!   and the process the kernel named as its sender,
+//!   kept for the command that waits after it.
+//! - `stuck_children_reaped_when_the_kernel_lets_go.rs`:
+//!   the children this command stopped waiting for,
+//!   gathered by a thread of their own,
+//!   and kept when the system refuses that thread,
+//!   whether the starter still holds a `Child` the standard library made or only the number a raw fork left.
+//! - `child_waited_for_within_a_ceiling.rs`:
+//!   a child waited for by the thread that owns it,
+//!   with a ceiling,
+//!   so a query that never answers is ended by its owner.
+//! - `child_awaited_through_a_pidfd.rs`:
+//!   a child started with the standard library and awaited on the runtime through a pidfd,
+//!   owned through every failure after its start.
+//! - `captured_child_run_to_its_end.rs`:
+//!   a command run to its end like `Command::output`,
+//!   awaited on the runtime through a pidfd,
+//!   with its output read from anonymous files.
+//! - `child_awaited_until_it_exits_or_the_service_is_stopped.rs`:
+//!   an owned child awaited until it exits,
+//!   or ended and reported when the service's stop is told first.
+//! - `open_file_of_a_descriptor_in_a_child.rs`:
+//!   the same attributes of the file of another process's descriptor,
+//!   read in a child that the caller stops waiting for at a ceiling,
+//!   for a mount whose file system this process cannot ask in its own name.
+//! - `step_output_read_whole_through_pipes.rs`:
+//!   the output of a child the caller started,
+//!   read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
+//! - `thread_quiet.rs`:
+//!   whether a thread of this process is at work,
+//!   and the clock that says when it has been quiet for a window.
+//! - `wait_after_the_stop_saying_the_kernel_holds_it.rs`:
+//!   the wait for a step a ceiling stopped and the kernel has not released:
+//!   the reap of that step,
+//!   and the line that says it for as long as the wait lasts.
+//! - `child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`:
+//!   an owned child awaited until it exits,
+//!   or ended and reaped here when its step's ceiling comes,
+//!   because a number is safe only while the child is this process's own unreaped child.
+//! - `signal_relay.rs`:
+//!   catching SIGINT,
+//!   SIGTERM,
+//!   SIGHUP and SIGQUIT while a Git child runs,
+//!   and relaying only process-sent signals.
+//! - `signal_relay_relayed_child.rs`:
+//!   a child started by this process and published to the relay,
+//!   so a caller's own bounded wait still relays the process's signals.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // process/index.ts: one `export * from './file'` per module below.

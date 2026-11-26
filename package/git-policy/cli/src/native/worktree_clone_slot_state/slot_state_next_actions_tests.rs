@@ -1,7 +1,9 @@
 //! Controls for the sentences a report is made of:
 //!  the registration line for each of its three arms,
 //!  the evidence lines for a record with no clone yet,
-//!  and the mounting intent's own placeholder.
+//!  the mounting intent's own placeholder,
+//!  and the settling command's sentence,
+//!  which says the command cannot be run in this release.
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
@@ -97,6 +99,36 @@ fn an_unfinished_adds_evidence_names_its_phase() {
         lines.iter().any(|line| return line
             == "registration: not read, and the record names /repo/.git/worktrees/topic"),
         "{lines:?}"
+    );
+}
+
+/// A slot left at `phase=settling` names the add again, Git's removal and the
+/// settling command,
+/// and says the settling command cannot be run in this release,
+/// so a person is not sent to one that answers with the usage text.
+#[test]
+fn the_settling_arm_says_the_settling_command_cannot_be_run_yet() {
+    let readings: SlotReadings = SlotReadings {
+        intent: IntentFacts::Unasked,
+        ..readings_at(Phase::Settling)
+    };
+    let state: SlotRouteState = classify_slot(&readings);
+    let action: String = next_safe_action(&state, &readings);
+    assert!(
+        action.contains("settle-worktree-clone-record"),
+        "the command the state needs is named: {action}"
+    );
+    assert!(
+        action.contains("no management grammar admits it in this release"),
+        "and the sentence says it cannot be run: {action}"
+    );
+    assert!(
+        action.contains("cannot be run yet"),
+        "with what a person does instead: {action}"
+    );
+    assert!(
+        action.contains(CLONE_DATASET),
+        "and the clone's dataset: {action}"
     );
 }
 

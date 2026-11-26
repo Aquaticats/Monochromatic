@@ -26,6 +26,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `attach_the_clone.rs`:
+//!   the attach's own calls and its refusal,
+//!   and the descriptor-bound unmount a rollback makes.
+//! - `attached_mount_identity.rs`:
+//!   the attach's flags and the mount facts recorded for one folder.
 //! - `clone_folder_identity_acl.rs`:
 //!   the two ACLs of a folder,
 //!   read through its descriptor and kept as the kernel's own bytes.
@@ -33,10 +38,21 @@
 //!   the six recorded fields,
 //!   the field-by-field compare,
 //!   and the store token.
+//! - `clone_slot_git_pointer.rs`:
+//!   the first observation's bounded,
+//!   regular,
+//!   no-follow read of the slot's Git pointer.
+//! - `parent_adoption_facts.rs`:
+//!   the policy a replacement must hold and the state of each binding and slot.
 //! - `slot_identity_store_refusals.rs`:
 //!   why the store could not be read,
 //!   added to or rewritten,
 //!   and each cause's sentence.
+//! - `clone_slot_walk_refusals.rs`:
+//!   why a walk or an identity compare refused,
+//!   naming the component or field.
+//! - `parent_adoption_decision.rs`:
+//!   the table that decides whether a recreated parent folder may be recorded.
 //! - `slot_identity_store_control.rs`:
 //!   whose the folder and its records must be,
 //!   and the refusal naming an account that could write them.
@@ -55,40 +71,20 @@
 //!   the store folder's path,
 //!   the folder held open,
 //!   and the lookups and the listing a reader makes through it.
-//! - `slot_identity_store_publication.rs`:
-//!   the three writes:
-//!   a slot's first record,
-//!   the parent's first record,
-//!   and the adoption's replacement.
-//! - `attached_mount_identity.rs`:
-//!   the attach's flags and the mount facts recorded for one folder.
-//! - `attach_the_clone.rs`:
-//!   the attach's own calls and its refusal,
-//!   and the descriptor-bound unmount a rollback makes.
-//! - `clone_slot_walk_refusals.rs`:
-//!   why a walk or an identity compare refused,
-//!   naming the component or field.
 //! - `clone_slot_walk.rs`:
 //!   the walk that holds the checkout,
 //!   the `.claude/worktrees` folder and one slot,
 //!   the walk that holds the parent folder for an adoption,
 //!   and the second walk that reads the canonical slot.
-//! - `clone_slot_git_pointer.rs`:
-//!   the first observation's bounded,
-//!   regular,
-//!   no-follow read of the slot's Git pointer.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
 //!   the plan that takes a misplaced mount down and the report it leaves.
-//! - `parent_adoption_facts.rs`:
-//!   the policy a replacement must hold and the state of each binding and slot.
-//! - `parent_adoption_decision.rs`:
-//!   the table that decides whether a recreated parent folder may be recorded.
-//! - `attach_arm_tests.rs`:
-//!   step 4's guest arms,
-//!   which mount a real clone at the slot the walk held,
-//!   never in the release build.
+//! - `slot_identity_store_publication.rs`:
+//!   the three writes:
+//!   a slot's first record,
+//!   the parent's first record,
+//!   and the adoption's replacement.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -55,7 +55,7 @@ use crate::json_record::quote;
 use crate::package_repair::RepairSwitch;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::OwedCopy;
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 pub(crate) use crate::worktree_copy_after_lock::{
     AfterLock,
     finish_trash_and_repair,
