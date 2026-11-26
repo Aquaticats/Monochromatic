@@ -124,6 +124,16 @@ and nowhere else: `ChildTest` is the request (`started` hands back the running c
 and `testing/test_process_owner.rs` is the ownership it stands on.
 Six bodies built that command their own way until 2026-11-25,
 and most of their children were owned by nothing (debt ledger item 10).
+The guard a body starts with reads `if <starter>(...) { return; }`:
+`started_within_a_child_of_its_own` and `ran_in_child` answer true in the process that started the child,
+so an inverted guard runs the body there as well,
+and a body that sets what belongs to the whole process then sets it for every test of the run
+(issue 6496 lowered the run's own thread limit,
+so three other controls failed at their fixture's first Git start).
+The setters refuse outside the child and name the starter,
+so an inverted guard fails at its own first line,
+which is what the two refusals in `testing/no_threads_child_test_support.rs` and
+`subvolume/subvolume_file_write_steps_sync_counts_test_support.rs` are for.
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
 and judges the ending itself; a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.
