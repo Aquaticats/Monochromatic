@@ -147,7 +147,9 @@ fn missing_extra_and_duplicate_entries_are_reported() {
     assert_eq!(found.len(), 3, "{text}");
 }
 
-/// A top doc without the marker line has no list.
+/// A top doc without the marker line has no list,
+///  and the file the doc never lists is a finding of its own,
+///  so a `no-file-list` entry cannot tolerate a file added later.
 #[test]
 fn a_top_doc_without_the_list_marker_is_reported() {
     let fixture = package_with(&[
@@ -159,11 +161,15 @@ fn a_top_doc_without_the_list_marker_is_reported() {
         ("src/a/one.rs", ""),
     ]);
     let found: Vec<String> = findings_of(&fixture.path);
-    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found.len(), 2, "{found:#?}");
     assert!(
         found[0].starts_with("src/a/mod.rs:1 The top doc of src/a/mod.rs has no file list"),
         "{}",
         found[0]
+    );
+    assert_eq!(
+        found[1],
+        "src/a/mod.rs:1 The top doc of src/a/mod.rs does not list the file `one.rs`."
     );
 }
 

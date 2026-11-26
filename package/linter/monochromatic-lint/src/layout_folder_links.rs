@@ -229,39 +229,72 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
 }
 
 /// What:
-///  Which loop each folder is in,
-///  its own loop or the loop of the entry it belongs to.
+///  Which loops each folder is in:
+///  its own folder loop and the loop of the entry it belongs to.
 /// Why:
 ///  An allow-list entry tolerates one use,
 ///  and it stays alive only while the two folders it joins are in one loop together.
-///  A use between a folder of a group and a folder of another group loops through the entries,
-///  so both graphs are read.
+///  A folder can sit in both graphs at once:
+///  two folders of a group loop with each other while their entry loops with a third,
+///  and then a use from the folder to another entry's folder is held by the entry loop
+///  while the folder's own loop holds a different use.
+///  Keeping both answers is what makes that state satisfiable:
+///  reading only the folder's own loop left its entry-loop uses with no loop at all,
+///  so no list could keep them alive.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function loopOfEachFolder(folders: Path[], grouped: FolderUses, groups: Set<Path>): Map<Path, [number, number]>;
+/// function loopsOfEachFolder(folders: Path[], grouped: FolderUses, groups: Set<Path>): Map<Path, Set<[number, number]>>;
 /// ```
-fn loop_of_each_folder(
+fn loops_of_each_folder(
     folders: &[PathBuf],
     grouped: &FolderUses,
     groups: &BTreeSet<PathBuf>,
-) -> BTreeMap<PathBuf, (u8, usize)> {
+) -> BTreeMap<PathBuf, BTreeSet<(u8, usize)>> {
     let (entry_nodes, entry_grouped): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
     let folder_loops: BTreeMap<PathBuf, usize> = loop_membership(folders, grouped);
     let entry_loops: BTreeMap<PathBuf, usize> = loop_membership(&entry_nodes, &entry_grouped);
-    let mut loops: BTreeMap<PathBuf, (u8, usize)> = BTreeMap::<PathBuf, (u8, usize)>::new();
+    let mut loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
+        BTreeMap::<PathBuf, BTreeSet<(u8, usize)>>::new();
     for folder in folders {
+        // The loops this folder is in, from either graph; zero means its own folders, one its entry.
+        let mut held: BTreeSet<(u8, usize)> = BTreeSet::<(u8, usize)>::new();
         if let Some(number) = folder_loops.get(folder) {
-            loops.insert(folder.clone(), (0, *number));
-            continue;
+            held.insert((0, *number));
         }
         let entry: PathBuf = entry_of(folder, groups);
         if let Some(number) = entry_loops.get(&entry) {
-            loops.insert(folder.clone(), (1, *number));
+            held.insert((1, *number));
+        }
+        if !held.is_empty() {
+            loops.insert(folder.clone(), held);
         }
     }
     return loops;
 }
+
+/// What:
+///  The loops two folders are in together,
+///  empty when they share none.
+/// Why:
+///  One use between two folders holds a loop only while both are in it,
+///  and a folder may sit in a folder loop and in an entry loop at the same time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sharedLoops(loops: Map<Path, Set<[number, number]>>, from: Path, to: Path): Set<[number, number]>;
+/// ```
+fn shared_loops(
+    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
+    from: &Path,
+    to: &Path,
+) -> BTreeSet<(u8, usize)> {
+    let (Some(of_from), Some(of_to)) = (loops.get(from), loops.get(to)) else {
+        return BTreeSet::<(u8, usize)>::new();
+    };
+    return of_from.intersection(of_to).copied().collect::<BTreeSet<(u8, usize)>>();
+}
+
 
 /// What:
 ///  The uses that stay in the loop checks:
@@ -297,14 +330,16 @@ fn without_tolerated(grouped: &FolderUses, list: &AllowList, base: &Path) -> Fol
 /// Why:
 ///  A loop the list knows nothing about is reported by the loop check,
 ///  so only a loop the list has started tolerating can hide a use added later.
+///  A listed use between folders that share more than one loop records all of them,
+///  because the list holds a line for one use and that use keeps every loop it joins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function toleratedLoops(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList, base: Path): Set<[number, number]>;
+/// function toleratedLoops(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, list: AllowList, base: Path): Set<[number, number]>;
 /// ```
 fn tolerated_loops(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, (u8, usize)>,
+    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
     list: &AllowList,
     base: &Path,
 ) -> BTreeSet<(u8, usize)> {
@@ -318,12 +353,7 @@ fn tolerated_loops(
             if !listed {
                 continue;
             }
-            let Some(loop_of_from) = loops.get(from) else {
-                continue;
-            };
-            if loops.get(to) == Some(loop_of_from) {
-                tolerated.insert(*loop_of_from);
-            }
+            tolerated.extend(shared_loops(loops, from, to));
         }
     }
     return tolerated;
@@ -342,12 +372,12 @@ fn tolerated_loops(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function newLoopUses(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList, base: Path): LayoutFinding[];
+/// function newLoopUses(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, reportedLoops: Map<Path, Set<[number, number]>>, tolerated: Set<[number, number]>, list: AllowList, base: Path): LayoutFinding[];
 /// ```
 fn new_loop_uses(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, (u8, usize)>,
-    reported_loops: &BTreeMap<PathBuf, (u8, usize)>,
+    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
+    reported_loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
     tolerated: &BTreeSet<(u8, usize)>,
     list: &AllowList,
     base: &Path,
@@ -362,19 +392,16 @@ fn new_loop_uses(
             if tolerated_use {
                 continue;
             }
-            let Some(loop_of_from) = loops.get(from) else {
-                continue;
-            };
-            if loops.get(to) != Some(loop_of_from) {
+            // Every loop these two folders are in together, from either graph.
+            let joined: BTreeSet<(u8, usize)> = shared_loops(loops, from, to);
+            if joined.is_empty() {
                 continue;
             }
-            if !tolerated.contains(loop_of_from) {
+            if joined.intersection(tolerated).next().is_none() {
                 continue;
             }
             // A loop the loop check reports already lists this use.
-            if let Some(reported) = reported_loops.get(from)
-                && reported_loops.get(to) == Some(reported)
-            {
+            if !shared_loops(reported_loops, from, to).is_empty() {
                 continue;
             }
             findings.push(LayoutFinding {
@@ -405,11 +432,11 @@ fn new_loop_uses(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function liveUseEntries(grouped: FolderUses, loops: Map<Path, [number, number]>, list: AllowList): Set<number>;
+/// function liveUseEntries(grouped: FolderUses, loops: Map<Path, Set<[number, number]>>, list: AllowList): Set<number>;
 /// ```
 fn live_use_entries(
     grouped: &FolderUses,
-    loops: &BTreeMap<PathBuf, (u8, usize)>,
+    loops: &BTreeMap<PathBuf, BTreeSet<(u8, usize)>>,
     list: &AllowList,
     base: &Path,
 ) -> BTreeSet<usize> {
@@ -426,10 +453,7 @@ fn live_use_entries(
         if !targets.contains_key(&absolute_to) {
             continue;
         }
-        let Some(loop_of_from) = loops.get(&absolute_from) else {
-            continue;
-        };
-        if loops.get(&absolute_to) != Some(loop_of_from) {
+        if shared_loops(loops, &absolute_from, &absolute_to).is_empty() {
             continue;
         }
         used.insert(index);
@@ -501,9 +525,10 @@ pub fn check_folder_links(
     let Some(list) = allow else {
         return findings;
     };
-    let loops: BTreeMap<PathBuf, (u8, usize)> = loop_of_each_folder(&folder_list, &grouped, &groups);
-    let reported_loops: BTreeMap<PathBuf, (u8, usize)> =
-        loop_of_each_folder(&folder_list, &reported, &groups);
+    let loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
+        loops_of_each_folder(&folder_list, &grouped, &groups);
+    let reported_loops: BTreeMap<PathBuf, BTreeSet<(u8, usize)>> =
+        loops_of_each_folder(&folder_list, &reported, &groups);
     let tolerated_loops: BTreeSet<(u8, usize)> = tolerated_loops(&grouped, &loops, list, base);
     findings.extend(new_loop_uses(
         &grouped,

@@ -200,7 +200,9 @@ fn list_findings(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    let Some(marker) = doc.marker_line else {
+    // The line a missing entry is reported on: the marker, or the first doc line when there is no list at all.
+    let list_line: usize = doc.marker_line.unwrap_or(doc.first_line);
+    if doc.marker_line.is_none() {
         // The help shows the marker broken after its comma, which is where the Markdown rule breaks it.
         let (head, tail) = LIST_MARKER.split_once(", ").unwrap_or((LIST_MARKER, ""));
         findings.push(LayoutFinding {
@@ -215,8 +217,9 @@ fn list_findings(
             )),
             key: format!("no-file-list {}", shown(index, base)),
         });
-        return findings;
-    };
+    }
+    // A doc with no list still owes the reader one, so every unlisted file is reported on its own:
+    // a file added to this folder later is a finding that no `no-file-list` line tolerates.
     let mut first_place: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
     for (place, entry) in doc.entries.iter().enumerate() {
         if first_place.contains_key(&entry.name) {
@@ -258,7 +261,7 @@ fn list_findings(
         if !first_place.contains_key(name) {
             findings.push(LayoutFinding {
                 file: index.to_path_buf(),
-                line: marker,
+                line: list_line,
                 message: format!(
                     "The top doc of {} does not list the file `{name}`.",
                     shown(index, base)

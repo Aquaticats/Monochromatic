@@ -218,3 +218,98 @@ fn layout_the_span_of_a_line_starts_at_that_line() {
     assert_eq!(line_span(&file, 4), at_start);
     assert_eq!(line_span(&fixture.path.join("missing.txt"), 2), at_start);
 }
+
+/// A folder that sits in a plain loop of its own and in a loop of its entry is one state a list can satisfy:
+/// listing every use leaves no loop finding and no entry that tolerates nothing.
+/// The control arm runs the same package with an empty list and shows both loops.
+#[cfg(unix)]
+#[test]
+fn a_list_that_names_every_use_of_a_folder_loop_and_an_entry_loop_passes() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod grp;\n"),
+        (
+            "src/a/mod.rs",
+            "use crate::b::X;\nuse crate::grp::g1::X as Y;\n",
+        ),
+        ("src/b/mod.rs", "use crate::a::X;\n"),
+        ("src/grp/mod.rs", "mod g1;\nmod g2;\n"),
+        ("src/grp/g1/mod.rs", ""),
+        ("src/grp/g2/mod.rs", "use crate::a::X;\n"),
+    ]);
+    // Every folder links exactly the folders its code uses, so only the loops are left to the list.
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/g1", "../../grp/g1");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/a", "../../a");
+    crate::layout_test_support::link(&fixture.path, "src/grp/g2/uses/a", "../../../a");
+    crate::layout_test_support::link(&fixture.path, "src/grp/uses/a", "../../a");
+    write(
+        &fixture.path,
+        CONFIG,
+        r#"[{ "files": ["**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    write(&fixture.path, "folder.txt", "");
+    // The control: both loops exist, and the empty list reports them.
+    let open: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(open.exit_code, 1, "{}", open.stderr);
+    assert!(
+        open.stdout
+            .contains("These folders use each other in a loop"),
+        "{}",
+        open.stdout
+    );
+    assert!(
+        open.stdout
+            .contains("These groups and folders use each other in a loop"),
+        "{}",
+        open.stdout
+    );
+    // Every use of both loops on the list leaves nothing to report.
+    write(
+        &fixture.path,
+        "folder.txt",
+        "uses src/a -> src/b\nuses src/b -> src/a\nuses src/a -> src/grp/g1\nuses src/grp/g2 -> src/a\n",
+    );
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert!(
+        !listed.stdout.contains("tolerates nothing any more"),
+        "{}",
+        listed.stdout
+    );
+    assert_eq!(listed.stdout, "", "{}", listed.stderr);
+    assert_eq!(listed.exit_code, 0, "{}", listed.stderr);
+}
+
+/// A `no-file-list` entry tolerates the missing list alone,
+///  never a file added to that folder afterwards.
+#[test]
+fn a_no_file_list_entry_does_not_hide_a_new_file() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", "//! Words only.\nmod one;\nmod two;\n"),
+        ("src/a/one.rs", ""),
+        ("src/a/two.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        r#"[{ "files": ["**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "file.txt" } } }]"#,
+    );
+    // The list records the missing list and the file that was there when the line was written.
+    write(
+        &fixture.path,
+        "file.txt",
+        "no-file-list src/a/mod.rs\nmissing-entry src/a/mod.rs one.rs\n",
+    );
+    let output: RunOutput = run(&fixture.path, &[], "");
+    assert!(
+        output.stdout.contains("does not list the file `two.rs`"),
+        "{}",
+        output.stdout
+    );
+    assert_eq!(output.exit_code, 1, "{}", output.stderr);
+    assert!(
+        !output.stdout.contains("tolerates nothing any more"),
+        "{}",
+        output.stdout
+    );
+}
