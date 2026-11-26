@@ -605,9 +605,44 @@ This round fixed the ledger the issue named;
 those sites stay measured and unfixed.
 Status:
 incomplete,
-unapproved and not final.
+unapproved and not final;
+the owner declares completion.
 
 Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6514-started-as-git-control-reads-its-own-record`:
+issue 6514 is fixed,
+and it is a mechanism this item did not list:
+a child inherits the chain record its parent holds,
+because the record's memory file carries no close-on-exec flag
+(`invocation/chain_starts_record.rs`),
+and `invocation::started_as_git::tests::a_record_of_this_process_is_read_even_when_an_older_marker_sits_above`
+ran its body in a child that also made a record of its own under the same name.
+The lookup answers with the first descriptor carrying that name,
+so the guard read the test process's record:
+measured,
+the inherited record at descriptor 3 named the parent and the control's at 4 named the child.
+The body closes every record it inherited before it makes its own,
+runs in a child of its own through `testing/process_wide_state_child_test_support.rs`,
+and asserts that the record the lookup finds is the one it made.
+Thirteen threaded runs of `started_as_git::` were made before the change
+(seven failed the one control,
+four passed,
+two were cut off in the log),
+and thirteen after it
+(nine before the guard was taken out,
+four after it was put back),
+every one `test result: ok. 15 passed; 0 failed`;
+`invocation::` answered `394 passed; 0 failed` in three runs after the change,
+where the one run this round made before it failed three `git_version_cache` controls with
+`Text file busy` and not this one.
+Those failures are a fault of that module's own controls and are issue 6516.
+The reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
 branch `fix/git-policy-cli-issue-6503-process-wide-state-child-helper-takes-its-body`:
 issue 6503 is fixed.
 The helper that runs one control's body in a child of its own answered a yes or a no,
@@ -640,7 +675,6 @@ issue 6477's shape, and that control guards no child before or after this round)
 and `source_guard::` answered `test result: ok. 144 passed; 0 failed`.
 The measured reds and greens are in
 `doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
-
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;

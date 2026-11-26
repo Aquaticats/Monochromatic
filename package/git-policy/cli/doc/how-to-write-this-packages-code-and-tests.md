@@ -81,6 +81,12 @@ so two controls of a threaded run cannot both have theirs,
 and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
 The setters refuse in any other process and name the starter,
 as the descriptor limit's setter does.
+A child also inherits the records its parent holds,
+so a control whose body reads the chain record closes the record it inherited before it makes its own
+(`invocation/started_as_git_tests.rs`,
+issue 6514):
+the lookup answers with the first descriptor of that name in `/proc/self/fd`,
+and a process holding two read the test process's record rather than the one the control wrote.
 The switch that keeps a control's durability syncs in the page cache is one of those facts:
 it belongs to the process,
 so a control that sets it runs its body in a child,

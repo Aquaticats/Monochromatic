@@ -7,6 +7,112 @@
 //!  The wrapper judges commands one by one,
 //!  so everything that is about a single Git command lives together.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `branch_delete_audit.rs`:
+//!   the facts one audit line of a deleted branch carries.
+//! - `command_clean_nested_repositories.rs`:
+//!   which nested Git repositories a clean's two dry runs say it would delete.
+//! - `command_options.rs`:
+//!   git 2.56.0 `parse-options` tokenization of one command's argument region.
+//! - `command_branch_table.rs`:
+//!   the complete Git 2.56.0 option table of `git branch`.
+//! - `command_checkout_table.rs`:
+//!   the complete Git 2.56.0 option tables of `git checkout` and `git switch`.
+//! - `command_commit_table.rs`:
+//!   the complete Git 2.56.0 option table of `git commit`.
+//! - `command_config_table.rs`:
+//!   the Git 2.56.0 option groups of `git config`.
+//! - `command_options_long.rs`:
+//!   long-option matching:
+//!   one token read into the tokenizer's record of the options Git applied.
+//! - `command_options_long_resolution.rs`:
+//!   which row one long token names:
+//!   exact names,
+//!   unique abbreviations and `no-` negation.
+//! - `command_options_query.rs`:
+//!   final-state and position questions over a tokenized region.
+//! - `command_add.rs`:
+//!   the Git 2.56.0 option table of `git add` and its bulk-staging facts.
+//! - `command_branch_delete.rs`:
+//!   which branches a `git branch` region deletes.
+//! - `command_branch_mode.rs`:
+//!   which action a tokenized `git branch` region selects.
+//! - `command_branch_target.rs`:
+//!   explicit creation and the remote-guess candidate of `git checkout` and `git switch`.
+//! - `command_branch_create.rs`:
+//!   branch-creation facts of `git branch`,
+//!   `git checkout` and `git switch`.
+//! - `command_clean.rs`:
+//!   the Git 2.56.0 option table of `git clean` and its deletion facts.
+//! - `command_commit.rs`:
+//!   facts about the arguments after `git commit`.
+//! - `command_config.rs`:
+//!   the form and file scope of a `git config` region.
+//! - `command_discard.rs`:
+//!   the commands that can overwrite or delete uncommitted state,
+//!   read as Git reads them.
+//! - `command_options_short.rs`:
+//!   short-option clusters and their attached or following values.
+//! - `command_options_value.rs`:
+//!   the shared decision of which bytes are an option's value.
+//! - `command_push.rs`:
+//!   the Git 2.56.0 option table of `git push` and its facts.
+//! - `command_remote_table.rs`:
+//!   the one option `git remote` reads before a subcommand.
+//! - `command_remote.rs`:
+//!   the subcommand of a `git remote` region and where it starts.
+//! - `command_reset.rs`:
+//!   the Git 2.56.0 option table of `git reset` and its mode.
+//! - `command_stash_table.rs`:
+//!   the Git 2.56.0 option tables of every `git stash` subcommand.
+//! - `command_stash.rs`:
+//!   `git stash` subcommand dispatch and wrapper-flag positions.
+//! - `command_status.rs`:
+//!   the Git 2.56.0 option table of `git status`,
+//!   its facts and the advice-key reading.
+//! - `command_worktree.rs`:
+//!   whether a `git worktree` invocation changes worktree registrations (an add or a move),
+//!   and which directory a removal takes.
+//! - `rule_add_explicit.rs`:
+//!   pure decision of the add-explicit policy.
+//! - `rule_argument_rewrite.rs`:
+//!   the shared result and builder of transforms that add tokens to a command line.
+//! - `rule_atomic_push.rs`:
+//!   pure decision of the atomic-push transform.
+//! - `rule_branch_worktree.rs`:
+//!   pure decision of the branch-worktree-only policy and its one-query remote guess.
+//! - `rule_clean_interactive_nested_repositories.rs`:
+//!   the transform that keeps a nested Git repository out of an interactive clean's menu.
+//! - `rule_keep_ignored_files.rs`:
+//!   the transform that stops a `checkout` or `switch` replacing an ignored file.
+//! - `rule_repository_stash.rs`:
+//!   the one-query question whether the repository holds a stash entry.
+//! - `rule_require_root.rs`:
+//!   pure decision of the require-root policy.
+//! - `rule_shared_remote.rs`:
+//!   pure decision of the shared-remote-settings refusal:
+//!   which `git remote` and `git config` commands write the remote settings every worktree shares.
+//! - `rule_shared_remote_messages.rs`:
+//!   the rejection texts of the shared-remote-settings refusal.
+//! - `rule_status_hints.rs`:
+//!   pure decision of the status-hints transform.
+//! - `rule_worktree_dirty.rs`:
+//!   the query and reading of "does this worktree hold uncommitted state?".
+//! - `rule_linked_worktree.rs`:
+//!   pure decision of the linked-worktree-only policy.
+//! - `rule_abort_operation.rs`:
+//!   the operation each abort form undoes,
+//!   and whether that operation waits.
+//! - `rule_abort_messages.rs`:
+//!   the plain-language texts of the abort carve-out.
+//! - `rule_linked_worktree_messages.rs`:
+//!   the rejection texts of the linked-worktree-only policy.
+//! - `rule_linked_worktree_nested_repository_messages.rs`:
+//!   the notice that names where a clean's nested repository went,
+//!   and the rejection when it could not be moved there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // command/index.ts: one `export * from './file'` per module below.

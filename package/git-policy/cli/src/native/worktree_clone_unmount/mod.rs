@@ -28,39 +28,45 @@
 //!  change the sweep's own files without moving the unmount.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
-//! - `staging_folder_name.rs`:
-//!   the folder,
-//!   record and claim names one GUID derives.
 //! - `staged_folder_error.rs`:
 //!   the refusal the record and the identity share.
 //! - `staged_folder_identity.rs`:
 //!   the five recorded fields and their compare.
+//! - `staging_folder_name.rs`:
+//!   the folder,
+//!   record and claim names one GUID derives.
 //! - `staged_folder_record.rs`:
 //!   the record's shape,
 //!   its atomic write and its bounded read.
-//! - `user_cache_pin.rs`:
-//!   the `user-cache` pin,
-//!   the account's passwd home and the cache descriptor.
 //! - `staging_calls.rs`:
 //!   the bind,
 //!   propagation change,
 //!   move,
 //!   unmount and handle calls,
 //!   and the reads that decide whether they may run.
-//! - `staged_record_reading.rs`:
-//!   the boot-id test before the handle,
-//!   the `ESTALE` pair and the identity compare.
 //! - `slot_walk_calls.rs`:
 //!   the checkout's root,
 //!   the two final hops and the fresh lookup.
+//! - `staged_record_reading.rs`:
+//!   the boot-id test before the handle,
+//!   the `ESTALE` pair and the identity compare.
+//! - `staging_claim.rs`:
+//!   the staging claim one repository keeps.
 //! - `unmount_checks.rs`:
 //!   the identity comparisons before any move.
 //! - `reattach.rs`:
 //!   the checked move back to the slot.
 //! - `unmount_record.rs`:
 //!   the pre-bind shape checks and the record's write.
+//! - `user_cache_pin.rs`:
+//!   the `user-cache` pin,
+//!   the account's passwd home and the cache descriptor.
+//! - `staged_unmount.rs`:
+//!   the held-descriptor unmount and the later sweep from the record.
+//! - `staging_cleanup.rs`:
+//!   the wrapper's rmdir-only cleanup and the folder's creation.
 //! - `unmount_turn.rs`:
 //!   the record,
 //!   bind,
