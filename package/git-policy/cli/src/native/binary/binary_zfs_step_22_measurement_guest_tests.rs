@@ -779,10 +779,13 @@ fn unmount_arm(fixture: &Fixture) {
         assert_eq!(attached.status, Some(0), "round {round}: the sweep attached the clone: {}", attached.said);
         let slot: PathBuf = fixture.slot(name.as_str());
         assert!(mounted_at_path(slot.as_path()), "round {round}: the clone stood at its slot");
+        // The clone's dataset inherits the container's legacy mountpoint, so
+        // the kernel's own unmount by path is the call the route makes, not
+        // `zfs unmount`, which refuses a legacy dataset by name.
         let started: Instant = Instant::now();
-        let unmounted: (bool, String, String) = fixture.zfs(&["unmount", slot.to_str().expect("a text path")]);
+        let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.to_str().expect("a text path")).output().expect("the plain unmount starts");
         plain.push(started.elapsed().as_millis());
-        assert!(unmounted.0, "round {round}: the plain unmount was accepted: {}", unmounted.2);
+        assert!(unmounted.status.success(), "round {round}: the plain unmount was accepted: {}", String::from_utf8_lossy(unmounted.stderr.as_slice()));
         assert!(!mounted_at_path(slot.as_path()), "round {round}: the plain unmount took the mount down");
         fixture.forget(name.as_str(), format!("dd{round:02}").as_str());
     }
