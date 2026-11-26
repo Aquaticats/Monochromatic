@@ -23,7 +23,9 @@
 //! - `add_capture.rs`: the frozen capture's facts and the walk that takes them.
 //! - `add_capture_record.rs`: the capture's durable grammar and its refusals.
 //! - `add_capture_store.rs`: where the capture and the proof marker live, and how they are published.
-//! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
+//! - `add_exchange_trash.rs`: the trash the exchange keeps the copied administration in, and its own manifest.
+//! - `add_exchange_preparation.rs`: the trash entry the saved pointer takes, and the identities on both sides.
+//! - `add_exchange.rs`: the one swap of the two entries, and the check of what each holds after it.
 //! - `add_frozen_proof.rs`: the clone's index and tracked files against the capture.
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
 //! - `add_index.rs`: the fill's private index and its publication.
@@ -66,6 +68,10 @@ pub mod add_capture_store;
 pub mod add_capture_tree;
 /// The pointer's exchange.
 pub mod add_exchange;
+/// What the exchange is given before it swaps the two entries.
+pub mod add_exchange_preparation;
+/// The trash that holds the copied administration after the exchange.
+pub mod add_exchange_trash;
 /// The fill's order.
 pub mod add_fill;
 /// The frozen proof of a mounted clone.
