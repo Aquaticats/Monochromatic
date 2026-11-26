@@ -916,8 +916,10 @@ MXV:
  local host and interface names.
 
 HDG:
- A draft's sections are headings with prose;
- its title sits outside the body.
+ A draft's title sits outside its body;
+ its sections are `##` headings,
+ the highest level the body leaves free,
+ with prose under each.
 
  The new-issue
 draft contains:
