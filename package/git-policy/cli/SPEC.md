@@ -9819,6 +9819,15 @@ and when that transcript reads as a refused host key it prints one sentence afte
 naming the plain `ssh` command to run
 (`src/native/invocation/typed_network_command_relay/`,
 and the three texts are the proposal's kept files byte for byte).
+The command that sentence offers is built from the remote URL the way Git reads it
+(`parse_connect_url` and `get_host_and_port` in `connect.c` at Git 2.56.0,
+the release `MINIMUM_GIT_VERSION` pins),
+so it reaches the host and the port Git's own child reaches:
+a scp-like URL's host ends at its first colon,
+which makes `git@host:2222/repo.git` port 22 with the path `2222/repo.git`,
+a port is written only after a host in a URL that has a scheme,
+a bracketed address is unwrapped because ssh reads the bare address,
+and a password a URL carries is never printed.
 A command ssh does not carry names no next step and keeps the process replacement it has today.
 Four limits stand with it:
 `kill -9` of the typed process number is not one of the four signals the relay carries:
