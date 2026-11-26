@@ -215,6 +215,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6514 as `7ca3772424`: the started-as-git control's child closes the chain record it inherited before it makes its own.
+  Its round found 6517 (the git version cache controls fail threaded with `Text file busy`).
 - 6508 as `b9eb433b0a`: the compaction silence control owns its clock; the measured loss was a stall between arming the bound and registering the sleep.
 - 6493 as `65b27b84cc`: 22 size-read controls run in children of their own,
   and the holds they arm refuse a body outside a child; its `push::child_watch::` reds fail on `main` too (issue 6511).
