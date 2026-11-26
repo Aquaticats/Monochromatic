@@ -16,7 +16,6 @@ use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_copy::{
     Invocation,
     exit_code,
-    run_with_worktree_copy,
 };
 use crate::worktree_copy_forward_outcome::{
     ForwardedRun,
@@ -24,6 +23,7 @@ use crate::worktree_copy_forward_outcome::{
     query_directory,
 };
 use crate::worktree_copy_forward_step_runner::ForwardedGit;
+use crate::worktree_copy_settles_one_invocation::run_with_worktree_copy;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::Path;

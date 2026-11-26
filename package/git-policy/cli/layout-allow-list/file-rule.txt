@@ -451,13 +451,6 @@ file-uses src/native/worktree_clone_removal_proof_and_plan removal_origin_step.r
 file-uses src/native/worktree_clone_removal_proof_and_plan removal_settle_step.rs -> removal_completion.rs
 file-uses src/native/worktree_clone_unmount unmount_record.rs -> unmount_turn.rs
 file-uses src/native/worktree_clone_unmount unmount_turn.rs -> unmount_record.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_after_lock.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_owed_copy.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_recovery.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_registry.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_stage_claim.rs
-file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_synchronize.rs
-file-uses src/native/worktree_copying worktree_copy_after_lock.rs -> worktree_copy.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
@@ -533,7 +526,6 @@ file-uses src/native/worktree_copying worktree_copy_stage_snapshot_origin.rs -> 
 file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_made_object.rs
 file-uses src/native/worktree_copying worktree_copy_swapped_add_settlement.rs -> worktree_copy_stage_reaping_proof_and_words.rs
-file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_registry.rs
 file-uses src/native/worktree_copying worktree_copy_synchronize.rs -> worktree_copy_source_still_being_filled.rs

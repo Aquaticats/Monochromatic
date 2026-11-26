@@ -8,13 +8,19 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `worktree_copy_error.rs`:
+//!   the one failure type of the linked-worktree ignored-state copy and its diagnostics.
+//! - `worktree_copy.rs`:
+//!   the copy's contract:
+//!   the facts a settlement is handed,
+//!   the steps it asks its Git runner for,
+//!   the settlement it answers with,
+//!   and the summary line and exit status a person reads.
 //! - `worktree_copy_after_lock.rs`:
 //!   what is left to do once a created worktree holds its ignored state:
 //!   its package-manager repair,
 //!   and the trash a snapshot left there,
 //!   handed to the commit service.
-//! - `worktree_copy_error.rs`:
-//!   the one failure type of the linked-worktree ignored-state copy and its diagnostics.
 //! - `worktree_copy_ceiling.rs`:
 //!   the bound one command holds when it finishes a copy it did not start,
 //!   and the words a copy stopped at that bound is reported with.
@@ -118,9 +124,6 @@
 //!   what becomes of the destination a refused `git worktree add` left:
 //!   the empty folder this command made is removed,
 //!   and one it left with something in it is named on the command's output.
-//! - `worktree_copy.rs`:
-//!   the linked-worktree ignored-state copy around one forwarded Git invocation:
-//!   the integrator's entry point.
 //! - `worktree_removal_of_a_bound_clone.rs`:
 //!   the refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
 //!   with the slot's state printed beside it.
@@ -198,6 +201,17 @@
 //!   each is moved aside with one line,
 //!   what it named is found again from the records beside it where it can be,
 //!   and the command that met it runs.
+//! - `worktree_copy_creation_settlement.rs`:
+//!   what one creating command does around real Git:
+//!   the record of the add it makes,
+//!   the cheap-worktree ladder and the child Git it starts,
+//!   the ignored-state copy into the worktree it created,
+//!   and the settlement of a destination Git refused.
+//! - `worktree_copy_settles_one_invocation.rs`:
+//!   the settlement of one forwarded invocation:
+//!   its bypasses,
+//!   what a dead owner left to recover,
+//!   and the creating command handed to its own settlement.
 //! - `worktree_copy_forward_outcome.rs`:
 //!   how one forwarded run ended,
 //!   the words a stopped step is named with,
@@ -495,8 +509,10 @@ pub mod worktree_copy_unreadable_records;
 #[cfg(unix)]
 pub mod worktree_copy_source_still_being_filled;
 
-/// The linked-worktree ignored-state copy around one forwarded Git invocation:
-/// the integrator's entry point.
+/// The copy's contract:
+/// the facts a settlement is handed,
+/// the steps it asks its Git runner for,
+/// and the settlement it answers with.
 #[cfg(unix)]
 pub mod worktree_copy;
 
@@ -507,6 +523,21 @@ pub mod worktree_copy;
 /// handed to the commit service.
 #[cfg(unix)]
 pub mod worktree_copy_after_lock;
+
+/// What one creating command does around real Git:
+/// the record of the add it makes,
+/// the cheap-worktree ladder and the child Git it starts,
+/// the ignored-state copy into the worktree it created,
+/// and the settlement of a destination Git refused.
+#[cfg(unix)]
+pub mod worktree_copy_creation_settlement;
+
+/// The settlement of one forwarded invocation:
+/// its bypasses,
+/// what a dead owner left to recover,
+/// and the creating command handed to its own settlement.
+#[cfg(unix)]
+pub mod worktree_copy_settles_one_invocation;
 
 /// How one forwarded run ended,
 /// the words a stopped step is named with,
