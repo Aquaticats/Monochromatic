@@ -47,7 +47,6 @@ use crate::doctor_zfs_route::{
     check_dataset,
 };
 use crate::transaction_git::GitContext;
-use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
@@ -59,6 +58,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{
     admit_attach,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_snapshot_source::{
     Refusal as SourceRefusal,

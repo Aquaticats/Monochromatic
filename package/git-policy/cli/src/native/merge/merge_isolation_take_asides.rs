@@ -62,12 +62,12 @@ pub(crate) use crate::merge_isolation_take_asides_proof::ProofNothingCanWrite;
 /// The proof,
 ///  asked the way a removal asks it.
 use crate::merge_isolation_take_asides_proof::the_proof_that_nothing_can_write_into;
+/// The rename that never replaces.
+use crate::private_storage::rename_noreplace;
 use crate::recovery_error::{
     RecoveryError,
     io_failure,
 };
-/// The rename that never replaces.
-use crate::private_storage::rename_noreplace;
 /// The same rename as a job of the blocking pool,
 /// and what it came to.
 use crate::rename_that_never_replaces::{

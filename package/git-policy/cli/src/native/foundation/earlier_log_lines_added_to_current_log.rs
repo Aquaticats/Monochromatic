@@ -89,8 +89,8 @@ use crate::file_open_for_write_by_any_process::{
     WriterCheck,
     writer_check,
 };
-use crate::private_storage::sync_directory;
 use crate::private_storage::rename_noreplace;
+use crate::private_storage::sync_directory;
 use crate::wrapper_names_old_and_new::RenamedName;
 use std::fs::{
     File,

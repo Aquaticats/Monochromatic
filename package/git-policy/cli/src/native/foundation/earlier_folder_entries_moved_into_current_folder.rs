@@ -26,8 +26,8 @@
 //! ```
 
 use crate::earlier_log_lines_added_to_current_log::FoldSteps;
-use crate::private_storage::sync_directory;
 use crate::private_storage::rename_noreplace;
+use crate::private_storage::sync_directory;
 use crate::wrapper_names_old_and_new::{
     KEPT_BESIDE_SUFFIX,
     RenamedName,

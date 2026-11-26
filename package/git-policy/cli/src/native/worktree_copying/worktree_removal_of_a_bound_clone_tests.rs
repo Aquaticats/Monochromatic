@@ -46,8 +46,8 @@ use crate::worktree_clone_slot_state::slot_state_live_read::{
     CloneIntentReads,
     SlotReadingSources,
 };
-use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_command_facts::RemovePlan;
+use crate::worktree_identity::WorktreeIdentity;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::{
     MountHoldingAPath,
     MountedDatasetInstance,

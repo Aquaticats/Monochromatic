@@ -27,7 +27,6 @@ use crate::test_support::{
     repository,
 };
 use crate::transaction_git::GitContext;
-use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
@@ -38,6 +37,7 @@ use crate::worktree_clone_binding_record::registration_home::{
     plans_folder,
 };
 use crate::worktree_clone_mount_protocol::DatasetGuid;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_ladder_test_support::main_identity;

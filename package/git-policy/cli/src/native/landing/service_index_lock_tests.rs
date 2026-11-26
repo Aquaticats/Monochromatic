@@ -20,6 +20,7 @@ impl<Say: Fn(Announce)> Announcer for Say {
         self(note);
     }
 }
+use crate::private_storage::rename_noreplace;
 use crate::process_identity::{
     ProcessIdentityError,
     process_birth_identity,
@@ -36,7 +37,6 @@ use crate::service_index_marker::{
     marker_of,
     pid_of_self_stat,
 };
-use crate::private_storage::rename_noreplace;
 use crate::service_index_placement::place_marked;
 use crate::service_index_staging::stage_marker;
 use crate::test_support::{

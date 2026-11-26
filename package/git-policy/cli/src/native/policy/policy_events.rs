@@ -45,15 +45,15 @@ use crate::event_hints::{
     WARN_UNSAFE_HINT,
     finding_hint,
 };
+use crate::event_path::{
+    EventPath,
+    base64_standard,
+};
 /// The hint of one engine-failure code,
 /// and the field a line carries a hint in.
 use crate::invocation_config::{
     engine_failure_hint,
     push_hint_field,
-};
-use crate::event_path::{
-    EventPath,
-    base64_standard,
 };
 use crate::policy_registry::{
     PolicyId,

@@ -88,6 +88,7 @@ use crate::work_item::{
     state_directory,
 };
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_kept_notices::record_kept_worktree;
 use crate::worktree_landed_registrations::branch_of_registration;
 use crate::worktree_registration_proof::read_record_here;
@@ -110,7 +111,6 @@ use crate::worktree_remove::{
     RemoveOutcome,
     RemoveRequest,
 };
-use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove_registry::{
     Registration,
     registered_worktree,

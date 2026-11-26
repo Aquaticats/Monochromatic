@@ -44,8 +44,8 @@ use crate::fs_beneath::{
 };
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use crate::subvolume_remove::remove_tree;
-use crate::worktree_command_facts::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
 pub use crate::worktree_snapshot_index_step::CopyState;
 use crate::worktree_snapshot_index_step::{

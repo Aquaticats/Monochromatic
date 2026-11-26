@@ -24,6 +24,7 @@ use crate::test_support::{
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use crate::work_item::WorkKind;
+use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_remove::{
     Held,
     RemoveOperations,
@@ -32,7 +33,6 @@ use crate::worktree_remove::{
     remove_with,
 };
 use crate::worktree_remove_hand_over as test_support;
-use crate::worktree_command_facts::RemovePlan;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,
