@@ -9,11 +9,20 @@
 //! test('a repeated line is an error', () => expect(() => parse(text)).toThrow());
 //! ```
 
-use super::{AllowKind, AllowList, parse_allow_list, read_allow_list};
-use crate::{run_test_support::write, test_fs::Fixture};
+use super::{
+    AllowKind,
+    AllowList,
+    parse_allow_list,
+    read_allow_list,
+};
+use crate::{
+    run_test_support::write,
+    test_fs::Fixture,
+};
 use std::path::Path;
 
-/// Read a list from text, as the file it would be.
+/// Read a list from text,
+/// as the file it would be.
 fn parsed(lines: &str) -> AllowList {
     return parse_allow_list(lines, Path::new("package/allow-list.txt"))
         .expect("the fixture list is valid");
@@ -39,7 +48,10 @@ fn every_shape_of_entry_is_read_in_file_order() {
     );
     let entries = list.entries();
     assert_eq!(entries.len(), 3);
-    assert_eq!(entries[0].text, "uses src/native/landing -> src/native/foundation");
+    assert_eq!(
+        entries[0].text,
+        "uses src/native/landing -> src/native/foundation"
+    );
     assert_eq!(entries[0].line, 2);
     assert!(
         matches!(
@@ -110,7 +122,10 @@ fn a_file_use_line_without_a_folder_and_two_files_is_an_error() {
         "file-uses src/a one.rs two.rs\n",
     ] {
         let error: String = error_of(line);
-        assert!(error.contains("file-uses <folder> <file> -> <file>"), "{error}");
+        assert!(
+            error.contains("file-uses <folder> <file> -> <file>"),
+            "{error}"
+        );
     }
 }
 
@@ -162,4 +177,24 @@ fn a_list_file_that_is_there_is_read_whole() {
     let list: AllowList = read_allow_list(&written).expect("the fixture list reads");
     assert_eq!(list.entries().len(), 1);
     assert_eq!(list.source(), written.as_path());
+}
+
+/// A path is written with `/` on every machine,
+///  so an entry that holds a backslash is refused instead of naming a folder no key names.
+#[test]
+fn a_path_with_a_backslash_is_refused() {
+    let error: String = error_of("uses src\\a -> src/b\n");
+    assert!(error.contains("backslash"), "{error}");
+    assert!(error.contains("relative to the package folder"), "{error}");
+}
+
+/// A `.` segment and a trailing separator name the folder a finding names,
+///  so a line spelled either way tolerates the use,
+///  and a line that repeats the use is refused however it is spelled.
+#[test]
+fn a_dot_segment_and_a_trailing_separator_name_the_folder_findings_show() {
+    let list: AllowList = parsed("uses ./src/a/ -> src/b\n");
+    assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
+    let error: String = error_of("uses src/a -> src/b\nuses ./src/a/ -> src/b\n");
+    assert!(error.contains("repeats the entry"), "{error}");
 }

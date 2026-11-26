@@ -17,20 +17,43 @@
 use crate::{
     config_error::ConfigError,
     config_lookup::{
-        ConfigurationSource, NearestAnswer, NearestSource, discover_configuration,
-        load_configuration_at, nearest_above,
+        ConfigurationSource,
+        NearestAnswer,
+        NearestSource,
+        discover_configuration,
+        load_configuration_at,
+        nearest_above,
     },
-    config_match::{FileConfiguration, PreparedConfiguration, prepare_configuration},
+    config_match::{
+        FileConfiguration,
+        PreparedConfiguration,
+        prepare_configuration,
+    },
     directive_options::DirectiveOptions,
     edits::FixScope,
-    markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings},
-    run_paths::{Language, absolute_normal, display_name, language_of, relative_from},
-    rust_rule_settings::{RustRuleSettings, rust_rule_settings},
+    markdown_rule_settings::{
+        MarkdownRuleSettings,
+        markdown_rule_settings,
+    },
+    run_paths::{
+        Language,
+        absolute_normal,
+        display_name,
+        language_of,
+        relative_from,
+    },
+    rust_rule_settings::{
+        RustRuleSettings,
+        rust_rule_settings,
+    },
 };
 /// Import an ordered map and shared immutable ownership for configurations used by many files.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -114,7 +137,10 @@ pub struct FilePlan {
 impl FilePlan {
     /// True only for a Rust host whose own rules select `rust/require-explicit-types`.
     pub fn needs_semantic_engine(&self) -> bool {
-        if let RootRules::Rust { settings } = &self.root {
+        if let RootRules::Rust {
+            settings,
+        } = &self.root
+        {
             return settings.explicit_types.is_some();
         }
         return false;
@@ -210,7 +236,10 @@ impl NearestSource for CachedNearest<'_> {
 
     /// The remembered answer,
     ///  or the one a native read of this directory produces.
-    fn at(&self, directory: &Path) -> Result<Option<Arc<PreparedConfiguration>>, ConfigError> {
+    fn at(
+        &self,
+        directory: &Path,
+    ) -> Result<Option<Arc<PreparedConfiguration>>, ConfigError> {
         if let Some(known) = self.by_directory.get(directory) {
             return Ok(known.clone());
         }
@@ -243,7 +272,10 @@ impl ConfigStore {
     /// ```ts
     /// constructor(cwd: Path, explicit?: Path)
     /// ```
-    pub fn new(cwd: &Path, explicit: Option<&Path>) -> Result<ConfigStore, ConfigError> {
+    pub fn new(
+        cwd: &Path,
+        explicit: Option<&Path>,
+    ) -> Result<ConfigStore, ConfigError> {
         let mut prepared: Option<Arc<PreparedConfiguration>> = None;
         if let Some(path) = explicit {
             // The file argument is unused when an explicit path is supplied.
@@ -278,7 +310,10 @@ impl ConfigStore {
 
     /// The one place a store is assembled,
     ///  so the file and in-memory constructors cannot drift apart.
-    fn with_explicit(cwd: &Path, explicit: Option<Arc<PreparedConfiguration>>) -> ConfigStore {
+    fn with_explicit(
+        cwd: &Path,
+        explicit: Option<Arc<PreparedConfiguration>>,
+    ) -> ConfigStore {
         return ConfigStore {
             cwd: cwd.to_path_buf(),
             explicit,
@@ -298,14 +333,20 @@ impl ConfigStore {
     /// ```ts
     /// store.withDirectives(options)
     /// ```
-    pub fn with_directives(mut self, directives: DirectiveOptions) -> ConfigStore {
+    pub fn with_directives(
+        mut self,
+        directives: DirectiveOptions,
+    ) -> ConfigStore {
         self.directives = directives;
         return self;
     }
 
     /// Choose the classes of fix every plan of this store may apply;
     ///  a store starts at whitespace only.
-    pub fn with_fix_scope(mut self, fix_scope: FixScope) -> ConfigStore {
+    pub fn with_fix_scope(
+        mut self,
+        fix_scope: FixScope,
+    ) -> ConfigStore {
         self.fix_scope = fix_scope;
         return self;
     }
@@ -330,13 +371,15 @@ impl ConfigStore {
         &mut self,
         directory: &Path,
     ) -> Result<Option<Arc<PreparedConfiguration>>, ConfigError> {
-        let NearestAnswer { found, consulted }: NearestAnswer<Arc<PreparedConfiguration>> =
-            nearest_above(
-                directory,
-                &CachedNearest {
-                    by_directory: &self.by_directory,
-                },
-            )?;
+        let NearestAnswer {
+            found,
+            consulted,
+        }: NearestAnswer<Arc<PreparedConfiguration>> = nearest_above(
+            directory,
+            &CachedNearest {
+                by_directory: &self.by_directory,
+            },
+        )?;
         for ancestor in consulted {
             self.by_directory.insert(ancestor, found.clone());
         }
@@ -378,7 +421,10 @@ impl ConfigStore {
     /// ```ts
     /// plan(path: Path): Planned
     /// ```
-    pub fn plan(&mut self, path: &Path) -> Result<Planned, ConfigError> {
+    pub fn plan(
+        &mut self,
+        path: &Path,
+    ) -> Result<Planned, ConfigError> {
         let Some(language): Option<Language> = language_of(path) else {
             return Ok(Planned::Unsupported);
         };
@@ -391,7 +437,9 @@ impl ConfigStore {
         let root: RootRules = match config.resolve(&relative)? {
             FileConfiguration::Ignored => return Ok(Planned::Ignored),
             FileConfiguration::Unconfigured => RootRules::None,
-            FileConfiguration::Configured { rules } => {
+            FileConfiguration::Configured {
+                rules,
+            } => {
                 if language == Language::Yaml {
                     // A workflow has no host rules; its steps are linted as virtual shell files.
                     RootRules::None

@@ -39,19 +39,44 @@
 /// the tree,
 /// the uses and the top doc reader.
 use crate::{
-    layout_allow_list::{AllowKind, AllowList, dead_entry_findings, tolerated},
-    layout_finding::{LayoutFinding, shown},
-    layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
+    layout_allow_list::{
+        AllowKind,
+        AllowList,
+        dead_entry_findings,
+        tolerated,
+    },
+    layout_finding::{
+        LayoutFinding,
+        key_path,
+        shown,
+        unique_keys,
+    },
+    layout_folder_index_files::{
+        file_name,
+        files_by_folder,
+        index_file,
+        index_file_findings,
+    },
     layout_group_entries::find_groups,
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,
-    layout_top_doc::{LIST_MARKER, TopDoc, read_top_doc},
+    layout_top_doc::{
+        LIST_MARKER,
+        TopDoc,
+        read_top_doc,
+    },
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -200,7 +225,9 @@ fn list_findings(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    let Some(marker) = doc.marker_line else {
+    // The line a missing entry is reported on: the marker, or the first doc line when there is no list at all.
+    let list_line: usize = doc.marker_line.unwrap_or(doc.first_line);
+    if doc.marker_line.is_none() {
         // The help shows the marker broken after its comma, which is where the Markdown rule breaks it.
         let (head, tail) = LIST_MARKER.split_once(", ").unwrap_or((LIST_MARKER, ""));
         findings.push(LayoutFinding {
@@ -213,10 +240,11 @@ fn list_findings(
             help: Some(format!(
                 "Add the two lines `//! {head},` and `//! {tail}` to the top doc, so the marker is wrapped where the Markdown rule `markdown/semantic-line-breaks` breaks it (it may wrap at any other word too), then one line `//! - `name.rs`: what it does` per file, each file after the files it uses."
             )),
-            key: format!("no-file-list {}", shown(index, base)),
+            key: format!("no-file-list {}", key_path(index, base)),
         });
-        return findings;
-    };
+    }
+    // A doc with no list still owes the reader one, so every unlisted file is reported on its own:
+    // a file added to this folder later is a finding that no `no-file-list` line tolerates.
     let mut first_place: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
     for (place, entry) in doc.entries.iter().enumerate() {
         if first_place.contains_key(&entry.name) {
@@ -229,7 +257,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: None,
-                key: format!("listed-twice {} {}", shown(index, base), entry.name),
+                key: format!("listed-twice {} {}", key_path(index, base), entry.name),
             });
             continue;
         }
@@ -250,7 +278,7 @@ fn list_findings(
                     entry.name
                 ),
                 help: Some(String::from("Remove the line, or correct the file name.")),
-                key: format!("foreign-name {} {}", shown(index, base), entry.name),
+                key: format!("foreign-name {} {}", key_path(index, base), entry.name),
             });
         }
     }
@@ -258,7 +286,7 @@ fn list_findings(
         if !first_place.contains_key(name) {
             findings.push(LayoutFinding {
                 file: index.to_path_buf(),
-                line: marker,
+                line: list_line,
                 message: format!(
                     "The top doc of {} does not list the file `{name}`.",
                     shown(index, base)
@@ -266,7 +294,7 @@ fn list_findings(
                 help: Some(format!(
                     "Add a line `//! - `{name}`: what it does` after the files it uses."
                 )),
-                key: format!("missing-entry {} {}", shown(index, base), name),
+                key: format!("missing-entry {} {}", key_path(index, base), name),
             });
         }
     }
@@ -294,7 +322,7 @@ fn list_findings(
             help: Some(format!("List `{}` before `{}`.", names[*to], names[*from])),
             key: format!(
                 "order {} {} {}",
-                shown(index, base),
+                key_path(index, base),
                 names[*from],
                 names[*to]
             ),
@@ -323,7 +351,7 @@ fn without_tolerated_files(
     let mut kept: BTreeMap<(usize, usize), Proof> = BTreeMap::<(usize, usize), Proof>::new();
     for ((from, to), proof) in edges {
         let tolerated_use: bool = list.covers_file_use(
-            Path::new(shown(folder, base).as_str()),
+            Path::new(key_path(folder, base).as_str()),
             file_name(&listed[*from]).as_str(),
             file_name(&listed[*to]).as_str(),
         );
@@ -400,10 +428,10 @@ fn new_loop_file_uses(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    let shown_folder: String = shown(folder, base);
+    let key_of_folder: String = key_path(folder, base);
     for ((from, to), proof) in edges {
         let tolerated_use: bool = list.covers_file_use(
-            Path::new(shown_folder.as_str()),
+            Path::new(key_of_folder.as_str()),
             file_name(&listed[*from]).as_str(),
             file_name(&listed[*to]).as_str(),
         );
@@ -463,10 +491,10 @@ fn tolerated_file_loops(
     base: &Path,
 ) -> BTreeSet<usize> {
     let mut tolerated: BTreeSet<usize> = BTreeSet::<usize>::new();
-    let shown_folder: String = shown(folder, base);
+    let key_of_folder: String = key_path(folder, base);
     for (from, to) in edges.keys() {
         let listed_use: bool = list.covers_file_use(
-            Path::new(shown_folder.as_str()),
+            Path::new(key_of_folder.as_str()),
             file_name(&listed[*from]).as_str(),
             file_name(&listed[*to]).as_str(),
         );
@@ -504,7 +532,7 @@ fn live_file_use_entries(
     used: &mut BTreeSet<usize>,
 ) {
     let positions: BTreeMap<String, usize> = position_of(listed);
-    let shown_folder: String = shown(folder, base);
+    let key_of_folder: String = key_path(folder, base);
     for (index, entry) in list.entries().iter().enumerate() {
         let AllowKind::FileUse {
             folder: listed_folder,
@@ -514,7 +542,7 @@ fn live_file_use_entries(
         else {
             continue;
         };
-        if *listed_folder != Path::new(shown_folder.as_str()) {
+        if *listed_folder != Path::new(key_of_folder.as_str()) {
             continue;
         }
         let (Some(from_index), Some(to_index)) = (positions.get(from), positions.get(to)) else {
@@ -582,7 +610,8 @@ pub fn check_file_order(
         let (loops, component) = loop_findings(listed.as_slice(), &reported, base);
         findings.extend(loops);
         if let Some(list) = allow {
-            let loops_of_files: BTreeMap<usize, usize> = loop_of_each_file(listed.as_slice(), &edges);
+            let loops_of_files: BTreeMap<usize, usize> =
+                loop_of_each_file(listed.as_slice(), &edges);
             let tolerated: BTreeSet<usize> = tolerated_file_loops(
                 folder,
                 &edges,
@@ -622,7 +651,7 @@ pub fn check_file_order(
                     shown(folder, base)
                 ),
                 help: Some(String::from("Add a mod.rs that declares the modules and carries the top doc.")),
-                key: format!("no-top-doc {}", shown(folder, base)),
+                key: format!("no-top-doc {}", key_path(folder, base)),
             });
             continue;
         };
@@ -634,7 +663,7 @@ pub fn check_file_order(
                     line: 0,
                     message: format!("{} cannot be read: {error}.", shown(&index_path, base)),
                     help: None,
-                    key: format!("unreadable-index {}", shown(&index_path, base)),
+                    key: format!("unreadable-index {}", key_path(&index_path, base)),
                 });
                 continue;
             }
@@ -649,6 +678,8 @@ pub fn check_file_order(
             base,
         ));
     }
+    // Every key names one finding before a line can tolerate it, so a second finding of one shape is reported.
+    unique_keys(&mut findings);
     let Some(list) = allow else {
         return findings;
     };

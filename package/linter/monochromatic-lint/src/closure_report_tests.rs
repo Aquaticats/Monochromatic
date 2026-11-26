@@ -12,7 +12,10 @@
 //! test('reads records', () => expect(parseRecords(lines).reports).toEqual([...]));
 //! ```
 
-use super::{REPORTED_CODES, parse_records};
+use super::{
+    REPORTED_CODES,
+    parse_records,
+};
 use serde_json::Value;
 
 /// Parse JSON text that the test wrote itself.
@@ -23,7 +26,13 @@ fn value(text: &str) -> Value {
 /// One compiler-message record with a code,
 /// level,
 /// message and one primary span.
-fn record(code: Option<&str>, level: &str, message: &str, file: &str, start: u64) -> Value {
+fn record(
+    code: Option<&str>,
+    level: &str,
+    message: &str,
+    file: &str,
+    start: u64,
+) -> Value {
     let code_text: String = match code {
         Some(text) => format!("{{\"code\": {text:?}, \"explanation\": null}}"),
         None => String::from("null"),

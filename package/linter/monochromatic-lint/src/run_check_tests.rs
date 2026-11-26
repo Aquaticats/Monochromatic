@@ -13,18 +13,33 @@
 
 /// Import the checker and the production fix applier.
 use super::HostChecker;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 use crate::fix_loop::SourceChecker;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
-use crate::run_test_support::{CONFIG, plan, write};
+use crate::run_test_support::{
+    CONFIG,
+    plan,
+    write,
+};
 use crate::test_fs::Fixture;
 use std::path::Path;
 
 /// Check one source under the configuration written at the fixture root.
-fn check(root: &Path, config: &str, file: &str, source: &str) -> Vec<Diagnostic> {
+fn check(
+    root: &Path,
+    config: &str,
+    file: &str,
+    source: &str,
+) -> Vec<Diagnostic> {
     write(root, CONFIG, config);
     let planned: FilePlan = plan(root, file);
     let lfs: LfsRepos = LfsRepos::new();
@@ -44,7 +59,10 @@ fn located(findings: &[Diagnostic]) -> Vec<(String, usize)> {
 
 /// The first finding with a code,
 ///  failing the test when none has it.
-fn with_code<'found>(findings: &'found [Diagnostic], code: &str) -> &'found Diagnostic {
+fn with_code<'found>(
+    findings: &'found [Diagnostic],
+    code: &str,
+) -> &'found Diagnostic {
     for finding in findings {
         if finding.code == code {
             return finding;
@@ -54,7 +72,10 @@ fn with_code<'found>(findings: &'found [Diagnostic], code: &str) -> &'found Diag
 }
 
 /// Apply every advertised fix once.
-fn fixed(source: &str, findings: &[Diagnostic]) -> String {
+fn fixed(
+    source: &str,
+    findings: &[Diagnostic],
+) -> String {
     let mut fixes: Vec<Fix> = Vec::<Fix>::new();
     for finding in findings {
         if let Some(group) = &finding.fix {

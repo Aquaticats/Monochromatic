@@ -21,13 +21,22 @@
 ///  the code check of an index file and the tree.
 use crate::{
     layout_finding::LayoutFinding,
-    layout_index_file_items::{IndexRole, check_index_items},
+    layout_index_file_items::{
+        IndexRole,
+        check_index_items,
+    },
     layout_module_tree::ModuleTree,
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -58,7 +67,7 @@ pub(crate) fn file_name(file: &Path) -> String {
 /// function filesByFolder(tree: ModuleTree): { byFolder: Map<Path, Set<Path>>; roots: Set<Path> };
 /// ```
 pub(crate) fn files_by_folder(
-    tree: &ModuleTree,
+    tree: &ModuleTree
 ) -> (BTreeMap<PathBuf, BTreeSet<PathBuf>>, BTreeSet<PathBuf>) {
     let mut by_folder: BTreeMap<PathBuf, BTreeSet<PathBuf>> =
         BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();

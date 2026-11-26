@@ -20,16 +20,26 @@
 ///  the report shape and the plan data.
 use crate::{
     closure_report::Report,
-    diagnostic::{Diagnostic, Severity, Span},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+        Span,
+    },
     markdown_lfs_target::lexical_normal,
     run_failure::host_span,
     run_paths::Language,
-    run_plan::{FilePlan, RootRules},
+    run_plan::{
+        FilePlan,
+        RootRules,
+    },
 };
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -102,7 +112,10 @@ pub fn targets_of(plans: &[FilePlan]) -> Targets {
         if plan.language != Language::Rust {
             continue;
         }
-        let RootRules::Rust { settings } = &plan.root else {
+        let RootRules::Rust {
+            settings,
+        } = &plan.root
+        else {
             continue;
         };
         let Some(selected) = &settings.avoidable_closure else {
@@ -131,7 +144,10 @@ pub fn targets_of(plans: &[FilePlan]) -> Targets {
 /// ```ts
 /// function spanOf(report: Report, source?: string): Span;
 /// ```
-pub fn span_of(report: &Report, source: Option<&str>) -> Span {
+pub fn span_of(
+    report: &Report,
+    source: Option<&str>,
+) -> Span {
     let length: usize = report.byte_end.saturating_sub(report.byte_start);
     if let Some(text) = source
         && report.byte_start <= text.len()
@@ -199,7 +215,10 @@ pub fn findings_from(
 /// ```ts
 /// function order(left: Diagnostic, right: Diagnostic): number;
 /// ```
-fn order(left: &Diagnostic, right: &Diagnostic) -> std::cmp::Ordering {
+fn order(
+    left: &Diagnostic,
+    right: &Diagnostic,
+) -> std::cmp::Ordering {
     let left_offset: usize = left.labels.first().map_or(0, offset_of);
     let right_offset: usize = right.labels.first().map_or(0, offset_of);
     return left

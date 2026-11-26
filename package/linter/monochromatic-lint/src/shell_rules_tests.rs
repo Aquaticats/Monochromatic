@@ -11,9 +11,18 @@
 
 /// Import the checker and the settings it reads.
 use super::check_shell;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::shell_dialect::{Construct, ShellDialect};
-use crate::shell_rule_settings::{ShellBudget, ShellRuleSettings};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::shell_dialect::{
+    Construct,
+    ShellDialect,
+};
+use crate::shell_rule_settings::{
+    ShellBudget,
+    ShellRuleSettings,
+};
 use crate::test_deadline::finished_within_deadline;
 
 /// Check one run body under the test deadline,
@@ -49,10 +58,20 @@ fn lines(max: usize) -> ShellRuleSettings {
 }
 
 /// One construct rule only.
-fn construct(construct: Construct, max: usize, severity: Severity) -> ShellRuleSettings {
+fn construct(
+    construct: Construct,
+    max: usize,
+    severity: Severity,
+) -> ShellRuleSettings {
     return ShellRuleSettings {
         max_lines: None,
-        constructs: vec![(construct, ShellBudget { severity, max })],
+        constructs: vec![(
+            construct,
+            ShellBudget {
+                severity,
+                max,
+            },
+        )],
     };
 }
 

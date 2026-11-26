@@ -38,6 +38,8 @@ use monochromatic_lint::{
     edits::{
         Edit,
         Fix,
+        FixClass,
+        FixScope,
         apply_fixes,
     },
     markdown_rule_settings::markdown_rule_settings,
@@ -295,6 +297,21 @@ pub fn plan(name: &str) -> FilePlan {
         config,
         root,
         directives: DirectiveOptions::default(),
+        // What:     `fix_scope: FixScope::WhitespaceAndContent` is the plan field that says
+        //           which classes of fix this run may apply. `FixScope` has two values,
+        //           `WhitespaceOnly` (the default, plain `--fix`) and `WhitespaceAndContent`
+        //           (`--fix-content`, and the in-process and control entries of the linter).
+        // Why:      This target applies fixes and asserts their results, so it needs content
+        //           fixes: the `grouped.rs` and `suppressed.md` cases carry only content rules,
+        //           and `WhitespaceOnly` withholds those fixes before the loop sees them.
+        // Gotcha:   A withheld fix still reports its finding, so a whitespace-only plan would
+        //           keep every expected code while leaving the host unfixed and nothing refused.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // fixScope: 'whitespace-and-content',
+        // ```
+        fix_scope: FixScope::WhitespaceAndContent,
     };
 }
 
@@ -512,6 +529,17 @@ pub fn check_adversarial_edits(
         });
     }
     let Ok(projected): Result<Fix, _> = input.project_fix(&Fix {
+        // What:     `class: FixClass::Content` labels this group as one that may add,
+        //           remove or rewrite a token. `FixClass` has two values, `Whitespace`
+        //           (only line breaks and the spaces around them) and `Content`.
+        // Why:      The generator replaces arbitrary byte ranges with arbitrary text,
+        //           so the group can change a token; `Whitespace` would be a false claim.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // class: 'content',
+        // ```
+        class: FixClass::Content,
         edits,
     }) else {
         return EditReach::Refused;

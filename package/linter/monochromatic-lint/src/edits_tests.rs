@@ -9,10 +9,19 @@
 //! ```
 
 /// Import the production edit planner and owned input types.
-use super::{Edit, Fix, FixClass, apply_fixes};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    apply_fixes,
+};
 
 /// Build a fixture replacement while keeping byte ranges explicit at every call.
-fn edit(start: usize, end: usize, replacement: &str) -> Edit {
+fn edit(
+    start: usize,
+    end: usize,
+    replacement: &str,
+) -> Edit {
     return Edit {
         start,
         end,

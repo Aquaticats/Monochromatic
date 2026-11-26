@@ -11,12 +11,18 @@
 //! ```
 
 /// Import the production helpers under test.
-use super::{continuation_prefix, paragraph_for};
+use super::{
+    continuation_prefix,
+    paragraph_for,
+};
 /// Import the severity every rule entry point takes.
 use crate::diagnostic::Severity;
 /// Import the grouped fix record and the production applier,
 ///  so fixes are applied exactly as released.
-use crate::edits::{Fix, apply_fixes};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 /// Import the consuming rule;
 ///  the prefix only matters through the breaks it inserts.
 use crate::markdown_semantic_breaks::semantic_line_breaks;
@@ -26,7 +32,10 @@ use crate::markdown_source::MarkdownSource;
 use satteri_ast::mdast::MdastNodeType;
 
 /// Parse one exact fixture through the native adapter.
-fn parse(source: &str, mdx: bool) -> MarkdownSource {
+fn parse(
+    source: &str,
+    mdx: bool,
+) -> MarkdownSource {
     // Own the text: the parsed source keeps its exact bytes for every later offset.
     return MarkdownSource::new(String::from("prose.md"), String::from(source), mdx)
         .expect("fixture parses");
@@ -34,7 +43,10 @@ fn parse(source: &str, mdx: bool) -> MarkdownSource {
 
 /// Find the first node of one kind,
 ///  failing when the fixture did not exercise that syntax.
-fn first(context: &MarkdownSource, kind: MdastNodeType) -> u32 {
+fn first(
+    context: &MarkdownSource,
+    kind: MdastNodeType,
+) -> u32 {
     // Node ids are u32 arena indexes; all_nodes lists them in source order.
     for id in context.all_nodes() {
         if context.kind(*id) == kind {
@@ -46,14 +58,21 @@ fn first(context: &MarkdownSource, kind: MdastNodeType) -> u32 {
 
 /// Walk one node's ancestors through the production bounded walk;
 ///  a parse never has a parent cycle.
-fn chain(context: &MarkdownSource, id: u32) -> Vec<u32> {
+fn chain(
+    context: &MarkdownSource,
+    id: u32,
+) -> Vec<u32> {
     // `.expect` unwraps `Ok(list)` or fails the test with this message on `Err`.
     return context.ancestors(id).expect("an acyclic parse");
 }
 
 /// Answer one ancestry question through the production query,
 ///  failing the test on a parent cycle.
-fn has_ancestor(context: &MarkdownSource, id: u32, kind: MdastNodeType) -> bool {
+fn has_ancestor(
+    context: &MarkdownSource,
+    id: u32,
+    kind: MdastNodeType,
+) -> bool {
     return context.has_ancestor(id, kind).expect("an acyclic parse");
 }
 

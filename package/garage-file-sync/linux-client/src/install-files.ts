@@ -9,7 +9,10 @@
  @module
  */
 
-import type { Stats, } from 'node:fs';
+import type {
+  Dirent,
+  Stats,
+} from 'node:fs';
 import {
   copyFile,
   lstat,
@@ -24,6 +27,7 @@ import {
   join,
   relative,
 } from 'node:path';
+import { UNIT_NAME_PREFIX, } from './units.ts';
 
 /**
  Folder in the package that holds the unit sources.
@@ -278,14 +282,173 @@ export async function installFiles({
 }
 
 /**
+ Reads one installed file's text.
+
+ @param target - absolute path of the installed file
+
+ @returns the text, or the reason it could not be read
+ */
+async function readInstalledText(target: string,): Promise<{
+  readonly text?: string;
+  readonly problem?: string;
+}> {
+  try {
+    return {
+      text: await readFile(
+        target,
+        'utf8',
+      ),
+    };
+  } catch (error) {
+    return { problem: String(error,), };
+  }
+}
+
+/**
+ Entries of one folder.
+
+ @param folder - absolute folder to list
+
+ @returns the entries, or none when the folder is absent
+
+ @example
+ ```ts
+ await entriesIn('/home/example/.config/systemd/user',);
+ ```
+ */
+async function entriesIn(folder: string,): Promise<readonly Dirent[]> {
+  /**
+   Folder's own metadata, absent when nothing is there at all.
+   */
+  const {entry} = await readInstalledMetadata(folder,);
+  if (entry === undefined) return [];
+  if (!entry.isDirectory()) return [];
+  return await readdir(
+    folder,
+    { withFileTypes: true, },
+  );
+}
+
+/**
+ Reports the files the user manager loads although this package does not ship them.
+
+ The user manager loads every unit file whose name matches this package's prefix, and
+ every file in a drop-in folder of a unit it ships, whatever the install wrote; a unit
+ file the package stopped shipping, or a drop-in somebody added, keeps acting beside the
+ current ones. Only the unit folder is searched: the watcher config is never loaded by
+ name, and a drop-in folder of a unit the package does not ship has no unit to act on.
+
+ @param copies - the copies this package would make
+
+ @param home - home folder the installed files belong to
+
+ @returns one problem per file this package does not ship, empty when it ships none
+ */
+async function unshippedProblems({
+  copies,
+  home,
+}: Readonly<{
+  copies: readonly PlannedCopy[];
+  home: string;
+}>): Promise<readonly InstalledProblem[]> {
+  /**
+   Folder that holds the installed units and their drop-in folders.
+   */
+  const unitFolder = join(
+    home,
+    UNIT_TARGET_FOLDER,
+  );
+  /**
+   Targets this package installs, so any other file of the folder is not one of them.
+   */
+  const planned = new Set(copies.map(function targetPath(copy,) {
+    return copy.target;
+  },),);
+  /**
+   Entries of the unit folder itself.
+   */
+  const entries = await entriesIn(unitFolder,);
+  /**
+   Unit files in the folder itself, whose name this package owns.
+   */
+  const staleUnits = entries
+    .filter(function isPackageUnitFile(entry,) {
+      /**
+       Name of this entry inside the unit folder.
+       */
+      const {name} = entry;
+      return (!entry.isDirectory()) && name.startsWith(UNIT_NAME_PREFIX,);
+    },)
+    .map(function unitPath(entry,) {
+      return join(
+        unitFolder,
+        entry.name,
+      );
+    },)
+    .filter(function unplanned(path,) {
+      return !planned.has(path,);
+    },)
+    .map(function staleUnitProblem(path,) {
+      return {
+        target: path,
+        problem: `not shipped: ${path} is a unit file this package does not ship;`
+          + ' the user manager still loads it, so remove it or ship it',
+      };
+    },);
+  /**
+   Drop-in folders of the units this package ships, which the user manager reads.
+   */
+  const dropInFolders = copies
+    .map(function targetPath(copy,) {
+      return copy.target;
+    },)
+    .filter(function isUnitFile(path,) {
+      return dirname(path,) === unitFolder;
+    },)
+    .map(function dropInPath(path,) {
+      return `${path}.d`;
+    },);
+  /**
+   Extra files of every drop-in folder, read in parallel.
+   */
+  const extraDropIns = await Promise.all(dropInFolders.map(async function extraInFolder(folder,): Promise<readonly InstalledProblem[]> {
+    return (await entriesIn(folder,))
+      .filter(function isDropInFile(entry,) {
+        return !entry.isDirectory();
+      },)
+      .map(function dropInPath(entry,) {
+        return join(
+          folder,
+          entry.name,
+        );
+      },)
+      .filter(function unplanned(path,) {
+        return !planned.has(path,);
+      },)
+      .map(function extraDropInProblem(path,) {
+        return {
+          target: path,
+          problem: `extra drop-in: ${path} sits in ${folder}, a drop-in folder of a unit this package ships,`
+            + ' but this package does not ship it; the user manager still loads it, so remove it',
+        };
+      },);
+  },),);
+  return [
+    ...staleUnits,
+    ...extraDropIns.flat(),
+  ];
+}
+
+/**
  Checks every planned file against the installed copy.
 
  @param sourceRoot - the package folder that holds `systemd/` and `config/`
 
  @param home - home folder the installed copies belong to
 
- @returns one problem per installed file that is missing, is a link, or differs; empty
-   when every copy matches
+ @returns one problem per installed file that is missing, is a link, cannot be read or
+   differs, and one per unit file or drop-in this package does not ship; empty when
+   every copy matches and the user manager loads nothing else
 
  @example
  ```ts
@@ -339,19 +502,35 @@ export async function checkInstalled({
       },];
     }
     /**
-     Installed text and source text, read together.
+     Source file's own metadata, which a hard link into the checkout shares.
      */
-    const [installedText, sourceText,] = await Promise.all([
-      readFile(
-        copy.target,
-        'utf8',
-      ),
-      readFile(
-        copy.source,
-        'utf8',
-      ),
-    ],);
-    if (installedText !== sourceText) {
+    const sourceStats = await lstat(copy.source,);
+    if ((stats.dev === sourceStats.dev) && (stats.ino === sourceStats.ino)) {
+      return [{
+        target: copy.target,
+        problem: `is a link: ${copy.target} and ${copy.source} are one file, a hard link;`
+          + ' the user manager would load nothing once the checkout is away, so install a copy',
+      },];
+    }
+    /**
+     Installed text, or the reason it could not be read.
+     */
+    const installed = await readInstalledText(copy.target,);
+    if (installed.problem !== undefined) {
+      return [{
+        target: copy.target,
+        problem: `unreadable: ${copy.target} could not be read, so its text cannot be compared with ${copy.source}: ${installed.problem};`
+          + ' install a copy of it again',
+      },];
+    }
+    /**
+     Source's current text.
+     */
+    const sourceText = await readFile(
+      copy.source,
+      'utf8',
+    );
+    if (installed.text !== sourceText) {
       return [{
         target: copy.target,
         problem: `differs: ${copy.target} is not the current text of ${copy.source}; install it again`,
@@ -359,5 +538,11 @@ export async function checkInstalled({
     }
     return [];
   },),);
-  return reported.flat();
+  return [
+    ...reported.flat(),
+    ...await unshippedProblems({
+      copies,
+      home,
+    },),
+  ];
 }

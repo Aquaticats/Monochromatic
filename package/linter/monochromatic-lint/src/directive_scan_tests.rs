@@ -12,11 +12,17 @@
 //! ```
 
 /// Import the scanner under test and the language tag.
-use super::{CommentSite, scan_comments};
+use super::{
+    CommentSite,
+    scan_comments,
+};
 use crate::run_paths::Language;
 
 /// The comment texts between delimiters that the scanner found.
-fn contents(language: Language, source: &str) -> Vec<String> {
+fn contents(
+    language: Language,
+    source: &str,
+) -> Vec<String> {
     let scanned = scan_comments(language, "fixture", source).expect("the language has directives");
     let mut found: Vec<String> = Vec::<String>::new();
     for site in &scanned.sites {

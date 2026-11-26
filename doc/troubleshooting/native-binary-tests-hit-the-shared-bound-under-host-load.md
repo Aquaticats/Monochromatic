@@ -1806,3 +1806,74 @@ A fix would need either a hold around the landing
 (the rule above says a command that waits on an external service that is making progress needs one)
 or a per-command cgroup,
 which the gate container does not offer.
+## One stored copy of the wrapper per run, 2026-11-25T23:35:42-05:00
+
+The wrapper store was rooted in each test process's own fixture folder, and the container gate's fixture root is a
+768 MiB tmpfs, so the gate failed for want of space (issue 6488).
+
+### What failed
+
+The whole gate on `main` at `639f90484d` (2026-11-25T22:42:59-05:00) failed 1242 of 11899 tests, every one in
+`native_binary`, each in about 0.16 s, with the same message:
+
+```txt
+cp: error writing '/work/package/git-policy/cli/target/gate-fixtures/process-177503/wrapper-store/.partial-177503-0': No space left on device
+```
+
+`fixture_in` passed its own fixture root as `link_built_wrapper`'s store root. Since `07fe505696` (2026-11-25) that root
+is `process-<pid>` under `CLI_GIT_TEST_ROOT`, so each of the gate's test processes kept a store of its own. The build
+lives on the image's file system and the fixture root is a tmpfs, so each process's hard link of the build failed with
+`EXDEV` and each process copied the 154 MB debug wrapper into its own store, until the tmpfs was full. The host never
+showed it: there the fixture root is beside the build output, on the build's own file system, so the hard link succeeds
+and no copy is made.
+
+### The fix, in 5180439e52
+
+The store's root is the run's shared fixture root, the parent of every `process-<pid>` folder: the directory
+`CLI_GIT_TEST_ROOT` names when the run names one, and `test-fixtures` beside the build otherwise
+(`run_fixture_root` in `testing/fixture_support_shared_by_both_test_targets.rs`).
+`fixture_in(directory, store_root, name)` takes that root, and the per-process folders stay for everything else a test
+writes.
+Every process of one run now links the one stored copy.
+What the first callers of a run cost is unchanged, and it is measured in "The wave of first callers" below.
+The publish, the wait for another caller's copy and the pruning of another build's idle copies are the ones
+`76c6e79dae` added and are unchanged:
+there is still no lock, the final name is still only ever a complete file, and a copy is still removed only when no
+fixture holds a link and it has gone unlinked for `IDLE_BUILD_AGE`.
+
+A control that puts its fixtures on a file system of its own now names that file system as the store root too, because
+a store on the build's file system cannot be linked there either
+(`fixtures_on_another_filesystem_share_the_stored_copy_of_the_build` does, with `/dev/shm`).
+
+### The control
+
+`wrapper_store_guard::two_processes_of_one_run_keep_one_stored_copy_of_the_wrapper`
+(`binary_wrapper_store_tests.rs`) re-executes itself through `root_namespace_test_support::in_a_root_namespace`, so it
+mounts a tmpfs inside a user and mount namespace of its own and nothing on the host is mounted.
+The tmpfs is sized from the build (`2 x build + 64 MiB`), enough for the two copies a store per process writes and no
+more, so the run that keeps one copy per process fails on the count and never on a full file system.
+It then starts two test processes with the same `CLI_GIT_TEST_ROOT`, each making one fixture, and asserts the run root
+holds exactly one file named after the build's content, in `wrapper-store` and in no process folder.
+Both children print the fixture root they made, and the control fails unless the two differ, so one process run twice
+cannot pass it.
+
+Shown red against the code before the fix, at the count:
+two files named after the build's content, one under each process's `wrapper-store/`.
+
+### The wave of first callers
+
+Measured 2026-11-25T23:39:55-05:00 on this host, one run of the whole `native_binary` target through `cargo test`
+(its threads default to the processor count, 10 here) with `CLI_GIT_TEST_ROOT` on a 768 MiB tmpfs mounted inside a
+user and mount namespace: the run filled the tmpfs after 22 partial copies were attempted in its one process, 31 tests
+had failed with `No space left on device`, and it was stopped there.
+A caller that finds no stored copy waits for another caller's partial file (`wait_for_publisher`), and callers that
+start at one moment all find none before the first of them has created its partial, so each writes a whole copy:
+ten copies of the 160 MB debug build are 1.6 GB in a 768 MiB root.
+Nothing in the gate has that shape.
+It runs nextest, one process per test, on 4 CPUs, so at most four processes start together, and before `07fe505696`
+the gate ran this suite on the same 768 MiB root with the store at the run's shared root (11663 tests, 7 failures at
+`2005f92347`).
+The gate's own verdict is therefore expected to hold, and a host run that points `CLI_GIT_TEST_ROOT` at a small tmpfs
+and runs the whole target threaded still cannot.
+Bounding that wave needs a claim per build that the first caller creates and the others wait on, which changes the
+store's protocol, so it is not in this change.

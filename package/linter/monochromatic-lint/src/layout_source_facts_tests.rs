@@ -8,8 +8,14 @@
 //! test('an inline module is recorded and not entered', () => { /* ... */ });
 //! ```
 
-use super::{BodyFacts, collect_body_facts};
-use crate::{layout_test_support::describe, rust_source::RustSource};
+use super::{
+    BodyFacts,
+    collect_body_facts,
+};
+use crate::{
+    layout_test_support::describe,
+    rust_source::RustSource,
+};
 
 /// Read the facts of a source text.
 fn facts_of(source: &str) -> BodyFacts {

@@ -475,6 +475,154 @@ Both controls now pass on this host, and the modules around them were run thread
 record itself still stays in a repository until a later command sweeps it, which is what `SPEC.md`'s
 "The record" describes; that is not a change either control was measuring.
 
+## The gates run on `main`, in order, with what each failed
+
+A later gate reads these as its baseline:
+a failure outside them starts a fix round against `main`,
+and the verified fix's tip is the next gate's `main`.
+Only a whole gate on `main` counts;
+a branch gate's failures are that branch's to read.
+Each line names the tip,
+the run or unit name where the gate recorded one,
+the summary line,
+and the failures with the commit that fixed them.
+
+- `a467a1d22c`,
+  unit `apparmor-second-gate-on-main-20261123`,
+  the second whole gate after the
+  restart and the fourth AppArmor batch:
+  `9914 tests run: 9904 passed (8 slow), 10 failed, 36 skipped`.
+  The cause H pair,
+  the signed-commit control,
+  three `ssh_terminal` controls,
+  three `stale_ref_lock`
+  controls and the size read's child control.
+  The fifth to eighth batches and `02de1145eb` (the three `stale_ref_lock` controls killed
+  `timeout` and not Git) fixed them.
+- `25d719bc6f`,
+  after the seventh batch and the second batch of merges:
+  seven failed,
+  all in that
+  baseline (the cause H pair,
+  the two `ssh_terminal` controls and the three `stale_ref_lock`
+  controls);
+  the size read's child control passed by then.
+- `6f2b9ef708`,
+  after the eighth batch and `02de1145eb`:
+  `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`,
+  the cause H pair alone.
+- The two branch gates after the fifth batch,
+  the object reader at `cd6f2e1185` and issue 6345 at
+  `04b255e004`:
+  eight failed each,
+  all in that baseline.
+- `0576c39994`,
+  run `native-TtGef4`,
+  2026-11-24T01:57:53Z to 02:51:53Z,
+  beside six guests and a dozen rounds:
+  `10219 tests run: 10215 passed (10 slow), 4 failed, 37 skipped`.
+  The cause H pair;
+  the size read's child control (the kernel clears the parent-death signal on an
+  AppArmor profile change at exec,
+  fixed in `5c84ab3368`);
+  and issue 6399's repair control,
+  fixed in
+  `d1af169091`.
+- `8519c599d0`,
+  run `native-bNr3O6`,
+  2026-11-24T06:18:44Z to 06:46:59Z:
+  `10745 tests run: 10741 passed (7 slow), 4 failed, 41 skipped`.
+  The cause H pair;
+  the guard `the_release_code_keeps_blocking_work_off_the_runtime`,
+  on two
+  `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`,
+  `add_route_plan.rs:265`);
+  and the
+  `statmount` control,
+  whose call answers `ENOSYS` inside the rootless container
+  (`doc/troubleshooting/podman-default-seccomp-blocks-statmount-in-a-container.md`),
+  fixed as
+  `ada7a937b0`.
+- `f3b710cbc9`,
+  run `native-MgA4LN`,
+  2026-11-24T07:45:49Z to 08:09:44Z:
+  `10809 tests run: 10807 passed (6 slow), 2 failed, 41 skipped`,
+  the cause H pair alone,
+  so the blocking-sleep guard,
+  the `statmount` control and Clippy all held.
+- `adcb708071`,
+  run `native-mEmcZt`:
+  `10855 tests run: 10843 passed (6 slow), 12 failed, 42 skipped`.
+  The cause H pair,
+  the blocking-work guard,
+  and nine companion tests that read the host's
+  `XDG_RUNTIME_DIR`,
+  which the gate's container does not set;
+  the companion now takes its runtime
+  folder from its caller and its controls pass their own (35 of 35 in the gate image).
+- `c4b0b123ab`,
+  run `native-AoVnL6`:
+  `10865 tests run: 10863 passed (5 slow), 2 failed, 42 skipped`,
+  the cause H pair alone.
+- `a467773fbf`,
+  run `native-S1Mngy`,
+  for step 12's merge:
+  `10931 tests run: 10928 passed (6 slow), 3 failed, 42 skipped`.
+  The cause H pair and
+  `worktree_clone_add_route::add_preflight::tests::an_uncommitted_file_is_a_source_the_preflight_serves`,
+  which asserted the pool's refusal text while the gate's container has no `/dev/zfs` and the
+  compatibility gate refuses first;
+  the control now derives the refusal it expects from the device
+  layer (`c12b45dfc4`).
+- `0152f18bb7`,
+  run `native-VeMLmC`,
+  2026-11-24T21:47:39-05:00 to 22:04:19-05:00,
+  for the batch of 6454,
+  the GUID follow-up,
+  6455,
+  6456 and the preflight control:
+  `11062 tests run: 11060 passed (5 slow), 2 failed, 43 skipped`,
+  the cause H pair alone,
+  each with cause H's own message.
+- `b97c09746f`,
+  run `native-VZ4uUM`,
+  2026-11-25T05:14:00-05:00 to 05:33:19-05:00:
+  `11157 tests run: 11153 passed (5 slow), 4 failed, 44 skipped`.
+  The cause H pair and the one-program build's two `source_guard::typed_ban_configuration_tests`
+  controls,
+  which read `clippy.toml` beside `Cargo.toml` while the gate snapshot
+  (`bin/native-wrapper-snapshot.ts`,
+  `crateEntryNames`) did not copy it;
+  fixed as `1e562c82c1`.
+- `7043fe4a5c`,
+  run `native-YA8wZH`,
+  2026-11-25T06:28:29-05:00 to 06:49:28-05:00:
+  `11158 tests run: 11156 passed (5 slow), 2 failed, 44 skipped`,
+  the cause H pair alone,
+  with `1e562c82c1`'s two typed-ban controls passing.
+- `df7d464a6c`,
+  for step 16 and the 6448 fix:
+  `11236 tests run: 11234 passed (6 slow), 2 failed, 45 skipped`,
+  the cause H pair alone.
+- `64a71a4c9b`,
+  unit `gate-on-main-64a71a4c9b`,
+  holding the per-slot claim,
+  usage row,
+  settle,
+  askpass,
+  strace and forced-arm merges:
+  the cause H pair again,
+  which issues 6466 and 6468 fixed in the
+  controls ("Cause H diagnosed,
+  and fixed,
+  on 2026-11-25").
+
+A gate's window denies what the work meets,
+never a failure by itself:
+the `umount` `dac_override` refusals and the `git` ones an issue 6448 round made are in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+and only a denial the read maps to a failing test is a finding.
+
 ## Verification
 
 Versions: the image above (rustc 1.100.0, git 2.56.1, cargo-nextest 0.9.151), podman 6.2.0,

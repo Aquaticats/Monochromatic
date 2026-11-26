@@ -12,12 +12,23 @@
 //! ```
 
 /// Import the line records and the comment remover.
-use crate::workflow_lines::{Line, without_comment};
+use crate::workflow_lines::{
+    Line,
+    without_comment,
+};
 /// Import the result records.
-use crate::workflow_model::{BodyLine, RunBody, Shell, WalkError};
+use crate::workflow_model::{
+    BodyLine,
+    RunBody,
+    Shell,
+    WalkError,
+};
 
 /// Build a refusal at a workflow byte offset.
-fn refuse(offset: usize, message: &str) -> WalkError {
+fn refuse(
+    offset: usize,
+    message: &str,
+) -> WalkError {
     return WalkError {
         offset,
         message: String::from(message),
@@ -111,7 +122,12 @@ pub(crate) fn capture_run(
             ));
         }
         let (body, next): (Vec<BodyLine>, usize) = block_lines(lines, index, column)?;
-        return Ok((RunBody::Block { lines: body }, next));
+        return Ok((
+            RunBody::Block {
+                lines: body,
+            },
+            next,
+        ));
     }
     if visible.is_empty() {
         return Err(refuse(

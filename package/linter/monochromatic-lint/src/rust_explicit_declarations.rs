@@ -18,13 +18,19 @@
 /// ```ts
 /// import { Diagnostic, Severity, Span, RustSource } from './core';
 /// ```
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the retained Rust parse rather than parsing each declaration again.
 use crate::rust_source::RustSource;
 /// Reuse the type-policy diagnostic boundary for both syntax and semantic checks.
 use crate::rust_type_diagnostic::type_finding;
 /// Import typed syntax accessors and source-node references.
-use ra_ap_syntax::{AstNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    ast,
+};
 
 /// What:
 ///  Require annotations on let statements and anonymous-function parameters/results.
@@ -41,7 +47,10 @@ use ra_ap_syntax::{AstNode, ast};
 /// ```ts
 /// function checkDeclarationAnnotations(context: RustSource, severity: Severity): Diagnostic[];
 /// ```
-pub fn check_declaration_annotations(context: &RustSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn check_declaration_annotations(
+    context: &RustSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     // Vec is owned and growable, unlike a borrowed slice or fixed-size array.
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for node in context.syntax().descendants() {

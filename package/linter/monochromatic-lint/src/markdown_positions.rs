@@ -76,7 +76,10 @@ fn width_end(entry: &WidthChange) -> usize {
 /// ```ts
 /// function widthsEndedAtOrBefore(widths: readonly WidthChange[], offset: number): number;
 /// ```
-fn widths_ended_at_or_before(widths: &[WidthChange], offset: usize) -> usize {
+fn widths_ended_at_or_before(
+    widths: &[WidthChange],
+    offset: usize,
+) -> usize {
     return match widths.binary_search_by_key(&offset, width_end) {
         // What: `Ok(found)` means one line of widths ends exactly at `offset`:
         //  that entry and every earlier one count.
@@ -97,7 +100,10 @@ fn widths_ended_at_or_before(widths: &[WidthChange], offset: usize) -> usize {
 /// ```ts
 /// function startsAtOrBefore(starts: readonly number[], offset: number): number;
 /// ```
-fn starts_at_or_before(starts: &[usize], offset: usize) -> usize {
+fn starts_at_or_before(
+    starts: &[usize],
+    offset: usize,
+) -> usize {
     return match starts.binary_search(&offset) {
         // What: `Ok(found)` means one line starts exactly at `offset`:
         //  that start and every earlier one count.
@@ -147,7 +153,10 @@ impl MarkdownPositions {
     }
 
     /// Read cumulative width adjustment through this byte boundary.
-    fn extra_at(&self, offset: usize) -> usize {
+    fn extra_at(
+        &self,
+        offset: usize,
+    ) -> usize {
         // What: `count` is how many width changes end at or before `offset`;
         //  `as_slice` lends the owned list to the named search.
         let count = widths_ended_at_or_before(self.widths.as_slice(), offset);
@@ -158,7 +167,11 @@ impl MarkdownPositions {
     }
 
     /// Resolve a range without converting its byte length into character units.
-    pub(crate) fn span(&self, requested_offset: usize, length: usize) -> Span {
+    pub(crate) fn span(
+        &self,
+        requested_offset: usize,
+        length: usize,
+    ) -> Span {
         let offset: usize = requested_offset.min(self.length);
         // What: `count` is how many line starts lie at or before `offset`.
         let count = starts_at_or_before(self.starts.as_slice(), offset);

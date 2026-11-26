@@ -24,25 +24,50 @@
 /// Import every part of the layout checks and the run's plan,
 /// finding and path types.
 use crate::{
-    diagnostic::{Diagnostic, Severity, Span},
-    layout_allow_list::{AllowList, read_allow_list},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+        Span,
+    },
+    layout_allow_list::{
+        AllowList,
+        read_allow_list,
+    },
     layout_crate_roots::crate_root_files,
     layout_file_order::check_file_order,
     layout_finding::LayoutFinding,
     layout_folder_links::check_folder_links,
-    layout_module_tree::{ModuleTree, build_module_tree},
-    layout_module_uses::{ModuleUse, collect_uses},
+    layout_module_tree::{
+        ModuleTree,
+        build_module_tree,
+    },
+    layout_module_uses::{
+        ModuleUse,
+        collect_uses,
+    },
     layout_path_resolution::link_glob_targets,
     markdown_lfs_target::lexical_normal,
-    run_failure::{file_start, processing_failure},
-    run_paths::{Language, display_name},
-    run_plan::{FilePlan, RootRules},
+    run_failure::{
+        file_start,
+        processing_failure,
+    },
+    run_paths::{
+        Language,
+        display_name,
+    },
+    run_plan::{
+        FilePlan,
+        RootRules,
+    },
     rust_manifest::discover_manifest,
 };
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The diagnostic code of the folder rule.
@@ -100,13 +125,19 @@ struct Selection {
 /// ```ts
 /// function selectPackages(plans: FilePlan[], notes: string[]): Map<Path, Selection>;
 /// ```
-fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<PathBuf, Selection> {
+fn select_packages(
+    plans: &[FilePlan],
+    notes: &mut Vec<String>,
+) -> BTreeMap<PathBuf, Selection> {
     let mut chosen: BTreeMap<PathBuf, Selection> = BTreeMap::<PathBuf, Selection>::new();
     for plan in plans {
         if plan.language != Language::Rust {
             continue;
         }
-        let RootRules::Rust { settings } = &plan.root else {
+        let RootRules::Rust {
+            settings,
+        } = &plan.root
+        else {
             continue;
         };
         if settings.folder_uses_links.is_none() && settings.file_order_in_folder.is_none() {
@@ -144,37 +175,98 @@ fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<Path
 }
 
 /// What:
-///  The span of a whole line of a file,
-///  or the file start when the line is zero or the file cannot be read.
+///  The span of every line of each file this step reports findings in,
+///  read once per file.
 /// Why:
 ///  Findings carry a byte offset,
-/// a line and a column.
+/// a line and a column,
+///  and one file can carry many findings:
+///  a list near its cap full of dead lines makes one finding per line about that one file,
+///  so reading the file again for each finding cost one read per finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function lineSpan(file: Path, line: number): Span;
+/// class LineSpans { span(file: Path, line: number): Span }
 /// ```
-fn line_span(file: &Path, line: usize) -> Span {
-    if line == 0 {
-        return file_start();
-    }
-    let Ok(text) = std::fs::read_to_string(file) else {
-        return file_start();
-    };
+#[derive(Debug, Default)]
+struct LineSpans {
+    /// The lines of each file already read,
+    ///  or nothing when the file could not be read.
+    by_file: BTreeMap<PathBuf, Option<Vec<Span>>>,
+}
+
+/// What:
+///  The span of each line of a file in file order,
+///  or nothing when the file cannot be read.
+/// Why:
+///  One pass over the file answers every line it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readLineSpans(file: Path): Span[] | undefined;
+/// ```
+fn read_line_spans(file: &Path) -> Option<Vec<Span>> {
+    let text: String = std::fs::read_to_string(file).ok()?;
+    let mut spans: Vec<Span> = Vec::<Span>::new();
     let mut start: usize = 0;
     for (index, part) in text.split_inclusive('\n').enumerate() {
-        if index + 1 == line {
-            let length: usize = part.trim_end_matches(['\n', '\r']).len();
-            return Span {
-                offset: start,
-                length,
-                line,
-                column: 1,
-            };
-        }
+        let length: usize = part.trim_end_matches(['\n', '\r']).len();
+        spans.push(Span {
+            offset: start,
+            length,
+            line: index + 1,
+            column: 1,
+        });
         start += part.len();
     }
-    return file_start();
+    return Some(spans);
+}
+
+/// What:
+///  The lines of each file already read,
+///  asked for one line at a time.
+/// Why:
+///  A caller reports findings file by file and never needs the whole table,
+///  so the table stays inside this type and only the span it asks for comes out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LineSpans { span(file: Path, line: number): Span }
+/// ```
+impl LineSpans {
+    /// What:
+    ///  The span of one line of one file,
+    ///  or the file start when the line is zero,
+    ///  the file does not hold it,
+    ///  or the file cannot be read.
+    /// Why:
+    ///  A finding about a folder or a link has no line,
+    ///  and a file that vanished between two findings must not fail the run.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// span(file: Path, line: number): Span
+    /// ```
+    fn span(
+        &mut self,
+        file: &Path,
+        line: usize,
+    ) -> Span {
+        if line == 0 {
+            return file_start();
+        }
+        if !self.by_file.contains_key(file) {
+            self.by_file
+                .insert(file.to_path_buf(), read_line_spans(file));
+        }
+        let Some(Some(spans)) = self.by_file.get(file) else {
+            return file_start();
+        };
+        return match spans.get(line - 1) {
+            Some(span) => span.clone(),
+            None => file_start(),
+        };
+    }
 }
 
 /// What:
@@ -192,6 +284,7 @@ fn diagnostics(
     code: &str,
     severity: Severity,
     cwd: &Path,
+    spans: &mut LineSpans,
 ) -> Vec<Diagnostic> {
     let mut result: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for item in found {
@@ -200,7 +293,7 @@ fn diagnostics(
             severity,
             item.message,
             display_name(&item.file, cwd),
-            line_span(&item.file, item.line),
+            spans.span(&item.file, item.line),
         );
         diagnostic.help = item.help;
         result.push(diagnostic);
@@ -253,7 +346,11 @@ fn list_for(
 /// ```ts
 /// function noteKeys(found: LayoutFinding[], rule: string, outcome: LayoutOutcome): void;
 /// ```
-fn note_keys(found: &[LayoutFinding], rule: &str, outcome: &mut LayoutOutcome) {
+fn note_keys(
+    found: &[LayoutFinding],
+    rule: &str,
+    outcome: &mut LayoutOutcome,
+) {
     for item in found {
         if item.key.is_empty() {
             continue;
@@ -273,7 +370,13 @@ fn note_keys(found: &[LayoutFinding], rule: &str, outcome: &mut LayoutOutcome) {
 /// ```ts
 /// function checkPackage(manifest: Path, selection: Selection, cwd: Path, outcome: LayoutOutcome): void;
 /// ```
-fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &mut LayoutOutcome) {
+fn check_package(
+    manifest: &Path,
+    selection: &Selection,
+    cwd: &Path,
+    outcome: &mut LayoutOutcome,
+    spans: &mut LineSpans,
+) {
     let Some(package) = manifest.parent() else {
         return;
     };
@@ -300,7 +403,7 @@ fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &m
         for problem in &tree.problems {
             outcome.findings.push(processing_failure(
                 display_name(&problem.file, cwd).as_str(),
-                line_span(&problem.file, problem.line),
+                spans.span(&problem.file, problem.line),
                 format!(
                     "The layout rules could not complete the module tree of {}, so the package was not checked: {}.",
                     display_name(package, cwd),
@@ -326,7 +429,7 @@ fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &m
         note_keys(&found, FOLDER_RULE, outcome);
         outcome
             .findings
-            .extend(diagnostics(found, FOLDER_RULE, severity, cwd));
+            .extend(diagnostics(found, FOLDER_RULE, severity, cwd, spans));
     }
     if let Some(severity) = selection.order
         && let Ok(allow) = list_for(&selection.order_allow, FILE_RULE, cwd, outcome)
@@ -336,7 +439,7 @@ fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &m
         note_keys(&found, FILE_RULE, outcome);
         outcome
             .findings
-            .extend(diagnostics(found, FILE_RULE, severity, cwd));
+            .extend(diagnostics(found, FILE_RULE, severity, cwd, spans));
     }
 }
 
@@ -349,13 +452,17 @@ fn check_package(manifest: &Path, selection: &Selection, cwd: &Path, outcome: &m
 /// ```ts
 /// function runLayoutStep(plans: FilePlan[], cwd: Path): LayoutOutcome;
 /// ```
-pub fn run_layout_step(plans: &[FilePlan], cwd: &Path) -> LayoutOutcome {
+pub fn run_layout_step(
+    plans: &[FilePlan],
+    cwd: &Path,
+) -> LayoutOutcome {
     let mut outcome: LayoutOutcome = LayoutOutcome::default();
     let mut notes: Vec<String> = Vec::<String>::new();
     let chosen: BTreeMap<PathBuf, Selection> = select_packages(plans, &mut notes);
     outcome.notes.extend(notes);
+    let mut spans: LineSpans = LineSpans::default();
     for (manifest, selection) in &chosen {
-        check_package(manifest, selection, cwd, &mut outcome);
+        check_package(manifest, selection, cwd, &mut outcome, &mut spans);
     }
     return outcome;
 }

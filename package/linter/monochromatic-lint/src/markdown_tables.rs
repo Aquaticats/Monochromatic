@@ -11,7 +11,10 @@
 //! ```
 
 /// Import shared diagnostic contracts.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the finding constructor that wraps a table problem as a located diagnostic.
 use crate::markdown_finding::finding;
 /// Import the native source the tables are read from.
@@ -34,7 +37,10 @@ const DETAIL: &str = "Markdown pipe tables force each row onto one line; prefer 
 /// ```ts
 /// function noPipeTables(context, severity): Diagnostic[];
 /// ```
-pub fn no_pipe_tables(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn no_pipe_tables(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     // Own findings so their lifetime does not depend on the parser's arena.
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for id in context.visible_nodes() {

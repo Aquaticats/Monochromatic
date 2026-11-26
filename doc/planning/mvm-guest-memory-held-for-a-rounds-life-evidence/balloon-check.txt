@@ -1,0 +1,38 @@
+# The virtio devices of one guest this worktree's mvm creates
+
+[info] [2026-11-26T04:10:20.149Z] [mvm] [create] creating VM mem-third-balloon-check (image: ubuntu)
+[info] [2026-11-26T04:10:20.151Z] [mvm] [ensureTemplate] using cached template <home>/.local/share/mvm/images/template-ubuntu.qcow2
+[info] [2026-11-26T04:10:20.151Z] [mvm] [create] creating disk from template image...
+[info] [2026-11-26T04:10:20.296Z] [mvm] [createSeedIso] created seed ISO at <home>/.local/share/mvm/vms/mem-third-balloon-check/seed.iso
+[info] [2026-11-26T04:10:20.590Z] [mvm] [waitForGuestAgent] waiting for guest agent on mem-third-balloon-check...
+[info] [2026-11-26T04:10:29.790Z] [mvm] [waitForGuestAgent] guest agent on mem-third-balloon-check is ready
+[info] [2026-11-26T04:10:29.790Z] [mvm] [create] VM mem-third-balloon-check is ready. Connect with: mvm shell mem-third-balloon-check
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+
+## The guest's own device list
+
+devices:
+  /sys/bus/virtio/devices/virtio0 device=0x001a
+    features=9223372036854775807
+  /sys/bus/virtio/devices/virtio1 device=0x0001
+    features=9223372036854775807
+  /sys/bus/virtio/devices/virtio2 device=0x0003
+    features=9223372036854775807
+  /sys/bus/virtio/devices/virtio3 device=0x0002
+    features=9223372036854775807
+  /sys/bus/virtio/devices/virtio4 device=0x0005
+    features=9223372036854775807
+modules:
+balloon driver:
+bind
+uevent
+unbind
+virtio4
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+
+## Destroy
+
+[info] [2026-11-26T04:10:30.306Z] [mvm] [destroy] destroying VM mem-third-balloon-check
+[info] [2026-11-26T04:10:30.587Z] [mvm] [destroy] VM mem-third-balloon-check destroyed
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+2026-11-26T04:10:30.592Z destroy exited 0

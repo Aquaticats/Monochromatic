@@ -19,7 +19,12 @@
 /// import { parseJsonc, emitJsoncValue } from 'jsonc-edit';
 /// ```
 use super::merge_values;
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, emit_jsonc_value, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    emit_jsonc_value,
+    parse_jsonc,
+};
 
 /// What:
 ///  Read a required corpus field as an independent owned value.
@@ -30,7 +35,10 @@ use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, emit_jsonc_value, parse_js
 /// ```ts
 /// function field(value: JsoncValue, name: string): JsoncValue;
 /// ```
-fn field(value: &JsoncValue, name: &str) -> JsoncValue {
+fn field(
+    value: &JsoncValue,
+    name: &str,
+) -> JsoncValue {
     // Decode the fixture field name to the parser's UTF-16 key representation.
     let units: Vec<u16> = name.encode_utf16().collect();
     // Borrow the members; every corpus case is required to be a record.
@@ -177,7 +185,10 @@ fn input_trees_are_unchanged_and_output_is_owned() {
     // ```ts
     // actual.a.push(true);
     // ```
-    if let JsoncKind::Record { entries } = &mut actual.kind {
+    if let JsoncKind::Record {
+        entries,
+    } = &mut actual.kind
+    {
         if let JsoncKind::Array {
             elements: merged_elements,
         } = &mut entries[0].value.kind

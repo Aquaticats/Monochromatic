@@ -32,11 +32,20 @@
 //! ```
 
 /// Import the package grouping and the display of paths.
-use crate::{closure_packages::ClosurePackage, run_paths::display_name};
+use crate::{
+    closure_packages::ClosurePackage,
+    run_paths::display_name,
+};
 /// Import native paths and the process types.
 use std::{
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// What:
@@ -118,7 +127,10 @@ pub struct DriverGaps {
 /// ```ts
 /// function gapsHoldLibrary(gaps: Gap[], library: Path): boolean;
 /// ```
-pub fn gaps_hold_library(gaps: &[DriverGap], library: &Path) -> bool {
+pub fn gaps_hold_library(
+    gaps: &[DriverGap],
+    library: &Path,
+) -> bool {
     for gap in gaps {
         if gap.library.as_path() == library {
             return true;
@@ -251,7 +263,10 @@ pub fn parse_version(line: &str) -> Option<(u64, u64, u64)> {
 /// ```ts
 /// function activeToolchain(rustup: Path, directory: Path): string; // throws string
 /// ```
-fn active_toolchain(rustup: &Path, directory: &Path) -> Result<String, String> {
+fn active_toolchain(
+    rustup: &Path,
+    directory: &Path,
+) -> Result<String, String> {
     let output = match Command::new(rustup)
         .args(["show", "active-toolchain"])
         .current_dir(directory)
@@ -355,7 +370,10 @@ fn driver_unresolved(
 }
 
 /// Write the throwaway crate.
-fn prepare_probe(package: &Path, version: &str) -> std::io::Result<()> {
+fn prepare_probe(
+    package: &Path,
+    version: &str,
+) -> std::io::Result<()> {
     std::fs::create_dir_all(package.join("src"))?;
     std::fs::write(package.join("Cargo.toml"), probe_manifest(version))?;
     return std::fs::write(package.join("src").join("main.rs"), "fn main() {}\n");
@@ -385,7 +403,10 @@ fn is_error_line(line: &&str) -> bool {
 /// ```ts
 /// function resolveProbe(cargo: Path, package: Path): string | undefined; // throws string
 /// ```
-fn resolve_probe(cargo: &Path, package: &Path) -> Result<Option<String>, String> {
+fn resolve_probe(
+    cargo: &Path,
+    package: &Path,
+) -> Result<Option<String>, String> {
     let output = match Command::new(cargo)
         .args([
             "metadata",
@@ -506,7 +527,10 @@ pub fn driver_state(
 /// ```ts
 /// function warmCommand(library: string, manifest: string): string;
 /// ```
-pub fn warm_command(library: &str, manifest: &str) -> String {
+pub fn warm_command(
+    library: &str,
+    manifest: &str,
+) -> String {
     return format!(
         "env --unset=CARGO_NET_OFFLINE cargo dylint --path {library} --manifest-path {manifest} -- --locked"
     );
@@ -521,7 +545,10 @@ pub fn warm_command(library: &str, manifest: &str) -> String {
 /// ```ts
 /// function packagesUsing(packages: ClosurePackage[], library: Path): number;
 /// ```
-fn packages_using(packages: &[ClosurePackage], library: &Path) -> usize {
+fn packages_using(
+    packages: &[ClosurePackage],
+    library: &Path,
+) -> usize {
     let mut count: usize = 0;
     for other in packages {
         if other.library.as_path() == library {

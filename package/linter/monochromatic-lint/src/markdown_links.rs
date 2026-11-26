@@ -10,7 +10,10 @@
 //! ```
 
 /// Import the diagnostic and severity types that broken-link findings are reported with.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the edit type that a link repair is written as.
 use crate::edits::Edit;
 /// Import the finding constructor that wraps a link problem as a located diagnostic.
@@ -18,10 +21,17 @@ use crate::markdown_finding::finding;
 /// Import the parsed Markdown source whose links are inspected.
 use crate::markdown_source::MarkdownSource;
 /// Import typed link/reference data and the common result models.
-use satteri_ast::mdast::{MdastNodeType, decode_link_data, decode_reference_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_link_data,
+    decode_reference_data,
+};
 
 /// Escape only the punctuation significant to the destination Markdown context.
-fn escape(text: &str, reserved: &[char]) -> String {
+fn escape(
+    text: &str,
+    reserved: &[char],
+) -> String {
     let mut output = String::new();
     for character in text.chars() {
         if reserved.contains(&character) {
@@ -41,7 +51,11 @@ fn escape(text: &str, reserved: &[char]) -> String {
 /// ```ts
 /// function bareLinkReplacement(mdx: boolean, written: string, url: string): [string, string];
 /// ```
-fn bare_link_replacement(mdx: bool, written: &str, url: &str) -> (String, &'static str) {
+fn bare_link_replacement(
+    mdx: bool,
+    written: &str,
+    url: &str,
+) -> (String, &'static str) {
     if !mdx {
         return (
             format!("<{written}>"),
@@ -58,7 +72,10 @@ fn bare_link_replacement(mdx: bool, written: &str, url: &str) -> (String, &'stat
 }
 
 /// Wrap bare supported URLs/emails without turning MDX text into JSX.
-pub fn no_bare_urls(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn no_bare_urls(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings = Vec::new();
     for id in context.visible_nodes() {
         if context.kind(*id) != MdastNodeType::Link {
@@ -107,7 +124,10 @@ pub fn no_bare_urls(context: &MarkdownSource, severity: Severity) -> Vec<Diagnos
 }
 
 /// Convert only shortcut references to collapsed references by appending brackets.
-pub fn link_image_style(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn link_image_style(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings = Vec::new();
     for id in context.visible_nodes() {
         let kind = context.kind(*id);

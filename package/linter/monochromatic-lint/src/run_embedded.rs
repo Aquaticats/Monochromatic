@@ -26,18 +26,30 @@
 ///  the finding model and the shared source core.
 use crate::{
     config_error::ConfigError,
-    config_lookup::{ConfigurationSource, configuration_from_text},
-    diagnostic::{Diagnostic, Severity},
+    config_lookup::{
+        ConfigurationSource,
+        configuration_from_text,
+    },
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
     edits::FixScope,
     run_modes::SetupError,
     run_output::exit_status,
     run_plan::ConfigStore,
     run_source::{
-        SourceRun, lint_source_bytes, require_absolute_directory, require_supported_name,
+        SourceRun,
+        lint_source_bytes,
+        require_absolute_directory,
+        require_supported_name,
     },
 };
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The label that names the in-memory configuration in its own parse errors,
 ///  where the executable names the file.

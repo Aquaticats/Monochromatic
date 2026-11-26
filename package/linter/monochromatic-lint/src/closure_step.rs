@@ -20,26 +20,62 @@
 ///  the mapping and the failure finding of the check.
 use crate::{
     closure_cargo::{
-        DylintRun, ProbeFailure, cargo_program, dependencies_missing, dylint_probe, run_dylint,
+        DylintRun,
+        ProbeFailure,
+        cargo_program,
+        dependencies_missing,
+        dylint_probe,
+        run_dylint,
         rustc_dev_missing,
     },
     closure_driver::{
-        DriverGaps, DriverSite, driver_gaps, driver_site_from_environment, gaps_hold_library,
+        DriverGaps,
+        DriverSite,
+        driver_gaps,
+        driver_site_from_environment,
+        gaps_hold_library,
     },
-    closure_findings::{RULE, Targets, findings_from, targets_of},
-    closure_manifest::{Prerequisite, read_prerequisites},
-    closure_packages::{ClosurePackage, group_packages},
-    closure_probe::{PackageSetup, Readiness, prepare},
-    closure_report::{Parsed, parse_records},
-    diagnostic::{Diagnostic, Severity},
-    run_failure::{file_start, processing_failure},
+    closure_findings::{
+        RULE,
+        Targets,
+        findings_from,
+        targets_of,
+    },
+    closure_manifest::{
+        Prerequisite,
+        read_prerequisites,
+    },
+    closure_packages::{
+        ClosurePackage,
+        group_packages,
+    },
+    closure_probe::{
+        PackageSetup,
+        Readiness,
+        prepare,
+    },
+    closure_report::{
+        Parsed,
+        parse_records,
+    },
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
+    run_failure::{
+        file_start,
+        processing_failure,
+    },
     run_paths::display_name,
     run_plan::FilePlan,
 };
 /// Import the borrowed operating-system string and native paths.
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -79,7 +115,11 @@ pub struct ClosureOutcome {
 /// ```ts
 /// function skipFinding(manifest: string, subject: string, reason: string): Diagnostic;
 /// ```
-fn skip_finding(manifest: &str, subject: &str, reason: &str) -> Diagnostic {
+fn skip_finding(
+    manifest: &str,
+    subject: &str,
+    reason: &str,
+) -> Diagnostic {
     return Diagnostic::new(
         RULE,
         Severity::Warn,
@@ -124,7 +164,11 @@ fn packages_of_library<'packages>(
 /// ```ts
 /// function skipPackages(packages: ClosurePackage[], reason: string, cwd: Path): Diagnostic[];
 /// ```
-fn skip_packages(packages: &[&ClosurePackage], reason: &str, cwd: &Path) -> Vec<Diagnostic> {
+fn skip_packages(
+    packages: &[&ClosurePackage],
+    reason: &str,
+    cwd: &Path,
+) -> Vec<Diagnostic> {
     let mut skips: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for package in packages {
         let Some(directory) = package.manifest.parent() else {
@@ -148,7 +192,10 @@ fn skip_packages(packages: &[&ClosurePackage], reason: &str, cwd: &Path) -> Vec<
 /// ```ts
 /// function tail(text: string, count: number): string;
 /// ```
-fn tail(text: &str, count: usize) -> String {
+fn tail(
+    text: &str,
+    count: usize,
+) -> String {
     let lines: Vec<&str> = text.lines().collect::<Vec<&str>>();
     let start: usize = lines.len().saturating_sub(count);
     return lines[start..].join("\n");
@@ -164,7 +211,10 @@ fn tail(text: &str, count: usize) -> String {
 /// ```ts
 /// function failureMessage(run: DylintRun, parsed: Parsed): string;
 /// ```
-fn failure_message(run: &DylintRun, parsed: &Parsed) -> String {
+fn failure_message(
+    run: &DylintRun,
+    parsed: &Parsed,
+) -> String {
     let detail: String = match &parsed.compiler_error {
         Some(error) => format!("The first compiler error was:\n{error}"),
         None => format!(
@@ -273,7 +323,10 @@ fn check_package(
 /// ```ts
 /// function absorb(total: ClosureOutcome, part: ClosureOutcome): void;
 /// ```
-fn absorb(total: &mut ClosureOutcome, part: ClosureOutcome) {
+fn absorb(
+    total: &mut ClosureOutcome,
+    part: ClosureOutcome,
+) {
     total.findings.extend(part.findings);
     total.skips.extend(part.skips);
     total.notes.extend(part.notes);
@@ -320,7 +373,11 @@ fn missing_libraries(packages: &[ClosurePackage]) -> Vec<Diagnostic> {
 /// ```ts
 /// function runClosureStep(plans: FilePlan[], cwd: Path, fix: boolean): ClosureOutcome;
 /// ```
-pub fn run_closure_step(plans: &[FilePlan], cwd: &Path, fix: bool) -> ClosureOutcome {
+pub fn run_closure_step(
+    plans: &[FilePlan],
+    cwd: &Path,
+    fix: bool,
+) -> ClosureOutcome {
     return run_closure_step_with(plans, cwd, fix, &cargo_program());
 }
 

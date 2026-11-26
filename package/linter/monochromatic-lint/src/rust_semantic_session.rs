@@ -10,7 +10,10 @@
 //! ```
 
 /// Import shared findings and selected severity.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the syntax-rule dispatcher used by the same per-file checks.
 use crate::rust_dispatch::check_syntax_rules;
 /// Import the complete rule rather than duplicating checks in the workspace adapter.
@@ -22,17 +25,33 @@ use crate::rust_semantic_error::SemanticError;
 /// Import the lossless registered-tree source wrapper.
 use crate::rust_source::RustSource;
 /// Import tracked source changes and database attachment.
-use ra_ap_hir::{ChangeWithProcMacros, EditionedFileId, Semantics, attach_db};
+use ra_ap_hir::{
+    ChangeWithProcMacros,
+    EditionedFileId,
+    Semantics,
+    attach_db,
+};
 /// Import the scoped database accessor used by named query functions.
-use ra_ap_hir_ty::{db::HirDatabase, with_attached_db};
+use ra_ap_hir_ty::{
+    db::HirDatabase,
+    with_attached_db,
+};
 /// Import ownership of the semantic database.
 use ra_ap_ide_db::RootDatabase;
 /// Keep any workspace macro process alive until its database is released.
 use ra_ap_proc_macro_api::ProcMacroClient;
 /// Import exact syntax roots and file identities.
-use ra_ap_syntax::{AstNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    ast,
+};
 /// Import the virtual file system types that record which files the loader includes.
-use ra_ap_vfs::{FileExcluded, FileId, Vfs, VfsPath};
+use ra_ap_vfs::{
+    FileExcluded,
+    FileId,
+    Vfs,
+    VfsPath,
+};
 /// Import setters for typed per-database request data.
 use salsa::Setter;
 /// Import the native caller path,
@@ -118,7 +137,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 /// function protectQuery(operation): Diagnostic[] { try { return operation(); } catch (error) { throw typed(error); } }
 /// ```
 fn protect_query(
-    operation: fn() -> Result<Vec<Diagnostic>, SemanticError>,
+    operation: fn() -> Result<Vec<Diagnostic>, SemanticError>
 ) -> Result<Vec<Diagnostic>, SemanticError> {
     let outcome: std::thread::Result<Result<Vec<Diagnostic>, SemanticError>> =
         std::panic::catch_unwind(operation);

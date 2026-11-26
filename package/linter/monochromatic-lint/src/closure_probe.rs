@@ -15,14 +15,26 @@
 use crate::{
     closure_manifest::Prerequisite,
     closure_probe_ghostty::ghostty_setup,
-    closure_probe_platform::{android_setup, ide_setup},
+    closure_probe_platform::{
+        android_setup,
+        ide_setup,
+    },
 };
 /// Import the borrowed operating-system string type,
 ///  native paths and the process type that runs `pkg-config`.
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// Import the execute-bit accessor of Unix permissions.
@@ -83,7 +95,10 @@ pub enum Readiness {
 /// ```ts
 /// function findExecutable(name: string, search: string): Path | undefined;
 /// ```
-pub fn find_executable(name: &str, search: &OsStr) -> Option<PathBuf> {
+pub fn find_executable(
+    name: &str,
+    search: &OsStr,
+) -> Option<PathBuf> {
     for directory in std::env::split_paths(search) {
         let candidate: PathBuf = directory.join(name);
         if is_executable_file(&candidate) {
@@ -172,7 +187,10 @@ fn check_modules(modules: &[String]) -> Option<String> {
 /// ```ts
 /// function checkExecutables(names: string[], search: string): string | undefined;
 /// ```
-fn check_executables(names: &[String], search: &OsStr) -> Option<String> {
+fn check_executables(
+    names: &[String],
+    search: &OsStr,
+) -> Option<String> {
     for name in names {
         if find_executable(name, search).is_none() {
             return Some(format!(
@@ -194,7 +212,10 @@ fn check_executables(names: &[String], search: &OsStr) -> Option<String> {
 /// ```ts
 /// function qmakeSetup(search: string, current?: string): [string, string] | string; // variable or reason
 /// ```
-fn qmake_setup(search: &OsStr, current: Option<OsString>) -> Result<Vec<(String, String)>, String> {
+fn qmake_setup(
+    search: &OsStr,
+    current: Option<OsString>,
+) -> Result<Vec<(String, String)>, String> {
     if let Some(existing) = current
         && Path::new(&existing).is_file()
     {

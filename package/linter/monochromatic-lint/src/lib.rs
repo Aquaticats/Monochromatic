@@ -35,12 +35,18 @@ pub use closure_findings::RULE as CLOSURE_RULE;
 /// The lockfile name and table header the stale-binary hint measures,
 ///  exported for the executable's black-box tests.
 #[doc(hidden)]
-pub use config_pin::{LOCK_NAME, TOOL_TABLE};
+pub use config_pin::{
+    LOCK_NAME,
+    TOOL_TABLE,
+};
 
 /// The diagnostic codes the executable's black-box tests assert,
 ///  exported so they need not repeat the strings.
 #[doc(hidden)]
-pub use directive_findings::{NON_SUPPRESSIBLE, UNUSED};
+pub use directive_findings::{
+    NON_SUPPRESSIBLE,
+    UNUSED,
+};
 
 /// The `cargo` processes of the closure check.
 mod closure_cargo;
@@ -113,6 +119,9 @@ pub mod fix_loop;
 ///  for every consumer of the gitignore matcher.
 #[doc(hidden)]
 pub mod gitignore_pattern;
+/// One line of a layout rule's allow list:
+///  the shape it reads as and the words that spell it.
+mod layout_allow_entries;
 /// The findings a layout rule tolerates today,
 ///  read from the file its `allow` option names.
 mod layout_allow_list;

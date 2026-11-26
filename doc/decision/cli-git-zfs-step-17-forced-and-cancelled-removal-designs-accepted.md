@@ -121,3 +121,30 @@ The answer:
 Its veto-open defaults ride along with it,
 as the question named them,
 and the receipt's new outcome word is step 9's to propose.
+
+## The two refusals the built arm keeps (owner, 2026-11-26T00:05-05:00)
+
+The forced removal's act is built and its guest arm passed with all seven phases on the final code
+(branch `feat/git-policy-cli-zfs-step-17-forced-arm-act-proven-in-a-guest`,
+its round's `keep/results-forced-act.md`).
+It refuses two kinds of holder that the design answered differently.
+
+A locked holder,
+a copy inside a mount namespace owned by a user namespace of its own,
+answered `EINVAL` to the unmount and the move in the guest,
+and the design's V10 answer was "Stop that unit (Recommended)".
+No arm has measured that stop,
+because the guests have no user manager of the account's own,
+so the arm refuses with `holder-locked` and names the `systemctl --user stop` that ends it.
+Asked whether to keep that refusal or build the stop,
+the owner answered "Keep the refusal (Recommended)":
+the refusal is what the arm does until an arm watches the stop,
+and the design records it so.
+
+A taskless namespace,
+a mount namespace whose tasks are gone and which still holds the copy,
+can be found only through `listns`,
+which every guest the arms use answers with `ENOSYS`;
+the arm refuses it with `holder-unendable`.
+Asked whether to keep that refusal until a guest of 6.19 or newer measures the walk,
+the owner answered "Keep the refusal (Recommended)".

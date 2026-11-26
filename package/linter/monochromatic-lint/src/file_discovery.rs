@@ -12,15 +12,24 @@
 /// Import the language choice that decides which files are inputs.
 use crate::run_paths::language_of;
 /// Import the glob override builder that layers the crate's exclusions over ignore files.
-use ignore::overrides::{Override, OverrideBuilder};
+use ignore::overrides::{
+    Override,
+    OverrideBuilder,
+};
 /// Import gitignore-aware traversal and its override-pattern compiler.
-use ignore::{DirEntry, WalkBuilder};
+use ignore::{
+    DirEntry,
+    WalkBuilder,
+};
 /// Import deterministic path deduplication and native filesystem types.
 use std::collections::BTreeSet;
 /// Import the OS string type for file names that may not be valid UTF-8.
 use std::ffi::OsStr;
 /// Import the path types used to walk and compare filesystem locations.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Owned discovery failure rather than an unreadable path silently disappearing from the result.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,7 +41,10 @@ pub struct FileDiscoveryError {
 /// Render the discovery failure without losing its context.
 impl std::fmt::Display for FileDiscoveryError {
     /// Borrow the formatter while writing owned text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -69,7 +81,10 @@ fn not_git_metadata(entry: &DirEntry) -> bool {
 }
 
 /// Add one exclusion using the walker's inverse-polarity override grammar.
-fn add_exclusion(builder: &mut OverrideBuilder, pattern: &str) -> Result<(), FileDiscoveryError> {
+fn add_exclusion(
+    builder: &mut OverrideBuilder,
+    pattern: &str,
+) -> Result<(), FileDiscoveryError> {
     if let Err(error) = builder.add(format!("!{pattern}").as_str()) {
         return Err(FileDiscoveryError {
             message: format!("Cannot compile file-discovery exclusion {pattern:?}: {error}."),

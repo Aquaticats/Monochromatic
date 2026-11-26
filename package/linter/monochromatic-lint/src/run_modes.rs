@@ -16,19 +16,33 @@
 use crate::{
     config_error::ConfigError,
     config_lookup::CONFIG_NAME,
-    config_match::{FileConfiguration, PreparedConfiguration},
+    config_match::{
+        FileConfiguration,
+        PreparedConfiguration,
+    },
     configuration_rules::RULE_IDS,
     run_json::strict_json,
-    run_paths::{absolute_normal, display_name, relative_from},
+    run_paths::{
+        absolute_normal,
+        display_name,
+        relative_from,
+    },
     run_plan::ConfigStore,
 };
 /// Import the JSONC value model that carries merged rules into the printed document.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncValue,
+};
 /// Import exclusive file creation and native paths.
 use std::{
     fs::OpenOptions,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -70,7 +84,11 @@ impl SetupError {
 
 /// Re-export the rule table that `--rules`,
 ///  the directive engine and the fixer share.
-pub use crate::run_modes_rule_table::{RULES, RuleInfo, rule_info};
+pub use crate::run_modes_rule_table::{
+    RULES,
+    RuleInfo,
+    rule_info,
+};
 
 /// What:
 ///  Render the rule listing as JSON Lines.
@@ -195,7 +213,10 @@ pub fn init_configuration(cwd: &Path) -> Result<PathBuf, SetupError> {
 /// ```ts
 /// function member(key: string, value: string): JsoncEntry;
 /// ```
-fn member(key: &str, value: &str) -> JsoncEntry {
+fn member(
+    key: &str,
+    value: &str,
+) -> JsoncEntry {
     return JsoncEntry {
         key: JsoncKey::from_text(key),
         value: JsoncValue::text_from_units(value.encode_utf16().collect::<Vec<u16>>()),
@@ -237,7 +258,9 @@ pub fn print_configuration(
         match config.resolve(&relative_from(&config.base, &absolute))? {
             FileConfiguration::Ignored => entries.push(member("state", "ignored")),
             FileConfiguration::Unconfigured => entries.push(member("state", "unconfigured")),
-            FileConfiguration::Configured { rules } => {
+            FileConfiguration::Configured {
+                rules,
+            } => {
                 entries.push(member("state", "configured"));
                 entries.push(JsoncEntry {
                     key: JsoncKey::from_text("rules"),

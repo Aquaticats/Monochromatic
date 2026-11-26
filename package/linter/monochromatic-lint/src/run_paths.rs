@@ -14,12 +14,22 @@
 //! ```
 
 /// Import lexical normalization and the processor's language tag.
-use crate::{markdown_lfs_target::lexical_normal, processors::ProcessorLanguage};
+use crate::{
+    markdown_lfs_target::lexical_normal,
+    processors::ProcessorLanguage,
+};
 /// Import native path types;
 ///  `OsStr` compares extension bytes without lossy conversion.
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Component, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -144,7 +154,10 @@ pub fn language_of(path: &Path) -> Option<Language> {
 /// ```ts
 /// function absoluteNormal(path: Path, cwd: Path): Path { return resolve(cwd, path); }
 /// ```
-pub fn absolute_normal(path: &Path, cwd: &Path) -> PathBuf {
+pub fn absolute_normal(
+    path: &Path,
+    cwd: &Path,
+) -> PathBuf {
     if path.is_absolute() {
         return lexical_normal(path);
     }
@@ -165,7 +178,10 @@ pub fn absolute_normal(path: &Path, cwd: &Path) -> PathBuf {
 /// ```ts
 /// function displayName(absolute: Path, cwd: Path): string;
 /// ```
-pub fn display_name(absolute: &Path, cwd: &Path) -> String {
+pub fn display_name(
+    absolute: &Path,
+    cwd: &Path,
+) -> String {
     if let Ok(below) = absolute.strip_prefix(cwd)
         && below.components().next().is_some()
     {
@@ -187,7 +203,10 @@ pub fn display_name(absolute: &Path, cwd: &Path) -> String {
 /// ```ts
 /// function relativeFrom(base: Path, absolute: Path): Path { return relative(base, absolute); }
 /// ```
-pub fn relative_from(base: &Path, absolute: &Path) -> PathBuf {
+pub fn relative_from(
+    base: &Path,
+    absolute: &Path,
+) -> PathBuf {
     let from: Vec<Component<'_>> = base.components().collect::<Vec<Component<'_>>>();
     let target: Vec<Component<'_>> = absolute.components().collect::<Vec<Component<'_>>>();
     // Count the leading components both paths share.
@@ -226,7 +245,10 @@ pub fn relative_from(base: &Path, absolute: &Path) -> PathBuf {
 /// ```ts
 /// function logicalPath(host: Path, suffix: string): Path { return host + suffix; }
 /// ```
-pub fn logical_path(host: &Path, suffix: &str) -> PathBuf {
+pub fn logical_path(
+    host: &Path,
+    suffix: &str,
+) -> PathBuf {
     let mut text: OsString = host.as_os_str().to_os_string();
     text.push(suffix);
     return PathBuf::from(text);

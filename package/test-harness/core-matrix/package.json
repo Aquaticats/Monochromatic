@@ -37,7 +37,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/test-harness/core-matrix"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/test-harness/core-matrix"
 }

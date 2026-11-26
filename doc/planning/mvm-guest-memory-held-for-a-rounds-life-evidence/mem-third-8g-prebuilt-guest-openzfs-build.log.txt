@@ -1,0 +1,6 @@
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+make[3]: Leaving directory '/root/zfs-2.4.4'
+make[2]: Leaving directory '/root/zfs-2.4.4'
+make[1]: Leaving directory '/root/zfs-2.4.4'
+zfs-2.4.4-1
+zfs-kmod-2.4.4-1

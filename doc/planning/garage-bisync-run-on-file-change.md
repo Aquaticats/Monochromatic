@@ -14,7 +14,8 @@ the sections after it are the record of how each part was decided and measured.
 Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed").
 Implemented on this PC (`package/garage-file-sync/linux-client`, merged as `325f2f1ab6`) and live since 2026-11-25T22:01:09-05:00;
 the Mac's agent has both passes and `--conflict-resolve newer` since 2026-11-25T21:15:56-05:00.
-Not final: no sync started by a real save has been observed yet.
+The first change-triggered sync on live data ran at 2026-11-25T23:19:37-05:00 (a deletion of five conflict copies), two passes, both successful.
+Not final until the owner says so.
 Decision record: `doc/decision/garage-file-sync-change-watcher.md`.
 
 ### Scope
@@ -53,8 +54,10 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     deduplicated like every other alert.
     directory-watcher only logs a failed hook command and keeps watching,
     so without this nothing would notice.
-    Global `lifeCycle.onStartWatch` runs the alert script's recovery check for the watcher,
-    which is how a watcher outage gets its recovery notice.
+    The target's `lifeCycle.onStartWatch` runs the alert script's recovery check for the watcher,
+    which is how a watcher outage gets its recovery notice;
+    it is the target's hook, not the global one, because directory-watcher runs it only after the watches are in place
+    (`docs/guide/how-it-works.md` at `v3.2.1`; changed after the short review at 2026-11-25T21:44-05:00).
     Accepted exception (round 8):
     names starting with `.` or `_` (168 entries) are never watched,
     so they reach the bucket only through the 5-minute timer.
@@ -85,8 +88,9 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     From the Sonnet and DeepSeek reviews:
     state per unit under `~/.local/state/rclone-bisync-garage-alert/`, which survives logout;
     state written only after `notify-send` succeeds;
-    recovery only for a run that exited with status 0
-    (`OnSuccess=` also fires when a running sync is stopped by hand, which is not a recovery);
+    recovery only for a run that exited with status 0;
+    a run stopped by hand reaches the failure handler (measured: `Result=signal`), which stays silent for it
+    (`Result=signal` with `TERM`, or rclone's own exit status 143 on SIGTERM);
     its "next hourly run" text and its look-back window are corrected for 5-minute runs.
 6.  Where the files live (round 7):
     sources in the repository,
@@ -546,6 +550,33 @@ Two defects the proof found, both fixed on the branch before go-live:
 The short DeepSeek review of the branch found that the watcher's global start hook would report a false recovery every 30 s
 when adding watches fails, and that the abort notice demanded a `--resync` the troubleshooting doc says is not needed;
 both are fixed (the hook is now the target's `onStartWatch`, which directory-watcher runs only after watching starts).
+
+## Coverage and review fixes merged (2026-11-25T23:10:57-05:00)
+
+The coverage branch and its review fixes merged into `main` as `59de5b8c25`;
+the installed copies still match the package.
+A short DeepSeek review of the fixes (at `a78419f961`) reverted each fix in a throwaway copy and saw its test fail for the named reason.
+It found, and the coordinating session left open:
+
+- A `hook-failed` alert's streak closes only when the watcher restarts, so a hook fault that is fixed while the watcher keeps running is never announced as fixed.
+- A hand stop that systemd escalates to SIGKILL after `TimeoutStopSec` still raises a failure notice; only SIGTERM stops are silent.
+- Untested branches: an unpaired `{` in a listing path, a state file with `recovered: false`, the "stopping it failed" branch of `stopCommand`, and `src/alert.ts` as a command.
+
+## Review of the test-coverage branch (2026-11-25T22:39:01-05:00)
+
+A short DeepSeek review of `test/garage-file-sync-linux-client-coverage` (at `223ad05ef4`) found, and the coordinating session weighed:
+
+- Fixing (branch `fix/garage-file-sync-linux-client-alert-review-findings`):
+  the runner can wait forever on a descendant that keeps the pipes open after the command exits;
+  a hand stop raises a critical failure notice;
+  a watcher that keeps exiting after it started watching sends a failure and a recovery about every 30 s;
+  the backup-listing check accepts another local folder's listings for the same remote
+  (the proof fixture had left such listings in `~/.cache/rclone/bisync`; they were deleted at once);
+  two comments that do not describe the code, and an untested state-file branch.
+- Left open, recorded here:
+  the drift check does not scan instance drop-in folders (`rclone-bisync-garage-alert@<unit>.service.d/`), which `systemctl --user edit` on a running handler creates;
+  a leftover `<target>.new` from an interrupted install is reported as a unit the manager loads, which it does not;
+  the alert entry has no test as a command, and a few error branches of `alert-run.ts` and `install-files.ts` have none.
 
 ## Owner answers, round 8 (2026-11-25T20:41:14-05:00)
 

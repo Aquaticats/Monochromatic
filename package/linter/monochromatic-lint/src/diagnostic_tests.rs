@@ -11,8 +11,17 @@
 
 /// Import the production model,
 ///  renderer and internal fix type.
-use super::{Diagnostic, Severity, Span, render};
-use crate::edits::{Edit, Fix, FixClass};
+use super::{
+    Diagnostic,
+    Severity,
+    Span,
+    render,
+};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+};
 
 /// One finding with a source span whose fields are deliberately distinct.
 fn fixture() -> Diagnostic {

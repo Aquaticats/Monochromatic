@@ -18,19 +18,38 @@
 /// Import the command grammar and its collaborators.
 use crate::{
     cli_options::CliOptions,
-    closure_step::{ClosureOutcome, run_closure_step},
+    closure_step::{
+        ClosureOutcome,
+        run_closure_step,
+    },
     config_lookup::CONFIG_NAME,
     diagnostic::Diagnostic,
     file_discovery::DiscoveryOptions,
-    layout_step::{LayoutOutcome, run_layout_step},
+    layout_step::{
+        LayoutOutcome,
+        run_layout_step,
+    },
     path_inputs::collect_inputs,
     run_file::FileOutcome,
-    run_finish::{PROGRAM, engine, finish},
+    run_finish::{
+        PROGRAM,
+        engine,
+        finish,
+    },
     run_lfs::LfsRepos,
-    run_modes::{SetupError, init_configuration, print_configuration, rules_listing},
+    run_modes::{
+        SetupError,
+        init_configuration,
+        print_configuration,
+        rules_listing,
+    },
     run_output::RunOutput,
     run_paths::display_name,
-    run_plan::{ConfigStore, FilePlan, Planned},
+    run_plan::{
+        ConfigStore,
+        FilePlan,
+        Planned,
+    },
     run_source::require_absolute_directory,
     run_stdin::run_stdin,
     run_workers::process_plans,
@@ -39,7 +58,10 @@ use crate::{
 /// Import the reader trait for standard input and native paths.
 use std::{
     io::Read,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -68,7 +90,9 @@ fn plan_files(
             Err(error) => return Err(SetupError::from_display(&error)),
         };
         match planned {
-            Planned::Lint { plan } => {
+            Planned::Lint {
+                plan,
+            } => {
                 // Naming every selected file lets a `--debug` reader see exactly what was linted.
                 notes.push(format!("{}: selected for linting", plan.display));
                 plans.push(*plan);
@@ -246,7 +270,11 @@ fn execute(
 /// ```ts
 /// function runCommand(options: CliOptions, cwd: Path, stdin: Readable): RunOutput;
 /// ```
-pub fn run_command(options: &CliOptions, cwd: &Path, stdin: &mut dyn Read) -> RunOutput {
+pub fn run_command(
+    options: &CliOptions,
+    cwd: &Path,
+    stdin: &mut dyn Read,
+) -> RunOutput {
     match execute(options, cwd, stdin) {
         Ok(output) => return output,
         Err(error) => {

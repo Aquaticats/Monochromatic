@@ -11,9 +11,20 @@
 //! ```
 
 /// Import the production checker and private suffix-boundary controls.
-use super::{no_trailing_punctuation, punctuation_edit, punctuation_entity, suffix_start};
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
+use super::{
+    no_trailing_punctuation,
+    punctuation_edit,
+    punctuation_entity,
+    suffix_start,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Parse one native Markdown fixture and run only this rule.

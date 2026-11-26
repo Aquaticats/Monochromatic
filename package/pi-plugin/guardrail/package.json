@@ -6,7 +6,7 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/pi-plugin/guardrail"
   },
   "exports": {
@@ -48,5 +48,6 @@
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/pi-plugin/guardrail"
 }

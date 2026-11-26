@@ -18,12 +18,18 @@
 )]
 
 /// Import the unused-directive settings the two reporting options resolve to.
-use crate::directive_options::{DirectiveOptions, UnusedDirectiveSeverity};
+use crate::directive_options::{
+    DirectiveOptions,
+    UnusedDirectiveSeverity,
+};
 /// Import the classes of fix a run may apply,
 ///  which the two fix flags choose between.
 use crate::edits::FixScope;
 /// Import the incumbent CLI parser's trait and declaration macro.
-use clap::{CommandFactory, Parser};
+use clap::{
+    CommandFactory,
+    Parser,
+};
 /// Import the non-zero count type so a worker limit of zero cannot be expressed.
 use std::num::NonZeroUsize;
 /// Import native path storage and a strictly positive worker-count type.

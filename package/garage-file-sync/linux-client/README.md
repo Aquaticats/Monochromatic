@@ -93,14 +93,21 @@ Garage cannot notify a client that the bucket changed.
 - Further failures inside an hour are silent; one an hour or more later alerts again.
 - A run that exits with status 0 closes the streak with one recovery alert and removes
   the file.
-- A run stopped by hand is a failure to systemd:
+- A run stopped by hand is a stop, not a failure:
   stopping a running oneshot ends it in `Result=signal`,
-  so `OnFailure=` handles it like any failed run
+  which `OnFailure=` reports, and rclone that catches SIGTERM exits with status 143
   (measured under systemd 262 on this PC at 2026-11-25T21:54:10-05:00).
+  Both shapes are silent and leave an open streak open.
 - The watcher's change hook reports a `systemctl` failure by running the entry directly
   under `node`, so the notice does not depend on the thing that failed.
-- The watcher's target `onStartWatch` hook reports its recovery once, when its streak is open;
-  directory-watcher runs it only after the watches are in place,
+- The watcher's target `onStartWatch` hook reports its recovery once, when its streak is open,
+  and keeps the streak with its last alert time and a `recovered` mark instead of
+  removing it. A watcher that keeps crashing and restarting therefore sends one failure
+  and one recovery, not two notices every thirty seconds: a crash inside the hour is
+  silent and keeps the mark, so the next start sends no second recovery, while a crash an
+  hour or more after the last alert alerts again and clears the mark. The sync and
+  trigger units still close their streak with the recovery notice.
+  directory-watcher runs the hook only after the watches are in place,
   so a watcher that fails while adding them reports no recovery.
 - A recovery notice uses normal urgency and an information icon;
   a failure uses critical urgency and an error icon.
@@ -127,7 +134,13 @@ systemctl --user enable --now rclone-bisync-garage-watch.service
 
 `mise run //package/garage-file-sync/linux-client:check:installed` compares every
 installed copy with its source and fails, naming the file, when a copy is missing,
-is a link, or differs.
+cannot be read, differs, or is a link: a symbolic link into the checkout, or a hard link
+that shares the source file's inode.
+It also names every unit file under `~/.config/systemd/user` whose name starts with
+`rclone-bisync-garage` and that this package does not ship,
+and every extra file in a drop-in folder of a unit this package does ship,
+because the user manager loads those too and a stale one keeps acting beside the current
+ones.
 
 The install writes into `$HOME`; `-- --home=<folder>` installs into another home folder,
 which is how the tests run it.

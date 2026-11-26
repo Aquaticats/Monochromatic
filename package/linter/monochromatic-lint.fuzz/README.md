@@ -41,6 +41,9 @@ no fix after a processing failure,
 no emptied file,
 a fixed point once the loop settles,
 and a `core/fix-refused` finding on refusal.
+Its plans apply both fix classes,
+as the linter's own in-process and control entries do,
+because counted hosts such as `grouped.rs` and `suppressed.md` carry only content fixes.
 `markdown/lfs-image-url` is absent from that configuration because it reads the filesystem.
 Container campaigns run both generator controls and sidecar Clippy before instrumented compilation.
 The existing nonempty-to-empty rewrite refusal remains an explicit allowed error.

@@ -17,9 +17,10 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/garage-file-sync/linux-client"
   },
   "private": true,
-  "sideEffects": false
+  "sideEffects": false,
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/garage-file-sync/linux-client"
 }

@@ -754,6 +754,19 @@ and the line numbers are those of the tree it names.
   without attaching a second time.
   This design requires that behaviour and names it as a build item,
   because the path refuses an occupied slot today (F14).
+  Built on 2026-11-25 (branch `feat/git-policy-cli-zfs-attach-answers-done-for-a-clone-already-at-its-slot`):
+  the handler's turn already answered `done` from a standing mount of the clone;
+  the attach step now asks the same standing proof where the walk stops at the slot,
+  and answers `done` under the request's nonce from the clone's own mount.
+  Another dataset's mount, a bind of the clone and a mount without `nosuid` and `nodev` keep the walk's refusal.
+  The proof is the clone's verified dataset identity plus the source the kernel names for that mount,
+  not the slot identity store's folder record,
+  which the mount hides.
+  When the step answers so,
+  this boot's `first-attach` record names the standing mount (its number and flags)
+  rather than staying `started`;
+  the owner kept that on 2026-11-25T22:58-05:00:
+  "Record the standing mount (Recommended)".
 - A6.
   The trigger set the project controls is the one the proposal names:
   the boot unit's start reconcile,

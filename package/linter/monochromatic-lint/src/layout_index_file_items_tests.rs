@@ -9,12 +9,18 @@
 //! test('a function in mod.rs is reported on its line', () => expect(check('fn f() {}')).toEqual(['1 ...']));
 //! ```
 
-use super::{IndexRole, check_index_items};
+use super::{
+    IndexRole,
+    check_index_items,
+};
 use crate::layout_test_support::package_with;
 
 /// Check the text as `src/a/mod.rs` in the given role,
 /// and render each finding as `line message`.
-fn findings_of(text: &str, role: IndexRole) -> Vec<String> {
+fn findings_of(
+    text: &str,
+    role: IndexRole,
+) -> Vec<String> {
     let fixture = package_with(&[("src/lib.rs", "mod a;\n"), ("src/a/mod.rs", text)]);
     return check_index_items(&fixture.path.join("src/a/mod.rs"), role, &fixture.path)
         .iter()
@@ -211,4 +217,35 @@ fn an_unreadable_file_makes_no_finding() {
         &fixture.path,
     );
     assert!(found.is_empty());
+}
+
+/// The keys of the items an index may not hold name one item each:
+///  an `impl` block by what it implements,
+///  a `use` by its tree,
+///  a macro call by its path and its own arguments,
+///  and an `extern` line by its own words.
+#[test]
+fn every_key_of_an_index_item_names_that_item() {
+    let fixture = package_with(&[("src/lib.rs", "mod a;\n"), ("src/a/mod.rs", "")]);
+    let file = fixture.path.join("src/a/mod.rs");
+    let text: &str = "impl Holder { fn one() {} }\nimpl Holder { fn two() {} }\nimpl Display for Holder {}\nuse std::fmt;\nuse std::io;\nprintln!(\"first\");\nprintln!(\"second\");\nextern crate alloc;\nextern \"C\" { fn g(); }\n";
+    std::fs::write(&file, text).expect("fixture index");
+    let keys: Vec<String> = check_index_items(&file, IndexRole::Index, &fixture.path)
+        .iter()
+        .map(|item| return item.key.clone())
+        .collect::<Vec<String>>();
+    assert_eq!(
+        keys,
+        [
+            "index-item src/a/mod.rs impl-Holder",
+            "index-item src/a/mod.rs impl-Holder#2",
+            "index-item src/a/mod.rs impl-Display for Holder",
+            "index-item src/a/mod.rs private-use-std::fmt",
+            "index-item src/a/mod.rs private-use-std::io",
+            "index-item src/a/mod.rs macro-call-println!(\"first\")",
+            "index-item src/a/mod.rs macro-call-println!(\"second\")",
+            "index-item src/a/mod.rs extern-crate-alloc",
+            "index-item src/a/mod.rs extern-block-\"C\"",
+        ]
+    );
 }

@@ -213,7 +213,10 @@ fn find_separator(text: &str) -> Option<(usize, usize)> {
 /// ```ts
 /// function parseRules(text: string, textStart: number): RuleToken[] | string;
 /// ```
-fn parse_rules(text: &str, text_start: usize) -> Result<Vec<RuleToken>, String> {
+fn parse_rules(
+    text: &str,
+    text_start: usize,
+) -> Result<Vec<RuleToken>, String> {
     let mut tokens: Vec<RuleToken> = Vec::<RuleToken>::new();
     if text.trim().is_empty() {
         return Ok(tokens);
@@ -249,7 +252,10 @@ fn parse_rules(text: &str, text_start: usize) -> Result<Vec<RuleToken>, String> 
 /// ```ts
 /// function parseComment(content: string, contentStart: number): ParsedComment;
 /// ```
-pub fn parse_comment(content: &str, content_start: usize) -> ParsedComment {
+pub fn parse_comment(
+    content: &str,
+    content_start: usize,
+) -> ParsedComment {
     let blanks: usize = content.len() - content.trim_start().len();
     let body: &str = &content[blanks..];
     if !body.starts_with(DIRECTIVE_PREFIX) {

@@ -20,14 +20,14 @@ use crate::config_decode::{
 /// Imports `pointer_segment` from `crate::config_locations`.
 use crate::config_locations::pointer_segment;
 /// Imports `HarperScopedServer`,
+/// `KeyEdit`,
 /// `LicenseRequirement`,
-/// `TomlBlock`,
-/// `TomlEdit` from `crate::config_parts`.
+/// `TomlBlock` from `crate::config_parts`.
 use crate::config_parts::{
     HarperScopedServer,
+    KeyEdit,
     LicenseRequirement,
     TomlBlock,
-    TomlEdit,
 };
 /// Imports `Reader` from `crate::config_reader`.
 use crate::config_reader::Reader;
@@ -68,6 +68,7 @@ pub fn decode_rule(
         "package-licenses" => return Some(decode_package_licenses(reader, object, pointer, id)),
         "mirror" => return Some(decode_mirror(reader, object, pointer, id)),
         "toml-keys" => return Some(decode_toml_keys(reader, object, pointer, id)),
+        "json-keys" => return Some(decode_json_keys(reader, object, pointer, id)),
         "mise-path-list" => return Some(decode_mise_path_list(reader, object, pointer, id)),
         "rust-catalog" => return Some(decode_rust_catalog(reader, object, pointer, id)),
         "browserslist" => return Some(decode_browserslist(reader, object, pointer, id)),
@@ -260,6 +261,46 @@ fn decode_mirror(
     };
 }
 
+/// What:
+///  Read the `edits` array shared by the `toml-keys` and `json-keys` kinds.
+/// Why:
+///  Both kinds make the same guarded key assignment,
+/// so one reader keeps the accepted keys equal in both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decodeEdits(reader: Reader, object: Map<string, Value>, pointer: string): KeyEdit[]
+/// ```
+fn decode_edits(
+    reader: &mut Reader,
+    object: &Map<String, Value>,
+    pointer: &str,
+) -> Vec<KeyEdit> {
+    let mut edits: Vec<KeyEdit> = Vec::new();
+    let edit_items = reader.array(object, "edits", pointer);
+    for (index, item) in edit_items.iter().enumerate() {
+        let item_pointer = format!("{pointer}/edits/{index}");
+        if let Some(entry) = reader.object(item, &item_pointer) {
+            reader.reject_unknown(entry, &item_pointer, &["guard", "path", "value"]);
+            let guard = reader.text_list(entry, "guard", &item_pointer);
+            let path = reader.text_list(entry, "path", &item_pointer);
+            let value = match entry.get("value") {
+                Some(raw) => reader.value_expr(raw, &format!("{item_pointer}/value")),
+                None => {
+                    reader.error(&item_pointer, "is missing the required key \"value\"");
+                    crate::config_parts::ValueExpr::Text(String::new())
+                }
+            };
+            edits.push(KeyEdit {
+                guard,
+                path,
+                value,
+            });
+        }
+    }
+    return edits;
+}
+
 /// Decodes the fields of a `toml-keys` rule into a `RuleConfig`,
 /// recording every problem in the reader.
 fn decode_toml_keys(
@@ -275,28 +316,7 @@ fn decode_toml_keys(
     );
     let manifests = reader.text_list(object, "manifests", pointer);
     let only_dirs = reader.optional_text_list(object, "onlyDirs", pointer);
-    let mut edits: Vec<TomlEdit> = Vec::new();
-    let edit_items = reader.array(object, "edits", pointer);
-    for (index, item) in edit_items.iter().enumerate() {
-        let item_pointer = format!("{pointer}/edits/{index}");
-        if let Some(entry) = reader.object(item, &item_pointer) {
-            reader.reject_unknown(entry, &item_pointer, &["guard", "path", "value"]);
-            let guard = reader.text_list(entry, "guard", &item_pointer);
-            let path = reader.text_list(entry, "path", &item_pointer);
-            let value = match entry.get("value") {
-                Some(raw) => reader.value_expr(raw, &format!("{item_pointer}/value")),
-                None => {
-                    reader.error(&item_pointer, "is missing the required key \"value\"");
-                    crate::config_parts::ValueExpr::Text(String::new())
-                }
-            };
-            edits.push(TomlEdit {
-                guard,
-                path,
-                value,
-            });
-        }
-    }
+    let edits = decode_edits(reader, object, pointer);
     let mut blocks: Vec<TomlBlock> = Vec::new();
     let block_items = reader.array(object, "blocks", pointer);
     for (index, item) in block_items.iter().enumerate() {
@@ -323,6 +343,30 @@ fn decode_toml_keys(
         only_dirs,
         edits,
         blocks,
+    };
+}
+
+/// Decodes the fields of a `json-keys` rule into a `RuleConfig`,
+/// recording every problem in the reader.
+fn decode_json_keys(
+    reader: &mut Reader,
+    object: &Map<String, Value>,
+    pointer: &str,
+    id: String,
+) -> RuleConfig {
+    reader.reject_unknown(
+        object,
+        pointer,
+        &["kind", "id", "manifests", "onlyDirs", "edits"],
+    );
+    let manifests = reader.text_list(object, "manifests", pointer);
+    let only_dirs = reader.optional_text_list(object, "onlyDirs", pointer);
+    let edits = decode_edits(reader, object, pointer);
+    return RuleConfig::JsonKeys {
+        id,
+        manifests,
+        only_dirs,
+        edits,
     };
 }
 

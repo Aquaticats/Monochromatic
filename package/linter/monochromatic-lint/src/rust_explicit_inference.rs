@@ -10,19 +10,35 @@
 //! ```
 
 /// Import the owned diagnostic and source interfaces.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Resolve ambiguous generic placeholder slots against their real parameter kinds.
 use crate::rust_inferred_constants::is_inferred_const_argument;
 /// Import the source whose syntax root belongs to the semantic database.
 use crate::rust_source::RustSource;
 /// Import separate finding and unavailable-information constructors.
-use crate::rust_type_diagnostic::{resolution_failure, type_finding};
+use crate::rust_type_diagnostic::{
+    resolution_failure,
+    type_finding,
+};
 /// Import semantic type families rather than parsing human-readable type displays.
-use ra_ap_hir::{Callable, CallableKind, Semantics, Type};
+use ra_ap_hir::{
+    Callable,
+    CallableKind,
+    Semantics,
+    Type,
+};
 /// Import the database interface kept alive throughout semantic queries.
 use ra_ap_hir_ty::db::HirDatabase;
 /// Import syntax kinds and typed inference nodes.
-use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    SyntaxKind,
+    SyntaxNode,
+    ast,
+};
 
 /// What:
 ///  Recognize unnameable leaf types while retaining explicit outer structures.
@@ -34,7 +50,10 @@ use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode, ast};
 /// ```ts
 /// function isUnnameableLeaf(database, type): boolean;
 /// ```
-fn is_unnameable_leaf(database: &dyn HirDatabase, ty: &Type<'_>) -> bool {
+fn is_unnameable_leaf(
+    database: &dyn HirDatabase,
+    ty: &Type<'_>,
+) -> bool {
     // is_fn checks the actual type, unlike as_callable, which also follows references and callable trait bounds.
     if ty.is_fn() {
         let Some(callable): Option<Callable<'_>> = ty.as_callable(database) else {

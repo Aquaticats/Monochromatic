@@ -19,14 +19,20 @@ use crate::shell_scan::Hit;
 use crate::test_deadline::finished_within_deadline;
 
 /// The hits of a scan that must finish before the deadline.
-fn hits(text: &str, fish: bool) -> Vec<Hit> {
+fn hits(
+    text: &str,
+    fish: bool,
+) -> Vec<Hit> {
     let owned: String = String::from(text);
     return finished_within_deadline(move || return scan(owned.as_str(), fish));
 }
 
 /// The constructs found,
 ///  in source order.
-fn kinds(text: &str, fish: bool) -> Vec<Construct> {
+fn kinds(
+    text: &str,
+    fish: bool,
+) -> Vec<Construct> {
     let mut found: Vec<Construct> = Vec::new();
     for hit in hits(text, fish) {
         found.push(hit.construct);
@@ -36,7 +42,11 @@ fn kinds(text: &str, fish: bool) -> Vec<Construct> {
 
 /// The byte range of the `nth` occurrence of `needle` in `text`,
 ///  counted from zero.
-fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
+fn nth_span(
+    text: &str,
+    needle: &str,
+    nth: usize,
+) -> (usize, usize) {
     let start: usize = text
         .match_indices(needle)
         .nth(nth)
@@ -47,7 +57,11 @@ fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
 
 /// Assert that a scan finds exactly the given constructs,
 ///  each over exactly the given occurrence of the given text.
-fn assert_hits(text: &str, fish: bool, expected: &[(Construct, &str, usize)]) {
+fn assert_hits(
+    text: &str,
+    fish: bool,
+    expected: &[(Construct, &str, usize)],
+) {
     let mut wanted: Vec<(Construct, usize, usize)> = Vec::new();
     for (construct, needle, nth) in expected {
         let span: (usize, usize) = nth_span(text, needle, *nth);

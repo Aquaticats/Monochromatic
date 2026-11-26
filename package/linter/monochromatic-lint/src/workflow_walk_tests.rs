@@ -12,10 +12,21 @@
 /// Import the walk,
 ///  the walker whose value skipping is checked directly,
 ///  its records and the deadline that ends a walk which stops advancing.
-use super::{Walker, walk};
+use super::{
+    Walker,
+    walk,
+};
 use crate::test_deadline::finished_within_deadline;
-use crate::workflow_lines::{Content, parse_entry, read_lines};
-use crate::workflow_model::{RunBody, WalkError, Workflow};
+use crate::workflow_lines::{
+    Content,
+    parse_entry,
+    read_lines,
+};
+use crate::workflow_model::{
+    RunBody,
+    WalkError,
+    Workflow,
+};
 
 /// Walk a fixture under the deadline,
 ///  so a walk that stops advancing fails the test instead of hanging it.
@@ -36,10 +47,19 @@ fn refused(text: &str) -> WalkError {
 
 /// The script text of a step as one string,
 ///  for comparison.
-fn script(text: &str, workflow: &Workflow, index: usize) -> String {
+fn script(
+    text: &str,
+    workflow: &Workflow,
+    index: usize,
+) -> String {
     match workflow.steps[index].body.as_ref().expect("body") {
-        RunBody::Plain { start, end } => return String::from(&text[*start..*end]),
-        RunBody::Block { lines } => {
+        RunBody::Plain {
+            start,
+            end,
+        } => return String::from(&text[*start..*end]),
+        RunBody::Block {
+            lines,
+        } => {
             let mut joined: String = String::new();
             for line in lines {
                 joined.push_str(&text[line.payload..line.end]);
@@ -251,7 +271,12 @@ fn resumes_at(text: &str) -> usize {
         content_seen: false,
     };
     let entry = parse_entry(&walker.lines[0]);
-    let Content::Key { column, value, .. } = entry.content else {
+    let Content::Key {
+        column,
+        value,
+        ..
+    } = entry.content
+    else {
         panic!("fixture has no key");
     };
     return walker.skip_value(0, column, value);
@@ -308,7 +333,12 @@ fn a_nested_scalar_stops_at_its_own_sibling() {
         content_seen: false,
     };
     let entry = parse_entry(&walker.lines[1]);
-    let Content::Key { column, value, .. } = entry.content else {
+    let Content::Key {
+        column,
+        value,
+        ..
+    } = entry.content
+    else {
         panic!("fixture has no key");
     };
     assert_eq!(walker.skip_value(1, column, value), 5);

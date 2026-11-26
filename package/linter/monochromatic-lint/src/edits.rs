@@ -93,7 +93,10 @@ pub enum FixScope {
 /// ```
 impl FixScope {
     /// Whether a fix of this class may be applied in this scope.
-    pub fn allows(self, class: FixClass) -> bool {
+    pub fn allows(
+        self,
+        class: FixClass,
+    ) -> bool {
         return match class {
             FixClass::Whitespace => true,
             FixClass::Content => self == FixScope::WhitespaceAndContent,
@@ -158,7 +161,10 @@ pub struct AppliedFixes {
 /// Render edit failures through the ordinary error interface.
 impl std::fmt::Display for FixError {
     /// Borrow the formatter only while writing the explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -176,7 +182,10 @@ impl std::error::Error for FixError {}
 /// ```ts
 /// function conflictsBefore(edit: Edit, accepted: OrderedMap<number, Edit>): boolean;
 /// ```
-fn conflicts_before(edit: &Edit, accepted: &BTreeMap<usize, &Edit>) -> bool {
+fn conflicts_before(
+    edit: &Edit,
+    accepted: &BTreeMap<usize, &Edit>,
+) -> bool {
     let Some((start, previous)) = accepted.range(..=edit.start).next_back() else {
         return false;
     };
@@ -193,7 +202,10 @@ fn conflicts_before(edit: &Edit, accepted: &BTreeMap<usize, &Edit>) -> bool {
 /// ```ts
 /// function conflictsAfter(edit: Edit, accepted: OrderedMap<number, Edit>): boolean;
 /// ```
-fn conflicts_after(edit: &Edit, accepted: &BTreeMap<usize, &Edit>) -> bool {
+fn conflicts_after(
+    edit: &Edit,
+    accepted: &BTreeMap<usize, &Edit>,
+) -> bool {
     let Some((start, _)) = accepted.range(edit.start..).next() else {
         return false;
     };
@@ -211,7 +223,10 @@ fn conflicts_after(edit: &Edit, accepted: &BTreeMap<usize, &Edit>) -> bool {
 /// ```ts
 /// function orderedEditIndexes(source: string, fix: Fix): number[];
 /// ```
-fn ordered_edit_indexes(source: &str, fix: &Fix) -> Result<Vec<usize>, FixError> {
+fn ordered_edit_indexes(
+    source: &str,
+    fix: &Fix,
+) -> Result<Vec<usize>, FixError> {
     // What: `bounds` is a growable list of triples,
     //  one per edit: its start offset,
     //  its end offset and its position in `fix.edits`.
@@ -270,7 +285,10 @@ fn ordered_edit_indexes(source: &str, fix: &Fix) -> Result<Vec<usize>, FixError>
 /// ```ts
 /// function applyFixes(source: string, fixes: readonly Fix[]): AppliedFixes;
 /// ```
-pub fn apply_fixes(source: &str, fixes: &[Fix]) -> Result<AppliedFixes, FixError> {
+pub fn apply_fixes(
+    source: &str,
+    fixes: &[Fix],
+) -> Result<AppliedFixes, FixError> {
     let mut accepted: BTreeMap<usize, &Edit> = BTreeMap::new();
     let mut applied = Vec::new();
     let mut rejected = Vec::new();

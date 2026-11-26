@@ -1,0 +1,3 @@
+[info] [2026-11-26T04:02:18.686Z] [mvm] [destroy] destroying VM mem-third-8g-prebuilt
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+[info] [2026-11-26T04:02:19.581Z] [mvm] [destroy] VM mem-third-8g-prebuilt destroyed
