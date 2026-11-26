@@ -18,7 +18,10 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Change`,
 /// `Rule` from `crate::rule`.
-use crate::rule::{Change, Rule};
+use crate::rule::{
+    Change,
+    Rule,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `BTreeMap` from `std::collections`.
@@ -69,10 +72,20 @@ pub struct PlanReport {
 /// ```
 fn change_path(change: &Change) -> &str {
     match change {
-        Change::Write { path, .. } => return path,
-        Change::Remove { path } => return path,
-        Change::SetMode { path, .. } => return path,
-        Change::RemoveDirectory { path } => return path,
+        Change::Write {
+            path,
+            ..
+        } => return path,
+        Change::Remove {
+            path,
+        } => return path,
+        Change::SetMode {
+            path,
+            ..
+        } => return path,
+        Change::RemoveDirectory {
+            path,
+        } => return path,
     }
 }
 
@@ -86,7 +99,10 @@ fn change_path(change: &Change) -> &str {
 /// ```ts
 /// function planRun(root: string, rules: Rule[]): PlanReport
 /// ```
-pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
+pub fn plan_run(
+    root: &Path,
+    rules: &[Box<dyn Rule>],
+) -> PlanReport {
     let mut report = PlanReport {
         view: View::new(root),
         owners: BTreeMap::new(),
@@ -97,7 +113,9 @@ pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
     };
     let mut writers: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (index, rule) in rules.iter().enumerate() {
-        report.rules.push((rule.id().to_string(), rule.kind().to_string()));
+        report
+            .rules
+            .push((rule.id().to_string(), rule.kind().to_string()));
         report.view.begin_rule(index);
         let rule_plan = match rule.plan(&mut report.view) {
             Ok(rule_plan) => rule_plan,
@@ -119,14 +137,21 @@ pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
                         rules[*previous].id(),
                         rule.id()
                     );
-                    report.errors.push(Diagnostic::new("output-conflict", &message).with_path(&path));
+                    report
+                        .errors
+                        .push(Diagnostic::new("output-conflict", &message).with_path(&path));
                 }
             }
             if !earlier.contains(&index) {
                 earlier.push(index);
             }
-            if let Change::RemoveDirectory { path: directory } = change {
-                report.removed_directories.push((directory.clone(), rule.id().to_string()));
+            if let Change::RemoveDirectory {
+                path: directory,
+            } = change
+            {
+                report
+                    .removed_directories
+                    .push((directory.clone(), rule.id().to_string()));
             }
             report.owners.insert(path, rule.id().to_string());
             if let Err(error) = report.view.apply(change) {
@@ -149,10 +174,16 @@ pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
 /// ```ts
 /// function checkReadOrder(report: PlanReport, rules: Rule[], writers: Map<string, number[]>): void
 /// ```
-fn check_read_order(report: &mut PlanReport, rules: &[Box<dyn Rule>], writers: &BTreeMap<String, Vec<usize>>) {
+fn check_read_order(
+    report: &mut PlanReport,
+    rules: &[Box<dyn Rule>],
+    writers: &BTreeMap<String, Vec<usize>>,
+) {
     let mut reported: Vec<String> = Vec::new();
     for (reader, path) in report.view.accesses() {
-        let Some(path_writers) = writers.get(path) else { continue };
+        let Some(path_writers) = writers.get(path) else {
+            continue;
+        };
         if path_writers.contains(reader) {
             continue;
         }

@@ -14,14 +14,28 @@
 //! ```
 
 /// Imports the shared descriptions and finders from `crate::harper_xml`.
-use crate::harper_xml::{LANGUAGE_CONTAINER, USER_CONTAINER, edit_failure, entry_spec, find_entry, mappings_spec, option_spec, parse};
+use crate::harper_xml::{
+    LANGUAGE_CONTAINER,
+    USER_CONTAINER,
+    edit_failure,
+    entry_spec,
+    find_entry,
+    mappings_spec,
+    option_spec,
+    parse,
+};
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// Imports `XmlDocument`,
 /// `XmlEditError`,
 /// `XmlElementId`,
 /// `XmlElementSpec` from `monochromatic_xml_edit`.
-use monochromatic_xml_edit::{XmlDocument, XmlEditError, XmlElementId, XmlElementSpec};
+use monochromatic_xml_edit::{
+    XmlDocument,
+    XmlEditError,
+    XmlElementId,
+    XmlElementSpec,
+};
 
 /// What:
 ///  The source text of an edit result,
@@ -34,7 +48,10 @@ use monochromatic_xml_edit::{XmlDocument, XmlEditError, XmlElementId, XmlElement
 /// ```ts
 /// function editedSource(path: string, result: XmlDocument | XmlEditError): string // throws
 /// ```
-fn edited_source(path: &str, result: Result<XmlDocument, XmlEditError>) -> Result<String, Diagnostic> {
+fn edited_source(
+    path: &str,
+    result: Result<XmlDocument, XmlEditError>,
+) -> Result<String, Diagnostic> {
     match result {
         Ok(edited) => return Ok(edited.source().to_string()),
         Err(error) => return Err(edit_failure(path, &error)),
@@ -52,13 +69,24 @@ fn edited_source(path: &str, result: Result<XmlDocument, XmlEditError>) -> Resul
 /// ```ts
 /// function containerOf(path: string, document: XmlDocument, key: string, container: string): ElementId // throws
 /// ```
-fn container_of(path: &str, document: &XmlDocument, key: &str, container: &str) -> Result<XmlElementId, Diagnostic> {
+fn container_of(
+    path: &str,
+    document: &XmlDocument,
+    key: &str,
+    container: &str,
+) -> Result<XmlElementId, Diagnostic> {
     if let Some(entry) = find_entry(document, key)
-        && let Some(holder) = document.descendants_named(entry, container).first().copied()
+        && let Some(holder) = document
+            .descendants_named(entry, container)
+            .first()
+            .copied()
     {
         return Ok(holder);
     }
-    return Err(edit_failure(path, &format!("the entry {key} has no {container} element")));
+    return Err(edit_failure(
+        path,
+        &format!("the entry {key} has no {container} element"),
+    ));
 }
 
 /// The option elements a scoped entry starts with,
@@ -73,17 +101,27 @@ fn option_specs(options: &[(String, String)]) -> Vec<XmlElementSpec> {
 
 /// Append an entry to the last `map` element,
 /// where the IDE keeps its server entries.
-fn append_entry(path: &str, document: &XmlDocument, spec: &XmlElementSpec) -> Result<String, Diagnostic> {
+fn append_entry(
+    path: &str,
+    document: &XmlDocument,
+    spec: &XmlElementSpec,
+) -> Result<String, Diagnostic> {
     let maps = document.descendants_named(document.root(), "map");
     let Some(last) = maps.last() else {
-        let message = format!("{path}: the settings file has no map element to hold a server entry");
+        let message =
+            format!("{path}: the settings file has no map element to hold a server entry");
         return Err(Diagnostic::new("harper-xml-invalid", &message).with_path(path));
     };
     return edited_source(path, document.append_child(*last, spec));
 }
 
 /// Replace a whole entry with its description.
-fn replace_entry(path: &str, document: &XmlDocument, entry: XmlElementId, spec: &XmlElementSpec) -> Result<String, Diagnostic> {
+fn replace_entry(
+    path: &str,
+    document: &XmlDocument,
+    entry: XmlElementId,
+    spec: &XmlElementSpec,
+) -> Result<String, Diagnostic> {
     return edited_source(path, document.replace_element(entry, spec));
 }
 
@@ -100,7 +138,15 @@ fn replace_entry(path: &str, document: &XmlDocument, entry: XmlElementId, spec: 
 /// ```ts
 /// function ensureOption(xml: string, key: string, container: string, name: string, value: string, overwrite: boolean): string
 /// ```
-fn ensure_option(path: &str, text: &str, key: &str, container: &str, name: &str, value: &str, overwrite: bool) -> Result<String, Diagnostic> {
+fn ensure_option(
+    path: &str,
+    text: &str,
+    key: &str,
+    container: &str,
+    name: &str,
+    value: &str,
+    overwrite: bool,
+) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
     let holder = container_of(path, &document, key, container)?;
     match document.find_child(holder, "option", "name", name) {
@@ -111,7 +157,10 @@ fn ensure_option(path: &str, text: &str, key: &str, container: &str, name: &str,
             return edited_source(path, document.set_attribute(option, "value", value));
         }
         None => {
-            return edited_source(path, document.append_child(holder, &option_spec(name, value)));
+            return edited_source(
+                path,
+                document.append_child(holder, &option_spec(name, value)),
+            );
         }
     }
 }
@@ -128,7 +177,13 @@ fn ensure_option(path: &str, text: &str, key: &str, container: &str, name: &str,
 /// ```ts
 /// function upsertLanguageEntry(path: string, xml: string, key: string, config: string, schema: string): string
 /// ```
-pub fn upsert_language_entry(path: &str, text: &str, key: &str, config: &str, schema: &str) -> Result<String, Diagnostic> {
+pub fn upsert_language_entry(
+    path: &str,
+    text: &str,
+    key: &str,
+    config: &str,
+    schema: &str,
+) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
     let Some(entry) = find_entry(&document, key) else {
         let options = vec![
@@ -137,16 +192,63 @@ pub fn upsert_language_entry(path: &str, text: &str, key: &str, config: &str, sc
             option_spec("experimentalContent", "{}"),
             option_spec("initializationOptionsContent", "{}"),
         ];
-        return append_entry(path, &document, &entry_spec(key, LANGUAGE_CONTAINER, options));
+        return append_entry(
+            path,
+            &document,
+            &entry_spec(key, LANGUAGE_CONTAINER, options),
+        );
     };
-    if document.descendants_named(entry, LANGUAGE_CONTAINER).is_empty() {
-        let options = vec![option_spec("configurationContent", config), option_spec("configurationSchemaContent", schema)];
-        return replace_entry(path, &document, entry, &entry_spec(key, LANGUAGE_CONTAINER, options));
+    if document
+        .descendants_named(entry, LANGUAGE_CONTAINER)
+        .is_empty()
+    {
+        let options = vec![
+            option_spec("configurationContent", config),
+            option_spec("configurationSchemaContent", schema),
+        ];
+        return replace_entry(
+            path,
+            &document,
+            entry,
+            &entry_spec(key, LANGUAGE_CONTAINER, options),
+        );
     }
-    let with_config = ensure_option(path, text, key, LANGUAGE_CONTAINER, "configurationContent", config, true)?;
-    let with_schema = ensure_option(path, &with_config, key, LANGUAGE_CONTAINER, "configurationSchemaContent", schema, true)?;
-    let with_experimental = ensure_option(path, &with_schema, key, LANGUAGE_CONTAINER, "experimentalContent", "{}", false)?;
-    return ensure_option(path, &with_experimental, key, LANGUAGE_CONTAINER, "initializationOptionsContent", "{}", false);
+    let with_config = ensure_option(
+        path,
+        text,
+        key,
+        LANGUAGE_CONTAINER,
+        "configurationContent",
+        config,
+        true,
+    )?;
+    let with_schema = ensure_option(
+        path,
+        &with_config,
+        key,
+        LANGUAGE_CONTAINER,
+        "configurationSchemaContent",
+        schema,
+        true,
+    )?;
+    let with_experimental = ensure_option(
+        path,
+        &with_schema,
+        key,
+        LANGUAGE_CONTAINER,
+        "experimentalContent",
+        "{}",
+        false,
+    )?;
+    return ensure_option(
+        path,
+        &with_experimental,
+        key,
+        LANGUAGE_CONTAINER,
+        "initializationOptionsContent",
+        "{}",
+        false,
+    );
 }
 
 /// What:
@@ -159,7 +261,10 @@ pub fn upsert_language_entry(path: &str, text: &str, key: &str, config: &str, sc
 /// ```ts
 /// function currentMapping(doc: XmlDocument, mappings: ElementId): { languageId: string; fileNames: string[] } | undefined
 /// ```
-fn current_mapping(document: &XmlDocument, mappings: XmlElementId) -> Option<(String, Vec<String>)> {
+fn current_mapping(
+    document: &XmlDocument,
+    mappings: XmlElementId,
+) -> Option<(String, Vec<String>)> {
     let settings = document.descendants_named(mappings, "ServerMappingSettings");
     if settings.len() != 1 {
         return None;
@@ -190,7 +295,13 @@ fn current_mapping(document: &XmlDocument, mappings: XmlElementId) -> Option<(St
 /// ```ts
 /// function ensureMappings(path: string, xml: string, key: string, languageId: string, fileNames: string[]): string
 /// ```
-fn ensure_mappings(path: &str, text: &str, key: &str, language_id: &str, file_names: &[String]) -> Result<String, Diagnostic> {
+fn ensure_mappings(
+    path: &str,
+    text: &str,
+    key: &str,
+    language_id: &str,
+    file_names: &[String],
+) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
     let holder = container_of(path, &document, key, USER_CONTAINER)?;
     let wanted = mappings_spec(language_id, file_names);
@@ -239,7 +350,11 @@ pub struct ScopedUserEntry<'a> {
 /// ```ts
 /// function upsertUserEntry(path: string, xml: string, entry: ScopedUserEntry): string
 /// ```
-pub fn upsert_user_entry(path: &str, text: &str, entry: &ScopedUserEntry) -> Result<String, Diagnostic> {
+pub fn upsert_user_entry(
+    path: &str,
+    text: &str,
+    entry: &ScopedUserEntry,
+) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
     let mut options: Vec<(String, String)> = entry.copied.to_vec();
     options.push(("serverId".to_string(), entry.key.to_string()));
@@ -247,16 +362,34 @@ pub fn upsert_user_entry(path: &str, text: &str, entry: &ScopedUserEntry) -> Res
     let Some(existing) = find_entry(&document, entry.key) else {
         let mut specs = option_specs(&options);
         specs.push(mappings_spec(entry.language_id, entry.file_names));
-        return append_entry(path, &document, &entry_spec(entry.key, USER_CONTAINER, specs));
+        return append_entry(
+            path,
+            &document,
+            &entry_spec(entry.key, USER_CONTAINER, specs),
+        );
     };
-    if document.descendants_named(existing, USER_CONTAINER).is_empty() {
+    if document
+        .descendants_named(existing, USER_CONTAINER)
+        .is_empty()
+    {
         let mut specs = option_specs(&options);
         specs.push(mappings_spec(entry.language_id, entry.file_names));
-        return replace_entry(path, &document, existing, &entry_spec(entry.key, USER_CONTAINER, specs));
+        return replace_entry(
+            path,
+            &document,
+            existing,
+            &entry_spec(entry.key, USER_CONTAINER, specs),
+        );
     }
     let mut current = text.to_string();
     for (name, value) in &options {
         current = ensure_option(path, &current, entry.key, USER_CONTAINER, name, value, true)?;
     }
-    return ensure_mappings(path, &current, entry.key, entry.language_id, entry.file_names);
+    return ensure_mappings(
+        path,
+        &current,
+        entry.key,
+        entry.language_id,
+        entry.file_names,
+    );
 }

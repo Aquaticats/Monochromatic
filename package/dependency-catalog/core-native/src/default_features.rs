@@ -18,7 +18,10 @@ use crate::crate_info::CrateInfo;
 /// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
 /// Imports `crate::site::{GeneratedEntry, SiteKind}`.
-use crate::site::{GeneratedEntry, SiteKind};
+use crate::site::{
+    GeneratedEntry,
+    SiteKind,
+};
 /// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
@@ -33,7 +36,11 @@ use crate::types::Entry;
 /// ```ts
 /// export function generatedEntries(args: { info; resolvedEntries; issues }): Map<string, GeneratedEntry>
 /// ```
-pub fn generated_entries(info: &CrateInfo, resolved: &[(String, Entry)], issues: &mut Vec<SyncIssue>) -> Vec<(String, GeneratedEntry)> {
+pub fn generated_entries(
+    info: &CrateInfo,
+    resolved: &[(String, Entry)],
+    issues: &mut Vec<SyncIssue>,
+) -> Vec<(String, GeneratedEntry)> {
     let mut entries: Vec<(String, GeneratedEntry)> = Vec::new();
     for (name, entry) in resolved {
         let mut total: usize = 0;

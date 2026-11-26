@@ -12,12 +12,24 @@
 //! ```
 
 /// Paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The locks of the profile directory.
-use crate::lean_lock_probe::{HeldLocks, LockOutcome, describe_held, lock_profile_directory};
+use crate::lean_lock_probe::{
+    HeldLocks,
+    LockOutcome,
+    describe_held,
+    lock_profile_directory,
+};
 /// The scan of the processes.
-use crate::lean_proc_scan::{ScanReport, identities_of_existing, scan_processes};
+use crate::lean_proc_scan::{
+    ScanReport,
+    identities_of_existing,
+    scan_processes,
+};
 
 /// Where the guard reads the machine's lock table and process table,
 /// replaceable so tests read fixtures.
@@ -88,16 +100,44 @@ pub enum Guard {
 /// ```ts
 /// export function guardProfile(profile: string, env: GuardEnvironment): Guard
 /// ```
-pub fn guard_profile(profile: &Path, environment: &GuardEnvironment) -> Guard {
+pub fn guard_profile(
+    profile: &Path,
+    environment: &GuardEnvironment,
+) -> Guard {
     let locks: HeldLocks = match lock_profile_directory(profile, &environment.lock_table) {
         LockOutcome::Held(held) => held,
-        LockOutcome::Busy(file) => return Guard::Skip(format!("busy: a build holds {}", file.display())),
-        LockOutcome::Waiting(file) => return Guard::Skip(format!("a build is queued behind {}", file.display())),
-        LockOutcome::Unlockable { file, reason } => return Guard::Skip(format!("{} cannot be locked here: {reason}", file.display())),
-        LockOutcome::NoLockFile => return Guard::Skip(String::from("no Cargo lock file, so nothing shows the directory quiescent")),
+        LockOutcome::Busy(file) => {
+            return Guard::Skip(format!("busy: a build holds {}", file.display()));
+        }
+        LockOutcome::Waiting(file) => {
+            return Guard::Skip(format!("a build is queued behind {}", file.display()));
+        }
+        LockOutcome::Unlockable {
+            file,
+            reason,
+        } => {
+            return Guard::Skip(format!(
+                "{} cannot be locked here: {reason}",
+                file.display()
+            ));
+        }
+        LockOutcome::NoLockFile => {
+            return Guard::Skip(String::from(
+                "no Cargo lock file, so nothing shows the directory quiescent",
+            ));
+        }
     };
     let identities = identities_of_existing(locks.names());
-    let scan: ScanReport = scan_processes(&environment.proc_root, &[profile], &identities, environment.own_pid);
+    let scan: ScanReport = scan_processes(
+        &environment.proc_root,
+        &[profile],
+        &identities,
+        environment.own_pid,
+    );
     let proof: String = format!("{}; {}", describe_held(&locks), scan.describe());
-    return Guard::Ready(Guarded { locks, scan, proof });
+    return Guard::Ready(Guarded {
+        locks,
+        scan,
+        proof,
+    });
 }

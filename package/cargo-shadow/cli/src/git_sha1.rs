@@ -33,13 +33,18 @@ pub(crate) const DIGEST_BYTES: usize = 20;
 /// ```ts
 /// function compress(state: Uint32Array, block: Uint8Array): void
 /// ```
-fn compress(state: &mut [u32; 5], block: &[u8]) {
+fn compress(
+    state: &mut [u32; 5],
+    block: &[u8],
+) {
     let mut words: [u32; 80] = [0; 80];
     for (index, chunk) in block.as_chunks::<4>().0.iter().enumerate() {
         words[index] = u32::from_be_bytes(*chunk);
     }
     for index in 16..80 {
-        words[index] = (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16]).rotate_left(1);
+        words[index] =
+            (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16])
+                .rotate_left(1);
     }
     let [mut a, mut b, mut c, mut d, mut e] = *state;
     for (index, word) in words.iter().enumerate() {
@@ -49,7 +54,12 @@ fn compress(state: &mut [u32; 5], block: &[u8]) {
             40..=59 => ((b & c) | (b & d) | (c & d), 0x8f1b_bcdc),
             _ => (b ^ c ^ d, 0xca62_c1d6),
         };
-        let next: u32 = a.rotate_left(5).wrapping_add(mix).wrapping_add(e).wrapping_add(constant).wrapping_add(*word);
+        let next: u32 = a
+            .rotate_left(5)
+            .wrapping_add(mix)
+            .wrapping_add(e)
+            .wrapping_add(constant)
+            .wrapping_add(*word);
         e = d;
         d = c;
         c = b.rotate_left(30);
@@ -74,7 +84,13 @@ fn compress(state: &mut [u32; 5], block: &[u8]) {
 /// function sha1(parts: Uint8Array[]): Uint8Array
 /// ```
 pub(crate) fn sha1(parts: &[&[u8]]) -> [u8; DIGEST_BYTES] {
-    let mut state: [u32; 5] = [0x6745_2301, 0xefcd_ab89, 0x98ba_dcfe, 0x1032_5476, 0xc3d2_e1f0];
+    let mut state: [u32; 5] = [
+        0x6745_2301,
+        0xefcd_ab89,
+        0x98ba_dcfe,
+        0x1032_5476,
+        0xc3d2_e1f0,
+    ];
     let mut pending: Vec<u8> = Vec::with_capacity(BLOCK_BYTES * 2);
     let mut length: u64 = 0;
     for part in parts {
@@ -111,7 +127,10 @@ pub(crate) fn sha1(parts: &[&[u8]]) -> [u8; DIGEST_BYTES] {
 /// ```ts
 /// function objectName(kind: string, body: Uint8Array): Uint8Array
 /// ```
-pub(crate) fn object_name(kind: &str, body: &[u8]) -> [u8; DIGEST_BYTES] {
+pub(crate) fn object_name(
+    kind: &str,
+    body: &[u8],
+) -> [u8; DIGEST_BYTES] {
     let header: String = format!("{kind} {}\0", body.len());
     return sha1(&[header.as_bytes(), body]);
 }

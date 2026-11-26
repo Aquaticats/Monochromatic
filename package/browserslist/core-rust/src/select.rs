@@ -31,7 +31,10 @@ use crate::data::BrowserData;
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `parse_int_prefix` from `crate::js_number::parse_int_prefix`.
 /// Why:
@@ -68,7 +71,10 @@ use crate::query::Browser;
 /// ```ts
 /// function lastVersion(browser: Browser, data: BrowserData): string[];
 /// ```
-pub fn last_version(browser: Browser, data: &BrowserData) -> Outcome<Vec<String>> {
+pub fn last_version(
+    browser: Browser,
+    data: &BrowserData,
+) -> Outcome<Vec<String>> {
     let agent = data.agents.require(browser.agent_key())?;
     let released = agent.released();
     let mut entries: Vec<String> = Vec::new();

@@ -12,14 +12,22 @@
 /// import * as fs from 'node:fs';
 /// ```
 mod support;
+/// Import the one implementation of POSIX single-quote escaping,
+/// shared with the host fixture that installs this hook.
+use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// Import filesystem,
 /// error,
 /// filename,
 /// and subprocess operations.
-use std::{fs, io, path::Path, process::{Command, Output}};
-/// Import the one implementation of POSIX single-quote escaping,
-/// shared with the host fixture that installs this hook.
-use monochromatic_codex_plugin_bash_limit::shell_quote;
+use std::{
+    fs,
+    io,
+    path::Path,
+    process::{
+        Command,
+        Output,
+    },
+};
 
 /// What:
 /// `&Path` and `&str` borrow values;
@@ -31,7 +39,10 @@ use monochromatic_codex_plugin_bash_limit::shell_quote;
 /// ```ts
 /// function rewrite(parent: string, original: string): string { /* may throw */ }
 /// ```
-fn rewrite(parent: &Path, original: &str) -> io::Result<String> {
+fn rewrite(
+    parent: &Path,
+    original: &str,
+) -> io::Result<String> {
     // What: `ok_or_else` turns an absent value into an error; `?` propagates failure.
     // Why: Path encoding must remain exact, including quotes and spaces.
     //
@@ -39,7 +50,9 @@ fn rewrite(parent: &Path, original: &str) -> io::Result<String> {
     // ```ts
     // const path = requireUtf8(parent);
     // ```
-    let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path is not UTF-8"); })?;
+    let path = parent.to_str().ok_or_else(|| {
+        return io::Error::other("fixture path is not UTF-8");
+    })?;
     // Borrow the generated event and arguments for the native process.
     let output = support::invoke(&["--hook", path], &support::event(original)?)?;
     // What: `assert!` and `assert_eq!` are Rust's built-in test checks, failing with diagnostics.
@@ -52,12 +65,22 @@ fn rewrite(parent: &Path, original: &str) -> io::Result<String> {
     assert!(output.status.success(), "{output:?}");
     assert!(output.stderr.is_empty(), "{output:?}");
     // Parse the actual process output, returning parse failures as test errors.
-    let response: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(io::Error::other)?;
-    assert_eq!(response["hookSpecificOutput"]["hookEventName"], "PreToolUse");
-    assert_eq!(response["hookSpecificOutput"]["permissionDecision"], "allow");
+    let response: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(io::Error::other)?;
+    assert_eq!(
+        response["hookSpecificOutput"]["hookEventName"],
+        "PreToolUse"
+    );
+    assert_eq!(
+        response["hookSpecificOutput"]["permissionDecision"],
+        "allow"
+    );
     // Borrow the rewritten command from the parsed response.
-    let command = response["hookSpecificOutput"]["updatedInput"]["command"].as_str()
-        .ok_or_else(|| { return io::Error::other("hook omitted rewritten command"); })?;
+    let command = response["hookSpecificOutput"]["updatedInput"]["command"]
+        .as_str()
+        .ok_or_else(|| {
+            return io::Error::other("hook omitted rewritten command");
+        })?;
     // What: `Ok` signals success; `to_owned` copies borrowed text into owned storage.
     // Why: The parsed response is dropped here, so the caller needs its own command string.
     //
@@ -70,7 +93,9 @@ fn rewrite(parent: &Path, original: &str) -> io::Result<String> {
 
 /// Execute borrowed shell source with the same clean Bash launch used in the baseline.
 fn shell(command: &str) -> io::Result<Output> {
-    return Command::new("/bin/bash").args(["--noprofile", "--norc", "-c", command]).output();
+    return Command::new("/bin/bash")
+        .args(["--noprofile", "--norc", "-c", command])
+        .output();
 }
 
 /// What:

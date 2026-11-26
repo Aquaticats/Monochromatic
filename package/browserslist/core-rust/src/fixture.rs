@@ -64,11 +64,17 @@ pub fn fixture_files(firefox_esr: &str) -> DataFiles<'_> {
 /// const dir = await mkdtemp(join(buildDir, 'test-scratch', 'x-'));
 /// ```
 pub fn scratch() -> tempfile::TempDir {
-    let build_dir: Option<std::path::PathBuf> = std::env::current_exe()
-        .ok()
-        .and_then(|executable| return executable.ancestors().nth(3).map(std::path::Path::to_path_buf));
+    let build_dir: Option<std::path::PathBuf> =
+        std::env::current_exe().ok().and_then(|executable| {
+            return executable
+                .ancestors()
+                .nth(3)
+                .map(std::path::Path::to_path_buf);
+        });
     let root: std::path::PathBuf = build_dir
-        .unwrap_or_else(|| return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
+        .unwrap_or_else(|| {
+            return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
+        })
         .join("test-scratch");
     std::fs::create_dir_all(&root).expect("make the scratch root");
     return tempfile::tempdir_in(root).expect("make a scratch directory");
@@ -98,7 +104,9 @@ pub fn build_tgz(entries: &[(&str, &[u8])]) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_entry_type(tar::EntryType::Regular);
-        builder.append_data(&mut header, path, *contents).expect("append entry");
+        builder
+            .append_data(&mut header, path, *contents)
+            .expect("append entry");
     }
     return gzip(&builder.into_inner().expect("finish tar"));
 }
@@ -117,7 +125,9 @@ pub fn build_symlink_tgz(path: &str) -> Vec<u8> {
     let mut header = tar::Header::new_gnu();
     header.set_size(0);
     header.set_entry_type(tar::EntryType::Symlink);
-    builder.append_link(&mut header, path, "/etc/passwd").expect("append link");
+    builder
+        .append_link(&mut header, path, "/etc/passwd")
+        .expect("append link");
     return gzip(&builder.into_inner().expect("finish tar"));
 }
 
@@ -136,7 +146,10 @@ pub fn caniuse_tgz() -> Vec<u8> {
         ("package/package.json", b"{}"),
         ("package/data/agents.js", AGENTS_JS.as_bytes()),
         ("package/data/browsers.js", BROWSERS_JS.as_bytes()),
-        ("package/data/browserVersions.js", BROWSER_VERSIONS_JS.as_bytes()),
+        (
+            "package/data/browserVersions.js",
+            BROWSER_VERSIONS_JS.as_bytes(),
+        ),
     ]);
 }
 
@@ -191,7 +204,15 @@ pub fn fixture_lock() -> crate::lock::DataLock {
 /// ```
 pub fn fixture_registry() -> crate::fake_registry::FakeRegistry {
     return crate::fake_registry::FakeRegistry::start(vec![
-        ("/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz", 200, caniuse_tgz()),
-        ("/node-releases/-/node-releases-2.0.61.tgz", 200, node_releases_tgz()),
+        (
+            "/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz",
+            200,
+            caniuse_tgz(),
+        ),
+        (
+            "/node-releases/-/node-releases-2.0.61.tgz",
+            200,
+            node_releases_tgz(),
+        ),
     ]);
 }

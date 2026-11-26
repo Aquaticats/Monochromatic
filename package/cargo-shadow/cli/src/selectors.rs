@@ -42,7 +42,10 @@ pub fn parse_selector(selector: &str) -> ParsedSelector {
     let at: usize = match selector.find('@') {
         Some(position) => position,
         None => {
-            return ParsedSelector { pattern: selector.trim().to_string(), versions: Vec::new() };
+            return ParsedSelector {
+                pattern: selector.trim().to_string(),
+                versions: Vec::new(),
+            };
         }
     };
     let mut versions: Vec<String> = Vec::new();
@@ -52,7 +55,10 @@ pub fn parse_selector(selector: &str) -> ParsedSelector {
             versions.push(trimmed.to_string());
         }
     }
-    return ParsedSelector { pattern: selector[..at].trim().to_string(), versions };
+    return ParsedSelector {
+        pattern: selector[..at].trim().to_string(),
+        versions,
+    };
 }
 
 /// What:
@@ -66,7 +72,10 @@ pub fn parse_selector(selector: &str) -> ParsedSelector {
 /// ```ts
 /// export function matchesPattern({ pattern, name }): boolean
 /// ```
-pub fn matches_pattern(pattern: &str, name: &str) -> bool {
+pub fn matches_pattern(
+    pattern: &str,
+    name: &str,
+) -> bool {
     let pieces: Vec<&str> = pattern.split('*').collect();
     if pieces.len() == 1 {
         return pattern == name;
@@ -91,11 +100,16 @@ pub fn matches_pattern(pattern: &str, name: &str) -> bool {
 }
 
 /// Whether any selector covers this exact name and version.
-pub fn is_excluded(selectors: &[String], name: &str, version: &str) -> bool {
+pub fn is_excluded(
+    selectors: &[String],
+    name: &str,
+    version: &str,
+) -> bool {
     for selector in selectors {
         let parsed: ParsedSelector = parse_selector(selector);
         if matches_pattern(&parsed.pattern, name)
-            && (parsed.versions.is_empty() || crate::adapt::contains_text(&parsed.versions, version))
+            && (parsed.versions.is_empty()
+                || crate::adapt::contains_text(&parsed.versions, version))
         {
             return true;
         }
@@ -117,7 +131,10 @@ pub fn is_excluded(selectors: &[String], name: &str, version: &str) -> bool {
 /// ```ts
 /// export function pruneSelectors({ selectors, locked }): string[]
 /// ```
-pub fn prune_selectors(selectors: &[String], locked: &BTreeSet<String>) -> Vec<String> {
+pub fn prune_selectors(
+    selectors: &[String],
+    locked: &BTreeSet<String>,
+) -> Vec<String> {
     let mut kept: Vec<String> = Vec::new();
     for selector in selectors {
         let parsed: ParsedSelector = parse_selector(selector);

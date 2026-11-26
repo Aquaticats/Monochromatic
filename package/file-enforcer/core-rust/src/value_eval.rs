@@ -82,7 +82,11 @@ pub enum Evaluated {
 /// ```ts
 /// function evaluate(view: View, expr: ValueExpr, vars: Vars): Evaluated
 /// ```
-pub fn evaluate(view: &mut View, expr: &ValueExpr, vars: &Vars) -> Result<Evaluated, Diagnostic> {
+pub fn evaluate(
+    view: &mut View,
+    expr: &ValueExpr,
+    vars: &Vars,
+) -> Result<Evaluated, Diagnostic> {
     match expr {
         ValueExpr::Text(text) => return Ok(Evaluated::Text(text.clone())),
         ValueExpr::Bool(flag) => return Ok(Evaluated::Bool(*flag)),
@@ -94,21 +98,30 @@ pub fn evaluate(view: &mut View, expr: &ValueExpr, vars: &Vars) -> Result<Evalua
             }
             return Ok(Evaluated::List(values));
         }
-        ValueExpr::Var { var } => match vars.get(var) {
+        ValueExpr::Var {
+            var,
+        } => match vars.get(var) {
             Some(value) => return Ok(Evaluated::Text(value.clone())),
             None => {
-                let message = format!("the variable {var:?} is not bound here; this rule binds {:?}", vars.keys());
+                let message = format!(
+                    "the variable {var:?} is not bound here; this rule binds {:?}",
+                    vars.keys()
+                );
                 return Err(Diagnostic::new("variable-unbound", &message));
             }
         },
-        ValueExpr::Concat { concat } => {
+        ValueExpr::Concat {
+            concat,
+        } => {
             let mut joined = String::new();
             for part in concat {
                 joined.push_str(&evaluate_text(view, part, vars)?);
             }
             return Ok(Evaluated::Text(joined));
         }
-        ValueExpr::File { file } => {
+        ValueExpr::File {
+            file,
+        } => {
             let path = evaluate_text(view, file, vars)?;
             if !is_repo_relative(&path) {
                 let message = format!("{path:?} is not a relative path inside the worktree");
@@ -135,7 +148,11 @@ pub fn evaluate(view: &mut View, expr: &ValueExpr, vars: &Vars) -> Result<Evalua
 /// ```ts
 /// function evaluateText(view: View, expr: ValueExpr, vars: Vars): string
 /// ```
-pub fn evaluate_text(view: &mut View, expr: &ValueExpr, vars: &Vars) -> Result<String, Diagnostic> {
+pub fn evaluate_text(
+    view: &mut View,
+    expr: &ValueExpr,
+    vars: &Vars,
+) -> Result<String, Diagnostic> {
     match evaluate(view, expr, vars)? {
         Evaluated::Text(text) => return Ok(text),
         other => {

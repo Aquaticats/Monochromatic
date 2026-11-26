@@ -19,12 +19,19 @@ use crate::registry::RuleRegistry;
 /// Imports `RunMode`,
 /// `RunRequest`,
 /// `run` from `crate::run`.
-use crate::run::{RunMode, RunRequest, run};
+use crate::run::{
+    RunMode,
+    RunRequest,
+    run,
+};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `TempDir` from `tempfile`.
 use tempfile::TempDir;
 
@@ -40,7 +47,9 @@ use tempfile::TempDir;
 /// function scratchBase(): string
 /// ```
 pub fn scratch_base() -> PathBuf {
-    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join("test-scratch");
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("test-scratch");
     fs::create_dir_all(&base).expect("the scratch base is creatable");
     return base;
 }
@@ -69,10 +78,14 @@ pub fn scratch_dir() -> TempDir {
 /// ```ts
 /// function writeFiles(root: string, files: [string, string][]): void
 /// ```
-pub fn write_files(root: &Path, files: &[(&str, &str)]) {
+pub fn write_files(
+    root: &Path,
+    files: &[(&str, &str)],
+) {
     for (path, text) in files {
         let target = root.join(path);
-        fs::create_dir_all(target.parent().expect("a file has a parent")).expect("directories are creatable");
+        fs::create_dir_all(target.parent().expect("a file has a parent"))
+            .expect("directories are creatable");
         fs::write(&target, text).expect("fixture files are writable");
     }
 }
@@ -86,7 +99,10 @@ pub fn write_files(root: &Path, files: &[(&str, &str)]) {
 /// ```ts
 /// function readText(root: string, path: string): string
 /// ```
-pub fn read_text(root: &Path, path: &str) -> String {
+pub fn read_text(
+    root: &Path,
+    path: &str,
+) -> String {
     return fs::read_to_string(root.join(path)).expect("the fixture file is readable");
 }
 
@@ -100,10 +116,20 @@ pub fn read_text(root: &Path, path: &str) -> String {
 /// ```ts
 /// function runConfig(root: string, config: string, mode: RunMode): [number, Event[]]
 /// ```
-pub fn run_config(root: &Path, config: &str, mode: RunMode) -> (i32, Vec<Event>) {
+pub fn run_config(
+    root: &Path,
+    config: &str,
+    mode: RunMode,
+) -> (i32, Vec<Event>) {
     let config_path = root.join("file-enforcer.config.jsonc");
     fs::write(&config_path, config).expect("the config is writable");
-    let request = RunRequest { root: root.to_path_buf(), config_path, scope: crate::config_decode::ConfigScope::Repository, mode, outputs: crate::output_scope::OutputScope::All };
+    let request = RunRequest {
+        root: root.to_path_buf(),
+        config_path,
+        scope: crate::config_decode::ConfigScope::Repository,
+        mode,
+        outputs: crate::output_scope::OutputScope::All,
+    };
     let mut sink = CollectingSink::default();
     let code = run(&request, &RuleRegistry::with_defaults(), &mut sink);
     return (code, sink.events);
@@ -118,6 +144,12 @@ pub fn run_config(root: &Path, config: &str, mode: RunMode) -> (i32, Vec<Event>)
 /// ```ts
 /// function countCode(events: Event[], code: string): number
 /// ```
-pub fn count_code(events: &[Event], code: &str) -> usize {
-    return events.iter().filter(|event| return event.code == code).count();
+pub fn count_code(
+    events: &[Event],
+    code: &str,
+) -> usize {
+    return events
+        .iter()
+        .filter(|event| return event.code == code)
+        .count();
 }

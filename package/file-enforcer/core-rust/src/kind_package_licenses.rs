@@ -24,14 +24,21 @@ use crate::real_fs::EntryKind;
 /// Imports `Change`,
 /// `Rule`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Change, Rule, RulePlan};
+use crate::rule::{
+    Change,
+    Rule,
+    RulePlan,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `expand_glob` from `crate::view_glob`.
 use crate::view_glob::expand_glob;
 /// Imports `BTreeMap`,
 /// `BTreeSet` from `std::collections`.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// What:
 ///  A planned `package-licenses` rule.
@@ -69,7 +76,10 @@ pub struct PackageLicensesRule {
 /// ```ts
 /// function licenseOf(manifestPath: string, text: string): string | undefined
 /// ```
-fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> {
+fn license_of(
+    manifest: &str,
+    text: &str,
+) -> Result<Option<String>, Diagnostic> {
     if manifest.ends_with("package.json") {
         let value: serde_json::Value = match serde_json::from_str(text) {
             Ok(value) => value,
@@ -78,7 +88,10 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
                 return Err(Diagnostic::new("manifest-invalid", &message).with_path(manifest));
             }
         };
-        return Ok(value.get("license").and_then(serde_json::Value::as_str).map(str::to_string));
+        return Ok(value
+            .get("license")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string));
     }
     let document: toml_edit::DocumentMut = match text.parse() {
         Ok(document) => document,
@@ -87,8 +100,12 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
             return Err(Diagnostic::new("manifest-invalid", &message).with_path(manifest));
         }
     };
-    let Some(package) = document.get("package") else { return Ok(None) };
-    let Some(item) = package.get("license") else { return Ok(None) };
+    let Some(package) = document.get("package") else {
+        return Ok(None);
+    };
+    let Some(item) = package.get("license") else {
+        return Ok(None);
+    };
     return Ok(item.as_str().map(str::to_string));
 }
 
@@ -127,7 +144,10 @@ impl Rule for PackageLicensesRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let mut required: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for pattern in &self.manifests {
             for manifest in expand_glob(view, pattern, EntryKind::File)? {
@@ -155,9 +175,15 @@ impl Rule for PackageLicensesRule {
                         let message = format!("the license text {source} does not exist");
                         return Err(Diagnostic::new("input-missing", &message).with_path(source));
                     };
-                    plan.changes.push(Change::Write { path: target, content, mode: None });
+                    plan.changes.push(Change::Write {
+                        path: target,
+                        content,
+                        mode: None,
+                    });
                 } else if view.mode_of(&target)?.is_some() {
-                    plan.changes.push(Change::Remove { path: target });
+                    plan.changes.push(Change::Remove {
+                        path: target,
+                    });
                 }
             }
         }

@@ -24,14 +24,21 @@ use std::io;
 // Imports `std::os::unix::fs::MetadataExt`.
 /// Imports `std::os::unix::fs::MetadataExt` for this file.
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
-use crate::crates::{LockSnapshot};
+use crate::crates::LockSnapshot;
 // Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, J...`.
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, LOCK_FILE, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, decode_path, file_name_text, no_hook, replace_keeping_with_hook, sync_directory}` for this file.
-use crate::journal::{DONE_SUFFIX, INDEX_FILE, MANIFEST_INDEX_FILE, READY_FILE};
-
+use crate::journal::{
+    DONE_SUFFIX,
+    INDEX_FILE,
+    MANIFEST_INDEX_FILE,
+    READY_FILE,
+};
 
 /// What:
 /// `pub(crate) fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>>` reads the lockfile index and the snapshots.
@@ -52,7 +59,10 @@ pub(crate) fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     /// Why:
     /// A function replaces the closure that every refusal of this reader called.
     fn corrupt(why: &str) -> io::Error {
-        return io::Error::new(io::ErrorKind::InvalidData, format!("the lockfile index is corrupt: {why}"));
+        return io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("the lockfile index is corrupt: {why}"),
+        );
     }
     let index: String = fs::read_to_string(directory.join(INDEX_FILE))?;
     // `let mut`: a binding that may change.
@@ -88,9 +98,13 @@ pub(crate) fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Typed binding: `source: String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let source: String = fs::read_to_string(directory.join(format!("{}.lock", snapshots.len())))?;
+        let source: String =
+            fs::read_to_string(directory.join(format!("{}.lock", snapshots.len())))?;
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        snapshots.push(LockSnapshot { crate_dir: line.to_string(), source });
+        snapshots.push(LockSnapshot {
+            crate_dir: line.to_string(),
+            source,
+        });
     }
     // `Some`: the present or the absent value of an `Option`.
     if ended != Some(snapshots.len()) {
@@ -128,7 +142,10 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     /// Why:
     /// A function replaces the closure that every refusal of this reader called.
     fn corrupt(why: &str) -> io::Error {
-        return io::Error::new(io::ErrorKind::InvalidData, format!("the ready record is corrupt: {why}"));
+        return io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("the ready record is corrupt: {why}"),
+        );
     }
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `text: String`.
@@ -182,7 +199,9 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
         };
         let found: u64 = fs::metadata(directory.join(name))?.len();
         if found != expected {
-            return Err(corrupt(&format!("{name} has {found} bytes, the record says {expected}")));
+            return Err(corrupt(&format!(
+                "{name} has {found} bytes, the record says {expected}"
+            )));
         }
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         listed.push(name.to_string());
@@ -190,7 +209,9 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     // `Some`: the present or the absent value of an `Option`.
     if ended != Some(listed.len()) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(corrupt("no end line, or its count does not match the lines"));
+        return Err(corrupt(
+            "no end line, or its count does not match the lines",
+        ));
     }
     // The listed set must be exactly the payload a recovery needs: the index, one snapshot per root, and the manifest index when promised.
     let roots: usize = count_index_entries(&fs::read_to_string(directory.join(INDEX_FILE))?, "v2");
@@ -200,7 +221,10 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     }
     if manifests {
         required.push(MANIFEST_INDEX_FILE.to_string());
-        let snapshots: usize = count_index_entries(&fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?, "v1");
+        let snapshots: usize = count_index_entries(
+            &fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?,
+            "v1",
+        );
         for position in 0..snapshots {
             required.push(format!("m{position}.toml"));
         }
@@ -211,9 +235,13 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     let mut sorted_required: Vec<&String> = required.iter().collect();
     sorted_required.sort();
     if sorted_listed != sorted_required {
-        return Err(corrupt(&format!("the listed files {listed:?} differ from the payload the indexes imply {required:?}")));
+        return Err(corrupt(&format!(
+            "the listed files {listed:?} differ from the payload the indexes imply {required:?}"
+        )));
     }
-    return Ok(Some(Ready { manifests }));
+    return Ok(Some(Ready {
+        manifests,
+    }));
 }
 
 /// The journals of a workspace.
@@ -249,15 +277,24 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
     #[cfg(test)]
     let open_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingOpen);
     #[cfg(test)]
-    let iteration_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingIteration);
+    let iteration_fault: bool =
+        crate::failpoints::fires(crate::failpoints::Point::ListingIteration);
     #[cfg(test)]
-    let inspection_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingInspection);
+    let inspection_fault: bool =
+        crate::failpoints::fires(crate::failpoints::Point::ListingInspection);
     #[cfg(test)]
-    let vanished_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingEntryNotFound);
+    let vanished_fault: bool =
+        crate::failpoints::fires(crate::failpoints::Point::ListingEntryNotFound);
     // A test replaces the result of the operation, so the failure takes the same path as a failure of the kernel (round 21, sixth pass,
     // V1): the opening, the reading of an entry and its inspection each pass through the code that handles their real results.
     #[cfg(test)]
-    let opened: io::Result<fs::ReadDir> = if open_fault { Err(io::Error::other("injected failure to open the journal directory")) } else { fs::read_dir(journals) };
+    let opened: io::Result<fs::ReadDir> = if open_fault {
+        Err(io::Error::other(
+            "injected failure to open the journal directory",
+        ))
+    } else {
+        fs::read_dir(journals)
+    };
     #[cfg(not(test))]
     let opened: io::Result<fs::ReadDir> = fs::read_dir(journals);
     let entries: fs::ReadDir = match opened {
@@ -265,14 +302,22 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
-    let mut listing: JournalListing = JournalListing { open: Vec::new(), done: Vec::new() };
+    let mut listing: JournalListing = JournalListing {
+        open: Vec::new(),
+        done: Vec::new(),
+    };
     #[cfg_attr(not(test), allow(unused_variables))]
     for (index, found) in entries.enumerate() {
         // The second entry is the one a test makes fail, so the first is already in the partial listing.
         #[cfg(test)]
         let read: io::Result<fs::DirEntry> = if index == 1 && iteration_fault {
-            crate::bounded_run::trace(format_args!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
-            Err(io::Error::other("injected failure to read an entry of the journal directory"))
+            crate::bounded_run::trace(format_args!(
+                "listing fault iteration at entry {index} after {} accumulated",
+                listing.open.len() + listing.done.len()
+            ));
+            Err(io::Error::other(
+                "injected failure to read an entry of the journal directory",
+            ))
         } else {
             found
         };
@@ -283,10 +328,18 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         // Every entry is examined, a completed journal included: an entry that cannot be examined makes the whole listing fail.
         #[cfg(test)]
         let kind: io::Result<fs::FileType> = if index == 1 && inspection_fault {
-            crate::bounded_run::trace(format_args!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
-            Err(io::Error::other("injected failure to examine an entry of the journal directory"))
+            crate::bounded_run::trace(format_args!(
+                "listing fault inspection at entry {index} after {} accumulated",
+                listing.open.len() + listing.done.len()
+            ));
+            Err(io::Error::other(
+                "injected failure to examine an entry of the journal directory",
+            ))
         } else if index == 1 && vanished_fault {
-            crate::bounded_run::trace(format_args!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
+            crate::bounded_run::trace(format_args!(
+                "listing fault entry-not-found at entry {index} after {} accumulated",
+                listing.open.len() + listing.done.len()
+            ));
             Err(io::Error::from(io::ErrorKind::NotFound))
         } else {
             entry.file_type()
@@ -309,7 +362,10 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
 /// `fn count_index_entries(text: &str, header: &str) -> usize` counts the lines of an index that are neither its `end` line nor its header.
 /// Why:
 /// A loop replaces the `filter` closure that counted the roots and the manifest snapshots.
-pub(crate) fn count_index_entries(text: &str, header: &str) -> usize {
+pub(crate) fn count_index_entries(
+    text: &str,
+    header: &str,
+) -> usize {
     let mut count: usize = 0;
     for line in text.lines() {
         if !line.starts_with("end ") && line != header {

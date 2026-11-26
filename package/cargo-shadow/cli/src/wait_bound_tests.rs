@@ -23,7 +23,10 @@ use std::os::unix::fs::PermissionsExt;
 // ```ts
 // // TS has one type for this: string
 // ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 // Imports `std::time::{Duration, Instant}`.
 // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
 // Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
@@ -32,19 +35,35 @@ use std::path::{Path, PathBuf};
 // ```ts
 // // TS has one type for this: T[] / Set / Map / number
 // ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 // Imports `crate::cargo_run::{CargoRunner, RealCargo}`.
-use crate::cargo_run::{CargoRunner, RealCargo};
+use crate::cargo_run::{
+    CargoRunner,
+    RealCargo,
+};
 // Imports `crate::http::{RegistryError, TextFetcher}`.
-use crate::http::{RegistryError, TextFetcher};
+use crate::http::{
+    RegistryError,
+    TextFetcher,
+};
 // Imports `crate::registry::{CratesIo, Registry}`.
-use crate::registry::{CratesIo, Registry};
+use crate::registry::{
+    CratesIo,
+    Registry,
+};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
 /// Writes an executable shell script.
-fn script(directory: &Path, name: &str, body: &str) -> PathBuf {
+fn script(
+    directory: &Path,
+    name: &str,
+    body: &str,
+) -> PathBuf {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
     //
@@ -104,7 +123,11 @@ fn a_cargo_that_outlives_its_bound_is_stopped_and_named() {
     // ```ts
     // // TS has one type for this: string
     // ```
-    let cargo = RealCargo { program: script(directory.path(), "cargo", "sleep 5"), toolchain: String::new(), bound: Duration::from_millis(300) };
+    let cargo = RealCargo {
+        program: script(directory.path(), "cargo", "sleep 5"),
+        toolchain: String::new(),
+        bound: Duration::from_millis(300),
+    };
     let started = Instant::now();
 
     // Borrow `&[`: lends the value without copying or giving it away.
@@ -122,14 +145,24 @@ fn a_cargo_that_outlives_its_bound_is_stopped_and_named() {
     // ```ts
     // // TS has one type for this: T[] / Set / Map / number
     // ```
-    let result = cargo.run(directory.path(), &["update".to_string(), "--workspace".to_string()]);
+    let result = cargo.run(
+        directory.path(),
+        &["update".to_string(), "--workspace".to_string()],
+    );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(started.elapsed() < Duration::from_secs(3), "{:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
     // Typed binding: `message: String`.
     let message: String = result.expect_err("a stopped cargo has no outcome");
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(message.contains("cargo update --workspace") && message.contains("did not finish"), "{message}");
+    assert!(
+        message.contains("cargo update --workspace") && message.contains("did not finish"),
+        "{message}"
+    );
 }
 
 /// A fetcher that always answers HTTP 429 with a long `Retry-After`.
@@ -146,7 +179,10 @@ impl TextFetcher for Throttled {
     /// ```ts
     /// get(url: string): string  // always throws a 429 with Retry-After: 86400
     /// ```
-    fn get(&self, url: &str) -> Result<String, RegistryError> {
+    fn get(
+        &self,
+        url: &str,
+    ) -> Result<String, RegistryError> {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
         //
@@ -164,7 +200,11 @@ impl TextFetcher for Throttled {
         // // None        is  undefined
         // ```
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(RegistryError { message: format!("{url} answered HTTP 429"), status: Some(429), retry_after_seconds: 86_400 });
+        return Err(RegistryError {
+            message: format!("{url} answered HTTP 429"),
+            status: Some(429),
+            retry_after_seconds: 86_400,
+        });
     }
 }
 
@@ -174,15 +214,27 @@ impl TextFetcher for Throttled {
 fn a_retry_after_longer_than_the_bound_ends_the_call_instead_of_sleeping() {
     let root = scratch();
     // Constructor `Box::new(`: an empty owned collection or a boxed value.
-    let registry = CratesIo::new(root.path(), Box::new(Throttled), Duration::ZERO, Duration::from_millis(1));
+    let registry = CratesIo::new(
+        root.path(),
+        Box::new(Throttled),
+        Duration::ZERO,
+        Duration::from_millis(1),
+    );
     let started = Instant::now();
 
     let result = registry.owners("serde");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
     // Typed binding: `message: String`.
     let message: String = result.expect_err("no answer").message;
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(message.contains("429") && message.contains("run the command again"), "{message}");
+    assert!(
+        message.contains("429") && message.contains("run the command again"),
+        "{message}"
+    );
 }

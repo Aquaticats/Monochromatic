@@ -81,7 +81,10 @@ use crate::resolve::resolve_lines;
 /// ```ts
 /// import { DataSource, loadData } from './source';
 /// ```
-use crate::source::{DataSource, load_data};
+use crate::source::{
+    DataSource,
+    load_data,
+};
 
 /// What:
 ///  Resolve `.browserslistrc` text to the sorted,
@@ -95,7 +98,11 @@ use crate::source::{DataSource, load_data};
 /// ```ts
 /// function resolveBrowserslistrc(configText: string, lock: DataLock, source: DataSource): string[];
 /// ```
-pub fn resolve_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource) -> Outcome<Vec<String>> {
+pub fn resolve_browserslistrc(
+    config_text: &str,
+    lock: &DataLock,
+    source: &DataSource,
+) -> Outcome<Vec<String>> {
     let lines = parse_config(config_text)?;
     for line in &lines {
         parse_query(line.number, &line.text)?;
@@ -115,7 +122,11 @@ pub fn resolve_browserslistrc(config_text: &str, lock: &DataLock, source: &DataS
 /// ```ts
 /// function renderBrowserslistrc(configText: string, lock: DataLock, source: DataSource): string;
 /// ```
-pub fn render_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource) -> Outcome<String> {
+pub fn render_browserslistrc(
+    config_text: &str,
+    lock: &DataLock,
+    source: &DataSource,
+) -> Outcome<String> {
     let targets = resolve_browserslistrc(config_text, lock, source)?;
     return Ok(render_resolved_json(&targets));
 }

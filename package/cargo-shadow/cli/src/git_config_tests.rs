@@ -7,10 +7,17 @@
 // ```ts
 // import { Name } from './module.ts';
 // ```
-use crate::git_config::{ConfigEntry, parse_bool, parse_config};
+use crate::git_config::{
+    ConfigEntry,
+    parse_bool,
+    parse_config,
+};
 
 /// Builds the entry the reader should produce.
-fn entry(name: &str, value: Option<&str>) -> ConfigEntry {
+fn entry(
+    name: &str,
+    value: Option<&str>,
+) -> ConfigEntry {
     // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
     // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
     //
@@ -25,7 +32,10 @@ fn entry(name: &str, value: Option<&str>) -> ConfigEntry {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return ConfigEntry { name: name.to_string(), value: value.map(str::to_string) };
+    return ConfigEntry {
+        name: name.to_string(),
+        value: value.map(str::to_string),
+    };
 }
 
 /// Sections,
@@ -70,10 +80,21 @@ fn sections_subsections_keys_and_values_are_read_with_git_case_rules() {
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        vec![entry("core.bare", Some("false")), entry("branch.Feature/One.remote", Some("origin")), entry("branch.Feature/One.merge", Some("refs/heads/main"))]
+        vec![
+            entry("core.bare", Some("false")),
+            entry("branch.Feature/One.remote", Some("origin")),
+            entry("branch.Feature/One.merge", Some("refs/heads/main"))
+        ]
     );
-    assert_eq!(parsed.last("BRANCH", Some("Feature/One"), "MERGE"), Some("refs/heads/main"));
-    assert_eq!(parsed.last("branch", Some("feature/one"), "merge"), None, "subsection names keep their case");
+    assert_eq!(
+        parsed.last("BRANCH", Some("Feature/One"), "MERGE"),
+        Some("refs/heads/main")
+    );
+    assert_eq!(
+        parsed.last("branch", Some("feature/one"), "merge"),
+        None,
+        "subsection names keep their case"
+    );
 }
 
 /// The old dotted header lowercases its subsection.
@@ -81,7 +102,10 @@ fn sections_subsections_keys_and_values_are_read_with_git_case_rules() {
 fn the_older_dotted_header_lowercases_its_subsection() {
     let parsed = parse_config("[branch.Main]\n\tremote = origin\n").expect("parses");
 
-    assert_eq!(parsed.last("branch", Some("main"), "remote"), Some("origin"));
+    assert_eq!(
+        parsed.last("branch", Some("main"), "remote"),
+        Some("origin")
+    );
 }
 
 /// A repeated key keeps every value in order,
@@ -96,11 +120,16 @@ fn a_key_may_repeat_and_the_last_value_wins_for_a_single_valued_key() {
     // ```ts
     // value ?? fallback
     // ```
-    let parsed = parse_config("[remote \"origin\"]\n\tfetch = a\n\tfetch = b\n[core]\n\tx = 1\n\tx = 2\n").expect("parses");
+    let parsed =
+        parse_config("[remote \"origin\"]\n\tfetch = a\n\tfetch = b\n[core]\n\tx = 1\n\tx = 2\n")
+            .expect("parses");
 
     // `Some`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(parsed.values("remote", Some("origin"), "fetch"), vec![Some("a"), Some("b")]);
+    assert_eq!(
+        parsed.values("remote", Some("origin"), "fetch"),
+        vec![Some("a"), Some("b")]
+    );
     assert_eq!(parsed.last("core", None, "x"), Some("2"));
 }
 
@@ -118,7 +147,11 @@ fn quotes_escapes_comments_and_continuations_are_applied() {
     assert_eq!(parsed.last("a", None, "c"), Some("one two"));
     // `None`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(parsed.values("a", None, "bare"), vec![None], "a key without an equals sign has no value");
+    assert_eq!(
+        parsed.values("a", None, "bare"),
+        vec![None],
+        "a key without an equals sign has no value"
+    );
 }
 
 /// Review finding (2a 5):
@@ -127,7 +160,10 @@ fn quotes_escapes_comments_and_continuations_are_applied() {
 #[test]
 fn quoted_whitespace_is_kept_and_unquoted_edges_are_dropped() {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let parsed = parse_config("[t]\n\tvalue = \"a \"\n\tother = \"a\\t\"\n\tspaced =   x  y   \n\tempty =\n").expect("parses");
+    let parsed = parse_config(
+        "[t]\n\tvalue = \"a \"\n\tother = \"a\\t\"\n\tspaced =   x  y   \n\tempty =\n",
+    )
+    .expect("parses");
 
     // `None`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -158,13 +194,19 @@ fn a_comment_is_not_continued_by_a_trailing_backslash() {
 /// a dotted section with a quoted subsection is one flat name,
 /// and a quoted subsection may hold a bracket.
 #[test]
-fn a_dotted_section_with_a_quoted_subsection_and_a_bracket_in_a_subsection_are_read_as_git_reads_them() {
+fn a_dotted_section_with_a_quoted_subsection_and_a_bracket_in_a_subsection_are_read_as_git_reads_them()
+ {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let parsed = parse_config("[branch.topic \"sub\"]\n\tremote = .\n[branch \"a\\\"]#b\"]\n\tmerge = m\n").expect("parses");
+    let parsed =
+        parse_config("[branch.topic \"sub\"]\n\tremote = .\n[branch \"a\\\"]#b\"]\n\tmerge = m\n")
+            .expect("parses");
 
     // `Some`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(parsed.last("branch", Some("topic.sub"), "remote"), Some("."));
+    assert_eq!(
+        parsed.last("branch", Some("topic.sub"), "remote"),
+        Some(".")
+    );
     // `Some`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(parsed.last("branch", Some("a\"]#b"), "merge"), Some("m"));
@@ -203,9 +245,21 @@ fn a_last_line_without_a_newline_is_read() {
 /// `include` and `includeIf` are flagged and never followed.
 #[test]
 fn include_and_include_if_sections_are_flagged_and_not_followed() {
-    assert!(parse_config("[include]\n\tpath = x\n").expect("parses").has_include);
-    assert!(parse_config("[includeIf \"gitdir:/x/\"]\n\tpath = y\n").expect("parses").has_include);
-    assert!(!parse_config("[core]\n\tbare = false\n").expect("parses").has_include);
+    assert!(
+        parse_config("[include]\n\tpath = x\n")
+            .expect("parses")
+            .has_include
+    );
+    assert!(
+        parse_config("[includeIf \"gitdir:/x/\"]\n\tpath = y\n")
+            .expect("parses")
+            .has_include
+    );
+    assert!(
+        !parse_config("[core]\n\tbare = false\n")
+            .expect("parses")
+            .has_include
+    );
 }
 
 /// Text Git rejects,
@@ -213,16 +267,37 @@ fn include_and_include_if_sections_are_flagged_and_not_followed() {
 /// is an error.
 #[test]
 fn text_that_cannot_be_read_exactly_is_an_error() {
-    assert!(parse_config("key = value\n").is_err(), "a line before any header");
+    assert!(
+        parse_config("key = value\n").is_err(),
+        "a line before any header"
+    );
     assert!(parse_config("[core\n").is_err(), "an unclosed header");
-    assert!(parse_config("[core]\n\tx = \"open\n").is_err(), "an unclosed quote");
-    assert!(parse_config("[core]\n\tx = a\\qb\n").is_err(), "an unknown escape");
-    assert!(parse_config("[core]\n\t1x = y\n").is_err(), "a key starting with a digit");
-    assert!(parse_config("[branch main]\n").is_err(), "a subsection without quotes");
+    assert!(
+        parse_config("[core]\n\tx = \"open\n").is_err(),
+        "an unclosed quote"
+    );
+    assert!(
+        parse_config("[core]\n\tx = a\\qb\n").is_err(),
+        "an unknown escape"
+    );
+    assert!(
+        parse_config("[core]\n\t1x = y\n").is_err(),
+        "a key starting with a digit"
+    );
+    assert!(
+        parse_config("[branch main]\n").is_err(),
+        "a subsection without quotes"
+    );
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(parse_config("[branch \"a\" ]\n").is_err(), "a blank before the closing bracket");
+    assert!(
+        parse_config("[branch \"a\" ]\n").is_err(),
+        "a blank before the closing bracket"
+    );
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(parse_config("[core]\n\tx y = z\n").is_err(), "a key followed by a word");
+    assert!(
+        parse_config("[core]\n\tx y = z\n").is_err(),
+        "a key followed by a word"
+    );
 }
 
 /// Review finding (2a 2):
