@@ -63,7 +63,7 @@
 //! - `registration_recipe.rs`:
 //!   the eight removals and the one lock completion.
 //! - `plan_folder_read.rs`:
-//!   the add's refusal while a removal's plan names its clone.
+//!   the plan that names the add's clone, and the fields its stop reads.
 //! - `add_state_commands.rs`:
 //!   the command each state names.
 //!
@@ -100,7 +100,7 @@ pub use binding_parse::{parse_binding, slot_hexadecimal};
 pub use binding_record::{BindingRecord, required_keys_for};
 pub use binding_words::{BINDING_HEADER, BINDING_KEYS_IN_ORDER, INVENTORY_HEADER, Phase, RequestForm, SettleReason};
 pub use lock_words::{LOCK_WORDS_MAXIMUM_BYTES, LOCK_WORDS_PREFIX, LOCK_WORDS_SUFFIX, LockStanding, lock_file_bytes, lock_words, lock_standing_of};
-pub use plan_folder_read::{PlanStop, is_canonical_guid_name, refuse_while_a_plan_names_the_clone};
+pub use plan_folder_read::{PlanUnreadable, APlanThatNamesTheClone, is_canonical_guid_name, the_plan_naming_the_clone};
 pub use record_publication::{RecordRefusalAtTheFile, publish_inventory, read_binding, read_inventory, write_binding};
 pub use record_refusal::RecordRefusal;
 pub use registration_finder::{EntryFacts, EntryRow, candidate_names, git_sanitized_name};

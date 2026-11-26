@@ -4,7 +4,8 @@
 //!  a settling record with no clone GUID names the add again,
 //!  each head word of a standing plan names the command the plan design gives
 //!  it,
-//!  and the printed settling line carries placeholders rather than the digits.
+//!  a plan's recorded name answering another clone names no command, and
+//!  the printed settling line carries placeholders rather than the digits.
 
 use crate::worktree_clone_binding_record::add_state_commands::{ClonePresence, NextCommand, PlanHeadWord, SETTLING_COMMAND_WORDS, StateFacts, command_for};
 use crate::worktree_clone_binding_record::binding_words::Phase;
@@ -155,6 +156,44 @@ fn a_reader_that_did_not_look_for_the_clone_names_the_command_by_the_head_word()
     ];
     for (head, command) in wanted {
         assert_eq!(command_for(&facts_beside_a_plan(Phase::Claimed, head, None)), command, "head `{}`", head.word());
+    }
+}
+
+/// Each head word round-trips through the stored spelling,
+/// and a word outside the plan design's five reads as no head word at all.
+#[test]
+fn a_head_word_reads_back_from_the_spelling_a_plan_stores() {
+    for head in [PlanHeadWord::Present, PlanHeadWord::Requested, PlanHeadWord::Gone, PlanHeadWord::Refused, PlanHeadWord::Unknown] {
+        assert_eq!(PlanHeadWord::parse(head.word()), Some(head), "`{}` reads back", head.word());
+    }
+    for refused in ["", "finished", "Present", "present "] {
+        assert_eq!(PlanHeadWord::parse(refused), None, "`{refused}` is no head word");
+    }
+}
+
+/// A recorded name that answers another clone's GUID is the one state no
+/// command settles:
+/// the removal refuses it,
+/// so does the settling command,
+/// and the finish pass leaves it standing,
+/// so a person reads the records whatever the head word says.
+#[test]
+fn a_reused_name_names_no_command_for_every_head_word() {
+    let reused: Option<ClonePresence> = Some(ClonePresence::TheNameAnswersAnotherClone { live_guid: String::from("4821193048571903103") });
+    for head in [PlanHeadWord::Present, PlanHeadWord::Requested, PlanHeadWord::Gone, PlanHeadWord::Refused, PlanHeadWord::Unknown] {
+        assert_eq!(command_for(&facts_beside_a_plan(Phase::Settling, head, reused.clone())), NextCommand::APersonReadsTheRecords, "head `{}`", head.word());
+    }
+}
+
+/// The line for a reused name sends the person to the records and names no
+/// command that would act on the slot.
+#[test]
+fn the_reused_names_line_names_the_doctor_and_no_command() {
+    let line: String = NextCommand::APersonReadsTheRecords.printed_line("add-cache-layer");
+    assert!(line.contains("no command of this release settles the state"), "{line}");
+    assert!(line.contains("doctor"), "{line}");
+    for command in [SETTLING_COMMAND_WORDS, "git worktree remove", "cancel-worktree-removal"] {
+        assert!(!line.contains(command), "no command is named (`{command}`): {line}");
     }
 }
 

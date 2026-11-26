@@ -1,26 +1,39 @@
 //! What:
 //!  The add's read of the removal's destruction-plan folder:
-//!  it refuses while a plan names the clone the add is about to fill.
+//!  it finds the plan that names the clone the add is about to fill,
+//!  and answers what that plan records about its own head destroy and its
+//!  snapshot attempts.
 //! Why:
 //!  An add that closed its binding over a standing plan would leave the plan with no clone,
 //!  no binding and no command,
 //!  and the plan is the record of what a refused removal had already destroyed
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`;
 //!  the project kept the choice on 2026-11-23 and builds the read in step 10).
-//!  No plan can stand before step 14,
-//!  so this read finds nothing until then,
-//!  and its control plants one.
-//!  The plan grammar is not accepted yet,
-//!  so this reader asks only what the refusal needs:
-//!  a `cloneGuid=` or `cloneDataset=` line naming this clone.
+//!  The person who meets a standing plan reads the one command that ends it,
+//!  which the plan's head word and the clone the pool can find decide
+//!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+//!  choice 2C),
+//!  so this reader answers those two fields and the add's own stop picks the
+//!  command from them (`worktree_clone_add_route::add_plan_stop`).
+//!  The plan grammar is the plan design's
+//!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+//!  "The grammar"),
+//!  and this reader asks only the fields the refusal and its command need:
+//!  the clone's two identities,
+//!  the head word,
+//!  and whether every attempt line still says `planned`.
 //!  A plan it cannot read refuses too,
 //!  because nothing proves that plan does not name this clone.
+//!  The folder's file-name rule is this file's,
+//!  and the removal's plan reader calls it rather than repeating it,
+//!  so one grammar's plans are found one way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const refusal = refuseWhileAPlanNamesTheClone(commonDir, cloneGuid, cloneDataset);
+//! const found = thePlanNamingTheClone(commonDir, cloneGuid, cloneDataset);
 //! ```
 
+use crate::worktree_clone_binding_record::add_state_commands::PlanHeadWord;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::path::{Path, PathBuf};
 
@@ -29,8 +42,32 @@ use std::path::{Path, PathBuf};
 /// so this bound is the read's own runaway guard and not a grammar's limit.
 const PLAN_READ_MAXIMUM_BYTES: u64 = 262_144;
 
+/// The field a plan records the clone's own GUID in.
+const CLONE_GUID_FIELD: &str = "cloneGuid=";
+
+/// The field a plan records the clone's dataset name in.
+const CLONE_DATASET_FIELD: &str = "cloneDataset=";
+
 /// The two fields a plan may name the clone by.
-const CLONE_FIELDS: [&str; 2] = ["cloneGuid=", "cloneDataset="];
+const CLONE_FIELDS: [&str; 2] = [CLONE_GUID_FIELD, CLONE_DATASET_FIELD];
+
+/// The field a plan records the state of its own head destroy in.
+const HEAD_FIELD: &str = "head=";
+
+/// The field one snapshot attempt line begins with.
+const ATTEMPT_FIELD: &str = "tuple=";
+
+/// The outcome word a plan's first write records for every snapshot it planned.
+/// A plan whose every attempt line holds it witnesses nothing destroyed,
+/// which is the state the cancel command is named beside
+/// (`doc/planning/cli-git-zfs-add-binding-record-design.md`, `V24`).
+const PLANNED_OUTCOME: &str = "planned";
+
+/// How many whitespace-separated words of an attempt line come before its
+/// outcome:
+/// `tuple=<kind>` then the attempt number,
+/// so the outcome is the third word.
+const ATTEMPT_WORDS_BEFORE_THE_OUTCOME: usize = 2;
 
 /// The first line every plan of this route carries,
 /// which names its grammar and its version.
@@ -66,25 +103,42 @@ pub fn is_canonical_guid_name(name: &str) -> bool {
 }
 
 /// What:
-///  Why the add must not go on while a plan stands.
+///  One readable plan that names the clone this add would fill,
+///  with the parts of its record the add's stop reads.
 /// Why:
-///  The refusal names the plan and the removal that ends it,
-///  so the person is not left to guess which of two commands is true.
+///  The person's next command follows from the plan's head word and the clone
+///  the pool can find,
+///  and the cancel command is named beside it only where the plan witnesses
+///  nothing destroyed,
+///  so the stop needs the recorded clone's two identities,
+///  its head word and whether every attempt line still says `planned`
+///  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+///  choice 2C).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Refusal = { plan: string; message: string };
+/// type APlanThatNamesTheClone = { plan: string; cloneDataset: string; cloneGuid: string; head: PlanHeadWord; everyTuplePlanned: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PlanNamesTheClone {
+pub struct APlanThatNamesTheClone {
     /// The plan file.
     pub plan: PathBuf,
-    /// The sentence a person reads.
-    pub sentence: String,
+    /// The clone's dataset name as the plan records it,
+    /// which is the name the pool's copy would answer under.
+    pub clone_dataset: String,
+    /// The clone's own GUID as the plan records it,
+    /// which is the identity a child of the container carries.
+    pub clone_guid: DatasetGuid,
+    /// The plan's head word,
+    /// which is the state of the clone's own destroy.
+    pub head: PlanHeadWord,
+    /// Whether every attempt line the plan holds still says `planned`,
+    /// so the plan witnesses nothing destroyed.
+    pub every_tuple_planned: bool,
 }
 
 /// What:
-///  Why the plan folder could not be read.
+///  Why a file in the plan folder could not be read as a plan.
 /// Why:
 ///  A plan that cannot be read may name this clone,
 ///  and refusing changes nothing,
@@ -92,50 +146,15 @@ pub struct PlanNamesTheClone {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Refusal = { plan: string; message: string };
+/// type PlanUnreadable = { plan: string; sentence: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlanUnreadable {
-    /// The plan file.
+    /// The plan file,
+    /// or the folder when the folder itself could not be listed.
     pub plan: PathBuf,
     /// The sentence a person reads.
     pub sentence: String,
-}
-
-/// What:
-///  Why the add must stop before its first mutation.
-/// Why:
-///  One answer serves the caller,
-///  and each arm names its file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Stop = { kind: 'named'; plan: string } | { kind: 'unreadable'; plan: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PlanStop {
-    /// A readable plan names this clone.
-    NamesTheClone(PlanNamesTheClone),
-    /// A file in the folder could not be read as a plan.
-    Unreadable(PlanUnreadable),
-}
-
-impl PlanStop {
-    /// The sentence a person reads.
-    pub fn sentence(&self) -> &str {
-        return match self {
-            PlanStop::NamesTheClone(stop) => stop.sentence.as_str(),
-            PlanStop::Unreadable(stop) => stop.sentence.as_str(),
-        };
-    }
-
-    /// The plan file the stop names.
-    pub fn plan(&self) -> &Path {
-        return match self {
-            PlanStop::NamesTheClone(stop) => stop.plan.as_path(),
-            PlanStop::Unreadable(stop) => stop.plan.as_path(),
-        };
-    }
 }
 
 /// Whether one plan's bytes name this clone,
@@ -146,10 +165,10 @@ fn names_the_clone(bytes: &[u8], clone_guid: Option<DatasetGuid>, clone_dataset:
         for field in CLONE_FIELDS {
             let Some(found) = line.strip_prefix(field) else { continue };
             let trimmed: &str = found.trim();
-            if field == "cloneDataset=" && trimmed == clone_dataset {
+            if field == CLONE_DATASET_FIELD && trimmed == clone_dataset {
                 return true;
             }
-            if field == "cloneGuid=" && clone_guid.is_some_and(|guid| return trimmed == guid.file_name()) {
+            if field == CLONE_GUID_FIELD && clone_guid.is_some_and(|guid| return trimmed == guid.file_name()) {
                 return true;
             }
         }
@@ -158,39 +177,46 @@ fn names_the_clone(bytes: &[u8], clone_guid: Option<DatasetGuid>, clone_dataset:
 }
 
 /// What:
-///  Refuse while a destruction plan in the folder names this clone,
-///  and while a file there cannot be read.
+///  The plan that names the clone this add would fill,
+///  or nothing when the folder holds none,
+///  or the file that could not be read as a plan.
 /// Why:
 ///  This is the add's only read of another design's folder,
 ///  made to refuse and for nothing else:
-///  it acts on no plan and removes none.
+///  it acts on no plan and removes none,
+///  and it answers the plan rather than a sentence because the command the
+///  person reads needs the pool as well
+///  (`worktree_clone_add_route::add_plan_stop`).
+///  A folder that is absent holds no plan,
+///  and a folder that cannot be listed refuses,
+///  because nothing then proves no plan names this clone.
 ///
 /// # Errors
-/// The plan that names the clone or the file that could not be read,
-/// each with the sentence the add prints before it changes anything.
+/// The plan that could not be read,
+/// with the sentence the add prints before it changes anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stop = refuseWhileAPlanNamesTheClone(commonDir, cloneGuid, cloneDataset);
+/// const found = thePlanNamingTheClone(commonDir, cloneGuid, cloneDataset); // undefined when none stands
 /// ```
-pub fn refuse_while_a_plan_names_the_clone(common_dir: &Path, clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> Result<(), PlanStop> {
+pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> Result<Option<APlanThatNamesTheClone>, PlanUnreadable> {
     let folder: PathBuf = super::registration_home::plans_folder(common_dir);
     let entries = match std::fs::read_dir(folder.as_path()) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
-            return Err(PlanStop::Unreadable(PlanUnreadable {
+            return Err(PlanUnreadable {
                 plan: folder,
                 sentence: format!("the plan folder could not be listed ({error}), so nothing proves no plan names this clone. Nothing was changed. Ways forward: fix the folder's access and run the command again."),
-            }));
+            });
         }
     };
     for entry in entries {
         let found_entry = entry.map_err(|error| {
-            return PlanStop::Unreadable(PlanUnreadable {
+            return PlanUnreadable {
                 plan: folder.clone(),
                 sentence: format!("the plan folder could not be read past one entry ({error}), so nothing proves no plan names this clone. Nothing was changed. Ways forward: fix the folder's access and run the command again."),
-            });
+            };
         })?;
         let path: PathBuf = found_entry.path();
         let Some(file_name) = path.file_name() else { continue };
@@ -206,57 +232,129 @@ pub fn refuse_while_a_plan_names_the_clone(common_dir: &Path, clone_guid: Option
         if !found_entry.file_type().map(|kind| return kind.is_file()).unwrap_or(false) {
             continue;
         }
-        if clone_guid.is_some_and(|guid| return name == guid.file_name()) {
-            return Err(PlanStop::NamesTheClone(PlanNamesTheClone {
-                plan: path.clone(),
-                sentence: names_the_clone_sentence(path.as_path()),
-            }));
+        // A plan filed under this clone's own GUID is this clone's whatever its fields say,
+        // so the key decides before any field is compared.
+        let by_its_key: bool = clone_guid.is_some_and(|guid| return name == guid.file_name());
+        let bytes: Vec<u8> = read_a_plan(path.as_path())?;
+        if !by_its_key && !names_the_clone(bytes.as_slice(), clone_guid, clone_dataset) {
+            continue;
         }
-        let bytes: Vec<u8> = match read_a_plan(path.as_path()) {
-            Ok(found) => found,
-            Err(sentence) => return Err(PlanStop::Unreadable(PlanUnreadable { plan: path, sentence })),
-        };
-        if names_the_clone(bytes.as_slice(), clone_guid, clone_dataset) {
-            return Err(PlanStop::NamesTheClone(PlanNamesTheClone {
-                plan: path.clone(),
-                sentence: names_the_clone_sentence(path.as_path()),
-            }));
-        }
+        return Ok(Some(what_the_plan_records(path.as_path(), bytes.as_slice())?));
     }
-    return Ok(());
+    return Ok(None);
 }
 
-/// The sentence a plan that names this clone prints.
-fn names_the_clone_sentence(path: &Path) -> String {
-    return format!(
-        "a removal's plan at {} names the clone this add would fill, so the add stops before its first mutation and changes nothing. Ways forward: the removal that wrote the plan resumes from it and ends it, and {}, so the add cannot go on until one does.",
-        path.display(),
-        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
-    );
+/// What:
+///  The parts of one plan's record the add's stop reads,
+///  from the bytes already proved to begin with the route's plan header.
+/// Why:
+///  The command a standing plan leaves the person follows from these four
+///  values alone,
+///  so the parse stops at them and refuses the lines it cannot read,
+///  because a plan this add cannot read is one nothing proves harmless.
+///
+/// # Errors
+/// The sentence naming the field or the line that refused the plan.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = whatThePlanRecords(path, bytes); // throws the sentence for a field it cannot read
+/// ```
+fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheClone, PlanUnreadable> {
+    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
+    let mut clone_dataset: Option<String> = None;
+    let mut clone_guid: Option<DatasetGuid> = None;
+    let mut head: Option<PlanHeadWord> = None;
+    let mut every_tuple_planned: bool = true;
+    for line in text.lines() {
+        if let Some(found) = line.strip_prefix(CLONE_DATASET_FIELD) {
+            clone_dataset = Some(String::from(found.trim()));
+            continue;
+        }
+        if let Some(found) = line.strip_prefix(CLONE_GUID_FIELD) {
+            let word: &str = found.trim();
+            let guid: DatasetGuid = DatasetGuid::parse(word).map_err(|refusal| return unreadable(path, format!("its `cloneGuid=` line does not hold a canonical dataset GUID ({refusal:?})").as_str()))?;
+            clone_guid = Some(guid);
+            continue;
+        }
+        if let Some(found) = line.strip_prefix(HEAD_FIELD) {
+            let word: &str = found.trim();
+            let parsed: PlanHeadWord = PlanHeadWord::parse(word).ok_or_else(|| return unreadable(path, format!("its `head=` line holds `{word}`, which is not one of the five words the plan design's grammar allows").as_str()))?;
+            head = Some(parsed);
+            continue;
+        }
+        if line.starts_with(ATTEMPT_FIELD) && !says_planned(line) {
+            every_tuple_planned = false;
+        }
+    }
+    let Some(clone_dataset) = clone_dataset else {
+        return Err(unreadable(path, "it carries no `cloneDataset=` line, so this add cannot tell which clone's record it is"));
+    };
+    let Some(clone_guid) = clone_guid else {
+        return Err(unreadable(path, "it carries no `cloneGuid=` line, so nothing proves which clone's absence the pool would be asked about"));
+    };
+    let Some(head) = head else {
+        return Err(unreadable(path, "it carries no `head=` line, so this add cannot tell which command the plan's head gives"));
+    };
+    // What:     `Ok(APlanThatNamesTheClone { .. })` builds the success variant
+    //           of `Result`, wrapping the four values the stop reads. No
+    //           trailing `;` means this is the function's tail expression.
+    // Why:      Hand the add's stop a whole record, or one sentence saying
+    //           which field refused it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return { plan, cloneDataset: clone_dataset, cloneGuid: clone_guid, head, everyTuplePlanned: every_tuple_planned };
+    // ```
+    Ok(APlanThatNamesTheClone { plan: PathBuf::from(path), clone_dataset, clone_guid, head, every_tuple_planned })
+}
+
+/// Whether one attempt line records the `planned` outcome,
+/// which is where the outcome word sits after the tuple's kind and number.
+/// A line with too few words holds no outcome this reader can find,
+/// and it is answered as one that is not `planned`:
+/// the cancel command is then not named beside the plan,
+/// which leaves out a command rather than naming one that may destroy.
+fn says_planned(line: &str) -> bool {
+    let mut words = line.split_ascii_whitespace();
+    for _ in 0..ATTEMPT_WORDS_BEFORE_THE_OUTCOME {
+        let Some(_word) = words.next() else { return false };
+    }
+    return words.next() == Some(PLANNED_OUTCOME);
+}
+
+/// The sentence for a plan this reader cannot read,
+/// which names the file and what the plan failed to say.
+fn unreadable(path: &Path, what: &str) -> PlanUnreadable {
+    return PlanUnreadable {
+        plan: PathBuf::from(path),
+        sentence: format!("the plan at {} was not read as a plan: {what}. Nothing was changed. Ways forward: inspect the plan's file and run the command again.", path.display()),
+    };
 }
 
 /// One plan's bytes,
 /// or the sentence that says why they were not read.
-fn read_a_plan(path: &Path) -> Result<Vec<u8>, String> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return format!("the plan at {} could not be examined ({error}). Nothing was changed. Ways forward: inspect the file and run the command again.", path.display()))?;
+fn read_a_plan(path: &Path) -> Result<Vec<u8>, PlanUnreadable> {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return unreadable(path, format!("it could not be examined ({error})").as_str()))?;
     if !metadata.is_file() {
-        return Err(format!("the plan at {} is not a regular file, so it was not read. Nothing was changed. Ways forward: inspect the name and run the command again.", path.display()));
+        return Err(unreadable(path, "it is not a regular file"));
     }
     if metadata.len() > PLAN_READ_MAXIMUM_BYTES {
-        return Err(format!(
-            "the plan at {} holds more bytes ({}) than this reader reads ({PLAN_READ_MAXIMUM_BYTES}). Nothing was changed. Ways forward: inspect the file and run the command again.",
-            path.display(),
-            metadata.len()
-        ));
+        return Err(unreadable(path, format!("it holds more bytes ({}) than this reader reads ({PLAN_READ_MAXIMUM_BYTES})", metadata.len()).as_str()));
     }
-    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| return format!("the plan at {} could not be read ({error}). Nothing was changed. Ways forward: inspect the file and run the command again.", path.display()))?;
+    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| return unreadable(path, format!("it could not be read ({error})").as_str()))?;
     if !bytes.starts_with(PLAN_HEADER.as_bytes()) {
-        return Err(format!(
-            "the plan at {} does not begin with this route's plan header, so it was not read as a plan. Nothing was changed. Ways forward: inspect the file and run the command again.",
-            path.display()
-        ));
+        return Err(unreadable(path, "it does not begin with this route's plan header"));
     }
-    return Ok(bytes);
+    // What:     `Ok(bytes)` wraps the plan's bytes in the success variant of
+    //           `Result`. It is the tail expression, so it is the return.
+    // Why:      The caller parses the bytes this read proved to be one plan.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return bytes;
+    // ```
+    Ok(bytes)
 }
 
 /// Controls stay out of the release executable.
