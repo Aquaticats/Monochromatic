@@ -8,6 +8,12 @@
 //! one whose name is lost when a preparation stops early
 //!  would hide the stretch a stopped commit waited in;
 //! and an unbounded list would grow with the work.
+//!  The list of stretches,
+//!  and the step ledger `step_time_between` reads,
+//!  belong to the whole process,
+//!  so each control that counts them runs its body in a child of its own
+//!  (`crate::process_wide_state_child_test_support`),
+//!  as issue 6509 found.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,6 +45,12 @@ fn milliseconds(part: &PreparePart) -> u128 {
 /// The clock names each stretch and keeps the one that was running when the preparation left.
 #[test]
 fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "each_stretch_keeps_its_name_and_the_open_one_is_kept",
+    ) {
+        return;
+    }
     let mut clock: PreparePartClock = PreparePartClock::begin("layout");
     std::thread::sleep(Duration::from_millis(3));
     clock.next("capture");
@@ -65,6 +77,12 @@ fn each_stretch_keeps_its_name_and_the_open_one_is_kept() {
 /// it held no child.
 #[test]
 fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it",
+    ) {
+        return;
+    }
     let mut clock: PreparePartClock = PreparePartClock::begin("policies");
     // The step ledger holds a step that began inside the stretch and ran far longer than it, which is what a step under host
     //  pressure looks like.
@@ -101,6 +119,12 @@ fn a_git_step_inside_a_stretch_is_taken_out_of_it_and_named_beside_it() {
 /// A name marked more than once is added together and says how many stretches it is made of.
 #[test]
 fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_name_marked_twice_adds_up_and_says_how_many_calls",
+    ) {
+        return;
+    }
     note_prepare_part(
         "layout",
         Duration::from_millis(11),
@@ -124,6 +148,12 @@ fn a_name_marked_twice_adds_up_and_says_how_many_calls() {
 /// The record carries at most `MAX_PREPARE_PARTS` stretches and says how many it dropped.
 #[test]
 fn the_list_stops_at_its_bound_and_counts_the_rest() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_list_stops_at_its_bound_and_counts_the_rest",
+    ) {
+        return;
+    }
     let over: usize = MAX_PREPARE_PARTS + 3;
     for at in 0..over {
         note_prepare_part(
@@ -146,6 +176,12 @@ fn the_list_stops_at_its_bound_and_counts_the_rest() {
 /// so a name can never break the record's line.
 #[test]
 fn a_name_with_delimiters_stays_one_member() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_name_with_delimiters_stays_one_member",
+    ) {
+        return;
+    }
     note_prepare_part("a\"b\\c\nd", Duration::from_millis(1), Duration::ZERO);
     let (parts, _dropped) = drain_prepare_parts();
     let json: String = prepare_parts_json(parts.as_slice());

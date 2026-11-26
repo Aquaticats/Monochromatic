@@ -7,6 +7,11 @@
 //!   A record that says "kept" of a build that left every entry without stat data would send the next slow commit
 //!  after the wrong cause,
 //! so each way of building the index is run here and the built index is asked for its stat data.
+//!  The list of builds is one for the whole process,
+//!  which every build notes into and every timing record takes,
+//!  so each control that counts the builds of its own command runs its body in a child of its own
+//!  (`crate::process_wide_state_child_test_support`),
+//!  as issue 6509 found.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,22 +46,26 @@ use std::process::Command;
 /// The line `git ls-files --debug` prints for the modification time of an entry that was never refreshed.
 const UNSET_MODIFICATION_TIME: &str = "mtime: 0:0";
 
-/// The builds this process noted,
-/// which a control starts with none of.
-fn noted() -> Vec<IndexBuild> {
-    return drain_index_builds();
-}
-
 /// Builds are kept in the order they were noted,
 /// and taking them empties the list,
 /// so one record describes one command.
 #[test]
 fn each_build_is_noted_in_the_order_built_and_taken_once() {
-    assert_eq!(noted(), Vec::new(), "a control starts with no build");
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "each_build_is_noted_in_the_order_built_and_taken_once",
+    ) {
+        return;
+    }
+    assert_eq!(
+        drain_index_builds(),
+        Vec::new(),
+        "a control starts with no build"
+    );
     note_index_build(IndexBuildKind::First, true);
     note_index_build(IndexBuildKind::Retry, false);
     note_index_build(IndexBuildKind::Retry, true);
-    let taken: Vec<IndexBuild> = noted();
+    let taken: Vec<IndexBuild> = drain_index_builds();
     assert_eq!(
         taken,
         vec![
@@ -75,7 +84,7 @@ fn each_build_is_noted_in_the_order_built_and_taken_once() {
         ]
     );
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         Vec::new(),
         "the record takes the builds of its own command"
     );
@@ -165,6 +174,12 @@ fn explicit_path<'selection>(
 /// and the built index does hold the cached entry.
 #[test]
 fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_from_the_real_index_is_noted_as_keeping_the_stat_data",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-kept");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
@@ -180,7 +195,7 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
     )
     .expect("initialize");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::First,
             stat_data_kept: true
@@ -200,6 +215,12 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 /// which is the whole worktree rather than the entries that moved.
 #[test]
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-tree-alone");
     let (repo, indexes, base) = committed_repository(root.as_path());
     // A mark the copy cannot carry makes the retry build the index from the tree alone (`seed_of_index_bytes`).
@@ -220,7 +241,7 @@ fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     )
     .expect("retry index");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::Retry,
             stat_data_kept: false
@@ -238,6 +259,12 @@ fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
 /// so the two ways of building a retry index are told apart in the record.
 #[test]
 fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-retry-kept");
     let (repo, indexes, base) = committed_repository(root.as_path());
     let tree: String = git_text(
@@ -253,7 +280,7 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     )
     .expect("retry index");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::Retry,
             stat_data_kept: true
@@ -426,6 +453,12 @@ fn whole_index(base: &str) -> IndexSelection<'_> {
 /// so it is noted as keeping the stat data the real index holds.
 #[test]
 fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-index-mode");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
@@ -439,7 +472,7 @@ fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
     )
     .expect("initialize");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::First,
             stat_data_kept: true
@@ -459,6 +492,12 @@ fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
 /// so a reader is never told a build kept what never existed.
 #[test]
 fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-no-index");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repository directory");
@@ -485,7 +524,7 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
     )
     .expect("initialize");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::First,
             stat_data_kept: false
@@ -499,6 +538,12 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
 /// and the reset drops the mark whose path the base does not hold.
 #[test]
 fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-intent");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
@@ -519,7 +564,7 @@ fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
     )
     .expect("initialize");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::First,
             stat_data_kept: true
@@ -542,6 +587,12 @@ fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
 /// which is the build a moved branch pays several times.
 #[test]
 fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("index-builds-intent-retry");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
@@ -562,7 +613,7 @@ fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_t
     )
     .expect("retry index");
     assert_eq!(
-        noted(),
+        drain_index_builds(),
         vec![IndexBuild {
             kind: IndexBuildKind::Retry,
             stat_data_kept: true
