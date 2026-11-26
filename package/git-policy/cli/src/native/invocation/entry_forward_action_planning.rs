@@ -124,7 +124,12 @@ pub(crate) fn forward_action(
         Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
     };
     let writes_index: bool = is_index_writer(&command);
-    if !writes_index && copy_bypassed {
+    // A `git worktree remove` or `git worktree move` behind a global option this build does not read is refused in a
+    //  repository that holds slot records, so it keeps the copy bypassed only when no record stands
+    //  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+    let slot_command_the_global_hides: bool =
+        crate::entry_zfs_slot_commands::is_a_slot_command_behind_an_unread_global(&command);
+    if !writes_index && copy_bypassed && !slot_command_the_global_hides {
         return Action::Forward {
             real_git,
             arguments: forwarded_arguments,
@@ -143,6 +148,12 @@ pub(crate) fn forward_action(
         Some(common) => Some(common.to_path_buf()),
         None => location.common_directory_outside_a_worktree.clone(),
     };
+    #[cfg(target_os = "linux")]
+    if let Some(ending) =
+        crate::entry_zfs_slot_commands::unread_global_refusal_of(&command, common_dir.as_deref())
+    {
+        return ending;
+    }
     if location.identity == WorktreeIdentity::OutsideWorktree {
         // A command started inside a Git directory stands in no worktree, and Git still names the repository it belongs
         //  to: the slot refusals run over that directory, whose records are the ones the command would endanger

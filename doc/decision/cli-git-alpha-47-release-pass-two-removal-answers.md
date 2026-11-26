@@ -44,3 +44,25 @@ So the removal refuses as the move does,
 naming the record it cannot read and what to repair,
 and `SPEC.md`'s passage changes to say so.
 Not chosen: "Keep SPEC as written".
+
+## Two follow-up answers
+
+Accepted by the owner on 2026-11-26 at about 17:10 -05:00, through the question tool,
+after the round that built the two answers (branch `fix/git-policy-cli-wrapper-zfs-removal-refusals-for-an-unknown-option-and-an-unreadable-record`) named what they leave open.
+
+### An unknown option before `-C`, typed outside the repository
+
+The finding: in `/home/me`, `git --future-option=x -C checkouts/repo worktree remove -f -f slot-one`
+stops the wrapper's reading at the option it does not know, so it never learns that `-C` names the repository and forwards the removal.
+
+Answer: "Refuse it too (Recommended)".
+So a `worktree remove` or `move` behind a global option the wrapper does not know is also refused when the wrapper cannot tell which repository it names,
+and the refusal says why. Not chosen: "Keep forwarding it".
+
+### Three more slots nothing proves
+
+The finding: `SPEC.md` left to Git three cases where the wrapper cannot prove what a slot holds:
+no record but a mount at the slot, a record naming another path, and a mount table it cannot read.
+
+Answer: "Refuse all three (Recommended)".
+So the removal refuses in each, naming what could not be proved, and `SPEC.md` says so. Not chosen: "Leave them to Git".

@@ -394,6 +394,58 @@ fn every_spelling_of_a_bound_slots_removal_is_refused() {
 }
 
 /// What:
+///  A record filed under the slot's name that cannot be read refuses the removal,
+///  and no mount table is read to decide it.
+/// Why:
+///  The alpha.47 pass's finding 12:
+///  with the record overwritten by garbage the move refused while the removal
+///  went to Git,
+///  whose `-f -f` deleted the registration and the slot folder;
+///  the record is the whole question,
+///  so the answer comes before any mount or pool read
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+#[test]
+fn a_record_that_cannot_be_read_refuses_the_removal() {
+    let bound: RegisteredSlot = bound_slot("removal-of-an-unreadable-record");
+    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(
+        bound.common.as_path(),
+    );
+    std::fs::create_dir_all(home.as_path()).expect("the fixture home");
+    std::fs::write(home.join("one.binding"), b"not a record\n").expect("the foreign record writes");
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &ATableNoControlReads,
+        intents: &intents,
+    };
+    let (target, common): (PathBuf, PathBuf) =
+        the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
+    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+        target.as_path(),
+        common.as_path(),
+        RemovalReads::Unreadable("this control reads no pool"),
+        &sources,
+    )
+    .expect("a record that cannot be read refuses the removal");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains("one.binding"),
+        "the refusal names the record it could not read: {}",
+        refusal.stderr
+    );
+    assert!(
+        refusal.stderr.contains("cannot be read"),
+        "{}",
+        refusal.stderr
+    );
+    assert!(
+        refusal.stderr.contains("restore it from a copy"),
+        "the refusal names the repair: {}",
+        refusal.stderr
+    );
+    remove(bound.root.as_path());
+}
+
+/// What:
 ///  A repository with no record folder answers nothing without reading the
 ///  mount table.
 /// Why:

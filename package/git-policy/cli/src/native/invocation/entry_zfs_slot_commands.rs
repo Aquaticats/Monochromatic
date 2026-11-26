@@ -27,11 +27,17 @@
 
 use crate::action::Action;
 use crate::forwarded_command::ResolvedCommand;
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::worktree_add_plan::{
     copy_start_directory,
     start_directory,
 };
+use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_link_repair::link_report_lines;
 use crate::worktree_clone_link_repair::live_link_report::{
     repair_paths,
@@ -102,6 +108,175 @@ fn worktree_subcommand(command: &ResolvedCommand) -> Option<&[u8]> {
 /// ```
 fn prune_removes_nothing(command: &ResolvedCommand) -> bool {
     return crate::worktree_clone_prune_pointer::a_prune_that_removes_nothing(command.region());
+}
+
+/// What:
+///  The two `git worktree` words this file refuses when a global option the
+///  wrapper does not read stands before them.
+/// Why:
+///  A removal deletes a bound slot's registration and underlay pointer,
+///  and a move leaves the record and the registration naming different paths,
+///  so both are refused where the operand cannot be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SlotCommandWord = 'remove' | 'move';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SlotCommandWord {
+    /// `git worktree remove`
+    Remove,
+    /// `git worktree move`
+    Move,
+}
+
+impl SlotCommandWord {
+    /// The word as the command line spells it.
+    fn word(self) -> &'static str {
+        return match self {
+            SlotCommandWord::Remove => "remove",
+            SlotCommandWord::Move => "move",
+        };
+    }
+
+    /// What the command would have done,
+    /// which the refusal says did not happen.
+    fn done(self) -> &'static str {
+        return match self {
+            SlotCommandWord::Remove => "removed",
+            SlotCommandWord::Move => "moved",
+        };
+    }
+}
+
+/// What:
+///  The word of one `git worktree` subcommand this file refuses,
+///  or nothing for every other word.
+/// Why:
+///  `git worktree` declares its subcommands rather than options,
+///  so the word after it says which command Git would run.
+fn slot_command_word(bytes: &[u8]) -> Option<SlotCommandWord> {
+    return match bytes {
+        b"remove" => Some(SlotCommandWord::Remove),
+        b"move" => Some(SlotCommandWord::Move),
+        _ => None,
+    };
+}
+
+/// What:
+///  The `git worktree` command one line would run,
+///  with the global option that stopped the wrapper's reading of it,
+///  or nothing when the reading reached the command word.
+/// Why:
+///  A global option a newer Git adds stops the boundary scan before the
+///  command word,
+///  so the resolved command names no subcommand,
+///  and the words after that option are what says which command would run.
+///  The scan is the wrapper's copy of Git 2.56's global table
+///  (`global_arguments::scan_globals`),
+///  the same set `copy_start_directory` reads,
+///  so the token named here is the one that leaves the operand unread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function slotCommandBehindAnUnreadGlobal(command): { option, word } | undefined;
+/// ```
+fn slot_command_behind_an_unread_global(
+    command: &ResolvedCommand
+) -> Option<(&OsString, SlotCommandWord)> {
+    let layout: GlobalLayout = global_layout(command.arguments.as_slice());
+    if layout.outcome != GlobalOutcome::InvalidOption {
+        return None;
+    }
+    let option: &OsString = command.arguments.get(layout.prefix_len)?;
+    // Git stops its option loop at the command word, so the first `worktree` after the option it cannot read starts the
+    //  command whose words follow it.
+    for (index, token) in command
+        .arguments
+        .iter()
+        .enumerate()
+        .skip(layout.prefix_len + 1)
+    {
+        if token.as_encoded_bytes() != b"worktree" {
+            continue;
+        }
+        let subcommand: &OsString = command.arguments.get(index + 1)?;
+        if let Some(word) = slot_command_word(subcommand.as_encoded_bytes()) {
+            return Some((option, word));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Whether this command is a `git worktree remove` or `git worktree move`
+///  behind a global option the wrapper does not read.
+/// Why:
+///  The planner asks before it lets a command with no index write through,
+///  because that is the plain forward a command the boundary scan cannot place
+///  would otherwise take.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hidden = isASlotCommandBehindAnUnreadGlobal(command);
+/// ```
+pub fn is_a_slot_command_behind_an_unread_global(command: &ResolvedCommand) -> bool {
+    return slot_command_behind_an_unread_global(command).is_some();
+}
+
+/// What:
+///  The sentence one refusal of a removal or a move behind a global option this
+///  build does not read prints.
+/// Why:
+///  It names the option it could not read and the two spellings the wrapper
+///  reads,
+///  so a person has a command that runs instead of a refusal
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+fn unread_global_sentence(
+    option: &OsString,
+    word: SlotCommandWord,
+) -> String {
+    let typed: std::borrow::Cow<'_, str> = option.to_string_lossy();
+    return format!(
+        "`git worktree {word}` is refused: `{typed}` is a global option this wrapper does not read, so nothing proves which worktree the command names, and this repository holds the records of managed-clone slots. Nothing was {done} and Git did not run. Run the command again without `{typed}`, or write it as `git -C <repository> worktree {word} ...`: the options the wrapper reads leave the operand in view, so a slot a binding record proves is a whole clone is protected either way.",
+        word = word.word(),
+        done = word.done()
+    );
+}
+
+/// What:
+///  The refusal of one `git worktree remove` or `git worktree move` behind a
+///  global option this build does not read,
+///  in a repository that holds slot records.
+/// Why:
+///  The owner's answer of 2026-11-26:
+///  a repository that holds slot records refuses the command rather than leave
+///  it to Git,
+///  whose removal would delete a bound slot's registration and underlay pointer
+///  and whose move would leave the record naming the old path.
+///  A repository with no slot record is forwarded as before,
+///  and the decision reads no pool and no mount table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ending = unreadGlobalRefusalOf(command, commonDir); // undefined leaves the command to Git
+/// ```
+pub fn unread_global_refusal_of(
+    command: &ResolvedCommand,
+    common_dir: Option<&Path>,
+) -> Option<Action> {
+    let (option, word): (&OsString, SlotCommandWord) =
+        slot_command_behind_an_unread_global(command)?;
+    let common: &Path = common_dir?;
+    // A repository with no record folder holds no bound slot, so the command costs no refusal and reaches Git as before.
+    if !home_folder(common).is_dir() {
+        return None;
+    }
+    return Some(Action::Exit {
+        code: REFUSAL_STATUS,
+        stdout: String::new(),
+        stderr: format!("{}\n", unread_global_sentence(option, word)),
+    });
 }
 
 /// What:
