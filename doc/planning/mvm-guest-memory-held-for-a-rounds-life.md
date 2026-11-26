@@ -1306,10 +1306,10 @@ the rest already destroy their guest after their one arm.
 
 Ranking:
 keep one guest per driver run > clone a prepared image per arm > create per arm.
-Keeping one guest is measured and costs one preparation per driver run;
-cloning a prepared image could cut the 284.22 second preparation that makes per-arm guests dear,
-but nothing here measured it;
-creating per arm is measured to cost about five minutes per arm it isolates.
+Keeping beats cloning because keeping is measured at one preparation per driver run,
+while cloning is unmeasured;
+cloning beats creating per arm because cloning aims at the 284.22 second preparation,
+while creating per arm is measured to cost about five minutes per arm it isolates.
 
 Question for the owner,
 ready to paste
@@ -1324,8 +1324,9 @@ Clone a prepared image per arm: pro, it could cut the 284.22 s preparation that 
 dear. Con, unmeasured, and it needs a prepared image and a driver change.
 Create per arm: pro, every arm starts fresh and the charge returns at each gap. Con, about 10 s of
 create plus the 284.22 s preparation per arm, plus 7 m 40 s if that arm builds the crate.
-Ranking: keep one guest > clone a prepared image > create per arm, because keeping is measured and
-cheapest, cloning could beat it but is unmeasured, and creating per arm is measured to cost minutes.
+Ranking: keep one guest > clone a prepared image > create per arm, because keeping is measured at
+one preparation per run, cloning could cut that preparation but is unmeasured, and creating per arm
+is measured to cost minutes per arm.
 ```
 
 ### Should the crate's test binaries be built outside the guest?
