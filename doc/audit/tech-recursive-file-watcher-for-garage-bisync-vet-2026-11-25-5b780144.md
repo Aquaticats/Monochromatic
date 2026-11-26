@@ -3,10 +3,11 @@
 ## Report metadata
 
 - Status:
-  in progress,
-  not reviewed,
-  not approved by the owner,
-  no recommendation yet.
+  recommendation suspended:
+  a design review found that directory-watcher 3.2.1 cannot watch names starting with `.` or `_`
+  (see "Hard constraint failure found in review");
+  the owner adopted it in round 7 before that finding;
+  not approved as final.
 - Lifecycle phase:
   discovery and screening complete (saturated);
   targeted evidence, finalist validation and scoring not started.
@@ -27,7 +28,7 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:59:11-05:00.
+  2026-11-25T20:18:41-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
@@ -1573,6 +1574,74 @@ The skill's alternatives rule allows one survivor after saturated discovery;
 every exhausted source is in "Query log",
 and every exit is recorded with its evidence.
 
+## Finalist validation: directory-watcher 3.2.1 (2026-11-25T19:44:55-05:00)
+
+Record: `doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/directory-watcher-runtime-validation.md` (commits `4dc150e53f`, `fca5795006`),
+with an execution manifest per command tree and an amendment log.
+
+- Artifacts:
+  the release's `checksums.txt`, the Linux `x86_64` archive and the GitHub API digests agree;
+  the extracted binary is `9b1fd474ae39e3dcd50a5a125335ffaa6d779c1495df05f82f97bee8a726fcdd`.
+- Upstream CI-equivalent in `golang:1.27` (Go 1.27.4), network only for `go mod download`:
+  build, vet and `make smoke-example` pass;
+  `go test -count=1 -race -v ./...` first failed nine tests on waited-for conditions,
+  measured cause: the container had no init process,
+  so orphaned hook processes stayed zombies that the harness's `kill(pid, 0)` liveness check counts as alive;
+  with `--init` the same tests passed 8 of 8 at a heavier load,
+  and the whole suite passed (240 top-level tests, 421 subtests, 2 kqueue-only skips, none failed).
+- Consumer boundary on Linux, release binary under systemd 262 in a container,
+  system units standing in for user units,
+  2000 ms batch wait, `**/*.partial` excluded:
+  one edit gives one sync about 2.05 s later;
+  an edit during a sync gives exactly one more sync, and the running one finishes both passes;
+  a sync started directly (the timer's path) plus an edit gives one fresh sync after it;
+  200 files over 4.9 s give three syncs, one per batch window;
+  a new folder is watched;
+  an atomic save gives one sync on the final name;
+  `touch` and `chmod` give none;
+  a `.partial` file gives none until renamed;
+  eleven names with Japanese and Chinese characters, spaces, brackets, quotes and a fullwidth colon pass intact;
+  SIGTERM to the watcher mid-hook leaves the sync to finish both passes.
+- Not run:
+  macOS arm64 (the owner's machine; nothing third-party runs there without approval),
+  Windows x64 (no machine),
+  and the user-manager path (system units stood in);
+  none of the three is consumed today (only this PC is in scope),
+  and the record lists what a run on each must show.
+
+## Recommendation (2026-11-25T19:44:55-05:00)
+
+Score: not applicable;
+with one validated finalist no criterion or weight can change an order,
+so no criteria were frozen and no sensitivity run was needed.
+Recommended:
+directory-watcher 3.2.1 (`seungyeop-lee/directory-watcher` tag `v3.2.1`, commit `7286f534dbeb3854607b3a48875c4cf0bbb5e672`).
+Material risks, inline:
+one maintainer and no public issue history;
+release artifacts mapped to the tag but unsigned;
+a watch-limit failure exits without running the notification hook,
+so the unit's own failure alert has to catch it;
+on macOS its kqueue backend needs about 11786 descriptors for a tree this size,
+above launchd's default soft limit of 256.
+This is a recommendation, not adoption;
+adoption needs a separate owner decision and then a decision record.
+
+## Hard constraint failure found in review (2026-11-25T20:18:41-05:00)
+
+A cross-vendor design review found, and the coordinating session confirmed in the source docs,
+that directory-watcher 3.2.1 never watches files or folders whose names start with `.` or `_`
+("Files and folders whose names start with `.` or `_` are not watched", `docs/guide/events.md:82`),
+and that a `!` pattern cannot watch them again (`:108`).
+`~/Plain` holds 168 such entries.
+GW-19 recorded the default exclusion,
+but screening and validation did not test it against the hard constraint
+"watches every folder under the root recursively",
+and the runtime fixture held no such name.
+Under the governing skill this is a hard-gate failure,
+so no candidate now passes every hard constraint;
+whether to relax that constraint for these names, change the tool, or fall back is the owner's decision
+(design record, "Review findings").
+
 ## Evidence records
 
 Every record below was read on 2026-11-25 between 17:22 and 17:41 -05:00.
@@ -1847,3 +1916,5 @@ Node `fs.watch`; plus the smaller libraries listed in the ledger.
 
 Not started here: targeted evidence, external execution gate, finalist validation, scoring,
 recommendation, and re-keying the fingerprint for the round-3 requirement.
+(Written at discovery's end; all of these were done later, in the sections above,
+and the recommendation is now suspended, see "Hard constraint failure found in review".)

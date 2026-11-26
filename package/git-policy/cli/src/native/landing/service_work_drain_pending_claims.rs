@@ -45,87 +45,22 @@
 //! await drainPending(gitDir, handlers, now, lease, renewal, retrying)
 //! ```
 
+use super::service_work_drain_pushes_of_each_branch::push_the_branches_awaiting;
+use super::service_work_drain_waves_of_one_kind::{ask_prewarm, ask_review, ask_relink, ask_trash};
 use super::service_work_handlers_replanning_and_acceptance::*;
-use super::service_work_settling_a_verdict::settle_after_the_push;
 use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::{HousekeepingOfOneRound, LOOK_AGAIN_AFTER_DEFERRING};
 use crate::service_work_storage_awaited::{
     acceptable_awaiting, claim_all_awaiting, next_claim_expiry_awaiting, requeue_expired_awaiting, settle_all_awaiting, still_held_awaiting,
 };
-use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
-use crate::service_work_items_side_by_side::{
-    pushes_side_by_side, run_and_settle_side_by_side, run_and_settle_what_the_round_may_start, slow_items_side_by_side, waves_of,
-};
+use crate::service_work_items_side_by_side::{run_and_settle_side_by_side, run_and_settle_what_the_round_may_start, slow_items_side_by_side};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
-use crate::service_timing::log_entry;
 use crate::parallel_budget::HostResources;
-use crate::side_by_side_on_the_current_task::{AnAnswer, AnswersAsTheyCome};
-use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind};
-use std::future::Future;
+use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkKind};
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
-use std::time::{Duration, Instant, SystemTime};
-
-/// The key two pushes may stand in each other's way over:
-/// the repository and the branch the group's newest record names.
-/// A group is never empty,
-/// so a group with no newest record is a state this module cannot make.
-fn branch_of(members: &[Claimed]) -> (PathBuf, String) {
-    return match members.last() {
-        Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
-        None => (PathBuf::new(), String::new()),
-    };
-}
-
-/// What:
-///  Ask the relink of one item and say how long it took,
-///  as the wave of relinks asks it.
-/// Why:
-///  A named function rather than a closure,
-/// because what a wave's item is asked for is a body that outlives the poll
-/// that started it and captures nothing of the caller.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function askRelink(handlers, item) { const t0 = now(); const v = await handlers.relink(item); if (v.done) log(t0); return v }
-/// ```
-fn ask_relink<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
-    return Box::pin(async move {
-        let relinking: Instant = Instant::now();
-        let verdict: Verdict = handlers.relink_awaiting(item).await;
-        if matches!(verdict, Verdict::Done) {
-            crate::service_log!("the package state of {} was relinked relink_ms={}", item.repository.display(), relinking.elapsed().as_millis());
-        }
-        return verdict;
-    });
-}
-
-/// The prewarm of one item,
-/// as its wave asks it.
-fn ask_prewarm<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
-    return Box::pin(async move { return handlers.prewarm_awaiting(item).await; });
-}
-
-/// The emptying of one trash,
-/// as its wave asks it.
-fn ask_trash<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
-    return Box::pin(async move { return handlers.trash_awaiting(item).await; });
-}
-
-/// The review of one item and the line that says how long it took,
-/// as its wave asks it.
-fn ask_review<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
-    return Box::pin(async move {
-        let review_began: Instant = Instant::now();
-        let verdict: Verdict = handlers.review_awaiting(item).await;
-        if matches!(verdict, Verdict::Done) {
-            crate::service_log!("the review of {} is done review_ms={}", item.oid, review_began.elapsed().as_millis());
-        }
-        return verdict;
-    });
-}
+use std::time::{Duration, Instant};
 
 /// What:
 ///  The identity of a claimed item,
@@ -274,103 +209,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 _ => upkeep.push(item),
             }
         }
-        let mut groups: Vec<((PathBuf, String), Vec<Claimed>)> = Vec::new();
-        for item in pushes {
-            let key = (item.item.repository.clone(), item.item.branch_ref.clone());
-            let mut joined_at: Option<usize> = None;
-            for (at, existing) in groups.iter().enumerate() {
-                if existing.0 == key {
-                    joined_at = Some(at);
-                    break;
-                }
-            }
-            match joined_at {
-                Some(at) => groups[at].1.push(item),
-                None => groups.push((key, vec![item])),
-            }
-        }
-        // The claims of every branch are checked before any push starts, so one listing of the claim directory serves
-        //  them all, and a branch another instance took over is left to it.
-        let mut branches: Vec<Vec<Claimed>> = Vec::new();
-        for (_, claimed_members) in groups {
-            let members: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), claimed_members).await {
-                Some((back, mine)) => {
-                    held = back;
-                    mine
-                }
-                None => break 'round,
-            };
-            if !members.is_empty() {
-                branches.push(members);
-            }
-        }
-        // The pushes of different branches run side by side: each names its own branch, its own objects are already in the
-        //  repository's store, and only the branch it updates and the reference it tracks are its own. The same branch's
-        //  records are one group, so one branch is never pushed twice at once.
-        let branches_wide: usize = pushes_side_by_side(branches.len(), &host);
-        let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(Vec::as_slice).map(branch_of).collect();
-        for wave in waves_of(branch_keys.as_slice(), branches_wide) {
-            let mut running: Vec<Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>> = Vec::with_capacity(wave.len());
-            for index in &wave {
-                let mut items: Vec<WorkItem> = Vec::new();
-                for member in &branches[*index] {
-                    items.push(member.item.clone());
-                }
-                running.push(Box::pin(async move {
-                    // The push carries what existed when it began; a notice written after this moment is about something newer.
-                    let pushing_since: SystemTime = SystemTime::now();
-                    let pushing: Instant = Instant::now();
-                    let verdict: Verdict = handlers.push_awaiting(items.as_slice()).await;
-                    return (verdict, pushing_since, pushing.elapsed().as_millis());
-                }));
-            }
-            // Each branch is settled, and its notice written, as its own push ends:
-            //  a silent server holds its sibling for the push deadline or the connected push's quiet window, and the
-            //  refusal Git already gave must not wait for that.
-            let mut answers: AnswersAsTheyCome<'_, (Verdict, SystemTime, u128)> = AnswersAsTheyCome::starting(running);
-            while let Some((at, answer)) = answers.the_next_answer().await {
-                let (verdict, pushing_since, push_ms): (Verdict, SystemTime, u128) = match answer {
-                    AnAnswer::Answered(answered) => answered,
-                    // A push whose handler stopped unexpectedly fails with what happened, and the branches beside it go on.
-                    AnAnswer::Stopped(said) => (Verdict::Failed(said), SystemTime::now(), 0),
-                };
-                let members: &Vec<Claimed> = &branches[wave[at]];
-                if let Some(newest) = members.last() {
-                    // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
-                    let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
-                        Verdict::Done | Verdict::Delivered { .. } => (Priority::Info, "done", ""),
-                        Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
-                        Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
-                        Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
-                    };
-                    let fields: [(&str, String); 3] = [
-                        ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
-                        ("CLI_GIT_OID", newest.item.oid.clone()),
-                        ("CLI_GIT_OUTCOME", outcome.to_string()),
-                    ];
-                    log_entry(
-                        priority,
-                        format!(
-                            "pushed branch={:?} oid={} items={} outcome={outcome} push_ms={push_ms}{}{said}",
-                            newest.item.branch_ref,
-                            newest.item.oid,
-                            members.len(),
-                            if said.is_empty() { "" } else { ": " }
-                        )
-                        .as_str(),
-                        &fields,
-                    );
-                }
-                match settle_after_the_push(held, work_dir.as_path(), git_dir, members, verdict, pushing_since, replanning).await {
-                    Some(back) => held = back,
-                    None => {
-                        // The set went with a job the system refused a thread for, so the branches still pushing are
-                        //  waited for and their records keep their lease.
-                        answers.the_rest().await;
-                        break 'round;
-                    }
-                }
-            }
+        // The pushes of this round's branches run beside each other, and each branch is settled, and its notice written,
+        //  as its own push ends (`service_work_drain_pushes_of_each_branch.rs`).
+        let pushed: Option<HeldClaims> = push_the_branches_awaiting(held, work_dir.as_path(), git_dir, handlers, pushes, &host, replanning).await;
+        match pushed {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
         //  and before every kind that frees space.

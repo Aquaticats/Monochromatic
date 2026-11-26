@@ -82,6 +82,21 @@ The proposal states each part the decisions leave without a design,
 and most of those parts as open items;
 this record does not copy them.
 
+State on 2026-11-25T19:20-05:00:
+the deferred-destroy refusal is shown, by plan step 15's guest arm on a file-backed pool
+(merged as `00ade823e5`: a marked origin refused at the early look with nothing written,
+at the check before the first snapshot delete with nothing sent,
+and at the check before the head destroy with the batch's snapshots named),
+so that sentence no longer waits on a measurement;
+forcing the removal of a held clone is measured for the holder kinds a guest could show
+(the forced arm round's guest arm, an extension of VM items 15 and 4,
+`~/temp/agent/zfs-step-17-forced-removal-arm-2026-11-25/keep/results-forced-arm.md`),
+and the kinds it could not show are refused, under the plan's "once the owed measurement shows it works";
+its decision half is built and unwired (`64a71a4c9b`),
+the half that ends holders and unmounts (the kernel calls) is not,
+and its waits stay unset until plan step 22 sizes them
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
+
 [owed]: ../planning/cli-git-zfs-worktree-design-proposal.md#forced-removal-and-deferred-origins
 
 ## Moved from the old handover

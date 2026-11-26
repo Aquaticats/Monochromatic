@@ -360,6 +360,28 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 }
 
 /// What:
+///  An empty stand-in process table for one fixture:
+///  a folder under the fixture's root that holds no process,
+///  which a removal reads in place of this machine's `/proc`.
+/// Why:
+///   A removal of a whole worktree reads every process of the account to see whether one works in it,
+///  and a control that read the machine's own table would depend on every program every other session runs:
+///  a program started after the fixture's worktree was made keeps that worktree,
+///  and issue 6475's container gate refused a removal over another test's process.
+///  A control about a process working inside the worktree writes the entry it needs here instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = anEmptyProcessTable(fixtureRoot); // a folder that holds no process
+/// ```
+pub(crate) fn an_empty_process_table(root: &Path) -> PathBuf {
+    let table: PathBuf = root.join("proc");
+    // A table that cannot be made is no table at all, so the control stops here rather than reading the machine's.
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    return table;
+}
+
+/// What:
 ///  Take a directory this test thread made under the thread's own cleanup,
 /// so it is removed when the thread ends however the test ended.
 /// Why:
