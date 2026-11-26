@@ -179,11 +179,34 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
     }
 }
 
-/// The header length a file states in its own first eight bytes,
-/// kept to the field's four bytes
-/// and parsed here rather than by the checker's own header reader,
-/// so the arm compares two readings of one file and not one reading with
-/// itself.
+/// What:
+///  `fn declared_header_bytes(bytes: &[u8])`
+/// is the header length one type-information file states,
+///  read from the four bytes after its magic,
+/// its version and its flags.
+/// `usize` here (not `u32`)
+///  is the width the checker's report uses,
+/// so the two numbers compare without a cast;
+///  `&[u8]` (not `Vec<u8>`) is a borrowed view of the bytes,
+/// which
+///  the caller keeps owning.
+/// Why:
+///  The arm compares the checker's report against the file,
+/// and reading the field
+///  here rather than through the checker's own header reader keeps the two
+/// readings independent,
+///  so one parser's mistake cannot agree with itself.
+/// Gotcha:
+///  The field is little-endian on this target,
+/// and `&[u8]` is a view into the
+///  caller's buffer, not a copy of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function declaredHeaderBytes(bytes: Uint8Array): number {
+///   return new DataView(bytes.buffer, bytes.byteOffset).getUint32(4, true);
+/// }
+/// ```
 ///
 /// # Panics
 /// When the file is shorter than the four bytes the field sits in.
@@ -194,5 +217,9 @@ fn declared_header_bytes(bytes: &[u8]) -> usize {
     let field: &[u8] = bytes
         .get(4..8)
         .expect("the module's own type information holds its header length");
+    // What: `from_le_bytes` reads the four bytes as a little-endian `u32`,
+    // and `as usize` widens it to the checker's report width; the trailing
+    // `;` makes this a `return` statement, not a tail expression.
+    // Why: hand the file's own stated header length to the arm's assertions.
     return u32::from_le_bytes([field[0], field[1], field[2], field[3]]) as usize;
 }
