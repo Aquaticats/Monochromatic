@@ -7815,6 +7815,9 @@ in order:
     and `worktree_clone_mount_handler/handler_mode_arguments.rs` (356).
     This is the planning doc's "Oversized files" section,
     which already says the files are split now and the layout pass moves the pieces.
+    Its count of 37 files is the measurement of 2026-11-04;
+    the ledger's of 2026-11-25 counts 24 over 300 non-comment lines and 30 more at 290 to 300,
+    and that is the list to brief from.
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,
