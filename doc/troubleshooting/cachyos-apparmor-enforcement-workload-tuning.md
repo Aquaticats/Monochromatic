@@ -2122,8 +2122,15 @@ so nothing was granted for it.
 - `/etc/apparmor.d/ivpn`, enforcing:
   the CLI reads `/etc/opt/ivpn/mutable/port.txt`,
   talks TCP to the daemon,
-  and `ivpn exclude` replaces itself with the requested command (`/** PUx`).
+  and `ivpn exclude` replaces itself with the requested command (`/** pux`).
   `ivpn status`, `ivpn splittun -status` and `ivpn servers` ran with no denial.
+  With split tunneling on, `ivpn exclude /usr/bin/env` and the UI's form
+  `sh -c '/usr/bin/ivpn exclude  /usr/bin/env'` ran with no denial.
+  The first draft used `PUx`:
+  the kernel then marked the exec secure and glibc dropped `TMPDIR` from the launched program,
+  which a direct start keeps
+  (see `doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md` for the secure-exec rule);
+  with `pux` the variable arrived.
 - `/etc/apparmor.d/ivpn-ui`, `flags=(unconfined)` with `userns`,
   the form apparmor.d uses for its Electron applications here
   (`obsidian`, `Discord`, `signal-desktop`, `1password`, `balena-etcher`).
@@ -2150,6 +2157,44 @@ so nothing was granted for it.
   It stays in complain mode until connect, disconnect, the firewall and split tunneling
   have run under it with an account logged in;
   a missing rule in enforce could strand the firewall half set up.
+
+### The daemon's netlink socket leaks into `ip` and `ps`
+
+Once the owner turned on split tunneling,
+the stock `ip` profile logged 1128 denials between 06:40 and 06:48 UTC,
+90 to 188 a minute, all of one shape:
+
+```text
+apparmor="DENIED" operation="file_inherit" class="net" info="failed type match" profile="ip" comm="ip" family="netlink" sock_type="dgram"
+```
+
+`ivpn-service` holds a netlink datagram socket without close-on-exec
+(fd 7, `flags=02`, its inode listed in `/proc/<pid>/net/netlink`),
+and polls `ip route` (IVPN `daemon/netinfo/netinfo_linux.go:74`);
+its `ps -aux` children met the same denial.
+`ip` and `ps` still worked with the descriptor revoked,
+but the flood fed an audit backlog that already drops records.
+This does not depend on the new `ivpn-service` profile:
+an unconfined daemon's children attach to `ip` and `ps` the same way.
+Applied with `append-a-batch-of-local-rules-and-load.ts`
+(label `ivpn-netlink-inherit-and-aa-install-cpu-max-2026-11-26`),
+following the owner's rule rather than an apparmor.d-style `deny` silencer:
+
+```text
+# /etc/apparmor.d/local/ip, /etc/apparmor.d/local/ps
+network netlink dgram,
+# /etc/apparmor.d/local/aa-install
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/app.slice/*/cpu.max r,
+```
+
+The next 20 seconds held no `ip`, `ps` or `aa-install` denial.
+The `aa-install` line answers five denials of
+`.../user@1000.service/app.slice/claude-code-bash/cpu.max`
+from this session's Shelly transactions,
+whose apparmor.d hook runs `aa-install` in the caller's cgroup;
+the file belongs to the user,
+so the existing `owner` rule could not match it.
+`sudo aa-install --status` afterwards reported 710 profiles up to date with no denial.
 
 ### apparmor_parser on drafts in the scratch folder
 

@@ -208,9 +208,9 @@ so a clean build downloads them again,
 and any registry credentials in the builder's `~/.npmrc` are no longer used.
 Upgrades work unchanged only once the recipe itself carries this.
 
-### Remove the `prefix` line from `~/.npmrc`
+## Not yet run: remove the `prefix` line from `~/.npmrc`
 
-Source-derived and not run:
+Source-derived:
 with no `prefix` or `globalconfig` line,
 `nvm_npmrc_bad_news_bears` returns `1` and the check passes,
 so `shelly install aur ivpn-ui` and later upgrades build unchanged.
