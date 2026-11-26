@@ -83,7 +83,8 @@ pub struct LinkRead {
 ///  naming the fault the entry has.
 /// Why:
 ///  Every finding says what to do next,
-///  and one entry can go wrong in seven ways.
+///  and one entry can go wrong in ten ways:
+///  seven faults of an entry itself and three of the `uses` folder that holds it.
 ///  The fault is part of the key,
 ///  because one line of a list must not tolerate whichever fault the entry has later:
 ///  a broken link fixed into a file is a different finding,
