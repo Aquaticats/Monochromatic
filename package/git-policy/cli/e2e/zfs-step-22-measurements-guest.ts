@@ -241,7 +241,10 @@ async function run(chosen: Options): Promise<void> {
     // build unpacks is taken from there and a missing one refuses.
     'test -f /mnt/shared/subject.tar.gz',
     'cp /mnt/shared/subject.tar.gz /root/subject.tar.gz',
-    `rm --recursive --force ${CRATE_DIR}`,
+    // The tree is unpacked over whatever the guest already holds, so a second
+    // run of the arm reuses the build's target folder instead of compiling the
+    // whole crate again; a renamed source file would linger, and this arm only
+    // adds files.
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,

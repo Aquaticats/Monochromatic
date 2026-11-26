@@ -608,6 +608,11 @@ fn add_rounds(fixture: &Fixture) {
         let control: AddRound = fixture.git_add(control_name.as_str());
         assert_eq!(control.status, Some(0), "round {round}: Git's own add made the worktree: {}", control.said);
         println!("STEP22 add arm=git round={round} ms={}", control.elapsed.as_millis());
+        if round == 0 {
+            // The control's own registration is the same administration the
+            // route copies and discards, so the discard is timed here once.
+            discard_arm(fixture);
+        }
         fixture.clear(control_name.as_str());
 
         let treatment_name: String = format!("clone-{round}");
@@ -638,6 +643,34 @@ fn add_rounds(fixture: &Fixture) {
         fixture.clear(treatment_name.as_str());
     }
     report_pairs("add-total", &controls, &treatments);
+}
+
+/// What:
+///  The discard the route's fill pays and the ordinary Git arm has no stage for:
+///  deleting the copied Git administration, at the bytes and file count the
+///  route's own copy holds.
+/// Why:
+///  The acceptance text asks for the disposal to be reported as a contribution
+///  against the control's total,
+///  and the route leaves no trash behind to time,
+///  so the arm deletes a copy of the same administration and times it.
+fn discard_arm(fixture: &Fixture) {
+    let mut times: Vec<u128> = Vec::new();
+    let mut files: u64 = 0;
+    let mut bytes: u64 = 0;
+    for round in 0..ROUNDS {
+        let from: PathBuf = fixture.common();
+        let to: PathBuf = fixture.root.join(".claude").join("discard-measure");
+        let _stale: std::io::Result<()> = std::fs::remove_dir_all(to.as_path());
+        copy_tree(from.as_path(), to.as_path());
+        files = count_files(to.as_path());
+        bytes = tree_bytes(to.as_path());
+        let started: Instant = Instant::now();
+        std::fs::remove_dir_all(to.as_path()).expect("the copied administration goes");
+        times.push(started.elapsed().as_millis());
+        println!("STEP22 discard round={round} files={files} bytes={bytes} ms={}", times[times.len() - 1]);
+    }
+    println!("STEP22 discard files={files} bytes={bytes} ms={times:?} mid={}", middle(&times));
 }
 
 /// What:
