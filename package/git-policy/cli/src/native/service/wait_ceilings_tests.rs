@@ -420,8 +420,10 @@ fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
         "one measured pace of a line to a stream serves both"
     );
     let command: &str = include_str!("../repair/package_repair_command.rs");
+    // The call is read without the blanks rustfmt places when it puts each argument on a line of its own.
+    let code: String = command.split_whitespace().collect();
     assert!(
-        command.contains("write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor"),
+        code.contains("write_within(REPAIR_NOTICE_WRITE_CEILING,StandardErrorDescriptor"),
         "the repair's notice is written within this bound, through the descriptor that holds no lock"
     );
 }
