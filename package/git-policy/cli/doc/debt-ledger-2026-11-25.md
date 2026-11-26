@@ -235,6 +235,35 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6487-one-process-wide-room-for-blocking-jobs`:
+issue 6487 is fixed.
+The room a control gives a process,
+and the bound on blocking jobs it holds,
+are read by the one function a process
+plans with (`runtime_plan::workers_for_this_process`),
+so `budgeted_workers` and `plan_runtime` are functions of the host and limits a caller states again.
+Every control that sets either owns a child process of its own (`testing/process_wide_state_child_test_support.rs`),
+and the setters refuse anywhere else,
+naming the starter.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 394 passed; 0 failed; 8 ignored` at `3774b4a0cc`,
+from 335 passed,
+16 failed and a deadlock at `408abb6c0e`.
+Mechanisms 3a and 3g,
+and the queue and counters this item lists,
+lost their `foundation` sites to the same child
+and stay open where they reach other modules:
+`subvolume::subvolume_index_files::parallel_tests` fails 4 of 12 threaded,
+where `main`'s `e58ba6f078` fails 6 of 12,
+`service::service_server_connection_handling` fails 3 of 13 on both trees,
+and `worktree_copying/worktree_copy_lifecycle_tests.rs` keeps the sixth `skip_the_durability_syncs_here` site in the
+shared process.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
 Round of 2026-11-26:
 6484 (two heartbeat controls share one manager switch) is fixed and merged,
 and that file's four statics are gone:
