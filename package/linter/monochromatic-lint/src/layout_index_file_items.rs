@@ -133,7 +133,7 @@ fn what_it_holds(item: &ast::Item) -> String {
 /// Why:
 ///  A key is one line of a list file,
 ///  so an item written over several lines must not put a line break in it;
-///  the message still quotes the source as it is written.
+///  a token of the source, such as an ABI string, needs the same squeezing as a syntax node does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
