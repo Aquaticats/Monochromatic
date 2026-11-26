@@ -114,9 +114,10 @@ then OpenCode Go,
 then Neuralwatt flex,
 by `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`;
 the round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`)
-takes `qwen` unless `WRITER_POOL` names another,
-until the virtual writer round merges and rounds start on `--provider=rate-limit-fallback --model=writer`.
-Rounds started before that decision run on flex.
+takes `virtual` (`--provider=rate-limit-fallback --model=writer`) from 2026-11-26T07:10-05:00,
+once the virtual writer merged as `7c82b27ad0`;
+`WRITER_POOL` pins one member.
+Rounds started earlier run on the pool they named.
 
 - The crate split's round 1 (the rest of move-order step 2),
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
@@ -146,9 +147,6 @@ Rounds started before that decision run on flex.
   The fix round's claim of 244 `rust/folder-uses-links` findings on `main` did not reproduce:
   clean `git archive` exports of `44996d08eb` and `1efb8a1163` give 0 and 0
   (`~/temp/agent/layout-findings-on-a-clean-export-of-main-2026-11-26/keep/`).
-- The virtual writer with Qwen first,
-  window `virtual-writer-qwen-first`, run 2 on Qwen
-  (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
 
 Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
 so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
@@ -185,6 +183,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   its lock as `07c8785fa9`
   (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
 - The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
+- Pi's virtual writer with the owner's order, and the driver counting its runs in every member pool, as `7c82b27ad0`
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer is ready").
 - Debt ledger item 19 (lists of names held as slices, with a source guard) as `df7e6467c5`;
   whether the 297 local lists join it is in `doc/handover/questions-for-the-owner.md`.
 
