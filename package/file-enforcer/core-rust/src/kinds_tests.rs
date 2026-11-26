@@ -29,6 +29,21 @@ fn check() -> RunMode {
     };
 }
 
+/// What:
+///  The `json-keys` rule the tests drive:
+///  the repository object owned from where each manifest sits,
+///  plus the homepage link.
+/// Why:
+///  Every json-keys test exercises one shape of manifest against the same rule,
+/// so the rule text lives in one place.
+const JSON_KEYS_CONFIG: &str = r#"{"rules": [{"kind": "json-keys", "id": "meta", "manifests": ["package/*/*/package.json"],
+    "edits": [
+      {"guard": ["repository"], "path": ["repository", "type"], "value": "git"},
+      {"guard": ["repository"], "path": ["repository", "url"], "value": "https://new.example/mono.git"},
+      {"guard": ["repository"], "path": ["repository", "directory"], "value": {"var": "dir"}},
+      {"guard": ["repository"], "path": ["homepage"], "value": {"concat": ["https://new.example/tree/", {"var": "dir"}]}}
+    ]}]}"#;
+
 #[test]
 fn concat_joins_parts_sets_the_mode_and_converges() {
     let dir = scratch_dir();
@@ -266,19 +281,9 @@ fn json_keys_sets_guarded_members_and_keeps_the_rest_of_the_manifest() {
                 "package/x/e/package.json",
                 "{\n  \"name\": \"e\",\n  \"repository\": {}\n}\n",
             ),
-            (
-                "package/x/w/package.json",
-                "{\n  \"name\": \"w\",\n  \"repository\": \"github:old/mono\"\n}\n",
-            ),
         ],
     );
-    let config = r#"{"rules": [{"kind": "json-keys", "id": "meta", "manifests": ["package/*/*/package.json"],
-        "edits": [
-          {"guard": ["repository"], "path": ["repository", "type"], "value": "git"},
-          {"guard": ["repository"], "path": ["repository", "url"], "value": "https://new.example/mono.git"},
-          {"guard": ["repository"], "path": ["repository", "directory"], "value": {"var": "dir"}},
-          {"guard": ["repository"], "path": ["homepage"], "value": {"concat": ["https://new.example/tree/", {"var": "dir"}]}}
-        ]}]}"#;
+    let config = JSON_KEYS_CONFIG;
     let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
     assert_eq!(code1, 0, "{events1:?}");
     let written = read_text(dir.path(), "package/x/y/package.json");
@@ -310,18 +315,6 @@ fn json_keys_sets_guarded_members_and_keeps_the_rest_of_the_manifest() {
         empty_object, expected_empty,
         "a member is added to an empty record"
     );
-    let string_repository = read_text(dir.path(), "package/x/w/package.json");
-    let expected_string = concat!(
-        "{\n",
-        "  \"name\": \"w\",\n",
-        "  \"repository\": \"github:old/mono\",\n",
-        "  \"homepage\": \"https://new.example/tree/package/x/w\"\n",
-        "}\n",
-    );
-    assert_eq!(
-        string_repository, expected_string,
-        "a parent that is not a record is left alone"
-    );
     assert_eq!(
         read_text(dir.path(), "package/x/z/package.json"),
         "{\n  \"name\": \"z\"\n}\n",
@@ -350,6 +343,192 @@ fn json_keys_names_a_manifest_that_is_not_json_and_writes_nothing() {
         read_text(dir.path(), "package/x/z/package.json"),
         "{}\n",
         "a failing run writes nothing"
+    );
+}
+
+#[test]
+fn json_keys_fails_check_on_a_repository_that_is_not_an_object() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            (
+                "package/x/s/package.json",
+                "{\n  \"name\": \"s\",\n  \"repository\": \"github:Aquaticat/Monochromatic\"\n}\n",
+            ),
+            (
+                "package/x/n/package.json",
+                "{\n  \"name\": \"n\",\n  \"repository\": null\n}\n",
+            ),
+            (
+                "package/x/a/package.json",
+                "{\n  \"name\": \"a\",\n  \"repository\": []\n}\n",
+            ),
+        ],
+    );
+    let (code1, events1) = run_config(dir.path(), JSON_KEYS_CONFIG, check());
+    assert_eq!(code1, 1, "{events1:?}");
+    let findings: Vec<&str> = events1
+        .iter()
+        .filter(|event| return event.code == "manifest-shape")
+        .map(|event| return event.message.as_str())
+        .collect();
+    assert_eq!(findings.len(), 3, "{events1:?}");
+    for (manifest, held) in [
+        (
+            "package/x/s/package.json",
+            "\"github:Aquaticat/Monochromatic\"",
+        ),
+        ("package/x/n/package.json", "null"),
+        ("package/x/a/package.json", "[]"),
+    ] {
+        assert!(
+            findings
+                .iter()
+                .any(|message| return message.contains(manifest) && message.contains(held)),
+            "no finding names {manifest} holding {held}: {findings:?}"
+        );
+    }
+}
+
+#[test]
+fn json_keys_write_adds_no_homepage_beside_a_repository_that_is_not_an_object() {
+    let dir = scratch_dir();
+    let unmanaged = "{\n  \"name\": \"w\",\n  \"repository\": \"github:old/mono\"\n}\n";
+    write_files(dir.path(), &[("package/x/w/package.json", unmanaged)]);
+    let (code1, events1) = run_config(dir.path(), JSON_KEYS_CONFIG, RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    assert_eq!(count_code(&events1, "manifest-shape"), 1, "{events1:?}");
+    assert_eq!(
+        read_text(dir.path(), "package/x/w/package.json"),
+        unmanaged,
+        "no homepage lands beside a repository the rule cannot manage"
+    );
+}
+
+#[test]
+fn json_keys_never_edits_a_copy_a_later_duplicate_key_shadows() {
+    let dir = scratch_dir();
+    let duplicate = concat!(
+        "{\n",
+        "  \"name\": \"e\",\n",
+        "  \"repository\": {\n",
+        "    \"url\": \"https://old.example/e.git\"\n",
+        "  },\n",
+        "  \"repository\": \"github:old/e\"\n",
+        "}\n",
+    );
+    write_files(dir.path(), &[("package/x/e/package.json", duplicate)]);
+    let (code1, events1) = run_config(dir.path(), JSON_KEYS_CONFIG, RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    assert_eq!(count_code(&events1, "manifest-shape"), 1, "{events1:?}");
+    assert_eq!(
+        read_text(dir.path(), "package/x/e/package.json"),
+        duplicate,
+        "the shadowed repository object and the manifest stay as they are"
+    );
+}
+
+#[test]
+fn json_keys_reports_each_manifest_it_cannot_parse_and_the_later_rule_still_runs() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("package/x/one/package.json", "{\n  \"repository\": {\n"),
+            ("package/x/two/package.json", "{\n  \"repository\": \n"),
+            (
+                "package/x/good/package.json",
+                "{\n  \"name\": \"g\",\n  \"repository\": {}\n}\n",
+            ),
+            ("src/a.md", "a"),
+            ("outside.txt", "outside"),
+        ],
+    );
+    std::os::unix::fs::symlink("../outside.txt", dir.path().join("src/link.md")).expect("symlink");
+    let config = r#"{"rules": [
+        {"kind": "json-keys", "id": "meta", "manifests": ["package/*/*/package.json"],
+         "edits": [{"guard": ["repository"], "path": ["homepage"], "value": "https://new.example"}]},
+        {"kind": "mirror", "id": "mirror", "from": "src", "to": "dst"}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    let findings: Vec<&str> = events1
+        .iter()
+        .filter(|event| return event.code == "manifest-invalid")
+        .map(|event| return event.message.as_str())
+        .collect();
+    assert_eq!(findings.len(), 2, "{findings:?}");
+    assert!(
+        findings
+            .iter()
+            .any(|message| return message.contains("package/x/one/package.json")),
+        "{findings:?}"
+    );
+    assert!(
+        findings
+            .iter()
+            .any(|message| return message.contains("package/x/two/package.json")),
+        "{findings:?}"
+    );
+    for message in &findings {
+        assert!(
+            message.contains("comments") && message.contains("trailing commas"),
+            "the message says what the parser accepts: {message}"
+        );
+    }
+    assert_eq!(
+        count_code(&events1, "symlink-rejected"),
+        1,
+        "the rule after the failing one still ran: {events1:?}"
+    );
+    assert_eq!(
+        read_text(dir.path(), "package/x/good/package.json"),
+        "{\n  \"name\": \"g\",\n  \"repository\": {}\n}\n",
+        "a run with findings writes nothing"
+    );
+}
+
+#[test]
+fn json_keys_accepts_a_utf8_byte_order_mark_and_keeps_it() {
+    let dir = scratch_dir();
+    let manifest = "\u{feff}{\n  \"name\": \"b\",\n  \"repository\": {\n    \"url\": \"https://old.example/b.git\"\n  }\n}\n";
+    write_files(dir.path(), &[("package/x/b/package.json", manifest)]);
+    let (code1, events1) = run_config(dir.path(), JSON_KEYS_CONFIG, RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    let written = read_text(dir.path(), "package/x/b/package.json");
+    assert!(
+        written.starts_with('\u{feff}'),
+        "the mark survives: {written:?}"
+    );
+    assert!(
+        written.contains("\"url\": \"https://new.example/mono.git\""),
+        "{written}"
+    );
+    assert!(
+        written.contains("\"homepage\": \"https://new.example/tree/package/x/b\""),
+        "{written}"
+    );
+}
+
+#[test]
+fn json_keys_refuses_a_manifest_over_its_size_bound_by_name() {
+    let dir = scratch_dir();
+    let padding = "x".repeat(70 * 1024);
+    let oversized = format!(
+        "{{\n  \"name\": \"big\",\n  \"description\": \"{padding}\",\n  \"repository\": {{}}\n}}\n"
+    );
+    write_files(dir.path(), &[("package/x/big/package.json", &oversized)]);
+    let (code1, events1) = run_config(dir.path(), JSON_KEYS_CONFIG, check());
+    assert_eq!(code1, 1, "{events1:?}");
+    let messages: Vec<&str> = events1
+        .iter()
+        .filter(|event| return event.code == "manifest-too-large")
+        .map(|event| return event.message.as_str())
+        .collect();
+    assert_eq!(messages.len(), 1, "{events1:?}");
+    assert!(
+        messages[0].contains("package/x/big/package.json"),
+        "{messages:?}"
     );
 }
 
