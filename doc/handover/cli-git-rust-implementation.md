@@ -261,7 +261,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   failed on its branch and passed on `main` twice; rerun, the module `service::service_log_lines_off_the_calling_thread::` fails four or five of its six controls
   threaded on `main` itself, before the notices merge (`66d4b6fb08`) and after it, and passes in the gate: issue 6521, its round queued after 6520.
   Rechecked with that module skipped on both sides, the service split merged as `4cfa4d8fb8` (16:52); all five split round 2 branches are on `main`.
-  `service::` threaded on `main` still fails ten controls with that module skipped (nine of `service_client_reach_service`, two of `service_client`); being measured alone before an issue.
+  `service::` threaded on `main` still fails ten controls with that module skipped: their modules fail threaded and pass one test at a time,
+  sharing `static MANAGER` and the stop flag: issue 6522, its round queued after 6521. 6517's round ended (ETXTBSY traced to a sibling test's fork) and its merge check runs.
   `service::` threaded fails 14 and 15 on `main` itself; 12 of those failed on both sides.
   The host-key round's `ssh_terminal` binary tests failed 4 of 4 on `main` too: AppArmor's `sshd` profile refused the fixture's `sshd_config` under `~/.cargo/build/`;
   after the fourteenth AppArmor batch (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) they pass 4 of 4 on the host.

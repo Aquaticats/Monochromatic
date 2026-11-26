@@ -4,6 +4,13 @@
 //!  and a replaced,
 //!  rewritten,
 //!  stale or foreign entry that is never trusted.
+//!  Every control that copies or rewrites a fixture Git hands its body to
+//!  `run_the_body_in_a_child_of_its_own`,
+//!  so it is the only test of the process that writes that file:
+//!  the copy is opened for writing in the process that makes it,
+//!  a `fork` by another thread of a threaded run duplicates that descriptor into a child
+//!  that holds it until its own exec,
+//!  and an exec of the same file in that window is refused with `ETXTBSY` (issue 6517).
 
 use super::*;
 use crate::git_version::{
@@ -11,6 +18,7 @@ use crate::git_version::{
     ask_git_version,
     ask_git_version_cached,
 };
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::test_support::{
     REAL_GIT,
     executable,
@@ -65,13 +73,37 @@ fn plant(
 #[test]
 #[cfg(unix)]
 fn a_compiled_git_has_an_identity() {
-    let root: PathBuf = fixture("version-cache-identity");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let identity: BinaryIdentity = binary_identity(git_copy.as_path()).expect("identity");
-    assert_eq!(identity.path, git_copy.to_str().expect("fixture"));
-    assert!(identity.text.starts_with(identity.path.as_str()));
-    assert_eq!(binary_identity(git_copy.as_path()), Some(identity.clone()));
-    remove(root.as_path());
+    // What:     `run_the_body_in_a_child_of_its_own(module_path!(), name, body)` starts this test binary
+    //           on this one test, in a process of its own, and runs `body` there; `module_path!()` is
+    //           `invocation::git_version_cache::tests`, and the starter drops the crate's own first
+    //           segment to name the test the way libtest prints it.
+    //           `|| { .. }` is a closure: a block of code handed over as a value, which the starter
+    //           calls once in the child and this parent never calls at all.
+    // Why:      the fixture Git this body copies is opened for writing by whichever process runs the
+    //           copy, and `execve` refuses a file open for writing anywhere; a `fork` by another thread
+    //           of a threaded run copies that descriptor into a child that keeps it until its own exec,
+    //           so the start below fails with `ETXTBSY` unless this body is the process's only test
+    //           (issue 6517, measured: run 3 and run 4 of eight threaded runs of this module failed one
+    //           control each, and a traced run named the forked child of another test as the holder).
+    // Gotcha:   everything the body needs is made inside it, because nothing before this call runs in
+    //           the child.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(modulePath, 'a_compiled_git_has_an_identity', () => {
+    //   const root = fixture('version-cache-identity');
+    //   // ... the body ...
+    // });
+    // ```
+    run_the_body_in_a_child_of_its_own(module_path!(), "a_compiled_git_has_an_identity", || {
+        let root: PathBuf = fixture("version-cache-identity");
+        let git_copy: PathBuf = copy_git(root.as_path(), "git");
+        let identity: BinaryIdentity = binary_identity(git_copy.as_path()).expect("identity");
+        assert_eq!(identity.path, git_copy.to_str().expect("fixture"));
+        assert!(identity.text.starts_with(identity.path.as_str()));
+        assert_eq!(binary_identity(git_copy.as_path()), Some(identity.clone()));
+        remove(root.as_path());
+    });
 }
 
 /// A script,
@@ -81,30 +113,37 @@ fn a_compiled_git_has_an_identity() {
 #[test]
 #[cfg(unix)]
 fn scripts_and_shims_have_no_identity() {
-    let root: PathBuf = fixture("version-cache-shims");
-    let script: PathBuf = root.join("git");
-    executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.56.0'\n");
-    assert_eq!(binary_identity(script.as_path()), None);
+    // The fixture executables this body copies are written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "scripts_and_shims_have_no_identity",
+        || {
+            let root: PathBuf = fixture("version-cache-shims");
+            let script: PathBuf = root.join("git");
+            executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.56.0'\n");
+            assert_eq!(binary_identity(script.as_path()), None);
 
-    let other: PathBuf = copy_git(root.as_path(), "dispatcher");
-    assert_eq!(binary_identity(other.as_path()), None);
-    std::fs::create_dir(root.join("shims")).expect("fixture");
-    std::os::unix::fs::symlink(&other, root.join("shims").join("git")).expect("fixture");
-    assert_eq!(
-        binary_identity(root.join("shims").join("git").as_path()),
-        None
+            let other: PathBuf = copy_git(root.as_path(), "dispatcher");
+            assert_eq!(binary_identity(other.as_path()), None);
+            std::fs::create_dir(root.join("shims")).expect("fixture");
+            std::os::unix::fs::symlink(&other, root.join("shims").join("git")).expect("fixture");
+            assert_eq!(
+                binary_identity(root.join("shims").join("git").as_path()),
+                None
+            );
+
+            std::fs::create_dir(root.join("real")).expect("fixture");
+            let real: PathBuf = copy_git(root.join("real").as_path(), "git");
+            std::os::unix::fs::symlink(&real, root.join("shims").join("alias")).expect("fixture");
+            std::fs::create_dir(root.join("links")).expect("fixture");
+            std::os::unix::fs::symlink(&real, root.join("links").join("git")).expect("fixture");
+            let through_link: BinaryIdentity =
+                binary_identity(root.join("links").join("git").as_path()).expect("identity");
+            assert_eq!(through_link.path, real.to_str().expect("fixture"));
+            assert_eq!(binary_identity(root.join("missing").as_path()), None);
+            remove(root.as_path());
+        },
     );
-
-    std::fs::create_dir(root.join("real")).expect("fixture");
-    let real: PathBuf = copy_git(root.join("real").as_path(), "git");
-    std::os::unix::fs::symlink(&real, root.join("shims").join("alias")).expect("fixture");
-    std::fs::create_dir(root.join("links")).expect("fixture");
-    std::os::unix::fs::symlink(&real, root.join("links").join("git")).expect("fixture");
-    let through_link: BinaryIdentity =
-        binary_identity(root.join("links").join("git").as_path()).expect("identity");
-    assert_eq!(through_link.path, real.to_str().expect("fixture"));
-    assert_eq!(binary_identity(root.join("missing").as_path()), None);
-    remove(root.as_path());
 }
 
 /// A miss runs Git and records its text;
@@ -113,52 +152,62 @@ fn scripts_and_shims_have_no_identity() {
 #[test]
 #[cfg(unix)]
 fn a_miss_is_recorded_and_the_next_ask_hits() {
-    let root: PathBuf = fixture("version-cache-hit");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release())
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_miss_is_recorded_and_the_next_ask_hits",
+        || {
+            let root: PathBuf = fixture("version-cache-hit");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            let cache: PathBuf = cache_in(root.as_path());
+            let context: GitContext = context_for(git_copy.as_path());
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok(host_release())
+            );
+            assert!(std::fs::read_dir(&cache).expect("recorded").count() == 1);
+            plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok((9, 8, 7))
+            );
+            remove(root.as_path());
+        },
     );
-    assert!(std::fs::read_dir(&cache).expect("recorded").count() == 1);
-    plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok((9, 8, 7))
-    );
-    remove(root.as_path());
 }
 
 /// The cache directory is private to the user and its file is not readable by others.
 #[test]
 #[cfg(unix)]
 fn the_cache_is_private() {
-    use std::os::unix::fs::PermissionsExt;
-    let root: PathBuf = fixture("version-cache-private");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    assert_eq!(
-        ask_git_version_cached(&context_for(git_copy.as_path()), Some(cache.as_path())),
-        Ok(host_release())
-    );
-    let directory_mode: u32 = std::fs::metadata(&cache)
-        .expect("recorded")
-        .permissions()
-        .mode()
-        & 0o777;
-    assert_eq!(directory_mode, 0o700);
-    for entry in std::fs::read_dir(&cache).expect("recorded") {
-        let file_mode: u32 = entry
-            .expect("entry")
-            .metadata()
-            .expect("metadata")
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(module_path!(), "the_cache_is_private", || {
+        use std::os::unix::fs::PermissionsExt;
+        let root: PathBuf = fixture("version-cache-private");
+        let git_copy: PathBuf = copy_git(root.as_path(), "git");
+        let cache: PathBuf = cache_in(root.as_path());
+        assert_eq!(
+            ask_git_version_cached(&context_for(git_copy.as_path()), Some(cache.as_path())),
+            Ok(host_release())
+        );
+        let directory_mode: u32 = std::fs::metadata(&cache)
+            .expect("recorded")
             .permissions()
             .mode()
             & 0o777;
-        assert_eq!(file_mode, 0o600);
-    }
-    remove(root.as_path());
+        assert_eq!(directory_mode, 0o700);
+        for entry in std::fs::read_dir(&cache).expect("recorded") {
+            let file_mode: u32 = entry
+                .expect("entry")
+                .metadata()
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(file_mode, 0o600);
+        }
+        remove(root.as_path());
+    });
 }
 
 /// An executable replaced by another file at the same path is noticed:
@@ -166,81 +215,98 @@ fn the_cache_is_private() {
 #[test]
 #[cfg(unix)]
 fn a_replaced_executable_is_noticed() {
-    let root: PathBuf = fixture("version-cache-replaced");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok((9, 8, 7))
-    );
-    // A new file of the same size and content moves into place: only the inode and times differ.
-    let replacement: PathBuf = copy_git(root.as_path(), "git.new");
-    std::fs::rename(&replacement, &git_copy).expect("fixture");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release())
-    );
-    remove(root.as_path());
+    // The fixture Git this body copies twice and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(module_path!(), "a_replaced_executable_is_noticed", || {
+        let root: PathBuf = fixture("version-cache-replaced");
+        let git_copy: PathBuf = copy_git(root.as_path(), "git");
+        let cache: PathBuf = cache_in(root.as_path());
+        let context: GitContext = context_for(git_copy.as_path());
+        plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
+        assert_eq!(
+            ask_git_version_cached(&context, Some(cache.as_path())),
+            Ok((9, 8, 7))
+        );
+        // A new file of the same size and content moves into place: only the inode and times differ.
+        let replacement: PathBuf = copy_git(root.as_path(), "git.new");
+        std::fs::rename(&replacement, &git_copy).expect("fixture");
+        assert_eq!(
+            ask_git_version_cached(&context, Some(cache.as_path())),
+            Ok(host_release())
+        );
+        remove(root.as_path());
+    });
 }
 
 /// A file rewritten in place with other content is noticed by its size.
 #[test]
 #[cfg(unix)]
 fn an_executable_rewritten_with_other_size_is_noticed() {
-    let root: PathBuf = fixture("version-cache-size");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
-    // The same file (same inode), now another program.
-    std::fs::copy("/usr/bin/true", &git_copy).expect("fixture");
-    let answer: Result<GitRelease, String> =
-        ask_git_version_cached(&context, Some(cache.as_path()));
-    let message: String = answer.expect_err("the replaced program prints no version");
-    assert!(message.contains("an unreadable version"), "{message}");
-    remove(root.as_path());
+    // The fixture Git this body copies over and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_executable_rewritten_with_other_size_is_noticed",
+        || {
+            let root: PathBuf = fixture("version-cache-size");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            let cache: PathBuf = cache_in(root.as_path());
+            let context: GitContext = context_for(git_copy.as_path());
+            plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
+            // The same file (same inode), now another program.
+            std::fs::copy("/usr/bin/true", &git_copy).expect("fixture");
+            let answer: Result<GitRelease, String> =
+                ask_git_version_cached(&context, Some(cache.as_path()));
+            let message: String = answer.expect_err("the replaced program prints no version");
+            assert!(message.contains("an unreadable version"), "{message}");
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A file rewritten in place to the same size with its modification time put back is noticed by its change time.
 #[test]
 #[cfg(unix)]
 fn a_same_size_rewrite_with_the_old_mtime_is_noticed() {
-    let root: PathBuf = fixture("version-cache-ctime");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
-    let before: std::fs::Metadata = std::fs::metadata(&git_copy).expect("fixture");
-    let inode: u64 = std::os::unix::fs::MetadataExt::ino(&before);
-    let bytes: Vec<u8> = std::fs::read(&git_copy).expect("fixture");
-    std::fs::write(&git_copy, bytes.as_slice()).expect("fixture");
-    {
-        // The handle is closed at the end of this block: Linux refuses to run a file open for writing.
-        let file: std::fs::File = std::fs::OpenOptions::new()
-            .write(true)
-            .open(&git_copy)
-            .expect("fixture");
-        file.set_modified(before.modified().expect("fixture"))
-            .expect("fixture");
-    }
-    let after: std::fs::Metadata = std::fs::metadata(&git_copy).expect("fixture");
-    assert_eq!(
-        std::os::unix::fs::MetadataExt::ino(&after),
-        inode,
-        "the same file"
+    // The fixture Git this body rewrites and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_same_size_rewrite_with_the_old_mtime_is_noticed",
+        || {
+            let root: PathBuf = fixture("version-cache-ctime");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            let cache: PathBuf = cache_in(root.as_path());
+            let context: GitContext = context_for(git_copy.as_path());
+            plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
+            let before: std::fs::Metadata = std::fs::metadata(&git_copy).expect("fixture");
+            let inode: u64 = std::os::unix::fs::MetadataExt::ino(&before);
+            let bytes: Vec<u8> = std::fs::read(&git_copy).expect("fixture");
+            std::fs::write(&git_copy, bytes.as_slice()).expect("fixture");
+            {
+                // The handle is closed at the end of this block: Linux refuses to run a file open for writing.
+                let file: std::fs::File = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&git_copy)
+                    .expect("fixture");
+                file.set_modified(before.modified().expect("fixture"))
+                    .expect("fixture");
+            }
+            let after: std::fs::Metadata = std::fs::metadata(&git_copy).expect("fixture");
+            assert_eq!(
+                std::os::unix::fs::MetadataExt::ino(&after),
+                inode,
+                "the same file"
+            );
+            assert_eq!(after.len(), before.len());
+            assert_eq!(
+                after.modified().expect("fixture"),
+                before.modified().expect("fixture")
+            );
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok(host_release())
+            );
+            remove(root.as_path());
+        },
     );
-    assert_eq!(after.len(), before.len());
-    assert_eq!(
-        after.modified().expect("fixture"),
-        before.modified().expect("fixture")
-    );
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release())
-    );
-    remove(root.as_path());
 }
 
 /// An entry that is garbage,
@@ -252,82 +318,91 @@ fn a_same_size_rewrite_with_the_old_mtime_is_noticed() {
 #[test]
 #[cfg(unix)]
 fn stale_or_foreign_entries_are_not_trusted() {
-    use std::os::unix::fs::PermissionsExt;
-    let root: PathBuf = fixture("version-cache-foreign");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    let identity: BinaryIdentity = binary_identity(git_copy.as_path()).expect("identity");
-    plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
-    let entry: PathBuf = std::fs::read_dir(&cache)
-        .expect("planted")
-        .next()
-        .expect("one entry")
-        .expect("entry")
-        .path();
-    let good: Vec<u8> = std::fs::read(&entry).expect("planted");
-    let mut cases: Vec<(&str, Vec<u8>)> = Vec::new();
-    cases.push(("garbage", b"\x00\xff garbage".to_vec()));
-    cases.push(("empty", Vec::new()));
-    cases.push((
-        "other layout",
-        String::from_utf8_lossy(&good)
-            .replace("cache 1", "cache 2")
-            .into_bytes(),
-    ));
-    cases.push((
-        "other identity",
-        String::from_utf8_lossy(&good)
-            .replace(identity.text.as_str(), "other\t1\t2.3\t4.5\t6\t7")
-            .into_bytes(),
-    ));
-    cases.push((
-        "unparseable text",
-        String::from_utf8_lossy(&good)
-            .replace("git version 9.8.7", "hello")
-            .into_bytes(),
-    ));
-    cases.push((
-        "identity only",
-        format!("{}{}", file_tag(VERSION_KIND), identity.text).into_bytes(),
-    ));
-    for (label, bytes) in cases {
-        std::fs::remove_file(&entry).expect("fixture");
-        std::fs::write(&entry, bytes).expect("fixture");
-        std::fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o600)).expect("fixture");
-        assert_eq!(
-            ask_git_version_cached(&context, Some(cache.as_path())),
-            Ok(host_release()),
-            "{label}"
-        );
-    }
-    // A readable-by-others entry, a link and a directory in the entry's place.
-    std::fs::remove_file(&entry).expect("fixture");
-    std::fs::write(&entry, &good).expect("fixture");
-    std::fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o644)).expect("fixture");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release()),
-        "mode 0644"
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "stale_or_foreign_entries_are_not_trusted",
+        || {
+            use std::os::unix::fs::PermissionsExt;
+            let root: PathBuf = fixture("version-cache-foreign");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            let cache: PathBuf = cache_in(root.as_path());
+            let context: GitContext = context_for(git_copy.as_path());
+            let identity: BinaryIdentity = binary_identity(git_copy.as_path()).expect("identity");
+            plant(cache.as_path(), git_copy.as_path(), "git version 9.8.7\n");
+            let entry: PathBuf = std::fs::read_dir(&cache)
+                .expect("planted")
+                .next()
+                .expect("one entry")
+                .expect("entry")
+                .path();
+            let good: Vec<u8> = std::fs::read(&entry).expect("planted");
+            let mut cases: Vec<(&str, Vec<u8>)> = Vec::new();
+            cases.push(("garbage", b"\x00\xff garbage".to_vec()));
+            cases.push(("empty", Vec::new()));
+            cases.push((
+                "other layout",
+                String::from_utf8_lossy(&good)
+                    .replace("cache 1", "cache 2")
+                    .into_bytes(),
+            ));
+            cases.push((
+                "other identity",
+                String::from_utf8_lossy(&good)
+                    .replace(identity.text.as_str(), "other\t1\t2.3\t4.5\t6\t7")
+                    .into_bytes(),
+            ));
+            cases.push((
+                "unparseable text",
+                String::from_utf8_lossy(&good)
+                    .replace("git version 9.8.7", "hello")
+                    .into_bytes(),
+            ));
+            cases.push((
+                "identity only",
+                format!("{}{}", file_tag(VERSION_KIND), identity.text).into_bytes(),
+            ));
+            for (label, bytes) in cases {
+                std::fs::remove_file(&entry).expect("fixture");
+                std::fs::write(&entry, bytes).expect("fixture");
+                std::fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o600))
+                    .expect("fixture");
+                assert_eq!(
+                    ask_git_version_cached(&context, Some(cache.as_path())),
+                    Ok(host_release()),
+                    "{label}"
+                );
+            }
+            // A readable-by-others entry, a link and a directory in the entry's place.
+            std::fs::remove_file(&entry).expect("fixture");
+            std::fs::write(&entry, &good).expect("fixture");
+            std::fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o644))
+                .expect("fixture");
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok(host_release()),
+                "mode 0644"
+            );
+            std::fs::remove_file(&entry).expect("fixture");
+            std::fs::write(root.join("target"), &good).expect("fixture");
+            std::fs::set_permissions(root.join("target"), std::fs::Permissions::from_mode(0o600))
+                .expect("fixture");
+            std::os::unix::fs::symlink(root.join("target"), &entry).expect("fixture");
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok(host_release()),
+                "link"
+            );
+            std::fs::remove_file(&entry).expect("fixture");
+            std::fs::create_dir(&entry).expect("fixture");
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok(host_release()),
+                "directory"
+            );
+            remove(root.as_path());
+        },
     );
-    std::fs::remove_file(&entry).expect("fixture");
-    std::fs::write(root.join("target"), &good).expect("fixture");
-    std::fs::set_permissions(root.join("target"), std::fs::Permissions::from_mode(0o600))
-        .expect("fixture");
-    std::os::unix::fs::symlink(root.join("target"), &entry).expect("fixture");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release()),
-        "link"
-    );
-    std::fs::remove_file(&entry).expect("fixture");
-    std::fs::create_dir(&entry).expect("fixture");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok(host_release()),
-        "directory"
-    );
-    remove(root.as_path());
 }
 
 /// A cached text that parses as a release before the minimum is accepted like a live answer:
@@ -336,16 +411,23 @@ fn stale_or_foreign_entries_are_not_trusted() {
 #[test]
 #[cfg(unix)]
 fn a_cached_old_release_is_accepted_like_a_live_one() {
-    let root: PathBuf = fixture("version-cache-old");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    let cache: PathBuf = cache_in(root.as_path());
-    let context: GitContext = context_for(git_copy.as_path());
-    plant(cache.as_path(), git_copy.as_path(), "git version 2.54.0\n");
-    assert_eq!(
-        ask_git_version_cached(&context, Some(cache.as_path())),
-        Ok((2, 54, 0))
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_cached_old_release_is_accepted_like_a_live_one",
+        || {
+            let root: PathBuf = fixture("version-cache-old");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            let cache: PathBuf = cache_in(root.as_path());
+            let context: GitContext = context_for(git_copy.as_path());
+            plant(cache.as_path(), git_copy.as_path(), "git version 2.54.0\n");
+            assert_eq!(
+                ask_git_version_cached(&context, Some(cache.as_path())),
+                Ok((2, 54, 0))
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// Without a cache directory,
@@ -354,23 +436,30 @@ fn a_cached_old_release_is_accepted_like_a_live_one() {
 #[test]
 #[cfg(unix)]
 fn without_a_cache_or_an_identity_nothing_is_recorded() {
-    let root: PathBuf = fixture("version-cache-none");
-    let git_copy: PathBuf = copy_git(root.as_path(), "git");
-    assert_eq!(
-        ask_git_version_cached(&context_for(git_copy.as_path()), None),
-        Ok(host_release())
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "without_a_cache_or_an_identity_nothing_is_recorded",
+        || {
+            let root: PathBuf = fixture("version-cache-none");
+            let git_copy: PathBuf = copy_git(root.as_path(), "git");
+            assert_eq!(
+                ask_git_version_cached(&context_for(git_copy.as_path()), None),
+                Ok(host_release())
+            );
+            let script_root: PathBuf = root.join("script");
+            std::fs::create_dir(&script_root).expect("fixture");
+            let script: PathBuf = script_root.join("git");
+            executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.56.0'\n");
+            let cache: PathBuf = cache_in(root.as_path());
+            assert_eq!(
+                ask_git_version_cached(&context_for(script.as_path()), Some(cache.as_path())),
+                Ok((2, 56, 0))
+            );
+            assert!(!cache.exists());
+            remove(root.as_path());
+        },
     );
-    let script_root: PathBuf = root.join("script");
-    std::fs::create_dir(&script_root).expect("fixture");
-    let script: PathBuf = script_root.join("git");
-    executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.56.0'\n");
-    let cache: PathBuf = cache_in(root.as_path());
-    assert_eq!(
-        ask_git_version_cached(&context_for(script.as_path()), Some(cache.as_path())),
-        Ok((2, 56, 0))
-    );
-    assert!(!cache.exists());
-    remove(root.as_path());
 }
 
 /// A refusal is not recorded:
@@ -378,21 +467,24 @@ fn without_a_cache_or_an_identity_nothing_is_recorded() {
 #[test]
 #[cfg(unix)]
 fn a_failed_answer_is_not_recorded() {
-    let root: PathBuf = fixture("version-cache-failed");
-    let program: PathBuf = root.join("git");
-    std::fs::copy("/usr/bin/true", &program).expect("fixture");
-    let cache: PathBuf = cache_in(root.as_path());
-    let refusal: String =
-        ask_git_version_cached(&context_for(program.as_path()), Some(cache.as_path()))
-            .expect_err("no version");
-    assert!(refusal.contains("an unreadable version"), "{refusal}");
-    let recorded: usize = std::fs::read_dir(&cache)
-        .map(|entries| {
-            return entries.count();
-        })
-        .unwrap_or(0);
-    assert_eq!(recorded, 0);
-    remove(root.as_path());
+    // The fixture Git this body copies and starts is written here, so the body runs in a child of its own.
+    run_the_body_in_a_child_of_its_own(module_path!(), "a_failed_answer_is_not_recorded", || {
+        let root: PathBuf = fixture("version-cache-failed");
+        let program: PathBuf = root.join("git");
+        std::fs::copy("/usr/bin/true", &program).expect("fixture");
+        let cache: PathBuf = cache_in(root.as_path());
+        let refusal: String =
+            ask_git_version_cached(&context_for(program.as_path()), Some(cache.as_path()))
+                .expect_err("no version");
+        assert!(refusal.contains("an unreadable version"), "{refusal}");
+        let recorded: usize = std::fs::read_dir(&cache)
+            .map(|entries| {
+                return entries.count();
+            })
+            .unwrap_or(0);
+        assert_eq!(recorded, 0);
+        remove(root.as_path());
+    });
 }
 
 /// The cached answer equals the live answer for the host Git.
