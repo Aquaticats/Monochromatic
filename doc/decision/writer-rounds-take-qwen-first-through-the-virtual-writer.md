@@ -77,3 +77,31 @@ From 2026-11-26T07:10-05:00 the round launcher takes `virtual`
 (`--provider=rate-limit-fallback --model=writer`) by default,
 and `WRITER_POOL=qwen`,
 `opencode-go` or `neuralwatt-flex` pins one member.
+
+## The virtual writer is not capped at its smallest member (owner, 2026-11-26)
+
+At about 17:30 -05:00 the owner read that five rounds ran at once because Qwen's room is 5 and answered:
+"Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
+Two things had held the count at five:
+the coordinator's round starters waited for fewer than five virtual-writer drivers,
+and the driver counts a virtual-writer run as a slot in every member pool (`VIRTUAL_POOLS`),
+so the smallest member bounds them all and each run also holds opencode-go's and flex's room it is not using.
+The coordinator's starters had held that count themselves:
+the round launcher calls `drive-pi-subagent.ts` directly,
+which refuses only a closed pool and checks no pool's room (its own header, lines 5 and 6),
+so the driver's count never reached those rounds.
+From 2026-11-26T17:50-05:00 every coordinator round starts on the virtual writer,
+pinned to no member,
+under the owner's start rules alone
+(three minutes apart, behind the memory test, up to 64 at once;
+`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/schedule-every-queued-round.ts`).
+A first try pinned the overflow to opencode-go,
+and both rounds it started ended on their first request with opencode-go's
+`429: {"type":"GoUsageLimitError"` refusal of its spent monthly quota,
+which the virtual writer moves on to flex because it comes before any output
+(`package/pi-plugin/rate-limit-fallback/README.md`).
+Starts through the driver's pool gate
+(`start-pi-run-when-a-pool-has-room.ts`, the batch list and the retrying start)
+still count a virtual-writer run as a slot in every member and so stop at Qwen's 5;
+the driver is being changed to count such a run once against its members' combined room
+(round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
