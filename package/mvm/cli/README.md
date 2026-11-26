@@ -568,6 +568,40 @@ download-and-template-bake pipeline.
  The cloud-init seed defaults to `root`
 with a `/bin/sh` shell for custom images.
 
+## Free page reporting
+
+Every guest's domain carries a virtio memory balloon that reports the pages the
+guest has freed to the host:
+
+```xml
+<!-- package/mvm/cli: the device every domain mvm writes carries -->
+<memballoon model="virtio" freePageReporting="on"/>
+```
+
+Without that element libvirt adds a plain virtio balloon,
+and QEMU then leaves its `free-page-reporting` property at its default,
+which is off.
+A guest's freed page stays charged to the host for the guest's whole life,
+even though the guest calls the memory free.
+On the host measured for the decision (libvirt 12.9.0,
+QEMU 11.1.3,
+an Ubuntu 24.04 guest after one build):
+
+- 7.98 GiB charged at rest with reporting off,
+  5.52 GiB with it on,
+  2.46 GiB less;
+- after the guest dropped its own page cache,
+  3.24 GiB charged with reporting on against 7.98 GiB with it off.
+
+What it cannot return is a page the host has already swapped out,
+and a build's peak is unchanged because live pages have nothing to give back.
+The fault cost when a guest reuses a returned page is unmeasured.
+The project chose the device on 2026-11-25;
+`doc/decision/mvm-guests-report-free-pages.md` in the repository root records
+the readings and their limits,
+and `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` holds the
+measurement.
+
 ## Architecture
 
 - **Base images** are cached in `~/.local/share/mvm/images/`

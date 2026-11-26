@@ -111,6 +111,13 @@ export {
 } from './config.ts';
 export * from './create.ts';
 export * from './destroy.ts';
+/**
+ The libvirt domain definition generator, exposed for built-artifact
+ verification.
+
+ @internal
+ */
+export { domainXml, } from './domain-xml.ts';
 export * from './exec.ts';
 export * from './file-transfer-route.ts';
 export * from './file-transfer.ts';

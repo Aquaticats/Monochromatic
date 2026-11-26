@@ -100,6 +100,8 @@ pub enum Check {
     CloneState,
     /// The Git registration one slot's record names.
     Registration,
+    /// The managed Git lock one slot's registration holds.
+    ManagedLock,
     /// The binding record one slot's add wrote.
     BindingRecord,
     /// The destruction plan one clone's removal left.
@@ -166,6 +168,7 @@ impl Check {
             Check::StagingBindPropagation => "staging-bind-propagation",
             Check::CloneState => "clone-state",
             Check::Registration => "registration",
+            Check::ManagedLock => "managed-lock",
             Check::BindingRecord => "binding-record",
             Check::RemovalPlan => "removal-plan",
             Check::CloneSnapshots => "clone-snapshots",

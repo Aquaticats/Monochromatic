@@ -11,7 +11,7 @@ Nothing in this file is decided until the owner answers the open questions it li
 
 This section is the design as it stands after eight owner rounds and two reviews;
 the sections after it are the record of how each part was decided and measured.
-Status: not implemented, not confirmed by the owner, not final.
+Status: confirmed by the owner at 2026-11-25T20:54:22-05:00 ("Yes, confirmed"); not implemented.
 
 ### Scope
 
@@ -26,25 +26,35 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
 1.  Watcher:
     directory-watcher 3.2.1 (`seungyeop-lee/directory-watcher` tag `v3.2.1`),
     installed through the repository toolchain (`toolchain.plan.jsonc`, then `mise run toolchain:update`),
-    run by a new user unit:
+    run by a new user unit, `rclone-bisync-garage-watch.service`:
     `Type=simple`,
-    the binary resolved through the login shell as the sync unit resolves rclone (`|@`),
+    `ExecStart=|@directory-watcher --config-path %h/.config/directory-watcher/garage-plain.yml`
+    (the binary resolved through the login shell as the sync unit resolves rclone;
+    without `--config-path` it would look for `config.yml` in its working folder, `cmd/cmd.go:31-32` and `:60`),
     `Restart=on-failure` with `RestartSec=30s`
     (so the default limit of five starts in 10 s cannot trip, measured),
     `OnFailure=` the alert template,
     `WantedBy=default.target` (linger is on).
-    Config:
-    one target, the absolute path of `~/Plain`;
+    Config, `~/.config/directory-watcher/garage-plain.yml`:
+    one target, the absolute path of `~/Plain`,
+    filled in from the home folder when file-enforcer writes the file
+    (rule `HOM`: no literal home path in the repository source);
     `hookBatch.waitMillisecond` 10000 and `maxWaitMillisecond` 60000 (round 8);
     `exclude` `**/*.partial`, `**/*.part`, `**/*.tmp`, `**/*.crdownload`;
     run defaults.
-    Hook:
-    `systemctl --user start --no-block` of the trigger unit,
-    and on failure of that call the same alert for the watcher unit.
+    Hook (a shell string, run by `sh -c`):
+    `systemctl --user start --no-block rclone-bisync-garage-after-current.service`,
+    and when that call fails, the alert script run directly with `node`
+    (not through systemd, which may be the thing that failed),
+    deduplicated like every other alert.
+    directory-watcher only logs a failed hook command and keeps watching,
+    so without this nothing would notice.
+    Global `lifeCycle.onStartWatch` runs the alert script's recovery check for the watcher,
+    which is how a watcher outage gets its recovery notice.
     Accepted exception (round 8):
     names starting with `.` or `_` (168 entries) are never watched,
     so they reach the bucket only through the 5-minute timer.
-2.  Trigger unit:
+2.  Trigger unit, `rclone-bisync-garage-after-current.service`:
     `Type=oneshot`,
     `After=` the sync unit and no `Requires=` or `Wants=`,
     no `RemainAfterExit=`,
@@ -56,15 +66,23 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     `StartLimitIntervalSec=0`, so fast failures cannot lock out the timer's start (adopted unless vetoed);
     `TimeoutStartSec=3000` kept (round 7), which applies per pass (measured), with its comment corrected;
     the existing `OnFailure=` drop-in kept, plus `OnSuccess=` for the recovery alert.
+    A failed first pass skips the second (systemd runs no later `ExecStart=` after a failure),
+    which is harmless because the settle pass only matters after a successful upload;
+    the unit says so in a comment.
 4.  Timer, `rclone-bisync-garage.timer`, changed:
     `OnCalendar=*:0/5`,
-    `RandomizedDelaySec=30` (adopted unless vetoed),
+    `RandomizedDelaySec=30` and `AccuracySec=1s` (adopted unless vetoed;
+    the default `AccuracySec=1min` would let runs slip up to 90 s),
     `Persistent=true` kept.
 5.  Alerts:
-    `~/.local/bin/rclone-bisync-garage-alert.ts` keeps state per unit,
-    alerts on the first failure of a streak and again every hour while it lasts,
-    alerts once on recovery through `OnSuccess=`,
-    and writes its state only after `notify-send` succeeds (round 8);
+    `~/.local/bin/rclone-bisync-garage-alert.ts` alerts on the first failure of a streak,
+    again every hour while it lasts,
+    and once on recovery (round 8).
+    From the Sonnet and DeepSeek reviews:
+    state per unit under `~/.local/state/rclone-bisync-garage-alert/`, which survives logout;
+    state written only after `notify-send` succeeds;
+    recovery only for a run that exited with status 0
+    (`OnSuccess=` also fires when a running sync is stopped by hand, which is not a recovery);
     its "next hourly run" text and its look-back window are corrected for 5-minute runs.
 6.  Where the files live (round 7):
     sources in the repository,
@@ -72,6 +90,16 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     no rule kind does that today (`file-enforcer.schema.json`),
     so this needs a change to file-enforcer.
     The runbook's Stage D is rewritten from the result.
+    Superseded at 2026-11-25T21:00:45-05:00 by the owner's build-time answer:
+    a new package, `package/garage-file-sync/linux-client`, following the repository's precedent
+    (`package/claude-cpu-cap/daemon/systemd/`):
+    unit sources in `systemd/`, the watcher YAML, and the alert script as tested package source,
+    installed as plain copies by a task, with a check task that fails when an installed copy drifts.
+    The watcher config needs no templating: `WorkingDirectory=%h` and `path: Plain`
+    (relative paths resolve against the launch folder, `docs/guide/configuration.md:143` at `v3.2.1`).
+    The watcher binary is named by absolute path,
+    because neither `/bin/sh -l` (what `|@` runs) nor the fish login shell finds the toolchain's `bin/`.
+    The Mac's agent gets `--conflict-resolve newer` and its two passes through `/bin/sh -c` in the plist (owner, same time).
 
 ### Verified before go-live, on the real user manager
 
@@ -90,6 +118,12 @@ Then the decision record for directory-watcher is written.
 - A save that lands inside an upload or between the two passes still makes a `.conflictN` copy (measured);
   five `main.kdbx.conflict` copies exist now, and removing one needs deleting it on both sides in one window.
 - The rclone root cause is drafted upstream and not posted (owner's decision).
+- `TimeoutStartSec=3000` applies per pass (measured),
+  so a stalled two-pass sync can hold every follow-up and timer start for up to 6000 s before it fails and alerts;
+  accepted by the owner at 2026-11-25T20:54:22-05:00 ("Keep 3000, accept 100 min").
+- With two writers, `--conflict-resolve newer` compares one side's authoring time with the other side's upload time,
+  so it can pick the older content as the winner;
+  the loser is kept as a `.conflictN` copy (bisync's default `--conflict-loser num`), so nothing is lost outright.
 - One maintainer, unsigned releases;
   a watch-limit failure exits without the watcher's own notice, so the unit's failure alert covers it.
 
@@ -101,8 +135,8 @@ instead of waiting for the hourly timer.
 which is the same run the hourly timer starts.
 
 The setup this builds on is the runbook `doc/handover/garage-file-sync.md`.
-The live unit on this PC differs from that runbook's Stage D (Linux):
-it bisyncs `%h/Plain`, not `%h/Seafile/Plain`,
+The live unit on this PC differed from that runbook's Stage D (Linux):
+it bisyncs `%h/Plain`, not `%h/Seafile/Plain` (Stage D corrected at 2026-11-25T20:19:01-05:00),
 and it has the drop-in `rclone-bisync-garage.service.d/60-alert-on-failure.conf`
 that starts `rclone-bisync-garage-alert@.service` on failure.
 Any edit to the units takes its paths from the live files in `~/.config/systemd/user/`.

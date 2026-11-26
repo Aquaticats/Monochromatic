@@ -3,6 +3,10 @@
 ## Report metadata
 
 - Status:
+  adopted by the owner in round 7 and kept in round 8 with an accepted exception
+  (names starting with `.` or `_` are not watched; they sync by the timer);
+  not final until the design is confirmed and implemented.
+  Earlier status, kept for the record:
   recommendation suspended:
   a design review found that directory-watcher 3.2.1 cannot watch names starting with `.` or `_`
   (see "Hard constraint failure found in review");
@@ -1641,6 +1645,13 @@ Under the governing skill this is a hard-gate failure,
 so no candidate now passes every hard constraint;
 whether to relax that constraint for these names, change the tool, or fall back is the owner's decision
 (design record, "Review findings").
+
+## Owner decision on the failure (2026-11-25T20:41:14-05:00)
+
+Round 8: "Keep directory-watcher".
+The owner accepts that names starting with `.` or `_` are not watched
+and reach the bucket through the 5-minute timer,
+as an exception to the recursion constraint for those names only.
 
 ## Evidence records
 
