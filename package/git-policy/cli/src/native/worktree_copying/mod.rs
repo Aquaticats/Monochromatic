@@ -124,9 +124,6 @@
 //! - `worktree_removal_of_a_bound_clone.rs`:
 //!   the refusal of a `git worktree remove` of a slot a whole managed clone is bound to,
 //!   with the slot's state printed beside it.
-//! - `worktree_copy_forward.rs`:
-//!   which forwarded invocations the copy applies to,
-//!   and the child run that performs it.
 //! - `worktree_copy_owed_copy_proofs.rs`:
 //!   what must still hold before the pass that finishes an owed copy touches the disk:
 //!   the destination is still the registration the add made,
@@ -201,6 +198,25 @@
 //!   each is moved aside with one line,
 //!   what it named is found again from the records beside it where it can be,
 //!   and the command that met it runs.
+//! - `worktree_copy_forward_outcome.rs`:
+//!   how one forwarded run ended,
+//!   the words a stopped step is named with,
+//!   the repository directories every query of this route reads,
+//!   and the plain start of real Git that reports that ending.
+//! - `worktree_copy_forward_step_runner.rs`:
+//!   the runner that starts real Git, as a child, for each step the copy route runs:
+//!   the person's own command with the checkout options it needs,
+//!   and the ladder's own steps under their ceilings.
+//! - `worktree_copy_forward_settled_run.rs`:
+//!   the settled run of one forwarded invocation:
+//!   the copy's lifecycle with real Git as its runner,
+//!   and how its ending becomes this command's answer.
+//! - `worktree_copy_forward.rs`:
+//!   which forwarded invocations the copy applies to,
+//!   and the runs that answer them:
+//!   the plain start,
+//!   the settled run,
+//!   and the removal a subvolume destroy answers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -492,6 +508,25 @@ pub mod worktree_copy;
 #[cfg(unix)]
 pub mod worktree_copy_after_lock;
 
+/// How one forwarded run ended,
+/// the words a stopped step is named with,
+/// the repository directories every query of this route reads,
+/// and the plain start of real Git that reports that ending.
+pub mod worktree_copy_forward_outcome;
+
+/// The runner that starts real Git, as a child, for each step the copy route runs:
+/// the person's own command with the checkout options it needs,
+/// and the ladder's own steps under their ceilings.
+pub mod worktree_copy_forward_step_runner;
+
+/// The settled run of one forwarded invocation:
+/// the copy's lifecycle with real Git as its runner,
+/// and how its ending becomes this command's answer.
+pub mod worktree_copy_forward_settled_run;
+
 /// Which forwarded invocations the copy applies to,
-/// and the child run that performs it.
+/// and the runs that answer them:
+/// the plain start,
+/// the settled run,
+/// and the removal a subvolume destroy answers.
 pub mod worktree_copy_forward;
