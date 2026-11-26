@@ -237,6 +237,21 @@ fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
     );
 }
 
+/// The refusal's answer for one slot over the slot sources a control answers,
+/// which the states that stay Git's ask for.
+fn refusal_of_or_none_with(
+    facts: &CopyFacts,
+    sources: &SlotReadingSources<'_>,
+) -> Option<BoundSlotRemovalRefusal> {
+    let (target, common): (PathBuf, PathBuf) = the_slot_and_its_common(facts)?;
+    return refuse_the_removal_with(
+        target.as_path(),
+        common.as_path(),
+        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+        sources,
+    );
+}
+
 /// One scripted mount-intent source.
 /// Why:
 ///  The clone's intent is a raw ZFS request,
@@ -443,6 +458,235 @@ fn a_record_that_cannot_be_read_refuses_the_removal() {
         refusal.stderr
     );
     remove(bound.root.as_path());
+}
+
+/// The pool sentence a control hands in where a refusal must read no pool:
+/// its text in the report would prove the pool was read.
+const NO_POOL_WAS_ASKED: &str = "this control reads no pool";
+
+/// What:
+///  A removal of a slot with no binding record and a mount standing at its path
+///  is refused,
+///  naming the mount,
+///  and no pool is read.
+/// Why:
+///  The owner's answer of 2026-11-26:
+///  a slot nothing proves is refused rather than left to Git,
+///  because Git's own removal would delete the registration and the underlay
+///  folder while the mount at the slot may hold a managed clone's files
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+#[test]
+fn a_slot_with_no_record_and_a_mount_at_it_refuses_the_removal() {
+    let bound: RegisteredSlot = bound_slot("removal-of-no-record-with-a-mount");
+    // A repository the route has served holds its record folder, and this slot has no record in it.
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.root.join("two").as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "two",
+    );
+    let slot: String = bound
+        .slot
+        .to_str()
+        .expect("the fixture slot path is utf-8")
+        .to_string();
+    let mounts: ScriptedMountTable = ScriptedMountTable::holding(&[
+        row(1, 0, "/", "/", "zfs", "tank/ROOT"),
+        row(50, 1, "/", slot.as_str(), "zfs", "tank/some-other-dataset"),
+    ]);
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let (target, common): (PathBuf, PathBuf) =
+        the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
+    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+        target.as_path(),
+        common.as_path(),
+        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+        &sources,
+    )
+    .expect("a mount no record names refuses the removal");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains("no record is filed under")
+            && refusal.stderr.contains("tank/some-other-dataset"),
+        "the refusal names the mount it could not prove: {}",
+        refusal.stderr
+    );
+    assert!(
+        !refusal.stderr.contains(NO_POOL_WAS_ASKED),
+        "the refusal reads no pool: {}",
+        refusal.stderr
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A removal of a path whose slot name holds a record that names another path
+///  is refused,
+///  naming both paths,
+///  without asking the clone's intent or the pool.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses the removal of a slot no record
+///  proves,
+///  and a record keyed by this name for another path proves nothing about the
+///  worktree the command names.
+///  The intent and the pool are raw ZFS requests,
+///  so the refusal decides before them,
+///  which the readers this control hands in fail the test over.
+#[test]
+fn a_record_naming_another_path_refuses_the_removal() {
+    let bound: RegisteredSlot = bound_slot("removal-of-a-record-of-another-path");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let elsewhere: PathBuf = bound.root.join("elsewhere").join("one");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("the plain folder");
+    let plain: PathBuf =
+        std::fs::canonicalize(elsewhere.as_path()).expect("canonical plain folder");
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &NoIntentMayBeAsked,
+    };
+    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+        plain.as_path(),
+        bound.common.as_path(),
+        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+        &sources,
+    )
+    .expect("a record of another path refuses the removal");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains("not this slot's record")
+            && refusal
+                .stderr
+                .contains(bound.slot.to_str().expect("the fixture slot path is utf-8")),
+        "the refusal names the path the record holds: {}",
+        refusal.stderr
+    );
+    assert!(
+        !refusal.stderr.contains(NO_POOL_WAS_ASKED),
+        "the refusal reads no pool: {}",
+        refusal.stderr
+    );
+    assert!(plain.is_dir(), "nothing was removed");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A removal of a slot whose binding record says a whole clone was made,
+///  at a moment the mount table cannot be read,
+///  is refused and names the reader's reason,
+///  before any pool read.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses the removal where the mount table
+///  cannot be read:
+///  a clone the record calls filled may be mounted at the slot,
+///  and Git's own `-f -f` removal would delete inside it
+///  (the alpha.47 pass's finding 12).
+#[test]
+fn an_unreadable_mount_table_refuses_the_removal() {
+    let bound: RegisteredSlot = bound_slot("removal-of-an-unreadable-mount-table");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let mounts: ScriptedMountTable =
+        ScriptedMountTable::unreadable("the table is too large to read");
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let (target, common): (PathBuf, PathBuf) =
+        the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
+    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+        target.as_path(),
+        common.as_path(),
+        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+        &sources,
+    )
+    .expect("an unreadable mount table refuses the removal");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains("the mount table could not be read")
+            && refusal.stderr.contains("the table is too large to read"),
+        "the refusal names the reader's reason: {}",
+        refusal.stderr
+    );
+    assert!(
+        !refusal.stderr.contains(NO_POOL_WAS_ASKED),
+        "the refusal reads no pool: {}",
+        refusal.stderr
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  An unreadable mount table refuses the removal of a record that has reached the
+///  phase that makes a clone,
+///  and leaves the removal of an earlier add's phase to Git.
+/// Why:
+///  `SPEC.md` does not refuse a pending add's removal,
+///  because the add's own refusal names `git worktree remove <slot>` as its way
+///  forward,
+///  but from `cloned` on a clone exists and only the table says whether it is
+///  mounted at the slot,
+///  which is the case the owner's answer of 2026-11-26 refuses.
+#[test]
+fn an_unreadable_mount_table_refuses_from_the_phase_that_makes_a_clone() {
+    for (phase, refused) in [(Phase::Snapshotted, false), (Phase::Cloned, true)] {
+        let bound: RegisteredSlot =
+            bound_slot(&format!("removal-of-{}-unreadable-table", phase.word()));
+        publish_under(
+            bound.common.as_path(),
+            &record_naming(
+                phase,
+                bound.slot.as_path(),
+                bound.registration.as_path(),
+                Some(bound.pointer.clone()),
+            ),
+            "one",
+        );
+        let mounts: ScriptedMountTable =
+            ScriptedMountTable::unreadable("the table is too large to read");
+        let intents: ScriptedIntent = no_intent_asked();
+        let sources: SlotReadingSources<'_> = SlotReadingSources {
+            mounts: &mounts,
+            intents: &intents,
+        };
+        let answer: Option<BoundSlotRemovalRefusal> =
+            refusal_of_or_none_with(&facts_of(&bound), &sources);
+        assert_eq!(
+            answer.is_some(),
+            refused,
+            "phase `{}` and an unreadable table: {answer:?}",
+            phase.word()
+        );
+        remove(bound.root.as_path());
+    }
 }
 
 /// What:
@@ -799,17 +1043,18 @@ impl CloneIntentReads for NoIntentMayBeAsked {
 }
 
 /// What:
-///  A removal of a plain worktree that shares a bound slot's last name opens no
-///  device,
-///  and the slot stays refused.
+///  A removal of a plain worktree that shares a bound slot's last name is
+///  refused,
+///  and neither the clone's intent nor the pool is asked.
 /// Why:
 ///  The record is keyed by the slot's last name,
 ///  so a removal of another worktree with that last name reads a record that
-///  names a different path;
-///  the read compared the path after it had asked the clone's own intent and the
-///  plan folder,
-///  which is one guarded open of the kernel's ZFS device for a command that
-///  endangers nothing (the alpha.47 pass's Low finding 5).
+///  names a different path,
+///  and the owner's answer of 2026-11-26 refuses a removal no record proves.
+///  The read must not ask the clone's intent or the plan folder first:
+///  that was one guarded open of the kernel's ZFS device for a command that
+///  endangers nothing (the alpha.47 pass's Low finding 5),
+///  and the readers this control hands in fail the test if they are asked.
 #[test]
 fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
     let bound: RegisteredSlot = bound_slot("removal-of-a-same-leaf-worktree");
@@ -843,15 +1088,22 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
         mounts: &mounts,
         intents: &NoIntentMayBeAsked,
     };
+    let refusal: BoundSlotRemovalRefusal = refuse_the_removal_with(
+        plain.as_path(),
+        bound.common.as_path(),
+        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+        &sources,
+    )
+    .expect("a record that names another path refuses the removal without asking the pool");
     assert!(
-        refuse_the_removal_with(
-            plain.as_path(),
-            bound.common.as_path(),
-            RemovalReads::Unreadable("this control reads no pool"),
-            &sources
-        )
-        .is_none(),
-        "a record that names another path leaves the removal to Git without asking the pool"
+        refusal.stderr.contains("not this slot's record"),
+        "the refusal names the record's own path: {}",
+        refusal.stderr
+    );
+    assert!(
+        !refusal.stderr.contains(NO_POOL_WAS_ASKED),
+        "the refusal reads no pool: {}",
+        refusal.stderr
     );
     assert!(plain.is_dir(), "the plain worktree stands");
     assert!(bound.slot.is_dir(), "the bound slot stands");
