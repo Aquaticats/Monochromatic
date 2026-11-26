@@ -300,6 +300,31 @@ impl<'standing> RealAttachStep<'standing, RealRollbackCalls, RealCloneMountCall>
     }
 }
 
+/// What:
+///  Whether a walk stopped because a mount stands at the slot it was asked for.
+/// Why:
+///  Only that one refusal can be answered by the clone's own mount:
+///  a link,
+///  a missing folder or a folder that moved is a different fault,
+///  and `openat2`'s `EXDEV` is what the walk reports both for a mount point and
+///  for a folder on another filesystem,
+///  so the refusal's own kind is what this reads rather than its sentence.
+///  A boundary above the slot is no risk of a false answer:
+///  the standing proof walks the same chain,
+///  which crosses only the slot's own mount,
+///  so it answers nothing there and the walk's refusal stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const atTheSlot = theWalkStoppedAtTheSlotsMount(refusal); // refusal.kind === 'walk' && refusal.reason === 'boundary'
+/// ```
+fn the_walk_stopped_at_the_slots_mount(refusal: &CloneSlotRefusal) -> bool {
+    return match refusal {
+        CloneSlotRefusal::Walk(walk) => walk.reason == WalkRefusalReason::BoundaryCrossed,
+        CloneSlotRefusal::Store(_) | CloneSlotRefusal::ParentIdentity { .. } | CloneSlotRefusal::SlotIdentity { .. } | CloneSlotRefusal::TargetAnotherObject { .. } => false,
+    };
+}
+
 impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> RealAttachStep<'standing, Calls, Mount> {
     /// What:
     ///  The answer a walk that stopped before the slot gets:
@@ -332,27 +357,6 @@ impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> RealAttachStep<'sta
         let (step, errno): (&str, Option<String>) = the_step_of_a_walk_refusal(refusal);
         return AttachStepOutcome::Refused { step: String::from(step), errno, said: refusal.message() };
     }
-}
-
-/// What:
-///  Whether a walk stopped because a mount stands at the slot it was asked for.
-/// Why:
-///  Only that one refusal can be answered by the clone's own mount:
-///  a link,
-///  a missing folder or a folder that moved is a different fault,
-///  and `openat2`'s `EXDEV` is what the walk reports both for a mount point and
-///  for a folder on another filesystem,
-///  so the refusal's own kind is what this reads rather than its sentence.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const atTheSlot = theWalkStoppedAtTheSlotsMount(refusal); // refusal.kind === 'walk' && refusal.reason === 'boundary'
-/// ```
-fn the_walk_stopped_at_the_slots_mount(refusal: &CloneSlotRefusal) -> bool {
-    return match refusal {
-        CloneSlotRefusal::Walk(walk) => walk.reason == WalkRefusalReason::BoundaryCrossed,
-        CloneSlotRefusal::Store(_) | CloneSlotRefusal::ParentIdentity { .. } | CloneSlotRefusal::SlotIdentity { .. } | CloneSlotRefusal::TargetAnotherObject { .. } => false,
-    };
 }
 
 impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> CloneAttachStep for RealAttachStep<'standing, Calls, Mount> {

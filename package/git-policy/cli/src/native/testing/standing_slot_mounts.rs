@@ -51,6 +51,10 @@ pub(crate) const SHAPED_SOURCE: &str = "monochromatic-standing-slot";
 pub(crate) struct MountedSlot {
     /// The folder the tmpfs is mounted on.
     at: PathBuf,
+    /// The mount's own number,
+    /// read after it was made,
+    /// so a control can prove which mount a crossed handle is on.
+    id: u64,
 }
 
 impl MountedSlot {
@@ -83,7 +87,9 @@ impl MountedSlot {
         // SAFETY: all three strings outlive the call, the type is a NUL-terminated name, and no data pointer is read.
         let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), flags, std::ptr::null()) };
         assert_eq!(mounted, 0, "the control's tmpfs mounts at {}: {}", path.display(), std::io::Error::last_os_error());
-        return Self { at: path.to_path_buf() };
+        let folder: std::fs::File = std::fs::File::open(path).expect("the mounted folder opens");
+        let id: u64 = crate::fs_beneath_mount_facts::mount_id_of(&folder).expect("the mounted folder's own mount reads");
+        return Self { at: path.to_path_buf(), id };
     }
 
     /// What:
@@ -108,6 +114,12 @@ impl MountedSlot {
     /// The folder the tmpfs is mounted on.
     pub(crate) fn path(&self) -> &Path {
         return self.at.as_path();
+    }
+
+    /// The mount's own number,
+    /// which a control reads back from a handle it crossed into the mount.
+    pub(crate) fn id(&self) -> u64 {
+        return self.id;
     }
 }
 
