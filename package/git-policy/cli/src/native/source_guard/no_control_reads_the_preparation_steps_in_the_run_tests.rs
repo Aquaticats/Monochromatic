@@ -53,10 +53,7 @@ use super::process_wide_fact_readers_tests::{
 /// const LEDGER_NAMES: ReadonlyArray<readonly [string, string]> = [['drain_spans(', '...'], ...];
 /// ```
 const LEDGER_NAMES: &[(&str, &str)] = &[
-    (
-        "drain_spans(",
-        "empties the steps the whole process noted",
-    ),
+    ("drain_spans(", "empties the steps the whole process noted"),
     (
         "note_span(",
         "adds one step to the list the whole process noted",

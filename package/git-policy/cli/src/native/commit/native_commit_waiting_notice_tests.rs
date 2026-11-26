@@ -55,8 +55,7 @@ fn text_of(buffer: &Buffer) -> String {
 /// ```ts
 /// function takeTheWindowsANoticeControlReads() { const looks = takeTheLookWindow(); const notice = takeTheNoticeWindow(); return [looks, notice]; }
 /// ```
-fn take_the_windows_a_notice_control_reads()
--> (
+fn take_the_windows_a_notice_control_reads() -> (
     std::sync::MutexGuard<'static, ()>,
     std::sync::MutexGuard<'static, ()>,
 ) {

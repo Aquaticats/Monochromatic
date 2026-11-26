@@ -161,10 +161,7 @@ const THE_BUILD_PARTS: Requirement = Requirement {
 const THE_STEPS: Requirement = Requirement {
     what: "the Git steps a commit's stretches take out of themselves",
     named: &[
-        (
-            "drain_steps(",
-            "takes the steps the whole process noted",
-        ),
+        ("drain_steps(", "takes the steps the whole process noted"),
         (
             "note_step(",
             "adds one step to the list the whole process noted",
@@ -277,7 +274,9 @@ fn plants_the_names_in_a_text() {\n\
 }\n";
     assert_eq!(
         findings_in_text(&THE_INDEX_BUILDS, "planted_tests.rs", planted),
-        vec![String::from("planted_tests.rs:1 (asks_for_the_index_builds)")],
+        vec![String::from(
+            "planted_tests.rs:1 (asks_for_the_index_builds)"
+        )],
         "the planted control that counts builds in the run's own process was not the one finding"
     );
     assert_eq!(
@@ -289,7 +288,9 @@ fn plants_the_names_in_a_text() {\n\
     );
     assert_eq!(
         findings_in_text(&THE_BUILD_PARTS, "planted_tests.rs", planted),
-        vec![String::from("planted_tests.rs:11 (asks_for_the_build_parts)")],
+        vec![String::from(
+            "planted_tests.rs:11 (asks_for_the_build_parts)"
+        )],
         "the planted control that counts a build's stretches was not the one finding"
     );
     assert_eq!(

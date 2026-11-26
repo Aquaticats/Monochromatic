@@ -155,7 +155,9 @@ fn plants_the_name_in_a_text() {\n\
 }\n";
     assert_eq!(
         findings_in_text(&THE_NOTICE_WINDOW, "planted_tests.rs", planted),
-        vec![String::from("planted_tests.rs:1 (steps_in_the_run_s_own_process)")],
+        vec![String::from(
+            "planted_tests.rs:1 (steps_in_the_run_s_own_process)"
+        )],
         "the planted control that steps a notice in the run's own process was not the one finding"
     );
 }
