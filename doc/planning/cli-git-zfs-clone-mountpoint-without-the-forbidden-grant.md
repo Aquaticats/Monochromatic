@@ -1405,19 +1405,26 @@ which the second revision's guest ran (see `## The guest probe`).
 
 ## The `doctor` gap this decision leans on
 
+Amended 2026-11-25: the gap this section measured is closed.
+The check now refuses a creation-time grant of a forbidden permission and names the `zfs unallow -c` command,
+and it expands a named set the account can come to hold and names the permission with the `zfs unallow -s` command
+(`package/git-policy/cli/SPEC.md`, the preflight's delegation passage).
+Everything this document decides stays as it is,
+and what the gap meant for the options is kept below as it was written.
+
 C is safe only while the account holds no `mountpoint` and no creation-time `mountpoint`.
 `doctor` refuses a forbidden grant that the account or everyone holds,
-but its filter skips `Who::Create` and `Who::NamedSet` (`delegation_checks.rs:359`).
-A named set carrying a forbidden permission still lands in the check's "unproved" answer,
+but its filter skipped `Who::Create` and `Who::NamedSet` (`delegation_checks.rs:359`).
+A named set carrying a forbidden permission still landed in the check's "unproved" answer,
 because `is_route_permission` counts every forbidden name (`:537` to `:543`),
 so it refuses rather than passes,
 though without naming the permission (`:583` to `:589`).
-A creation-time grant is read by nothing:
-the check sees the entry and drops it,
-and no other check reads that who type.
-So `zfs allow -c mountpoint <container>` passes `doctor` today,
-which is how A's second shape would go unnoticed,
-and which also means C's premise has one unread corner.
+A creation-time grant was read by nothing:
+the check saw the entry and dropped it,
+and no other check read that who type.
+So `zfs allow -c mountpoint <container>` passed `doctor` before the amendment above,
+which is how A's second shape would have gone unnoticed,
+and which also meant C's premise had one unread corner.
 
 That is outside this decision,
 and it has its own issue:

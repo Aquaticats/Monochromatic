@@ -32,13 +32,13 @@
 //! ```
 
 use super::add_git_words::person_lock_word;
+use super::add_plan_stop::refuse_while_a_plan_stands;
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use super::add_zfs::{ObjectIdentity, OpenedDevice};
 use crate::doctor_zfs_route::{CheckOutcome, DatasetFacts, DatasetRole, Reading, check_dataset};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone_binding_record::plan_folder_read::refuse_while_a_plan_names_the_clone;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord};
@@ -105,8 +105,6 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             "the place the add sets the copied Git administration aside in, `.claude/cli-git-trash`, is not ignored by this repository's Git, so the new worktree would carry an untracked folder. Ways forward: add that path to `.gitignore` or `.git/info/exclude`, then run the add again",
         )));
     }
-    let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
-        .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
     verify_the_slot_parent(route)?;
     // What:
     //  A source whose copy the fill's restore would end after the clone is made
@@ -164,6 +162,18 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             route.container_dataset
         ));
     })?;
+    // What:
+    //  The standing plan's stop stands here, after the device is open.
+    // Why:
+    //  The command the person reads beside a plan needs the clone the pool can
+    //  find, which is a request through this device,
+    //  so a plan that stops the add no longer stops it before the device opens
+    //  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+    //  "What 2C costs").
+    //  It stands before the container's properties are judged, because a plan
+    //  that still names this clone is about the work this add would collide
+    //  with, and both reads sit before the first write.
+    refuse_while_a_plan_stands(route, &device)?;
     let container: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(route.container_dataset.as_str()), reading: Reading::Read(container_facts) };
     // What:
     //  The container's own properties are judged here, before any write.

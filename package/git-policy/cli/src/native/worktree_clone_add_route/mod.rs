@@ -30,10 +30,20 @@
 //! - `add_git_words.rs`: the locked add's arguments and the person's own-lock refusal.
 //! - `add_registration.rs`: the scan of `<common>/worktrees` and what it settles.
 //! - `add_zfs.rs`: the pool's reads, the snapshot, the clone, the inventories and the mount request.
+//! - `add_plan_clone_presence.rs`:
+//!   what the pool answers about the clone a standing plan records.
+//! - `add_plan_stop.rs`: the stop a standing plan leaves,
+//!   with the command that ends it.
 //! - `add_grants.rs`: the account's effective delegation, refused unless it is the decided one.
 //! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
 //! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
 //! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
+//! - `add_route_steps_facts_and_refusal.rs`:
+//!   the facts every step is given and the refusal each stops with.
+//! - `add_route_steps_slot_and_registration.rs`:
+//!   the empty slot's identity and Git's registration with the scan that settles one.
+//! - `add_route_steps_snapshot_and_capture.rs`:
+//!   the frozen capture and the checkout snapshot taken after it.
 //! - `add_route_steps.rs`: one step per phase, each reading what a kill left.
 //! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
 //! - `add_preflight.rs`: what A0 proves before the claim writes anything.
@@ -68,6 +78,11 @@ pub mod add_git_words;
 pub mod add_registration;
 /// The pool's calls.
 pub mod add_zfs;
+/// What the pool answers about the clone a standing removal plan records.
+pub mod add_plan_clone_presence;
+/// The stop a standing removal plan leaves,
+/// with the one command that ends it.
+pub mod add_plan_stop;
 /// The account's effective delegation over the route's two datasets.
 pub mod add_grants;
 /// The wait for the mount.
@@ -77,6 +92,12 @@ pub mod add_exchange;
 /// The fill's order.
 pub mod add_fill;
 /// One step per phase.
+pub mod add_route_steps_facts_and_refusal;
+
+pub mod add_route_steps_slot_and_registration;
+
+pub mod add_route_steps_snapshot_and_capture;
+
 pub mod add_route_steps;
 /// The source shapes the fill's restore would refuse after the clone is made.
 pub mod add_source_the_restore_cannot_prove;

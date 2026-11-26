@@ -141,8 +141,8 @@ lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round 
 lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/stopped_git_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_changes_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs | the process folder is not moved yet; a later round takes it folder by folder

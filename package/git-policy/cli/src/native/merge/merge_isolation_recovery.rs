@@ -437,7 +437,9 @@ async fn settle_moving_the_record_aside_awaiting<W: std::io::Write + ?Sized>(
 }
 
 /// Recovery of records whose owner is dead,
-/// alive or unreadable.
+/// alive or unreadable,
+/// with its controls in the sibling files
+/// `merge_isolation_recovery_tests.rs` declares and lists.
 #[cfg(test)]
 #[path = "merge_isolation_recovery_tests.rs"]
 mod tests;

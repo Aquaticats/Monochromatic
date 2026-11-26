@@ -13,7 +13,7 @@
 //! ```
 
 /// The rule under test.
-use super::common_directory_of;
+use super::{bytes_named, common_directory_named_by, common_directory_of};
 use crate::command_test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 
@@ -59,8 +59,8 @@ fn an_empty_or_missing_place_leaves_a_path_that_is_used() {
     remove(root.as_path());
 }
 
-/// The path a rule answers is what the caller joins a record onto,
-/// so a relative `commondir` never lands beside the worktree's own Git directory.
+/// A relative `commondir` is resolved against the Git directory,
+/// so a record lands in the repository rather than beside the worktree.
 #[test]
 fn a_relative_commondir_is_resolved_against_the_git_directory() {
     let root: PathBuf = fixture("common-dir-relative");
@@ -71,5 +71,30 @@ fn a_relative_commondir_is_resolved_against_the_git_directory() {
     let answered: PathBuf = common_directory_of(own.as_path());
     assert!(answered.ends_with(".git"), "{}", answered.display());
     assert!(!answered.ends_with(Path::new("worktrees/w")), "{}", answered.display());
+    remove(root.as_path());
+}
+
+/// A `commondir` that is a named pipe names no common directory,
+/// and it answers at once:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// which held every command that asked this question before the file was read as a plain one (issue 6415).
+#[test]
+fn a_commondir_that_is_a_named_pipe_names_nothing_at_once() {
+    let root: PathBuf = fixture("common-dir-named-pipe");
+    let own: PathBuf = root.join("w");
+    std::fs::create_dir_all(&own).expect("git directory");
+    crate::subvolume_sync_attrs::make_fifo(own.join("commondir").as_path(), 0o600).expect("a named pipe where a commondir goes");
+    let inside: PathBuf = own.clone();
+    let answered = crate::test_support::finished_within(move || {
+        return (common_directory_of(inside.as_path()), common_directory_named_by(inside.as_path()), bytes_named(inside.as_path()).is_err());
+    });
+    let Some((own_answer, named, refused)) = answered else { panic!("a `commondir` that is a named pipe held the read") };
+    assert_eq!(own_answer, own, "a Git directory whose `commondir` is a pipe is its own common directory");
+    assert!(named.is_none(), "a pipe names no common directory a caller can use");
+    assert!(refused, "the reader reports the refusal rather than a missing file");
+    // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
+    let pointer: PathBuf = own.join("commondir");
+    let waited = crate::test_support::finished_within(move || return std::fs::read_to_string(pointer).ok());
+    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
     remove(root.as_path());
 }
