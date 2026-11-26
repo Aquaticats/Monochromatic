@@ -359,7 +359,8 @@ pub fn add_is_quiet(
 }
 
 /// What:
-///  The Git release whose `handle_options` the global option tables below copy:
+///  The Git release whose `handle_options` the tables `COPY_NEUTRAL_GLOBALS`,
+///  `COPY_VALUED_GLOBALS` and `COPY_SEPARATE_VALUE_GLOBALS` copy:
 ///  its major and minor numbers,
 ///  one `u64` each.
 ///  `u64` and not `u32` or `i64`,
@@ -377,7 +378,7 @@ pub fn add_is_quiet(
 ///  a later patch release is taken to add no global option,
 ///  and these tables stand for it.
 ///  It is `pub` because the release build never reads it:
-///  the tables below are used by `copy_start_directory`,
+///  those three tables are used by `copy_start_directory`,
 ///  and this release fact is read by the control and by anyone comparing the tables with a Git,
 ///  so it is part of this module's API and not a private constant the release holds unused.
 /// Source:
@@ -391,7 +392,7 @@ pub fn add_is_quiet(
 ///  `usage(git_usage_string);`
 ///  (lines 361 to 364).
 ///  Five arms end the run before any command word is read,
-///  so they stand in no command's global prefix and are listed nowhere below:
+///  so they stand in no command's global prefix and none is in those three tables:
 ///  `--exec-path` without `=` prints the path and exits (lines 178 to 185),
 ///  `--html-path`,
 ///  `--man-path` and
