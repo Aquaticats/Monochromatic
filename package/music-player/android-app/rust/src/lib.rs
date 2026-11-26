@@ -245,19 +245,46 @@ mod peak_cache;
 /// What:
 ///      `mod service;` declares the native true-peak service submodule (the sibling file
 ///           `service.rs`).
-///  It holds the `TruePeakService` cache-actor handle and the JNI
-///           entry points (`nativeTruePeakServiceCreate`/`Release`,
-///  `nativeResolveGain`,
-///           `nativeWarmTrack`) Kotlin calls to resolve and cache normalization gains.
+///  It holds the `TruePeakService` cache-actor handle,
+///  its request messages and
+///           the actor thread that serves them;
+///  the JNI entries Kotlin calls to create,
+///           release,
+///  resolve and warm that service live in `service_jni.rs`.
 /// Why:
-///       Keep the Turso-backed service and its JNI glue out of this file (max-lines) while
-///           its `#[unsafe(no_mangle)]` exports still land in the cdylib.
+///       Keep the Turso-backed service out of this file (max-lines) while its
+///           `#[unsafe(no_mangle)]` exports still land in the cdylib.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import * as service from "./service";
 /// ```
 mod service;
+/// What:
+///      `mod service_jni;` declares the true-peak service's JNI entry points
+///           (`service_jni.rs`):
+///  `nativeTruePeakServiceCreate`/`Release`,
+///  `nativeResolveGain`
+///           and `nativeWarmTrack`,
+///  plus the resolve-then-cache body they share.
+///  `mod NAME;`
+///           pulls that file in as a private child module;
+///  the entries are still exported from
+///           the `.so`,
+///  because `#[unsafe(no_mangle)]` keeps each symbol's name regardless of
+///           the module's visibility.
+/// Why:
+///       Those entries were split out of `service.rs` to keep it under the per-file
+///           code-line budget (MXL);
+///  nothing here calls them,
+///  the JVM finds them by symbol
+///           name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import "./service_jni"; // its exports register themselves
+/// ```
+mod service_jni;
 /// What:
 ///      `mod truepeak;` declares the `truepeak` child module (`truepeak.rs`),
 ///  the
