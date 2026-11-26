@@ -189,6 +189,9 @@ fn wait_for(what: &str, condition: impl Fn() -> bool) {
 }
 
 /// A Git command in the stage with no system or global configuration.
+///  Every Git this module starts is started from it with `test_support::spawn_owned`,
+///  so the Git leads a process group of its own that the test thread's fixtures kill when the thread ends,
+///  and the hook or stand-in it leaves behind goes with it (issue 6474).
 fn git_command(stage: &Stage) -> Command {
     let mut command: Command = Command::new(crate::test_support::REAL_GIT);
     command
@@ -215,7 +218,7 @@ pub fn hold_fetch(stage: &Stage) -> Held {
     executable(hooks.join("reference-transaction").as_path(), HOLD_HOOK.as_bytes());
     let mut command: Command = git_command(stage);
     command.args(["fetch", "--prune", "--quiet", "origin"]).env("STALE_LOCK_READY", stage.ready.as_os_str());
-    let child: Child = command.spawn().expect("start git fetch");
+    let child: Child = crate::test_support::spawn_owned(&mut command).expect("start git fetch");
     let mut held: Held = Held { child, _input: None, hook: None };
     let ready: PathBuf = stage.ready.clone();
     wait_for("the fetch to take its locks", || { return ready.exists(); });
@@ -229,7 +232,7 @@ pub fn hold_fetch(stage: &Stage) -> Held {
 pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
     let mut command: Command = git_command(stage);
     command.args(["update-ref", "--stdin"]).stdin(Stdio::piped()).stdout(Stdio::piped());
-    let mut child: Child = command.spawn().expect("start git update-ref");
+    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
     let mut input: ChildStdin = child.stdin.take().expect("the input");
     let output = child.stdout.take().expect("the output");
     let script: String = format!("start\n{}\nprepare\n", commands.join("\n"));
@@ -254,7 +257,7 @@ pub fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
 pub fn idle_git(stage: &Stage) -> Held {
     let mut command: Command = git_command(stage);
     command.args(["update-ref", "--stdin"]).stdin(Stdio::piped());
-    let mut child: Child = command.spawn().expect("start git update-ref");
+    let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("start git update-ref");
     let input: ChildStdin = child.stdin.take().expect("the input");
     return Held { child, _input: Some(input), hook: None };
 }
@@ -308,7 +311,7 @@ pub fn hold_push(stage: &Stage) -> Held {
     executable(hooks.join("reference-transaction").as_path(), HOLD_HOOK.as_bytes());
     let mut command: Command = git_command(stage);
     command.args(["push", "--quiet", "origin", "main"]).env("STALE_LOCK_READY", stage.ready.as_os_str());
-    let child: Child = command.spawn().expect("start git push");
+    let child: Child = crate::test_support::spawn_owned(&mut command).expect("start git push");
     let mut held: Held = Held { child, _input: None, hook: None };
     let ready: PathBuf = stage.ready.clone();
     wait_for("the push to take its locks", || { return ready.exists(); });
