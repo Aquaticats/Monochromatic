@@ -2439,7 +2439,8 @@ and that this release has no removal for a clone,
 so the clone and its record stay until it does.
 
 `git worktree remove` is refused for a slot the binding record proves is a whole worktree,
-whatever options the command carries (`-f -f` and every other spelling Git accepts),
+whatever options the command carries (`-f -f` and every other spelling Git accepts,
+and the global options before `worktree` read by Git's own table: `-c`, `--no-optional-locks`, `--git-dir` and `-C <a Git directory>` skip none of them),
 because Git's removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
