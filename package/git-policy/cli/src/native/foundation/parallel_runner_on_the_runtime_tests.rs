@@ -285,38 +285,38 @@ impl OrderedEvents<u64> for CountEnds {
 /// one place means one item at a time and a run as long as the items one after another.
 #[test]
 fn the_process_bound_holds_the_items_to_one_at_a_time() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_process_bound_holds_the_items_to_one_at_a_time",
-    ) {
-        return;
-    }
-    hold_the_blocking_jobs_to(ONE_PLACE);
-    let shared: Arc<Concurrency> = Arc::new(Concurrency {
-        live: AtomicUsize::new(0),
-        most: AtomicUsize::new(0),
-    });
-    let mut ends: CountEnds = CountEnds::default();
-    let began: Instant = Instant::now();
-    run_ending(
-        vec![0_u64; ITEMS],
-        ITEMS,
-        Arc::new(StayAndCount {
-            shared: Arc::clone(&shared),
-        }),
-        &mut ends,
-    )
-    .expect("the run finished");
-    let took: Duration = began.elapsed();
-    assert_eq!(ends.ended, ITEMS, "every item ended");
-    assert_eq!(
-        shared.most.load(Ordering::SeqCst),
-        ONE_PLACE,
-        "more items were inside their job at once than the process's bound allows"
-    );
-    assert!(
-        took >= Duration::from_millis(BUSY_MILLIS * ITEMS as u64 / 2),
-        "the run took {took:?}, which is less than half the time of one item after another, so something other than the bound held it"
+        || {
+            hold_the_blocking_jobs_to(ONE_PLACE);
+            let shared: Arc<Concurrency> = Arc::new(Concurrency {
+                live: AtomicUsize::new(0),
+                most: AtomicUsize::new(0),
+            });
+            let mut ends: CountEnds = CountEnds::default();
+            let began: Instant = Instant::now();
+            run_ending(
+                vec![0_u64; ITEMS],
+                ITEMS,
+                Arc::new(StayAndCount {
+                    shared: Arc::clone(&shared),
+                }),
+                &mut ends,
+            )
+            .expect("the run finished");
+            let took: Duration = began.elapsed();
+            assert_eq!(ends.ended, ITEMS, "every item ended");
+            assert_eq!(
+                shared.most.load(Ordering::SeqCst),
+                ONE_PLACE,
+                "more items were inside their job at once than the process's bound allows"
+            );
+            assert!(
+                took >= Duration::from_millis(BUSY_MILLIS * ITEMS as u64 / 2),
+                "the run took {took:?}, which is less than half the time of one item after another, so something other than the bound held it"
+            );
+        },
     );
 }
 

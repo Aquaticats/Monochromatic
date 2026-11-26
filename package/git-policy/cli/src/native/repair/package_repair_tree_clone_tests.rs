@@ -322,26 +322,24 @@ const A_MOMENT: Duration = Duration::from_millis(100);
 /// the clone is the one step of them that did not.
 #[test]
 fn a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person",
-    ) {
-        return;
-    }
-    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(2);
-    assert_eq!(
-        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
-        2,
-        "this control is the first to ask for the process's places, so the bound is the two it states"
-    );
-    let root: PathBuf = fixture("tree-clone-slow-places");
-    let source: PathBuf = build_source(&root);
-    let destination: PathBuf = root.join("destination");
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("a runtime of this thread");
-    runtime.block_on(async move {
+        || {
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(2);
+            assert_eq!(
+                crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+                2,
+                "this control is the first to ask for the process's places, so the bound is the two it states"
+            );
+            let root: PathBuf = fixture("tree-clone-slow-places");
+            let source: PathBuf = build_source(&root);
+            let destination: PathBuf = root.join("destination");
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a runtime of this thread");
+            runtime.block_on(async move {
         let (holding, held) = tokio::sync::oneshot::channel::<()>();
         let holder = tokio::spawn(async move {
             let _outcome = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
@@ -366,5 +364,7 @@ fn a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person(
         assert!(cloned.made > MANY_FILES, "made {}", cloned.made);
         let _joined = holder.await;
     });
-    remove(&root);
+            remove(&root);
+        },
+    );
 }
