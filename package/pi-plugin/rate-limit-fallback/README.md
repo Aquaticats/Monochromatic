@@ -136,10 +136,11 @@ the
 plugin returns that member's error instead of replacing its partial
 answer or mixing events.
 Cancellation,
-transport errors,
 bad inputs,
 and
-other errors that are neither a 429 nor a transient provider status do not
+other errors that are neither a 429,
+a transient provider status,
+nor a failure to reach the member do not
 trigger fallback.
 When an adapter does not expose a
 response status,
@@ -191,6 +192,48 @@ member for the time it names.
 A status that arrives after output was exposed
 ends the request at that member,
 like a 429.
+
+The same rule covers a request that never reached the member at all:
+a connect timeout,
+a refused or reset connection,
+and a name the resolver could not answer.
+None of those carries an HTTP status,
+so the pool reads the failure from the text Pi's own adapters compose.
+Pi names the deepest cause of a failed fetch and appends a code the message
+does not already spell (`@earendil-works/pi-ai` `dist/utils/error-body.js`,
+`withCauseDetail`),
+so a refused connection reads
+`Connection error.: connect ECONNREFUSED 127.0.0.1:443`,
+a reset that arrives after a successful header reads
+`terminated: other side closed (UND_ERR_SOCKET)`,
+and the live failure of 2026-11-26 read
+`Request timed out.: Connect Timeout Error (attempted address: <host>:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)`.
+The pool counts exactly these six codes,
+the undici and Node ones for those failures:
+`UND_ERR_CONNECT_TIMEOUT`,
+`ECONNREFUSED`,
+`ECONNRESET`,
+`UND_ERR_SOCKET`,
+`ENOTFOUND`,
+and `EAI_AGAIN`.
+Each is read as a token of its own,
+so a request id or a byte count that merely contains one is no transport failure,
+and a member that answered with an HTTP refusal is never one of these:
+the status it answered with decides what that refusal is,
+whatever its body names.
+A move is logged with the member,
+the code and the hold,
+worded apart from a rate-limit move.
+The member is then held for a minute,
+and "Changing limits" says why.
+A transport failure that arrives after output was exposed
+ends the request at that member,
+like a 429.
+When every member is unreachable,
+the last refusal is returned unchanged,
+and while every member is held that way the pool asks them anyway
+rather than refusing a request none of them answered,
+so Pi's own retry can ride the outage out.
 
 A policy stop follows the same exposure rule,
 and only the OpenAI provider can
@@ -402,6 +445,25 @@ evidence,
 it can be retried on the next request.
 The plugin neither
 sleeps on a refused member nor permanently demotes it.
+
+A member whose request could not be delivered is the one case where the pool
+sets the time itself,
+because that failure names none:
+it holds the member for a minute
+(`UNREACHABLE_MEMBER_HOLD_MS` in `src/rate-limit-evidence.ts`).
+A minute outlasts the transport's own ten-second connect limit,
+which the live failure of 2026-11-26 reports as `timeout: 10000ms`,
+and Pi's own agent retry,
+which repeats after two seconds and doubles to eight
+(`@earendil-works/pi-coding-agent` `dist/core/settings-defaults.js`,
+`baseDelayMs` 2000 with three retries),
+so a request that follows a failed one does not repay the same wall.
+It is also the longest delay a refusal body may name,
+so a hold this pool sets never outlives one a provider could.
+The hold is not a demotion:
+once it passes,
+the member is asked again,
+and while no other member can be tried the pool asks the held ones anyway.
 
 A `Retry-After` reaches the plugin only if an adapter exposes the failed
 response through its response hook,
@@ -719,7 +781,9 @@ error.
   unit suites against the built entry with stand-in providers and quota endpoints.
   It also checks the installed adapters' refusal strings through an in-memory transport,
   including the recorded OpenAI policy stop,
-  which reaches Pi without a status prefix.
+  which reaches Pi without a status prefix,
+  and the six transport failures,
+  which each adapter reports in its own text and which the pool moves on from before output.
 - `mise run //package/pi-plugin/rate-limit-fallback:verify:extension` runs two
   verifiers in one disposable,
   offline home.
