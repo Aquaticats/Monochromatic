@@ -251,6 +251,7 @@ impl Rule for NotWiredRule {
         return Ok(RulePlan {
             changes: Vec::new(),
             warnings: vec![warning],
+            errors: Vec::new(),
         });
     }
 }

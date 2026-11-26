@@ -70,14 +70,18 @@ pub enum Change {
 
 /// What:
 ///  The result of planning one rule:
-/// its changes and any warnings.
+/// its changes,
+/// any warnings,
+/// and any findings it scoped to one input.
 /// Why:
 ///  A rule that cannot run in this build (a kind whose library is not linked) returns no changes and a warning,
-///  which is not drift.
+///  which is not drift;
+/// a rule that cannot read or parse one of many inputs reports that input and keeps planning the rest,
+///  so one bad manifest names itself instead of hiding every other finding of the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RulePlan = { changes: Change[]; warnings: Diagnostic[] };
+/// type RulePlan = { changes: Change[]; warnings: Diagnostic[]; errors: Diagnostic[] };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RulePlan {
@@ -86,6 +90,9 @@ pub struct RulePlan {
     pub changes: Vec<Change>,
     /// Warnings to report without failing the run.
     pub warnings: Vec<Diagnostic>,
+    /// Findings that fail the run but belong to one input of this rule,
+    /// not to the rule as a whole.
+    pub errors: Vec<Diagnostic>,
 }
 
 /// What:
@@ -122,7 +129,8 @@ pub trait Rule: Send + Sync {
     /// every read is recorded for
     /// revalidation,
     /// for `watch` and for `explain`.
-    /// Return `Err` for a failure that stops the run.
+    /// Return `Err` for a failure that stops the rule.
+    /// Put a finding about one input in `RulePlan::errors` and keep planning the rest.
     fn plan(
         &self,
         view: &mut View,

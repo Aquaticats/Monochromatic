@@ -295,6 +295,7 @@ impl Rule for RacingRule {
         return Ok(RulePlan {
             changes: vec![change],
             warnings: Vec::new(),
+            errors: Vec::new(),
         });
     }
 }

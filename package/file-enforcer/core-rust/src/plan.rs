@@ -127,6 +127,11 @@ pub fn plan_run(
         for warning in rule_plan.warnings {
             report.warnings.push(warning);
         }
+        // A finding scoped to one of the rule's inputs fails the run like a rule failure, and the rule id
+        // says which rule raised it.
+        for error in rule_plan.errors {
+            report.errors.push(error.with_rule(rule.id()));
+        }
         for change in &rule_plan.changes {
             let path = change_path(change).to_string();
             let earlier = writers.entry(path.clone()).or_default();
