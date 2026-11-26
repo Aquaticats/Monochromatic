@@ -14,6 +14,7 @@
 //!  and then one group per managed clone:
 //!  its state,
 //!  its Git registration,
+//!  its managed Git lock,
 //!  its binding record,
 //!  its destruction plan,
 //!  its own snapshots,
@@ -48,7 +49,8 @@ use super::clone_origin_checks::{CloneOriginFacts, check_clone_origin};
 use super::clone_retention_checks::{CloneRetentionFacts, check_clone_retention};
 use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
 use super::clone_state_checks::{CloneStateFacts, check_clone_state};
-use super::delegation_checks::{DelegationFacts, check_delegation};
+use super::delegation_checks::check_delegation;
+use super::delegation_reply::DelegationFacts;
 use super::blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
 use super::binding_record_checks::check_binding_record;
 use super::handler_checks::{
@@ -58,6 +60,7 @@ use super::handler_checks::{
 use super::holder_checks::{HolderFacts, check_holders};
 use super::identity_checks::{ParentIdentityFacts, SlotIdentityFacts, check_parent_identity, check_slot_identity};
 use super::later_step_checks::{LaterStep, check_later_step};
+use super::managed_lock_checks::{ManagedLockFacts, check_managed_lock};
 use super::mount_checks::{MountCheckFacts, check_checkout_mount, check_checkout_propagation, check_nested_reachability};
 use super::registration_checks::{RegistrationFacts, check_registration};
 use super::removal_plan_checks::{RemovalPlanFacts, check_removal_plan};
@@ -84,6 +87,8 @@ pub struct CloneFacts {
     pub state: CloneStateFacts,
     /// The Git registration the record names and what stands there.
     pub registration: RegistrationFacts,
+    /// The managed Git lock that registration holds, in step 13's state.
+    pub lock: ManagedLockFacts,
     /// The destruction plan that names this clone, when one stands.
     pub plan: RemovalPlanFacts,
     /// The clone's own snapshots beside the plan's states.
@@ -227,6 +232,7 @@ fn clone_reports(facts: &RouteFacts) -> Vec<CheckReport> {
         let binding: CheckOutcome = check_binding_record(&clone.state.readings.binding);
         reports.push(CheckReport::new(Check::CloneState, check_clone_state(&clone.state)));
         reports.push(CheckReport::new(Check::Registration, check_registration(&clone.registration)));
+        reports.push(CheckReport::new(Check::ManagedLock, check_managed_lock(&clone.lock)));
         reports.push(CheckReport::new(Check::BindingRecord, binding));
         reports.push(CheckReport::new(Check::RemovalPlan, check_removal_plan(&clone.plan)));
         reports.push(CheckReport::new(Check::CloneSnapshots, check_clone_snapshots(&clone.snapshots)));

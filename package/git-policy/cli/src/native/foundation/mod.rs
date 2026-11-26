@@ -75,6 +75,12 @@ pub mod js_text;
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
+/// Lines a caller hands over and a thread of its own writes:
+/// the bounded queue,
+/// its thread,
+/// and the wait the end of a process makes for them.
+pub mod lines_written_by_a_thread;
+
 /// The diagnostic lines themselves,
 /// written by a thread of their own,
 /// so a reader that stopped draining never holds the command that said them.

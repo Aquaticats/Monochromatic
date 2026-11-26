@@ -30,6 +30,14 @@ The four older `main.kdbx.conflict*` files remain on both sides;
 they are historical artifacts,
 not evidence that the latest sync failed.
 
+## Planned change: sync on file change (confirmed 2026-11-25T20:54:22-05:00)
+
+The owner confirmed the design in `doc/planning/garage-bisync-run-on-file-change.md`,
+section "Current design, as settled":
+a directory-watcher user unit, a trigger unit, a two-pass sync, a 5-minute timer and reworked alerts on this PC,
+then the same parity on the Mac.
+Not implemented yet; Stage D is rewritten from the result when it is.
+
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
 Read-only over ssh; nothing was changed.
@@ -43,6 +51,41 @@ The work folder `~/Library/Caches/rclone/bisync/` is empty.
 So this client has not synced since its agent was installed:
 its baseline listings either never existed at the agent's paths or were removed.
 Recovering needs a `--resync`, which the owner has not authorised.
+
+Read-only comparison at 2026-11-25T19:55:43-05:00, on the owner's go-ahead
+(`rclone check garage:files/Plain /Users/user/Plain --filter-from <the agent's filter> --fast-list --size-only --combined`,
+output in `~/temp/agent/mac-plain-vs-bucket-compare-2026-11-25/` on the Mac):
+10009 files match;
+214 exist only on the Mac, every one last modified before 2026-09-14,
+208 of them in one top-level folder of game mods;
+312 exist only in the bucket;
+12 differ in size, `main.kdbx` among them
+(the Mac's copy dated 2026-09-09, 901760 bytes; the bucket's dated 2026-11-25 18:01, 907268 bytes).
+rclone's `docs/content/bisync.md` at `v1.76.0` says `--resync` implies `--resync-mode path1`,
+so a default resync uploads the 214, downloads the 312,
+and overwrites the 12 on the Mac with the bucket's versions.
+The Mac's LaunchAgent gained `--conflict-resolve newer` and the settle pass at 2026-11-25T21:15:56-05:00
+(owner's choice: both passes through `/bin/sh -c` in the plist);
+its first run after the change ran both passes, each ending `Bisync successful`, and launchd recorded exit code 0.
+The plist it replaced is kept on the Mac in `~/temp/agent/mac-bisync-agent-plist-before-two-passes-2026-11-25/`.
+This PC's unit has one pass until the package `package/garage-file-sync/linux-client` goes live.
+
+Recovered at 2026-11-25T20:04:52-05:00 on the owner's word
+("Treat the bucket as the golden copy. I intentionally deleted the game mods from the bucket. Resync."):
+
+1.  The 12 files that differed were copied,
+    and the 214 Mac-only files moved,
+    into `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` on the Mac
+    (`differing/` and `only-on-mac/`, with the two path lists);
+    nothing was deleted.
+2.  A fresh `rclone check --size-only` showed 0 Mac-only files.
+3.  `rclone bisync garage:files/Plain /Users/user/Plain` with the agent's flags plus `--resync`
+    exited 0 in 25.2 s, transferring 324 files (the 312 bucket-only and the 12 differing, bucket versions winning);
+    log at `resync.log` in the backup folder.
+4.  A second `rclone check --size-only`: 10333 match, nothing else.
+5.  `launchctl kickstart` of the agent: `Bisync successful` in 4.7 s, last exit code 0.
+
+The backup folder stays until the owner says to remove it.
 
 ## What this builds
 
@@ -330,7 +373,7 @@ Status:
 
      ```ini
      [Unit]
-     Description=Bisync ~/Seafile/Plain with Garage S3
+     Description=Bisync ~/Plain with Garage S3
      Documentation=https://rclone.org/bisync/
      After=network-online.target
      Wants=network-online.target
@@ -339,7 +382,7 @@ Status:
      Type=oneshot
      WorkingDirectory=%h
      TimeoutStartSec=3000
-     ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+     ExecStart=|@rclone bisync garage:files/Plain %h/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
      Nice=10
      IOSchedulingClass=best-effort
      IOSchedulingPriority=6
@@ -404,27 +447,14 @@ Status:
      <dict>
          <key>Label</key>
          <string>cat.aquati.rclone-bisync-garage</string>
+         <!-- Two passes: the second settles the mtimes the first upload leaves behind
+              (doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
+              A failed first pass skips the second. -->
          <key>ProgramArguments</key>
          <array>
-             <string>/opt/homebrew/bin/rclone</string>
-             <string>bisync</string>
-             <string>garage:files/Plain</string>
-             <string>/Users/USERNAME/Plain</string>
-             <string>--config</string>
-             <string>/Users/USERNAME/.config/rclone/rclone.conf</string>
-             <string>--filter-from</string>
-             <string>/Users/USERNAME/.config/rclone/garage-filter.txt</string>
-             <string>--fast-list</string>
-             <string>--use-server-modtime</string>
-             <string>--transfers</string>
-             <string>16</string>
-             <string>--checkers</string>
-             <string>32</string>
-             <string>--s3-upload-concurrency</string>
-             <string>8</string>
-             <string>--resilient</string>
-             <string>--recover</string>
-             <string>-v</string>
+             <string>/bin/sh</string>
+             <string>-c</string>
+             <string>/opt/homebrew/bin/rclone bisync garage:files/Plain /Users/USERNAME/Plain --config /Users/USERNAME/.config/rclone/rclone.conf --filter-from /Users/USERNAME/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v &amp;&amp; /opt/homebrew/bin/rclone bisync garage:files/Plain /Users/USERNAME/Plain --config /Users/USERNAME/.config/rclone/rclone.conf --filter-from /Users/USERNAME/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v</string>
          </array>
          <key>StartCalendarInterval</key>
          <dict>
@@ -458,7 +488,7 @@ Status:
 3.  Trigger one run:
      `launchctl kickstart gui/$(id -u)/cat.aquati.rclone-bisync-garage`.
     Expected:
-     `~/Library/Logs/rclone-bisync-garage.log` ends with `Bisync successful`.
+     `~/Library/Logs/rclone-bisync-garage.log` ends with two `Bisync successful` lines, one per pass.
 
     A LaunchAgent runs only while the user is logged in (the Aqua session);
      there

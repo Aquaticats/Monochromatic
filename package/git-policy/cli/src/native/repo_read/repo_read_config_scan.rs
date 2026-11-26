@@ -48,22 +48,27 @@ const CONTENT_KEYS: [&str; 11] = [
 /// Why:
 ///   Dotfile managers link `~/.gitconfig`;
 /// Git follows the link,
-/// so does this read.
+/// so does this read,
+/// while a named pipe at the name is refused rather than waited on
+/// (`crate::plain_file::read_plain_file_through_links`)
+/// because opening one for reading waits for a writer that may never come.
+///  `CONFIG_TEXT_LIMIT` is the bound this crate already reads a configuration file to,
+/// and this repository's own
+///  `.git/config` was 164,616 bytes on 2026-11-25.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const text = await readFile(path).catch(notFoundIsUndefined); // other failures: ask Git
+/// const text = await readFile(path, { limit: CONFIG_TEXT_LIMIT }).catch(notFoundIsUndefined); // other failures: ask Git
 /// ```
 pub fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
-    let metadata = match std::fs::metadata(path) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(None),
-        Err(_) => return None,
+    return match crate::plain_file::read_plain_file_through_links(path, CONFIG_TEXT_LIMIT as u64) {
+        // The file is there and this read has its bytes whole.
+        Ok(bytes) => Some(Some(bytes)),
+        // No file of that name is no configuration, which every caller tells from a refusal.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(None),
+        // A pipe, a directory, a device or a file past the bound leaves the answer to Git.
+        Err(_refused) => None,
     };
-    if !metadata.is_file() || metadata.len() > CONFIG_TEXT_LIMIT as u64 {
-        return None;
-    }
-    return std::fs::read(path).ok().map(Some);
 }
 
 /// The path an include value names:
