@@ -11,7 +11,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::{IndexHeldAt, install_entries, put_back_stranded_takes_awaiting, standing};
-use crate::test_support::{REAL_GIT, executable, fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{REAL_GIT, executable, fixture, git, git_context, git_text, remove, repository, spawn_owned};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
@@ -1719,7 +1719,7 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     let kept_open: std::fs::File = std::fs::File::open(aside.as_path()).expect("the writer's descriptor to hand on");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
     holder.arg("120").stdin(std::process::Stdio::from(kept_open));
-    let mut writer: std::process::Child = holder.spawn().expect("a writer holding the file open");
+    let mut writer: std::process::Child = spawn_owned(&mut holder).expect("a writer holding the file open");
     drop(holder);
     let mut said: Vec<u8> = Vec::new();
     finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
@@ -1830,7 +1830,7 @@ fn a_saved_merge_that_is_partly_installed_stops_the_command() {
     let kept_open: std::fs::File = std::fs::File::open(world.repo.join("dir/child.txt")).expect("the file to keep open");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
     holder.arg("120").stdin(std::process::Stdio::from(kept_open));
-    let mut writer: std::process::Child = holder.spawn().expect("a process holding the file open");
+    let mut writer: std::process::Child = spawn_owned(&mut holder).expect("a process holding the file open");
     drop(holder);
     let mut said: Vec<u8> = Vec::new();
     let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
