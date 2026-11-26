@@ -180,7 +180,8 @@ pub(crate) mod test_children_owned_ledger_tests;
 mod test_children_owned_tests;
 
 /// The control that refuses a control of the relay's end rule which never owns the group of the child it reads:
-/// the relay ends with the child, and what the child left is the test's to end (issue 6501).
+/// the relay ends with the child,
+/// and what the child left is the test's to end (issue 6501).
 #[cfg(test)]
 #[path = "relay_controls_own_the_child_s_group_tests.rs"]
 mod relay_controls_own_the_child_s_group_tests;

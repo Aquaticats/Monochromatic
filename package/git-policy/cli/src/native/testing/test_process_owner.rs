@@ -314,13 +314,19 @@ pub(crate) fn own_group(child: &Child) {
 ///  and a group's number cannot be given to another process while one member is left in it,
 ///  so the number names that child's group and nothing else.
 /// Gotcha:
-///  A number of `0`, or one whose group holds no process, is refused,
+///  A number of `0`,
+///  or one whose group holds no process,
+///  is refused,
 ///  because nothing would die at the thread's end and one of them would end the run itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function ownGroupOfNumber(number: number): void; // assert(groupHasAMember(number)); ownedGroups.push(number)
 /// ```
+#[allow(
+    dead_code,
+    reason = "the library's own controls read a relayed child; the binary controls' crate and the candidate consumer's crate include this file by path and read no such child"
+)]
 pub(crate) fn own_group_of_number(number: u32) {
     let group: libc::pid_t = libc::pid_t::try_from(number).expect("a pid fits the pid type");
     // What: to `killpg` and every other signal call, `0` names the group of the process that sends it.

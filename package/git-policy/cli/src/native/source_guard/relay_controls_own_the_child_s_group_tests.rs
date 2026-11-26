@@ -97,9 +97,9 @@ fn relay_reads_without_an_owner(text: &str) -> Vec<usize> {
 /// What:
 ///  `fn findings_in(root, roots) -> Result<Vec<String>, String>` is every start or read of a relayed child in a test file
 ///  of the tree under `root` that names no owner,
-///  as `identity:line`.
-/// `Result<Vec<String>, String>` is "the findings or one text saying what is wrong" (sibling: a bare list,
-/// which cannot say why a tree could not be read).
+///  as the file's relative path followed by its line number.
+/// `Result<Vec<String>, String>` is "the findings or one text saying what is wrong",
+/// where a bare list cannot say why a tree was unreadable.
 /// Why:
 ///  A finding names a place a person can open,
 ///  and the control over a planted tree and the control over this crate ask the same question,

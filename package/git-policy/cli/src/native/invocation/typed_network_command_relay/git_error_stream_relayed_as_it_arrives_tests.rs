@@ -28,7 +28,8 @@ const GRANDCHILD_HOLD_SECONDS: u32 = 30;
 /// How long the control gives the group it killed to leave the process table.
 /// Why:
 ///  A signal is delivered at once and the kernel withdraws a killed process in its own time,
-///  so this bound judges the kernel and not the child, and five seconds is what the shared waits give such work
+///  so this bound judges the kernel and not the child,
+///  and five seconds is what the shared waits give such work
 ///  (`testing/test_support_wait_bounds.rs`).
 const ENDED_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -122,7 +123,8 @@ fn the_kept_tail_is_the_stream_s_end_and_no_more() {
     assert_eq!(&relayed.kept[super::KEPT_TAIL_BYTES - 10..], b"BBBBBBBBBB");
 }
 
-/// A process the child started that holds its standard error does not hold the wrapper: the relay ends with the child,
+/// A process the child started that holds its standard error does not hold the wrapper:
+/// the relay ends with the child,
 /// and what the child left is ended and waited for before the control returns.
 #[test]
 fn a_process_that_outlives_the_child_does_not_hold_the_relay() {
@@ -190,8 +192,10 @@ fn a_process_that_outlives_the_child_does_not_hold_the_relay() {
 /// What:
 ///  The process group number a child of this control wrote down before it ended.
 /// Why:
-///   The relay answers a child's number only when a `SignalGuard` started that child, and this control passes none,
-///  so the child's shell writes the number of the group it leads, which is the group the control ends (issue 6501).
+///   The relay answers a child's number only when a `SignalGuard` started that child,
+///  and this control passes none,
+///  so the child's shell writes the number of the group it leads,
+///  which is the group the control ends (issue 6501).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,7 +208,9 @@ fn written_group(path: &std::path::Path) -> libc::pid_t {
 }
 
 /// What:
-///  Kill the process group the child led and wait, bounded, until no process of it is left.
+///  Kill the process group the child led and wait for it,
+///  bounded by `ENDED_WITHIN`,
+///  until no process of it is left.
 /// Why:
 ///   The control's claim is that the relay ends with the child,
 ///  not that the process holding the stream is gone:
