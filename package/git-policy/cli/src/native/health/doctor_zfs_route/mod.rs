@@ -216,10 +216,54 @@ pub mod later_step_checks;
 pub mod route_checks;
 
 /// The facts a control builds for every check in this folder,
-/// never part of the release executable.
+/// never part of the release executable:
+/// the names,
+/// the paths,
+/// the datasets,
+/// the mount table with the staging folder,
+/// the store and its identities,
+/// the delegation,
+/// the handler,
+/// one healthy clone,
+/// and the one fact set every control starts from.
 #[cfg(test)]
 #[path = "route_test_facts.rs"]
 pub(crate) mod route_test_facts;
+
+/// The names every healthy fact of this folder is built from.
+#[cfg(test)]
+mod route_test_facts_names;
+
+/// One path at the state a healthy route shows.
+#[cfg(test)]
+mod route_test_facts_paths;
+
+/// One healthy dataset of each role.
+#[cfg(test)]
+mod route_test_facts_datasets;
+
+/// The mount table and the staging folder.
+#[cfg(test)]
+mod route_test_facts_mounts_and_staging_folder;
+
+/// The store's listing and the identities it records.
+#[cfg(test)]
+mod route_test_facts_store_and_identities;
+
+/// The decided grants and the delegation they make.
+#[cfg(test)]
+mod route_test_facts_delegation;
+
+/// The handler's halves,
+/// folders,
+/// wiring,
+/// readiness and requests.
+#[cfg(test)]
+mod route_test_facts_handler;
+
+/// One managed clone at the design's healthy state.
+#[cfg(test)]
+mod route_test_facts_clone;
 
 /// The removal-side lines' guest arm,
 /// compiled for tests only and run in the throwaway guest.
