@@ -1234,3 +1234,33 @@ moved verbatim on 2026-11-23:
   a `packageId` requirement on `cargo-git` rows,
   stays as it is:
   no entry uses that route and it goes to the owner as a choice.
+
+## Open: should the package.json repository rule also cover paused and deprecated packages? (recorded 2026-11-26T00:32-05:00)
+
+Issue 1124 asked that no generated `package.json` carry the pre-transfer owner `Aquaticat` again.
+The `json-keys` rules in `file-enforcer.config.jsonc` own `repository` and `homepage` in every `package/*/*/package.json`,
+and `def79174b0` left `package-paused/` and `package-deprecated/` out on purpose:
+"a pause means no work",
+and the repository already excludes the deprecated folder from every repo-wide pass.
+Eight manifests there still carry the pre-transfer URL
+(`git grep --files-with-matches 'github.com/Aquaticat/Monochromatic' -- '*package.json'`, measured 2026-11-26):
+`package-deprecated/mcp/nvim`,
+and under `package-paused/`: `dev-script/inference-canary-viewer`, `dev-script/inference-canary`, `module/es`,
+`pi-plugin/morph-compact`, `stylesheet/monochromatic`, `web-demo/glass`, `webapp-edu/paper2vn`.
+So the issue's own acceptance search does not come back empty.
+The alpha.2 release pass raised it as a scope question (Low 7).
+
+- Leave them out (recommended):
+  a paused or deprecated package gets no work until it is resumed,
+  and the rule takes it in on the day it moves back under `package/`;
+  the cost is that the eight old URLs stay until then,
+  and the acceptance search names them.
+- Widen the rule to both folders:
+  the old URL leaves every manifest now;
+  the cost is that a paused package changes while no work is meant to touch it,
+  and the deprecated folder joins a pass it is kept out of everywhere else.
+
+Ranking:
+leave them out > widen,
+because the folders exist to hold work that is not being done,
+and the rule already reaches a package the moment it comes back.
