@@ -2509,10 +2509,11 @@ fn layout_the_own_file_loop_finding_is_keyed_by_its_use() {
         CONFIG,
         r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
     );
-    // Every finding of the tree except the loop, which no `uses` line can record.
+    // Every finding of the tree except the loop's own-file use, which no `uses` line can record,
+    // and the use inside the loop, which its own `uses` line records.
     fixture.write(
         "folder.txt",
-        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\n",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nuses src/a -> src/grp/g2\n",
     );
     let keyless: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(keyless.status, 1, "{}", keyless.stderr);
@@ -2531,10 +2532,10 @@ fn layout_the_own_file_loop_finding_is_keyed_by_its_use() {
         "{}",
         keyless.stderr
     );
-    // The line names that use, so the list holds every finding of this tree.
+    // The line names that use, and the loop's other use has its own line, so the list holds every finding of this tree.
     fixture.write(
         "folder.txt",
-        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nown-file-loop src/grp -> src/a\n",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nown-file-loop src/grp -> src/a\nuses src/a -> src/grp/g2\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
@@ -2707,10 +2708,10 @@ fn layout_a_use_that_joins_a_listed_own_file_loop_is_reported() {
     fixture.write("src/a/mod.rs", "pub mod x;\n");
     fixture.write("src/a/x.rs", "use crate::g1::c1::Y;\npub struct Z;\n");
     uses_link(&fixture.path, "src/a/uses/c1", "../../g1/c1");
-    // The list holds today's findings: the group's own file and the use that closes the loop.
+    // The list holds today's findings: the group's own file, the use that closes the loop, and the other use inside it.
     fixture.write(
         "folder.txt",
-        "group-file src/g1 own.rs\nown-file-loop src/g1 -> src/a\n",
+        "group-file src/g1 own.rs\nown-file-loop src/g1 -> src/a\nuses src/a -> src/g1/c1\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
@@ -2845,7 +2846,7 @@ fn layout_the_own_file_loop_key_names_the_used_folder() {
     );
     fixture.write(
         "folder.txt",
-        "own-file-loop src/g -> src/h/c1\ngroup-file src/g own.rs\n",
+        "own-file-loop src/g -> src/h/c1\ngroup-file src/g own.rs\nuses src/h/c1 -> src/g/c1\n",
     );
     let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
     assert_eq!(
