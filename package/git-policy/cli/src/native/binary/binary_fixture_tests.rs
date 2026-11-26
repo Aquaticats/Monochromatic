@@ -123,19 +123,23 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
     settle_fixture(root, false);
 }
 
-/// Fixtures are created in Cargo's per-target scratch directory,
+/// Fixtures are created in a directory of this process's own beside the build output,
 /// never in the system temporary directory,
 /// and a run that moves the root keeps its fixtures out of the system temporary directory too.
+/// The root's last component is this process's own directory whichever root the run chose,
+/// so the names under it that are not fixtures' own are the process's.
 #[test]
 fn fixtures_are_created_outside_the_system_temporary_directory() {
     let created: Fixture = fixture("location");
+    let root: PathBuf = super::support::fixture_root();
     if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
-        assert!(
-            created.root.starts_with(std::fs::canonicalize(env!("CARGO_TARGET_TMPDIR")).expect("target scratch")),
-            "{} is not under the target scratch directory",
-            created.root.display()
-        );
+        // The build output above `test-fixtures` is shared by every checkout that builds here, and a moved root cannot
+        //  satisfy this assertion, which is why only this one is inside the arm without the variable.
+        assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
     }
+    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
+    let resolved_root: PathBuf = std::fs::canonicalize(&root).expect("the fixture root resolves");
+    assert!(created.root.starts_with(&resolved_root), "{} is not under the fixture root {}", created.root.display(), resolved_root.display());
     for directory in system_temporary_directories() {
         assert!(
             !created.root.starts_with(&directory),

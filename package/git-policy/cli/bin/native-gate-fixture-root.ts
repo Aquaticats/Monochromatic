@@ -67,8 +67,8 @@ export const gateFixtureRootMountOptions: string = `rw,size=${gateFixtureRootSiz
  Environment variable that moves the fixture root of the Rust tests.
 
  The name is the one both faces of the suite read: `FIXTURE_ROOT_VARIABLE` in
- `src/native/testing/test_support.rs` for the unit tests and in `src/native/binary/binary_support_fixture_directories.rs`
- for the binary controls.
+ `src/native/testing/fixture_support_shared_by_both_test_targets.rs`, the one file the unit tests and the binary controls
+ both include by `#[path]`.
  */
 export const gateFixtureRootVariable: string = 'CLI_GIT_TEST_ROOT';
 

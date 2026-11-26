@@ -19,6 +19,19 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The fixture lifecycle both test targets run on, written once and included here by `#[path]`
+/// as the unit tests include it.
+#[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]
+mod fixture_support_shared_by_both_test_targets;
+
+/// The processes still in a helper's process group, and the leaders' own read of this process's ancestry.
+#[path = "binary_support_process_group_members.rs"]
+mod support_process_group_members;
+
+/// The executable, words and runtime directory a fixture's service starts with, and the manager's restart.
+#[path = "binary_support_fixture_service_start.rs"]
+mod support_fixture_service_start;
+
 /// Holding a wrapped commit between its preparation and its landing,
 /// and landing another session's commit in that window.
 #[path = "binary_hold_at_prepare_support.rs"]
