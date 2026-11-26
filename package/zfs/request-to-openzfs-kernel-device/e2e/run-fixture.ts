@@ -96,6 +96,9 @@ const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sb
  kernel whose headers the module is built against,
  so a moved image is refused here rather than
  measured under an unrecorded release.
+ `--kernel-release` names another release,
+ which is what step 23's custom CachyOS template passes,
+ and then the check below accepts that release instead of this one.
  */
 const EXPECTED_KERNEL_RELEASE = '6.8.0-147-generic';
 /** The running kernel's own BTF, which module BTF is built against. */
@@ -203,6 +206,13 @@ interface Options {
   readonly crate: string;
   readonly wrapperCrate: string;
   readonly keepGuest: boolean;
+  /**
+   The `mvm` custom template the guest is made from,
+   or `undefined` for the Ubuntu 24.04 image the recipe prepares itself.
+   */
+  readonly image: string | undefined;
+  /** The kernel release the prepared guest must boot. */
+  readonly kernelRelease: string;
 }
 
 /** The step, the guest name, the log directory, the crate source directory and whether `all` keeps the guest. */
@@ -220,6 +230,8 @@ function options(): Options {
     crate: value('--crate') ?? packageDir,
     wrapperCrate: value('--wrapper-repository') ?? join(import.meta.dirname, '../../../..'),
     keepGuest: rest.includes('--keep-guest'),
+    image: value('--image'),
+    kernelRelease: value('--kernel-release') ?? EXPECTED_KERNEL_RELEASE,
   };
 }
 
@@ -345,11 +357,83 @@ function create(options: Options): void {
     throw new Error(
       `guest '${options.name}' already exists; pass another --name so this run destroys only the guest it creates`,
     );
-  host({ options, command: 'mvm', args: ['--backend', 'libvirt', 'create', options.name], log: 'mvm-create.log' });
+  host({
+    options,
+    command: 'mvm',
+    args: [
+      '--backend',
+      'libvirt',
+      'create',
+      ...(options.image === undefined ? [] : ['--image', options.image,]),
+      options.name,
+    ],
+    log: 'mvm-create.log',
+  });
+}
+
+/**
+ Assert what a custom template must already carry, instead of installing it.
+
+ Step 23's CachyOS template is made by its own build recipe
+ (`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`)
+ and carries OpenZFS 2.4.4 userspace and module,
+ the unpacked OpenZFS release tree the request numbers come from,
+ the Rust toolchain,
+ `cargo-nextest`,
+ `pahole`,
+ `strace` and Git as packages.
+ So the recipe neither installs Debian packages
+ nor builds the module;
+ it checks each fact the arms below rely on
+ and prints what it found,
+ so a template that lost one is refused here
+ rather than measured.
+
+ @param options - the run's options, naming the expected kernel release
+
+ @throws Error when the guest boots another release or lacks one of those parts
+ */
+function prepareFromTemplate(options: Options): void {
+  const checks = [
+    'set -eu',
+    'echo "== the release this guest boots"',
+    'uname --kernel-release',
+    `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
+    'echo "== the module and userspace the design pins"',
+    'modprobe --quiet zfs 2>/dev/null || true',
+    'cat /sys/module/zfs/version',
+    `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
+    `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version`,
+    `test -f ${MODULE_BTF}`,
+    'test -f /sys/kernel/btf/vmlinux',
+    'echo "== the release tree the request numbers come from"',
+    `test -d ${OPENZFS_SOURCE}`,
+    `ls ${OPENZFS_SOURCE}/include/zfs_fletcher.h`,
+    'echo "== the tools the arms start"',
+    'test -x /root/.cargo/bin/cargo',
+    'test -x /root/.cargo/bin/cargo-nextest',
+    'git --version',
+    'pahole --version',
+    'strace --version | head --lines=1',
+    'echo "== the fixture root"',
+    `mkdir --parents ${FIXTURE_ROOT}`,
+    `chmod 0755 ${FIXTURE_ROOT}`,
+  ].join('\n');
+  guest({ options, script: checks, log: 'guest-prepare-template.log', timeout: RECORD_TIMEOUT_MS });
 }
 
 /** Install the tools, build OpenZFS 2.4.4, and install Rust and nextest. */
 function prepare(options: Options): void {
+  if (options.image !== undefined) {
+    prepareFromTemplate(options);
+  } else {
+    prepareUbuntu(options);
+  }
+  installToolchain(options);
+}
+
+/** Install the Debian packages and build OpenZFS 2.4.4 in the Ubuntu guest. */
+function prepareUbuntu(options: Options): void {
   const install = [
     'set -eu',
     'export DEBIAN_FRONTEND=noninteractive',
@@ -361,7 +445,7 @@ function prepare(options: Options): void {
     'timeout 600 sh -c \'while fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1; do sleep 2; done\'',
     'apt-get --option Acquire::Retries=2 update > /root/zfs-prepare.log 2>&1',
     `apt-get --option Acquire::Retries=2 --yes install ${PACKAGES} "linux-headers-$(uname --kernel-release)" >> /root/zfs-prepare.log 2>&1`,
-    `test "$(uname --kernel-release)" = ${EXPECTED_KERNEL_RELEASE}`,
+    `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
     `curl --fail --location --retry ${DOWNLOAD_RETRIES} --max-time ${DOWNLOAD_TIMEOUT_SECONDS} --output /root/zfs-2.4.4.tar.gz https://github.com/openzfs/zfs/releases/download/zfs-2.4.4/zfs-2.4.4.tar.gz >> /root/zfs-prepare.log 2>&1`,
     `printf '%s  %s\\n' ${OPENZFS_TARBALL_SHA256} /root/zfs-2.4.4.tar.gz | sha256sum --check --strict -`,
     'tar --extract --gzip --file /root/zfs-2.4.4.tar.gz --directory /root',
@@ -397,7 +481,10 @@ function prepare(options: Options): void {
     'tail --lines=5 /root/zfs-build.log',
   ].join('\n');
   guest({ options, script: build, log: 'guest-build.log', timeout: PREPARE_BUILD_TIMEOUT_MS });
+}
 
+/** Install Rust and `cargo-nextest` unless the guest already carries them. */
+function installToolchain(options: Options): void {
   const toolchain = [
     'set -eu',
     'if test ! -x /root/.cargo/bin/cargo; then',
