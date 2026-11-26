@@ -87,6 +87,13 @@ so a control that sets it runs its body in a child,
 and without that a control that proves a sync was refused fails by which test ran first
 (issue 6498,
 `foundation/private_storage_syncs_test_support.rs`).
+A stand-in for a runtime that refused every thread,
+or for a build that outlasted its deadline,
+is one too
+(`foundation/lazy_runtime.rs`):
+`tasks_can_run` and `built_flavor` answer for the whole process,
+so a control that arms one runs its body in a child,
+and both setters refuse outside it (issue 6511).
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
