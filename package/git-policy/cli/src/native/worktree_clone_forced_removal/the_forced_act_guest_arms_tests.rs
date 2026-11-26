@@ -379,6 +379,41 @@ fn the_forced_act_guest_arm_tests() {
 }
 
 /// What:
+///  Wait, bounded, until the holder has the namespaces and the session its shape promises.
+/// Why:
+///  `fork` returns in the parent before the child has run a line,
+///  so a phase that read the holder's session at once would read the caller's:
+///  the arm's own log shows the parent printing the caller's session before the
+///  child had moved,
+///  and the child then killed by its own recheck because the parent had gone.
+///  A holder that never gets there is a failure with what it waited for.
+fn wait_for_the_holder(shape: AShape, holder: &AHolder) -> bool {
+    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(10);
+    while std::time::Instant::now() < deadline {
+        // SAFETY: `getsid` reads one pid and writes nothing of ours.
+        let session: libc::pid_t = unsafe { libc::getsid(holder.pid) };
+        if session == holder.pid {
+            let namespace_of = |path: String| -> u64 {
+                use std::os::unix::fs::MetadataExt;
+                return std::fs::metadata(path.as_str()).expect("the holder's own namespace link").ino();
+            };
+            let ours: u64 = namespace_of(String::from("/proc/self/ns/mnt"));
+            let theirs: u64 = namespace_of(format!("/proc/{}/ns/mnt", holder.pid));
+            let namespace_ready: bool = match shape {
+                AShape::SessionOfItsOwn => true,
+                AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::NamespaceOfItsOwnAsSlave => theirs != ours,
+                AShape::UserNamespaceOfItsOwn => theirs != ours && namespace_of(format!("/proc/{}/ns/user", holder.pid)) != namespace_of(String::from("/proc/self/ns/user")),
+            };
+            if namespace_ready {
+                return true;
+            }
+        }
+        pause(Duration::from_millis(20));
+    }
+    return false;
+}
+
+/// What:
 ///  The path holder's phase:
 ///  the control refuses,
 ///  the signal stage ends the holder,
@@ -395,10 +430,7 @@ fn phase_path_holder(fixture: &Fixture, ignores_the_ask: bool) -> String {
     mount_the_clone(fixture, slot.as_path());
     let holder: AHolder = hold(AShape::SessionOfItsOwn, checkout.as_path(), slot.as_path(), ignores_the_ask);
     // The holder's own session must be outside the caller's, or this phase would measure the protected set instead.
-    // SAFETY: `getsid` reads one pid and writes nothing of ours.
-    let theirs: libc::pid_t = unsafe { libc::getsid(holder.pid) };
-    eprintln!("PHASE holder={} getsid(holder)={theirs}", holder.pid);
-    assert_eq!(theirs, holder.pid, "the holder leads a session of its own");
+    assert!(wait_for_the_holder(AShape::SessionOfItsOwn, &holder), "the holder leads a session of its own");
     let control: String = match unmount_the_slot(slot.as_path()) {
         Ok(()) => String::from("accepted"),
         Err(error) => format!("errno {}", error.raw_os_error().unwrap_or(0)),
@@ -469,7 +501,7 @@ fn phase_way_8(fixture: &Fixture) -> String {
     // The holder's copy is a private copy of the host's tree, and its own checkout is made a group of its own, which
     // is the shape systemd leaves a unit's parent.
     let holder: AHolder = hold(AShape::NamespaceOfItsOwnAndShared, checkout.as_path(), slot.as_path(), false);
-    pause(Duration::from_millis(200));
+    assert!(wait_for_the_holder(AShape::NamespaceOfItsOwnAndShared, &holder), "the holder's own namespace and session are there");
     let (copy, theirs, _ours, receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
     fields.push(("parent", if theirs.rows.iter().any(|row| return row.mount_point == checkout.to_string_lossy() && !row.shared.is_empty()) { "shared" } else { "not-shared" }));
     fields.push(("way-eight", if receivers.way_eight { "true" } else { "false" }));
@@ -567,7 +599,7 @@ fn phase_way_7(fixture: &Fixture, shared_here: bool) -> String {
         AShape::NamespaceOfItsOwn
     };
     let holder: AHolder = hold(shape, checkout.as_path(), slot.as_path(), false);
-    pause(Duration::from_millis(200));
+    assert!(wait_for_the_holder(shape, &holder), "the holder's own namespace and session are there");
     let (copy, theirs, _ours, receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
     let parent_before: Option<MountRow> = theirs.rows.iter().find(|row| return row.mount_point == checkout.to_string_lossy()).cloned();
     fields.push(("parent-before", propagation_of(parent_before.as_ref())));
@@ -613,7 +645,7 @@ fn phase_locked(fixture: &Fixture) -> String {
     let handle: RecordedHandle = name_the_handle(&underlay).expect("the underlay's handle is taken before the clone is mounted");
     mount_the_clone(fixture, slot.as_path());
     let holder: AHolder = hold(AShape::UserNamespaceOfItsOwn, checkout.as_path(), slot.as_path(), false);
-    pause(Duration::from_millis(500));
+    assert!(wait_for_the_holder(AShape::UserNamespaceOfItsOwn, &holder), "the holder's own user namespace and session are there");
     let owner: NamespaceOwner = read_the_owner(Path::new(format!("/proc/{}/ns/mnt", holder.pid).as_str())).expect("the holder's namespace owner is read");
     fields.push(("owner", if owner.locked() { "another" } else { "ours" }));
     let (copy, _theirs, _ours, _receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
