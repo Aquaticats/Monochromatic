@@ -466,6 +466,11 @@ fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, 
     let container: String = format!("{home}/{CONTAINER_LEAF}");
     let created: (bool, String, String) = zfs(sbin, "zfs", &["create", "-p", "-o", "mountpoint=none", home.as_str()], None);
     assert!(created.0, "the home dataset is made: {}", created.2);
+    // A killed arm leaves clones mounted under the checkout, and a checkout
+    // snapshot with a dependent clone refuses its own destroy, so the previous
+    // run's mounts and container go before the checkout dataset does.
+    let _unmounted: (bool, String, String) = zfs(sbin, "zfs", &["unmount", "-a"], None);
+    let _container: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", container.as_str()], None);
     let _replaced: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", checkout_dataset.as_str()], None);
     let mountpoint: String = format!("mountpoint={}", checkout.display());
     let made: (bool, String, String) = zfs(sbin, "zfs", &["create", "-o", mountpoint.as_str(), checkout_dataset.as_str()], None);
@@ -532,13 +537,25 @@ fn command(program: &str, arguments: &[&str], directory: &Path, environment: &[(
     return started.output().unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
 }
 
-/// Copy one whole folder tree.
+/// What:
+///  Copy one whole folder tree, keeping each entry's kind.
+/// Why:
+///  Every source folder in this crate holds a `uses/` folder of links to the
+///  folders its code uses,
+///  and a copy that followed them walked the same subtree again and again:
+///  the first run's workload read 133,102 files from 3,327,
+///  filled a pool with 758 MiB, and made the route's capture exceed its bound.
+///  A symlink is recreated as a symlink, never followed.
 fn copy_tree(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).expect("the copy's folder");
     for entry in std::fs::read_dir(from).expect("the tree reads").flatten() {
         let path: PathBuf = entry.path();
         let target: PathBuf = to.join(entry.file_name());
-        if path.is_dir() {
+        let kind: std::fs::FileType = entry.file_type().expect("the entry's kind");
+        if kind.is_symlink() {
+            let link: PathBuf = std::fs::read_link(path.as_path()).expect("the link reads");
+            std::os::unix::fs::symlink(link, target.as_path()).expect("the link is recreated");
+        } else if kind.is_dir() {
             copy_tree(path.as_path(), target.as_path());
         } else {
             std::fs::copy(path.as_path(), target.as_path()).expect("the file copies");
@@ -553,11 +570,12 @@ fn middle(values: &[u128]) -> u128 {
     return sorted[sorted.len() / 2];
 }
 
-/// Count the files below one folder.
+/// Count the files below one folder, counting a symlink as one entry.
 fn count_files(root: &Path) -> u64 {
     let mut count: u64 = 0;
     for entry in std::fs::read_dir(root).expect("the folder reads").flatten() {
-        if entry.path().is_dir() {
+        let kind: std::fs::FileType = entry.file_type().expect("the entry's kind");
+        if kind.is_dir() {
             count += count_files(entry.path().as_path());
         } else {
             count += 1;
@@ -566,11 +584,11 @@ fn count_files(root: &Path) -> u64 {
     return count;
 }
 
-/// The bytes the files below one folder hold.
+/// The bytes the files below one folder hold, where a symlink holds its own short target.
 fn tree_bytes(root: &Path) -> u64 {
     let mut bytes: u64 = 0;
     for entry in std::fs::read_dir(root).expect("the folder reads").flatten() {
-        let metadata: std::fs::Metadata = entry.metadata().expect("the entry's metadata");
+        let metadata: std::fs::Metadata = std::fs::symlink_metadata(entry.path()).expect("the entry's metadata");
         if metadata.is_dir() {
             bytes += tree_bytes(entry.path().as_path());
         } else {
