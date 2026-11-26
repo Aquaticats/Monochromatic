@@ -1832,6 +1832,76 @@ fn layout_group_folders_run_in_the_built_executable() {
     );
 }
 
+/// A use by a group's own file reaches no entry loop,
+///  because the shelf rule reports that file and a group's summary is what its child folders use,
+///  so a new use from the group's own file to another entry is no finding
+///  even while a listed entry loop joins the two entries,
+///  and no `uses` line is owed for it.
+#[cfg(unix)]
+#[test]
+fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod a;\npub mod grp;\n");
+    fixture.write("src/a/mod.rs", "//! A.\nuse crate::grp::g2::X;\n");
+    fixture.write(
+        "src/grp/mod.rs",
+        "//! Group.\npub mod own;\npub mod g1;\npub mod g2;\n",
+    );
+    // The group's own file. The shelf rule reports it; its use reaches no entry loop.
+    fixture.write("src/grp/own.rs", "//! Own.\nuse crate::a::X;\n");
+    fixture.write("src/grp/g1/mod.rs", "//! G1.\nuse crate::a::X;\n");
+    fixture.write("src/grp/g2/mod.rs", "//! G2.\n");
+    // Every finding of this tree except the use in the group's own file,
+    // and both uses that hold the entry loop between `a` and `grp`.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\n\
+         missing-link src/grp/g1 -> src/a\n\
+         group-file src/grp own.rs\n\
+         summary-missing src/grp src/a\n\
+         uses src/a -> src/grp/g2\n\
+         uses src/grp/g1 -> src/a\n",
+    );
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (
+            clean.status,
+            clean.stdout.as_str(),
+            clean.stderr.contains("both sit inside one loop")
+        ),
+        (0, "", false),
+        "{}",
+        clean.stderr
+    );
+    // The use is no finding and owes no `uses` line: a line naming it is the dead line below.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\n\
+         missing-link src/grp/g1 -> src/a\n\
+         group-file src/grp own.rs\n\
+         summary-missing src/grp src/a\n\
+         uses src/a -> src/grp/g2\n\
+         uses src/grp/g1 -> src/a\n\
+         uses src/grp -> src/a\n",
+    );
+    let dead: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(dead.status, 1, "{}", dead.stderr);
+    assert!(
+        dead.stdout
+            .contains("uses src/grp -> src/a` in folder.txt tolerates nothing any more"),
+        "{}",
+        dead.stdout
+    );
+}
+
 /// The unit-test scratch root,
 /// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]

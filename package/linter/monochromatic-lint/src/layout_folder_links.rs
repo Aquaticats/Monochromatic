@@ -363,6 +363,11 @@ fn loops_of_each_folder(
 ///  An entry loop holds a use only when the use reaches outside its entry:
 ///  two folders of one group share that group as their entry,
 ///  so a use between them makes no edge of the entry graph and no entry loop can hold it.
+///  A group's own code makes no use at all:
+///  the shelf rule reports the file that holds the code,
+///  a group's summary is what its child folders use,
+///  and `entry_uses` skips such a folder as a source too,
+///  so a use from a group's own file joins no entry loop and owes no `uses` line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -384,7 +389,7 @@ fn shared_loops(
                 shared.insert(*held);
             }
             LoopGraph::Entries => {
-                // A group's own code is left to the group checks, and two members of one group make no entry edge.
+                // A group's own code makes no use (the shelf rule reports the file), and two members of one group make no entry edge.
                 let inside_one_entry: bool =
                     groups.contains(from) || entry_of(from, groups) == entry_of(to, groups);
                 if !inside_one_entry {

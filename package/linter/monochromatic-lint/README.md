@@ -909,6 +909,15 @@ so a finding is never reported twice.
   including a `pub use` re-export,
   which would make a path through the group name the group instead of the folder that defines the item.
   The finding names the file and the item.
+- A group's own code makes no use and needs no link:
+  the finding above reports the file that holds it,
+  and a group's summary is what its child folders use.
+  A use written in a group's own file, to another entry and to a folder inside one,
+  is therefore not a use of either layout rule:
+  it joins no loop of folders or of entries,
+  no `uses` link is owed for it,
+  and a `uses` line naming it tolerates nothing and fails the run.
+  Every use that is a finding is a use of a child folder's code.
 - A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
   and no other link.
   A folder inside the group uses an entry when the folder's code names a folder of that entry
