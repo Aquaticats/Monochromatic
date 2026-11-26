@@ -22,7 +22,8 @@ because the Android package is a Gradle build that no parent cargo workspace own
   a worker thread owns the decode source and feeds an AAudio realtime callback
   (`src/engine.rs`,
   `src/engine_worker.rs`,
-  `src/output.rs`).
+  `src/output.rs`),
+  driven by the JNI entries in `src/engine_jni.rs`.
 - The track fingerprint used as the analysis cache key (`src/fingerprint.rs`),
   computed by the shared
   `truepeak-core` crate so the desktop app and this crate agree on the value.
