@@ -261,8 +261,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
-The last gate was at `196b8d0c87` (2026-11-26T08:01:00-05:00),
-and it failed nothing: `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`;
+The last gate was at `a6c155bea4` (about 2026-11-26T09:47-05:00, after split round 1),
+and it failed nothing: `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`;
 its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
