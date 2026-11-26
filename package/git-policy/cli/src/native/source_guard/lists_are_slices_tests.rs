@@ -173,8 +173,8 @@ fn hand_counted_text_lists(text: &str) -> Vec<usize> {
 ///   /^\s*=\s*\[/.test(afterTheType)
 /// ```
 fn begins_a_list_initializer(after_the_type: &str) -> bool {
-    let after_the_equals: &str = after_the_type.trim_start();
-    let Some(after_the_equals) = after_the_equals.strip_prefix('=') else {
+    let without_leading_space: &str = after_the_type.trim_start();
+    let Some(after_the_equals) = without_leading_space.strip_prefix('=') else {
         return false;
     };
     return after_the_equals.trim_start().starts_with('[');

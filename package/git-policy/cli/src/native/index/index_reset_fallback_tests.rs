@@ -48,7 +48,7 @@ fn changed_a(name: &str) -> Scene {
     return scene(
         name,
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -209,7 +209,7 @@ fn a_racily_clean_entry_is_left_to_git() {
     let scene: Scene = scene(
         "index-fallback-racy",
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             fresh: true,
             ..Plan::default()
@@ -312,7 +312,7 @@ fn a_file_where_the_index_has_a_directory_is_left_to_git() {
     let scene: Scene = scene(
         "index-fallback-dir-file",
         &Plan {
-            files: &FILES,
+            files: FILES,
             edits: edits.as_slice(),
             ..Plan::default()
         },

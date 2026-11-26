@@ -580,13 +580,13 @@ pub fn rewrite_index_stat_with(
                 "an extension runs past the end of the file",
             ));
         }
-        if is_listed(&DECLINED, signature) {
+        if is_listed(DECLINED, signature) {
             return IndexOutcome::Skipped(format!(
                 "the index uses the {} extension (split or sparse index)",
                 String::from_utf8_lossy(signature)
             ));
         }
-        if !is_listed(&DROPPED, signature) {
+        if !is_listed(DROPPED, signature) {
             kept.extend_from_slice(&bytes[at..end]);
         }
         at = end;

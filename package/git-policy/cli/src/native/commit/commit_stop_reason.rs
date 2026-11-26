@@ -465,7 +465,7 @@ pub fn reason_of_events(events: &[PolicyEvent]) -> CommitStopReason {
             return CommitStopReason::policy(policy_descriptor(finding.policy).name);
         }
     }
-    return CommitStopReason::unidentified(&EVERY_ROUTE_AN_EVENT_IS_NOT);
+    return CommitStopReason::unidentified(EVERY_ROUTE_AN_EVENT_IS_NOT);
 }
 
 /// The reasons,
