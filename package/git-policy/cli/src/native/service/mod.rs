@@ -100,8 +100,25 @@
 //!   beside the landing loop.
 //! - `service_shadow_draw.rs`:
 //!   the service's stock of finished shadows drawn ahead of the commits that ask for one.
+//! - `service_timing_records.rs`:
+//!   what one request's timing is made of.
+//! - `service_timing_wait_line.rs`:
+//!   the line about the wait for the index lock,
+//!   and the read of a step's duration from a line already written.
+//! - `service_timing_answered_line.rs`:
+//!   the one line each answered request gets.
+//! - `service_timing_line_text.rs`:
+//!   the prefix of every line,
+//!   the wall clock it states,
+//!   and the text of one line.
+//! - `service_timing_life_lines.rs`:
+//!   the lines about the service's own life.
+//! - `service_timing_log_entry.rs`:
+//!   writing one entry,
+//!   and the three macros every call site uses.
 //! - `service_timing.rs`:
-//!   the lines the commit service writes about its life and about the time each request took.
+//!   the lines the commit service writes about its life and about the time each request took,
+//!   and the parts they are made of re-exported from here.
 //! - `service_server_land_group_answer_log.rs`:
 //!   what one batch's answer says about that batch:
 //!   the times it shares,
@@ -349,7 +366,31 @@ pub mod journald_native_socket_target;
 /// written by a thread of their own so no landing waits for the stream.
 pub mod service_log_lines_off_the_calling_thread;
 
-/// The lines the commit service writes about its life and about the time each request took.
+/// What one request's timing is made of.
+pub mod service_timing_records;
+
+/// The line about the wait for the index lock,
+/// and the read of a step's duration from a line already written.
+pub mod service_timing_wait_line;
+
+/// The one line each answered request gets.
+pub mod service_timing_answered_line;
+
+/// The prefix of every line,
+/// the wall clock it states,
+/// and the text of one line.
+pub mod service_timing_line_text;
+
+/// The lines about the service's own life.
+pub mod service_timing_life_lines;
+
+/// Writing one entry,
+/// the sink it goes to,
+/// and the three macros every call site uses.
+pub mod service_timing_log_entry;
+
+/// The lines the commit service writes about its life and about the time each request took,
+/// and the parts they are made of re-exported from here.
 pub mod service_timing;
 
 /// The line the commit service writes when a signal ends it.
