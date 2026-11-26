@@ -8,6 +8,96 @@
 //!  Policies are the reason the wrapper exists,
 //!  so the engine and its shared pieces have one home.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `diagnostics.rs`:
+//!   JSONL event rendering for wrapper-made diagnostics.
+//! - `direct_fix_install_attributes.rs`:
+//!   the extended attributes a replacement carries with it.
+//! - `direct_fix_install_attributes_reading.rs`:
+//!   the answers direct fix install attributes reading holds.
+//! - `direct_fix_install_writes.rs`:
+//!   the swap and the replacement write an install uses.
+//! - `direct_fix_install_journal.rs`:
+//!   the journal an install is recorded in,
+//!   and the sweep that finishes what a kill interrupted.
+//! - `direct_fix_install.rs`:
+//!   installing a direct fix's corrections into the worktree,
+//!   all or none.
+//! - `direct_fix_install_judging.rs`:
+//!   what a name holds,
+//!   and whether it is exactly what an install put there.
+//! - `direct_fix_install_journal_sweep.rs`:
+//!   the sweep of the journals an interrupted fix left,
+//!   and its sentences.
+//! - `direct_fix_install_messages.rs`:
+//!   the sentences an install reports.
+//! - `event_hints.rs`:
+//!   the intent-guessing hint that follows a finding,
+//!   an engine failure or a notice.
+//! - `event_path.rs`:
+//!   a pathname as events report it:
+//!   text,
+//!   plus base64 `pathBytes` when it is not UTF-8.
+//! - `path_bytes.rs`:
+//!   exact repository path bytes as the operating system takes them,
+//!   and as text for messages.
+//! - `policy_audited.rs`:
+//!   the two commands the wrapper records and never refuses.
+//! - `policy_convergence.rs`:
+//!   the bounded loop that repeats a pass after corrections changed candidate content.
+//! - `policy_registry.rs`:
+//!   the fixed registry of shipped policies.
+//! - `policy_trigger.rs`:
+//!   lifecycle triggers and the trigger set of every shipped policy.
+//! - `policy_events.rs`:
+//!   policy events and their JSON Lines rendering.
+//! - `policy_engine.rs`:
+//!   ordered policy execution for one lifecycle point.
+//! - `policy_branch_worktree.rs`:
+//!   the branch-worktree-only check.
+//! - `policy_content.rs`:
+//!   what a lifecycle offers content policies,
+//!   and its candidates once prepared.
+//! - `policy_catalog_specifiers.rs`:
+//!   the optional catalog-specifier policy over the shared rule crate:
+//!   every dependency in a tracked `package.json` is a catalog or workspace reference.
+//! - `policy_final_newline.rs`:
+//!   the built-in final-newline policy:
+//!   canonical final LF,
+//!   preserved paths,
+//!   findings.
+//! - `policy_forbidden_strings.rs`:
+//!   the optional forbidden-strings policy over the linked scanner,
+//!   with redacted findings.
+//! - `policy_linked_worktree.rs`:
+//!   the linked-worktree check,
+//!   in its own file so the registry of shipped policies stays readable.
+//! - `policy_linked_worktree_nested_repositories.rs`:
+//!   keeping the nested Git repositories a clean would delete,
+//!   and the one place a form is let through.
+//! - `policy_root_context.rs`:
+//!   the optional root-context policy:
+//!   no top-level `CONTEXT.md` enters the index.
+//! - `policy_checks.rs`:
+//!   the shipped policies as checks over rule cores and repository facts.
+//! - `policy_transforms.rs`:
+//!   the fixed argument transforms of a forwarded command,
+//!   in order.
+//! - `policy_pass.rs`:
+//!   one complete pass:
+//!   built-in policies,
+//!   fixed transforms,
+//!   optional policies.
+//! - `direct_fix.rs`:
+//!   the direct fix:
+//!   converge corrections in memory,
+//!   then install them.
+//! - `unported.rs`:
+//!   the work of the installed monochromatic-git-policy-cli that is not ported,
+//!   and the refusal notice.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // policy/index.ts: one `export * from './file'` per module below.

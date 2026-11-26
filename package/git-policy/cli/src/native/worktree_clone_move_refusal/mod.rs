@@ -20,6 +20,14 @@
 //!  Every forwarded `git worktree move` reaches it
 //!  (`invocation/entry_zfs_slot_commands.rs`, `move_refusal_of`).
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `managed_move_refusal.rs`:
+//!   the refusal of one `git worktree move` that would rename a managed clone's slot,
+//!   mounted or not,
+//!   and the sentence that says why the slot is fixed.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! import { refuseMoveOfABoundSlot } from '@monochromatic-dev/git-policy-cli/worktree-clone-move-refusal';

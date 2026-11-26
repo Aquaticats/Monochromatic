@@ -34,7 +34,7 @@
 //!  and this folder's own step wires it in.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `slot_state_mounts.rs`:
 //!   the mount table's rows,
@@ -51,13 +51,13 @@
 //! - `slot_state_evidence.rs`:
 //!   what the readings saw,
 //!   one line per source.
+//! - `slot_state_live_read.rs`:
+//!   the gated intent read and the call that fills one slot's readings from
+//!   the machine.
 //! - `slot_state_next_actions.rs`:
 //!   the one next safe action for each state.
 //! - `slot_state_report.rs`:
 //!   the report and the lines it prints.
-//! - `slot_state_live_read.rs`:
-//!   the gated intent read and the call that fills one slot's readings from
-//!   the machine.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
