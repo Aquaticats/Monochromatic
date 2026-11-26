@@ -227,14 +227,7 @@ fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalRefusal> {
         mounts: &mounts,
         intents: &intents,
     };
-    // A command that names no worktree to remove answers nothing, whatever its repository holds.
-    let (target, common): (PathBuf, PathBuf) = the_slot_and_its_common(facts)?;
-    return refuse_the_removal_with(
-        target.as_path(),
-        common.as_path(),
-        RemovalReads::Unreadable("this control reads no pool"),
-        &sources,
-    );
+    return refusal_of_or_none_with(facts, &sources);
 }
 
 /// The refusal's answer for one slot over the slot sources a control answers,
