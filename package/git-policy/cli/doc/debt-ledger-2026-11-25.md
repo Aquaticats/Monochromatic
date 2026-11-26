@@ -235,6 +235,183 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6487-one-process-wide-room-for-blocking-jobs`:
+issue 6487 is fixed.
+The room a control gives a process,
+and the bound on blocking jobs it holds,
+are read by the one function a process
+plans with (`runtime_plan::workers_for_this_process`),
+so `budgeted_workers` and `plan_runtime` are functions of the host and limits a caller states again.
+Every control that sets either owns a child process of its own (`testing/process_wide_state_child_test_support.rs`),
+and the setters refuse anywhere else,
+naming the starter.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 394 passed; 0 failed; 8 ignored` at `3774b4a0cc`,
+from 335 passed,
+16 failed and a deadlock at `408abb6c0e`.
+Mechanisms 3a and 3g,
+and the queue and counters this item lists,
+lost their `foundation` sites to the same child
+and stay open where they reach other modules:
+`subvolume::subvolume_index_files::parallel_tests` fails 4 of 12 threaded,
+where `main`'s `e58ba6f078` fails 6 of 12,
+`service::service_server_connection_handling` fails 3 of 13 on both trees,
+and `worktree_copying/worktree_copy_lifecycle_tests.rs` keeps the sixth `skip_the_durability_syncs_here` site in the
+shared process.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
+Round of 2026-11-26:
+6484 (two heartbeat controls share one manager switch) is fixed and merged,
+and that file's four statics are gone:
+each control writes the word its fake manager answers into the folder its own watch names as a session bus,
+which is the first form this item asks for ("give each test its own instance"),
+and `source_guard/heartbeat_controls_own_their_manager_switch_tests.rs` refuses a `static` in that file.
+The item's other sites stay as measured.
+
+issue 6486 is fixed and merged,
+the `run_progress` controls of the round above
+(`673512f65d`,
+four the issue names,
+and `c75f87c23a` for `the_look_sees_this_process_and_the_processes_it_started` beside them,
+which the first threaded run after the merge failed with 21 members before its child and 21 after it),
+each one reading its figures in a helper process of its own through `testing/helper_process_test_support.rs`,
+as 6478's descriptor-room control does,
+with one shared comparison that refuses a look where a task which is not the control's own moved,
+and three threaded-only failures are filed and open:
+6483,
+6485 and
+6487.
+
+Round of 2026-11-26,
+issue 6496:
+the child guard of two `ran_in_child` controls was inverted
+(`subvolume::subvolume_index_files::parallel_tests`,
+`a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`,
+and `subvolume::subvolume_index_refresh_of_every_worktree`,
+`an_index_rewrite_reported_as_never_started_does_not_run_afterwards`),
+so the process that started the child ran the body as well and lowered the whole run's `RLIMIT_NPROC` to one:
+three other controls of the module failed at their fixture's first Git start with `EAGAIN`,
+and the inverted control itself failed because that process's blocking pool already had a thread.
+Both now return in the process that started the child,
+and the setters refuse everywhere else and name the starter:
+`refuse_threads_again`,
+`let_threads_start_again`,
+and the syncs' count (`take_sync_counts`,
+mechanism 3a),
+whose readers now own a process each (the two of this module and the two of `lock::single_owner_claim`),
+as this item's fix asks;
+the control that holds the process's one place in this module owns a process too.
+`cargo test --locked --offline --lib --features test-only-switches
+subvolume::subvolume_index_files::parallel_tests -- --skip guest --skip _arm_tests`
+answered `test result: ok. 12 passed; 0 failed`,
+from 6 passed and 6 failed on `main` at `f9096f7531`,
+and `lock::single_owner_claim::tests` answered `ok. 16 passed; 0 failed`,
+from 15 passed and 1 failed.
+The `hold_the_only_place` sites of other modules stay as measured:
+`worktree::worktree_clean::tests` fails
+`the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool`
+in three of four threaded runs on `main` itself.
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6498-worktree-copy-control-turns-syncs-off-for-the-process`:
+issue 6498 is fixed,
+and mechanism 3a has no site left.
+The switch's last five callers in the tests
+(`worktree_copying/worktree_copy_lifecycle_tests.rs`) ran the control bodies that set it in the shared process,
+and `skip_the_durability_syncs_here` now refuses any process that is not a child of the control's own
+(`testing/process_wide_state_child_test_support.rs`),
+as the room and the bound do;
+the one control that is the refusal is `foundation::private_storage::tests::the_durability_switch_refuses_a_process_that_is_not_its_child`.
+Measured on this host,
+two controls of this item in one process with `--test-threads=1` and libtest's `-Z unstable-options --shuffle-seed`:
+`worktree_copying::worktree_copy::tests::a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`
+beside `foundation::private_storage::tests::directory_sync_needs_the_directory`
+answered `1 passed; 1 failed` at seed 1 and at seed 3,
+where the second control's refused `sync_directory` of a missing folder answered `Ok`,
+and `2 passed; 0 failed` at seeds 0 and 2;
+after the change seeds 1 and 3 answer `2 passed; 0 failed`.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 395 passed; 0 failed; 8 ignored`,
+and `worktree_copying::worktree_copy::` answered `test result: ok. 47 passed; 0 failed; 0 ignored`.
+
+Round of 2026-11-26,
+issue 6499:
+nine controls of `service::service_review::tests` called `review_item`,
+which runs the review in the one runner the whole service process shares
+(`standards_review_run::RUNNER`),
+and a runner admits one job and answers every other caller with `Contained::Busy`,
+so a threaded run of the module failed seven of its sixteen controls in each of two runs,
+with a refusal that an earlier review is still running,
+and a varying set of them (the issue measured eight on `main` at `f9096f7531`),
+while all sixteen passed with `--test-threads=1`.
+Each control now declares `static OWN: Containment`
+and calls `review_item_in(&OWN, ..)`,
+which `service/service_review.rs` documents for controls
+and which the module's two other controls already did;
+nothing of the release changed.
+`cargo test --locked --offline --lib --features test-only-switches service::service_review::tests -- --skip guest --skip _arm_tests`
+answered `test result: ok. 16 passed; 0 failed` in three runs after the change,
+from `9 passed; 7 failed` in both runs before it,
+and each of the nine controls passed alone with `--exact` before and after.
+`source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that calls
+`run_contained(`,
+`review_item(`,
+`review_item_within(`,
+`review_item_awaiting(`
+or `review_item_within_awaiting(`,
+and with the fix taken out it named the twelve such lines of `service/service_review_tests.rs`;
+the narrower `the_controls_share_no_production_runner` of `standards_review_run_tests.rs`,
+which covered one face in one file and claimed these controls hold the shared runner for one review only,
+went with it.
+
+Round of 2026-11-26:
+issue 6497 is fixed,
+the three heartbeat controls of `service/service_server_connection_handling_tests.rs` that failed together in one
+process (`a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits`,
+`a_commit_is_beaten_while_the_note_read_waits`,
+`a_note_read_that_outlives_its_beat_is_not_started_again`).
+The holds a control arms at a fault point stood in one slot of the whole process
+(`service/service_fault_hooks_test_support.rs`),
+so a second arming dropped the first control's hold and a hold one control armed was taken by another control's read.
+The holds are a list now,
+and a point names the instance its own control owns in the point text,
+as `collection_point` already did for a repository's scratch collection:
+`instance_read_point`,
+`note_read_point`,
+`read_at_a_start_point` and
+`next_service_note_point`.
+The registry refuses a second live hold of one point and names the composition the control must make,
+and `service/service_fault_hooks_test_support_tests.rs` holds both controls:
+two holds of one process each taken by its own point,
+and one point armed twice refused.
+Two further sites of the same mechanism were measured and fixed with it:
+the two controls of `landing/service_claim_watch_note_within_a_ceiling_tests.rs` and the three of
+`landing/service_land_watch_note_tests.rs` run their bodies in a child of their own,
+because the place of the one note write of a process
+(`A_NOTE_WRITE_IS_OUTSTANDING`, a shipped static)
+and a control's refusal of a thread belong to the whole process:
+before the change,
+two runs of `landing::service_claim_watch_note_within_a_ceiling::tests` answered `1 passed; 1 failed`
+(`left: AnEarlierWriteHasNotEnded`),
+and `landing::service_land::watch_note_tests` answered `1 passed; 2 failed`
+with the write's reach never awaited.
+Measured after:
+`service::service_server_connection_handling::tests` answers `test result: ok. 13 passed; 0 failed`,
+from `FAILED. 10 passed; 3 failed` at `3a88fa9ce5`;
+`service::service_fault::hooks::tests` `ok. 2 passed`;
+`landing::service_claim_watch_note_within_a_ceiling::tests` `ok. 2 passed`;
+`landing::service_land::watch_note_tests` `ok. 3 passed`;
+`service::service_journal_restored_at_start::tests` `ok. 3 passed`;
+`service::service_server::greets_before_the_journal_is_restored_tests` `ok. 1 passed`.
+Two controls of one process that name one point,
+and a control that arms its point in a process of the whole run,
+are the two shapes this item still meets elsewhere:
+the registry's refusal names both at the arming that would hide them.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;

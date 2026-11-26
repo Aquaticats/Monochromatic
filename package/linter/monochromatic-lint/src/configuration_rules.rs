@@ -16,6 +16,9 @@ use crate::config_data::{
 };
 /// Import the configuration error type returned when a rule value fails validation.
 use crate::config_error::ConfigError;
+/// Import the largest bound the tracked-image reader reads one image under,
+///  which the option's refusal names.
+use crate::markdown_lfs_context::MAX_IMAGE_BYTES_BOUND;
 /// Import the JSONC model so numbers stay exact until their rule-specific conversion.
 use monochromatic_jsonc_edit::{
     JsoncKind,
@@ -110,9 +113,73 @@ pub(crate) fn count_limit(
 /// ```ts
 /// function countOption(id: string, name: string, value: JsoncValue): number;
 /// ```
-pub(crate) fn count_option(
+fn count_option(
     id: &str,
     name: &str,
+    value: &JsoncValue,
+) -> Result<usize, ConfigError> {
+    return count_option_in(id, name, "line index", None, value);
+}
+
+/// What:
+///  Convert an exact JSON number to the `max-image-bytes` bound,
+///  refusing a value the one-byte probe past it cannot hold.
+/// Why:
+///  A name for the option and a unit for the number,
+///  so a wrong byte count never says "line index";
+///  and the check happens at configuration load,
+///  so a release build cannot meet the wrapping arithmetic at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function imageByteBound(value: JsoncValue): bigint;
+/// ```
+pub(crate) fn image_byte_bound(value: &JsoncValue) -> Result<u64, ConfigError> {
+    // What: the count the shared number grammar reads, before the probe past it is checked.
+    // Why: strings, fractions, negatives and values over the platform's word are refused there.
+    let bytes: usize = count_option_in(
+        "markdown/lfs-image-url",
+        "max-image-bytes",
+        "byte count",
+        Some(MAX_IMAGE_BYTES_BOUND),
+        value,
+    )?;
+    // What: the same count as the reader's own type, which is what it adds one to.
+    // Why: the reader takes a `u64` bound and reads `bound + 1` bytes.
+    let wide: u64 = bytes as u64;
+    // What: the bound past which the reader's `+ 1` has no answer.
+    // Why: wrapping there reads nothing in a release build, which hashes empty input.
+    let largest: u64 = MAX_IMAGE_BYTES_BOUND;
+    if wide > largest {
+        return Err(ConfigError::new(
+            format!(
+                "markdown/lfs-image-url max-image-bytes must be at most {largest}: the rule reads one byte past the bound to notice an image over it."
+            )
+            .as_str(),
+        ));
+    }
+    return Ok(wide);
+}
+
+/// What:
+///  Convert an exact JSON number to an unsigned platform-sized count,
+///  naming the unit the count is measured in.
+/// Why:
+///  The same grammar carries line counts and byte counts,
+///  and an error that calls a byte count a "line index" sends the reader to the wrong option.
+///  A count that has a smaller largest accepted value than the platform's word
+///  names that value in every refusal about a number too large to read,
+///  because the word size is not what its reader must stay under.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function countOptionIn(id: string, name: string, unit: string, ceiling: number | undefined, value: JsoncValue): number;
+/// ```
+fn count_option_in(
+    id: &str,
+    name: &str,
+    unit: &str,
+    ceiling: Option<u64>,
     value: &JsoncValue,
 ) -> Result<usize, ConfigError> {
     // What: Extract the exact-number payload from a borrowed value.
@@ -152,24 +219,73 @@ pub(crate) fn count_option(
     // ```
     let (Ok(coefficient), Ok(exponent)) = (coefficient_result, exponent_result) else {
         return Err(ConfigError::new(
-            format!(
-                "{id} {name} must be a nonnegative integer that fits this platform's line index."
-            )
-            .as_str(),
+            not_integer_message(id, name, unit, ceiling).as_str(),
         ));
     };
-    // Checked arithmetic returns absence on overflow instead of wrapping the line limit.
+    // Checked arithmetic returns absence on overflow instead of wrapping the limit.
     let Some(scale) = 10_usize.checked_pow(exponent) else {
         return Err(ConfigError::new(
-            format!("{id} {name} exceeds this platform's line index.").as_str(),
+            over_message(id, name, unit, ceiling).as_str(),
         ));
     };
     let Some(result) = coefficient.checked_mul(scale) else {
         return Err(ConfigError::new(
-            format!("{id} {name} exceeds this platform's line index.").as_str(),
+            over_message(id, name, unit, ceiling).as_str(),
         ));
     };
     return Ok(result);
+}
+
+/// What:
+///  The refusal of a number whose digits or exponent do not fit the platform's count.
+/// Why:
+///  A rule with a smaller largest value must name it here too,
+///  or its reader learns only the platform's word size and still picks a value the rule refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function notIntegerMessage(id: string, name: string, unit: string, ceiling?: number): string;
+/// ```
+fn not_integer_message(
+    id: &str,
+    name: &str,
+    unit: &str,
+    ceiling: Option<u64>,
+) -> String {
+    return match ceiling {
+        Some(largest) => {
+            format!(
+                "{id} {name} must be a nonnegative integer that fits this platform's {unit}, and at most {largest}."
+            )
+        }
+        None => {
+            format!("{id} {name} must be a nonnegative integer that fits this platform's {unit}.")
+        }
+    };
+}
+
+/// What:
+///  The refusal of a number past the platform's count.
+/// Why:
+///  Here too a rule with a smaller largest value names it,
+///  so every refusal about a number too large for the rule holds the same value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function overMessage(id: string, name: string, unit: string, ceiling?: number): string;
+/// ```
+fn over_message(
+    id: &str,
+    name: &str,
+    unit: &str,
+    ceiling: Option<u64>,
+) -> String {
+    return match ceiling {
+        Some(largest) => {
+            format!("{id} {name} exceeds this platform's {unit}, and must be at most {largest}.")
+        }
+        None => format!("{id} {name} exceeds this platform's {unit}."),
+    };
 }
 
 /// What:
@@ -214,8 +330,9 @@ pub(crate) fn validate_setting(
             continue;
         }
         if id == "markdown/lfs-image-url" && name == "max-image-bytes" {
-            // Validate the image bound now; the typed rule settings read it once resolution has defaulted it.
-            count_option(id, name.as_str(), &entry.value)?;
+            // Validate the image bound now, including the one-byte probe past it;
+            // the typed rule settings read it once resolution has defaulted it.
+            image_byte_bound(&entry.value)?;
             continue;
         }
         if id == "markdown/lfs-image-url" && name == "exclude" {

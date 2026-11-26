@@ -231,11 +231,18 @@ fn a_missing_library_is_a_processing_failure_and_runs_nothing() {
     assert_eq!(outcome.findings.len(), 1);
     assert!(outcome.findings[0].processing_failure);
     assert_eq!(outcome.findings[0].filename, CONFIG);
-    assert!(
-        outcome.findings[0].message.contains("holds no Cargo.toml"),
-        "{}",
-        outcome.findings[0].message
-    );
+    // The refusal names the base the path is read from, so a reader of a `--config` run is not sent to the file's folder.
+    for part in [
+        "holds no Cargo.toml",
+        "resolved against this configuration's base folder",
+        "the working directory for `--config`",
+    ] {
+        assert!(
+            outcome.findings[0].message.contains(part),
+            "{part} missing in {}",
+            outcome.findings[0].message
+        );
+    }
     assert!(stub.calls().is_empty());
 }
 

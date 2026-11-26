@@ -99,7 +99,8 @@ fn deepest_of_nested_directories(
 /// and the descriptor this test's own process holds across the whole walk reaches nothing the child measured.
 /// The child takes its directory from `child_directory` rather than `fixture`,
 /// so the watchdog no fixture arms never starts a thread there that opens descriptors while the room is measured.
-/// The limit the child lowers belongs to that child alone, so no other test of a threaded run opens under it.
+/// The limit the child lowers belongs to that child alone,
+/// so no other test of a threaded run opens under it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

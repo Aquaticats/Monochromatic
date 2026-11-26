@@ -19,6 +19,8 @@ use super::{
 };
 use crate::configuration_rules::RULE_IDS;
 use crate::diagnostic::Severity;
+/// Import the largest bound the tracked-image reader reads one image under.
+use crate::markdown_lfs_context::MAX_IMAGE_BYTES_BOUND;
 use monochromatic_jsonc_edit::{
     JsoncValue,
     parse_jsonc,
@@ -154,6 +156,74 @@ fn the_lfs_image_bound_is_read_from_its_option() {
             "{}",
             error.message
         );
+    }
+    // The largest bound this option accepts, spelled out:
+    // every number below is derived from the constant, so only a literal pins its value.
+    assert_eq!(MAX_IMAGE_BYTES_BOUND, 18_446_744_073_709_551_614);
+    // The largest bound the reader can probe past is accepted as written.
+    let largest: u64 = MAX_IMAGE_BYTES_BOUND;
+    let widest: MarkdownRuleSettings = settings(
+        format!(
+            r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{largest}}}}}"#
+        )
+        .as_str(),
+    );
+    assert_eq!(
+        widest.lfs_image_url.expect("selected rule").max_image_bytes,
+        largest
+    );
+    // One more than that is refused when the settings are read,
+    // naming the option and the largest value it takes, in its own unit of bytes.
+    let unprobeable: u64 = MAX_IMAGE_BYTES_BOUND + 1;
+    let value: JsoncValue = parse_jsonc(
+        format!(
+            r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{unprobeable}}}}}"#
+        )
+        .as_str(),
+    )
+    .expect("JSONC fixture");
+    let refused =
+        markdown_rule_settings(&value).expect_err("the probe past the bound has no answer");
+    // A byte count is never reported in the line-count unit the shared grammar's other options use.
+    // The wording is pinned whole; the binary's own name and version follow it.
+    let limit_message: String = format!(
+        "markdown/lfs-image-url max-image-bytes must be at most {largest}: the rule reads one byte past the bound to notice an image over it."
+    );
+    assert!(
+        refused.message.starts_with(limit_message.as_str()),
+        "{}",
+        refused.message
+    );
+    // A value at or above the platform's word is refused by the number grammar,
+    // and that refusal names the largest accepted value too, in the option's own unit.
+    for (spelling, expected) in [
+        (
+            "18446744073709551616",
+            format!(
+                "markdown/lfs-image-url max-image-bytes must be a nonnegative integer that fits this platform's byte count, and at most {largest}."
+            ),
+        ),
+        (
+            "1e20",
+            format!(
+                "markdown/lfs-image-url max-image-bytes exceeds this platform's byte count, and must be at most {largest}."
+            ),
+        ),
+    ] {
+        let past: JsoncValue = parse_jsonc(
+            format!(
+                r#"{{"markdown/lfs-image-url":{{"severity":"error","max-image-bytes":{spelling}}}}}"#
+            )
+            .as_str(),
+        )
+        .expect("JSONC fixture");
+        let error = markdown_rule_settings(&past).expect_err("past the largest value");
+        assert!(
+            error.message.starts_with(expected.as_str()),
+            "{spelling}: {}",
+            error.message
+        );
+        assert!(error.message.contains("byte count"), "{spelling}");
     }
 }
 

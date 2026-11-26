@@ -81,3 +81,41 @@ fn layout_a_file_over_the_span_bound_answers_the_file_start() {
     assert_eq!(spans.span(&file, 1), at_start);
     assert_eq!(spans.span(&file, 2), at_start);
 }
+
+/// A file of exactly the bound is read whole,
+///  so its last line, which no line break ends, keeps its own span
+///  instead of the file start a cut line reports.
+#[test]
+fn layout_a_file_of_exactly_the_span_bound_keeps_its_last_line() {
+    let tail: &str = "fn late() {}";
+    let bound: usize = MAX_SPAN_BYTES as usize;
+    // What: one comment line holding as many bytes as the bound leaves for it.
+    // Why: the two slash bytes and the line break take the rest, so the file is exactly the bound.
+    let pad: String = "p".repeat(bound - tail.len() - 3);
+    let text: String = format!("//{pad}\n{tail}");
+    assert_eq!(text.len(), bound);
+    let fixture = package_with(&[("exact.txt", text.as_str())]);
+    let file = fixture.path.join("exact.txt");
+    let mut spans: LineSpans = LineSpans::default();
+    // What: where the unterminated last line begins.
+    // Why: the read is whole, so the span is the line itself and a finding there points at it.
+    let last_start: usize = text.len() - tail.len();
+    assert_eq!(
+        spans.span(&file, 2),
+        Span {
+            offset: last_start,
+            length: tail.len(),
+            line: 2,
+            column: 1
+        }
+    );
+    // The control: one byte more is over the bound, so the same last line reports the file start.
+    let over: String = format!("{text} ");
+    let longer = package_with(&[("over.txt", over.as_str())]);
+    let longer_file = longer.path.join("over.txt");
+    let mut longer_spans: LineSpans = LineSpans::default();
+    assert_eq!(
+        longer_spans.span(&longer_file, 2),
+        longer_spans.span(&longer_file, 0)
+    );
+}

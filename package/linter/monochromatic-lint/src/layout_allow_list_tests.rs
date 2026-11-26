@@ -202,8 +202,49 @@ fn a_dot_segment_and_a_trailing_separator_name_the_folder_findings_show() {
     assert!(error.contains("repeats the entry"), "{error}");
 }
 
+/// What:
+///  A reader that yields a stated number of bytes and records how many it yielded.
+/// Why:
+///  A list read must stop at the cap itself, and a reader that could give more shows where it stopped;
+///  `std::io::repeat` would simply run for ever, so a test that lost the stop would hang instead of failing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Counted { left: number; served = 0; read(buffer: Uint8Array): number { /* one byte at a time */ } }
+/// ```
+struct Counted {
+    /// Bytes this reader will still yield.
+    left: u64,
+    /// Bytes it has yielded.
+    served: u64,
+}
+
+/// Serve up to the caller's buffer from what is left,
+///  filling it with one byte value the list reader never reads as a line.
+impl Read for Counted {
+    /// Fill part of `buffer` and count what was taken from `left`.
+    fn read(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> std::io::Result<usize> {
+        if self.left == 0 || buffer.is_empty() {
+            return Ok(0);
+        }
+        // What: how many bytes this call may yield, as the machine's buffer length type.
+        // Why: the buffer is `usize` long and the remaining count is `u64`, and the smaller one wins.
+        let count: usize = usize::try_from(self.left.min(buffer.len() as u64))
+            .expect("a buffer length fits the platform's word");
+        for byte in &mut buffer[..count] {
+            *byte = b'x';
+        }
+        self.left -= count as u64;
+        self.served += count as u64;
+        return Ok(count);
+    }
+}
+
 /// A reader that yields more than the cap is refused whatever its file's measured length was,
-///  so a file that grows after that measurement is refused rather than read whole.
+///  and the read itself stops one byte past the cap rather than reading the reader whole.
 #[test]
 fn a_reader_longer_than_the_cap_is_refused() {
     let path: &Path = Path::new("package/allow-list.txt");
@@ -219,4 +260,32 @@ fn a_reader_longer_than_the_cap_is_refused() {
         super::read_at_most(under, path).expect("under the cap"),
         under
     );
+}
+
+/// The read stops at the cap even when the reader could give two bytes more,
+///  so the bound the module documents is the one that ends the read.
+#[test]
+fn the_read_stops_one_byte_past_the_cap() {
+    let path: &Path = Path::new("package/allow-list.txt");
+    // What: a reader with two bytes more than the cap, kept so the test can ask what was taken from it.
+    // Why: a reader cut at the cap beforehand would refuse for the wrong reason and pass with the stop removed.
+    let mut reader: Counted = Counted {
+        left: super::MAX_BYTES + 2,
+        served: 0,
+    };
+    let error: String = super::read_at_most(&mut reader, path).expect_err("two bytes over the cap");
+    assert!(error.contains("is longer than"), "{error}");
+    // One byte past the cap is enough to know the file grew, and the second byte is never asked for.
+    assert_eq!(reader.served, super::MAX_BYTES + 1);
+    assert_eq!(reader.left, 1);
+    // The control: a reader under the cap is read to its end, so the stop above cuts only what is over.
+    let mut short: Counted = Counted {
+        left: 4,
+        served: 0,
+    };
+    assert_eq!(
+        super::read_at_most(&mut short, path).expect("under the cap"),
+        b"xxxx"
+    );
+    assert_eq!(short.served, 4);
 }

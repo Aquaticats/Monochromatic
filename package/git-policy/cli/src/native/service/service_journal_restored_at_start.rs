@@ -32,10 +32,22 @@ use crate::service_claim_watch::ClaimWatch;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// The point at which the start reads the journal,
-/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// What:
+///  The point at which the start reads the plan kept in `plan_directory`,
+///  for a control that holds that read (`service_fault_hooks_test_support.rs`).
+/// Why:
+///   The point names the plan directory whose read it is,
+///  so two controls of one process hold the read of their own start and neither answers the other (issue 6497),
+///  as `collection_point` names the directory it collects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readAtAStartPoint = (planDirectory: string) => `the-read-at-a-start-of-${planDirectory}`;
+/// ```
 #[cfg(test)]
-pub(crate) const THE_READ_AT_A_START: &str = "the-read-at-a-start";
+pub(crate) fn read_at_a_start_point(plan_directory: &std::path::Path) -> String {
+    return format!("the-read-at-a-start-of-{}", plan_directory.display());
+}
 
 /// What:
 ///  `plan_directory`'s plan and `watch_directory`'s notes,
@@ -68,7 +80,10 @@ pub fn restored_within(
     let restored = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
         // A control holds this read on the thread that runs it, which is this read's own and not the thread that set the hold.
         #[cfg(test)]
-        crate::service_fault::hooks::run_on_any_thread(THE_READ_AT_A_START);
+        {
+            let held_point: String = read_at_a_start_point(plan_of_the_read.as_path());
+            crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
+        }
         let retries: PushRetries =
             PushRetries::restored_from_environment(plan_of_the_read.as_path());
         let watch: ClaimWatch =

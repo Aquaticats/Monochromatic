@@ -8,8 +8,9 @@
 //! The counts are the process's rather than the thread's because the steps run on threads the caller did not make
 //! (a rewrite of an index is a job of the blocking pool),
 //! which is exactly the answer a control of that plumbing has to read.
-//! Nextest runs one test per process,
-//! so a count never mixes two controls.
+//! A control that reads them runs its body in a child of its own (`process_wide_state_child_test_support.rs`),
+//! so a count never mixes two controls;
+//! `take_sync_counts` refuses in any other process and names the starter (issue 6496).
 //! The counts are kept in a file of their own so the shipped `subvolume_file_write_steps.rs` holds no inline test
 //! module (`rust/tests-in-sidecars`),
 //! and the release executable never contains them.
@@ -66,16 +67,28 @@ pub(crate) fn note_directory_sync(skipped: bool) {
 }
 
 /// What:
-///  Take the counts since the last call and start again from nothing.
+///  Take the counts since the last call and start again from nothing,
+///  in the child of a control that owns the process the counts belong to.
 /// Why:
 ///   A control calls it before the work it measures and after it,
 /// so it reads exactly that work's syncs and never another's.
+///  The counts are the whole process's,
+///  so a second control of a threaded run that takes them reads the first one's work
+///  and sets them to nothing under it:
+///  measured on 2026-11-26,
+///  two controls of `subvolume::subvolume_index_files::parallel_tests` read each other's counts
+///  and one of them found no sync at all (issue 6496).
+///  The refusal below is what makes such a control fail at its first line instead,
+///  naming the starter that makes a process the one the counts belong to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const made = madeCount.swap(0); const skipped = skippedCount.swap(0); return { made, skipped };
 /// ```
 pub(crate) fn take_sync_counts() -> SyncCounts {
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the count of the durability syncs this process made",
+    );
     return SyncCounts {
         made: MADE.swap(0, Ordering::SeqCst),
         skipped: SKIPPED.swap(0, Ordering::SeqCst),

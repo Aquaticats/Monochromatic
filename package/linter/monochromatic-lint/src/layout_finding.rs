@@ -70,6 +70,7 @@ pub fn shown(
 /// What:
 ///  A path as one finding's key writes it:
 ///  relative to the package folder when it is inside it,
+///  the walk from the package folder when it is outside (a module a `#[path]` names elsewhere),
 ///  and always with `/` between segments,
 /// whatever the platform's own separator is.
 /// Why:
@@ -77,19 +78,76 @@ pub fn shown(
 ///  and this crate ships binaries for every platform,
 ///  so a key built from the platform's separator would match on the machine that wrote the line
 ///  and nowhere else.
+///  An absolute path would make the line match only one checkout,
+///  so a file outside the package is named by the folders between it and the package:
+///  `../outside x.rs` reads the same on every machine that holds the repository.
+///  The package folder itself is written `.`,
+///  because the empty path would end a key in a space that the list reader trims away,
+///  and no line could hold it.
 ///  A file name that holds a backslash is written as a slash here;
 ///  an allow-list entry refuses a backslash for that reason,
 ///  so a list line and a key can never disagree about a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/')
+/// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/'), or '.' for the base folder
 /// ```
 pub fn key_path(
     path: &std::path::Path,
     base: &std::path::Path,
 ) -> String {
-    return shown(path, base).replace('\\', "/");
+    let written: String = match path.strip_prefix(base) {
+        Ok(below) if below.components().next().is_some() => below.to_string_lossy().into_owned(),
+        _ => climbing_path(path, base),
+    };
+    let slashed: String = written.replace('\\', "/");
+    // What: the one spelling of the package folder itself.
+    // Why: a key that ends in an empty path holds a trailing space, which the list reader trims away.
+    if slashed.is_empty() {
+        return String::from(".");
+    }
+    return slashed;
+}
+
+/// What:
+///  How one folder is written from another:
+///  one `..` for each folder they do not share, then the folders of `path` below that.
+/// Why:
+///  A key must read the same in every checkout,
+///  and only the distance between two folders of one package is the same everywhere.
+///  A relative path and an absolute one share no folder,
+///  so they keep the plain spelling the caller gave.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function climbingPath(path: string, base: string): string;
+/// ```
+fn climbing_path(
+    path: &std::path::Path,
+    base: &std::path::Path,
+) -> String {
+    if path.is_absolute() != base.is_absolute() {
+        return path.to_string_lossy().into_owned();
+    }
+    // What: the folders of each path, so the ones they share can be counted once.
+    // Why: each folder below the shared part becomes one `..` of the answer.
+    let base_parts: Vec<std::path::Component<'_>> = base.components().collect::<Vec<_>>();
+    let path_parts: Vec<std::path::Component<'_>> = path.components().collect::<Vec<_>>();
+    let mut shared: usize = 0;
+    while shared < base_parts.len()
+        && shared < path_parts.len()
+        && base_parts[shared] == path_parts[shared]
+    {
+        shared += 1;
+    }
+    let mut parts: Vec<String> = Vec::<String>::new();
+    for _ in shared..base_parts.len() {
+        parts.push(String::from(".."));
+    }
+    for part in &path_parts[shared..] {
+        parts.push(part.as_os_str().to_string_lossy().into_owned());
+    }
+    return parts.join("/");
 }
 
 /// What:

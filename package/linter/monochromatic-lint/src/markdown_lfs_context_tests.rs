@@ -432,6 +432,22 @@ fn pointers_are_read_and_traversal_stays_inside_the_repository() {
     );
 }
 
+/// A bound a caller passes is one it may pass anything for,
+///  so the byte read starts one past it without overflowing on the largest value.
+#[test]
+fn the_largest_bound_a_caller_can_pass_still_reads_the_image() {
+    let fixture: Fixture = Fixture::new();
+    write_tree(&fixture.path);
+    let repo: LfsImageRepo = repository(&fixture.path);
+    assert_eq!(
+        repo.resolve_target("pkg/asset/shot.png", u64::MAX)
+            .expect("a bound of the largest value accepts every file"),
+        LfsImageTarget::Lfs {
+            oid: String::from(IMAGE_OID)
+        }
+    );
+}
+
 /// A resolved target is reused for the run even when the file changes afterwards.
 #[test]
 fn resolved_targets_are_cached_per_repository() {
@@ -459,6 +475,34 @@ fn resolved_targets_are_cached_per_repository() {
             .resolve_target("pkg/asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("fresh read"),
         first
+    );
+}
+
+/// A target read under one bound is never reused under another:
+///  the cache is keyed by the path and the bound it was read under,
+///  so a looser file's answer cannot let a stricter file read an image over its own bound.
+#[test]
+fn a_cached_target_is_kept_apart_by_its_bound() {
+    let fixture: Fixture = Fixture::new();
+    write_tree(&fixture.path);
+    let repo: LfsImageRepo = repository(&fixture.path);
+    // What: the size the image's own bytes take.
+    // Why: a bound of exactly that size reads the image, and one byte less refuses it.
+    let size: u64 = IMAGE_BYTES.len() as u64;
+    // A bound the image fits under caches its answer for this path.
+    let read: LfsImageTarget = repo
+        .resolve_target("pkg/asset/shot.png", size)
+        .expect("the image fits the bound");
+    assert!(matches!(read, LfsImageTarget::Lfs { .. }), "{read:?}");
+    // The same path one byte under its size is over that bound, so the cached answer may not stand.
+    let error = repo
+        .resolve_target("pkg/asset/shot.png", size - 1)
+        .expect_err("the cached answer was read under a wider bound");
+    assert!(error.message.contains("shot.png"), "{}", error.message);
+    assert!(
+        error.message.contains("max-image-bytes"),
+        "{}",
+        error.message
     );
 }
 

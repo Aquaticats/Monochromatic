@@ -200,7 +200,7 @@ pub(crate) fn read_optional_text(path: &Path) -> Result<Option<String>, LfsConfi
             });
         }
     };
-    // One byte past the bound, so a file that grew after any earlier look is refused rather than swallowed.
+    // One byte past the bound, so a file over it is refused rather than read whole.
     let mut bytes: Vec<u8> = Vec::<u8>::new();
     if let Err(error) = file
         .take(MAX_REPOSITORY_TEXT_BYTES as u64 + 1)
