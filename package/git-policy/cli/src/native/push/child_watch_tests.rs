@@ -820,63 +820,63 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
 /// (issue 6511).
 #[test]
 fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so",
-    ) {
-        return;
-    }
-    let refused: crate::lazy_runtime::RefusalForTheControl =
-        crate::lazy_runtime::a_control_refuses_every_task();
-    let sink: SharedSink = SharedSink::default();
-    let mut command: Command = Command::new("sleep");
-    command.arg("6").stdin(Stdio::null());
-    let began: Instant = Instant::now();
-    let failure: std::io::Error = output_watched_within(
-        &mut command,
-        "a step nobody watches",
-        "a step nobody watches",
-        terms(Duration::from_secs(3600), &sink),
-        true,
-        StepBound::EndAt(Duration::from_millis(700)),
-    )
-    .expect_err("the ceiling ended it");
-    let waited: Duration = began.elapsed();
-    drop(refused);
-    // The positive control: a worker can run the watch, and the step ends at the ceiling through it.
-    let mut watched: Command = Command::new("sleep");
-    watched.arg("6").stdin(Stdio::null());
-    let began_watched: Instant = Instant::now();
-    let through_the_watch: std::io::Error = output_watched_within(
-        &mut watched,
-        "a step a watch follows",
-        "a step a watch follows",
-        terms(Duration::from_secs(3600), &sink),
-        true,
-        StepBound::EndAt(Duration::from_millis(700)),
-    )
-    .expect_err("the ceiling ended it");
-    let waited_watched: Duration = began_watched.elapsed();
-    assert!(
-        is_ceiling(&through_the_watch),
-        "the watch ends the step at its ceiling: {through_the_watch}"
-    );
-    assert!(
-        waited_watched < Duration::from_secs(3),
-        "the watched step ended at its ceiling after {waited_watched:?}"
-    );
-    assert!(
-        waited < Duration::from_secs(3),
-        "a step nobody could watch outlasted its ceiling by {waited:?}"
-    );
-    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(
-        failure.to_string().contains("refused a thread"),
-        "the failure says no thread could watch the step: {failure}"
-    );
-    assert!(
-        failure.to_string().contains("a step nobody watches"),
-        "the failure names the step: {failure}"
+        || {
+            let refused: crate::lazy_runtime::RefusalForTheControl =
+                crate::lazy_runtime::a_control_refuses_every_task();
+            let sink: SharedSink = SharedSink::default();
+            let mut command: Command = Command::new("sleep");
+            command.arg("6").stdin(Stdio::null());
+            let began: Instant = Instant::now();
+            let failure: std::io::Error = output_watched_within(
+                &mut command,
+                "a step nobody watches",
+                "a step nobody watches",
+                terms(Duration::from_secs(3600), &sink),
+                true,
+                StepBound::EndAt(Duration::from_millis(700)),
+            )
+            .expect_err("the ceiling ended it");
+            let waited: Duration = began.elapsed();
+            drop(refused);
+            // The positive control: a worker can run the watch, and the step ends at the ceiling through it.
+            let mut watched: Command = Command::new("sleep");
+            watched.arg("6").stdin(Stdio::null());
+            let began_watched: Instant = Instant::now();
+            let through_the_watch: std::io::Error = output_watched_within(
+                &mut watched,
+                "a step a watch follows",
+                "a step a watch follows",
+                terms(Duration::from_secs(3600), &sink),
+                true,
+                StepBound::EndAt(Duration::from_millis(700)),
+            )
+            .expect_err("the ceiling ended it");
+            let waited_watched: Duration = began_watched.elapsed();
+            assert!(
+                is_ceiling(&through_the_watch),
+                "the watch ends the step at its ceiling: {through_the_watch}"
+            );
+            assert!(
+                waited_watched < Duration::from_secs(3),
+                "the watched step ended at its ceiling after {waited_watched:?}"
+            );
+            assert!(
+                waited < Duration::from_secs(3),
+                "a step nobody could watch outlasted its ceiling by {waited:?}"
+            );
+            assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
+            assert!(
+                failure.to_string().contains("refused a thread"),
+                "the failure says no thread could watch the step: {failure}"
+            );
+            assert!(
+                failure.to_string().contains("a step nobody watches"),
+                "the failure names the step: {failure}"
+            );
+        },
     );
 }
 
@@ -1663,42 +1663,42 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
 /// (issue 6511).
 #[test]
 fn a_step_that_finishes_inside_its_ceiling_is_answered() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_step_that_finishes_inside_its_ceiling_is_answered",
-    ) {
-        return;
-    }
-    let refused: crate::lazy_runtime::RefusalForTheControl =
-        crate::lazy_runtime::a_control_refuses_every_task();
-    let sink: SharedSink = SharedSink::default();
-    let mut command: Command = Command::new("sh");
-    // The helper holds the standard error alone, and the step finishes at once with its whole answer on the standard output.
-    command
-        .arg("-c")
-        .arg("sleep 6 >/dev/null & printf answer; exit 0")
-        .stdin(Stdio::null());
-    let began: Instant = Instant::now();
-    let output: std::process::Output = output_watched_within(
-        &mut command,
-        "a step with a holder on its standard error",
-        "a step with a holder on its standard error",
-        terms(Duration::from_secs(3600), &sink),
-        true,
-        StepBound::EndAt(Duration::from_millis(500)),
-    )
-    .expect("the step's exit status and standard output are its answer");
-    let waited: Duration = began.elapsed();
-    drop(refused);
-    assert!(output.status.success(), "{:?}", output.status);
-    assert_eq!(
-        output.stdout,
-        b"answer".to_vec(),
-        "the step's answer comes back"
-    );
-    assert!(
-        waited < Duration::from_secs(3),
-        "the step was reported at its ceiling after {waited:?}"
+        || {
+            let refused: crate::lazy_runtime::RefusalForTheControl =
+                crate::lazy_runtime::a_control_refuses_every_task();
+            let sink: SharedSink = SharedSink::default();
+            let mut command: Command = Command::new("sh");
+            // The helper holds the standard error alone, and the step finishes at once with its whole answer on the standard output.
+            command
+                .arg("-c")
+                .arg("sleep 6 >/dev/null & printf answer; exit 0")
+                .stdin(Stdio::null());
+            let began: Instant = Instant::now();
+            let output: std::process::Output = output_watched_within(
+                &mut command,
+                "a step with a holder on its standard error",
+                "a step with a holder on its standard error",
+                terms(Duration::from_secs(3600), &sink),
+                true,
+                StepBound::EndAt(Duration::from_millis(500)),
+            )
+            .expect("the step's exit status and standard output are its answer");
+            let waited: Duration = began.elapsed();
+            drop(refused);
+            assert!(output.status.success(), "{:?}", output.status);
+            assert_eq!(
+                output.stdout,
+                b"answer".to_vec(),
+                "the step's answer comes back"
+            );
+            assert!(
+                waited < Duration::from_secs(3),
+                "the step was reported at its ceiling after {waited:?}"
+            );
+        },
     );
 }
 
@@ -1978,64 +1978,65 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it",
-    ) {
-        return;
-    }
-    let refused: crate::lazy_runtime::RefusalForTheControl =
-        crate::lazy_runtime::a_control_refuses_every_task();
-    let directory: PathBuf = crate::test_support::fixture("child-watch-tree-at-the-ceiling");
-    let helper_file: PathBuf = directory.join("helper");
-    let sink: SharedSink = SharedSink::default();
-    let mut command: Command = Command::new("sh");
-    command
-        .args([
-            "-c",
-            format!("sleep 600 & echo $! > '{}'; wait", helper_file.display()).as_str(),
-        ])
-        .stdin(Stdio::null());
-    let failure: std::io::Error = output_watched_within(
-        &mut command,
-        "a step with a helper",
-        "a step with a helper",
-        terms(Duration::from_secs(3600), &sink),
-        true,
-        StepBound::EndAt(Duration::from_millis(400)),
-    )
-    .expect_err("the ceiling ended the step");
-    drop(refused);
-    let helper: i32 = std::fs::read_to_string(&helper_file)
-        .expect("the helper's process ID")
-        .trim()
-        .parse()
-        .expect("a process number");
-    // A process that has ended is collected by the system's init, or waits as a zombie of a subreaper; neither is a
-    //  process that still runs, and `member_read` answers both with `Gone`.
-    let looked_from: Instant = Instant::now();
-    while looked_from.elapsed() < Duration::from_secs(2)
-        && crate::process_tree::member_read(helper) != crate::process_tree::MemberRead::Gone
-    {
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    let gone: bool =
-        crate::process_tree::member_read(helper) == crate::process_tree::MemberRead::Gone;
-    // The assertions come after the cleanup, so a failing control leaves nothing running.
-    if !gone {
-        // SAFETY: `kill` takes two integers and touches no memory; the number is the helper this control started.
-        let _ended = unsafe { libc::kill(helper, libc::SIGKILL) };
-    }
-    crate::test_support::remove(directory.as_path());
-    assert!(
-        failure
-            .to_string()
-            .contains("the longest the wrapper lets one step run"),
-        "the step ended at its ceiling: {failure}"
-    );
-    assert!(
-        gone,
-        "the process the step started was left running after the step was reported ended at its ceiling"
+        || {
+            let refused: crate::lazy_runtime::RefusalForTheControl =
+                crate::lazy_runtime::a_control_refuses_every_task();
+            let directory: PathBuf =
+                crate::test_support::fixture("child-watch-tree-at-the-ceiling");
+            let helper_file: PathBuf = directory.join("helper");
+            let sink: SharedSink = SharedSink::default();
+            let mut command: Command = Command::new("sh");
+            command
+                .args([
+                    "-c",
+                    format!("sleep 600 & echo $! > '{}'; wait", helper_file.display()).as_str(),
+                ])
+                .stdin(Stdio::null());
+            let failure: std::io::Error = output_watched_within(
+                &mut command,
+                "a step with a helper",
+                "a step with a helper",
+                terms(Duration::from_secs(3600), &sink),
+                true,
+                StepBound::EndAt(Duration::from_millis(400)),
+            )
+            .expect_err("the ceiling ended the step");
+            drop(refused);
+            let helper: i32 = std::fs::read_to_string(&helper_file)
+                .expect("the helper's process ID")
+                .trim()
+                .parse()
+                .expect("a process number");
+            // A process that has ended is collected by the system's init, or waits as a zombie of a subreaper; neither is a
+            //  process that still runs, and `member_read` answers both with `Gone`.
+            let looked_from: Instant = Instant::now();
+            while looked_from.elapsed() < Duration::from_secs(2)
+                && crate::process_tree::member_read(helper) != crate::process_tree::MemberRead::Gone
+            {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            let gone: bool =
+                crate::process_tree::member_read(helper) == crate::process_tree::MemberRead::Gone;
+            // The assertions come after the cleanup, so a failing control leaves nothing running.
+            if !gone {
+                // SAFETY: `kill` takes two integers and touches no memory; the number is the helper this control started.
+                let _ended = unsafe { libc::kill(helper, libc::SIGKILL) };
+            }
+            crate::test_support::remove(directory.as_path());
+            assert!(
+                failure
+                    .to_string()
+                    .contains("the longest the wrapper lets one step run"),
+                "the step ended at its ceiling: {failure}"
+            );
+            assert!(
+                gone,
+                "the process the step started was left running after the step was reported ended at its ceiling"
+            );
+        },
     );
 }
 

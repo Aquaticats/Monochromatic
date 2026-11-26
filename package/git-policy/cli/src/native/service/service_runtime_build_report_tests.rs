@@ -68,31 +68,31 @@ fn a_multi_thread_runtime_says_nothing_about_its_build() {
 /// ```
 #[test]
 fn a_stand_in_runtime_is_named_with_its_cause_and_the_wait() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_stand_in_runtime_is_named_with_its_cause_and_the_wait",
-    ) {
-        return;
-    }
-    run_on_runtime(async {}).expect("the runtime runs one task");
-    let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
-    assert_eq!(
-        built_flavor(),
-        Some(BuiltFlavor::CurrentThreadAfterDeadline),
-        "the control stands in for a build that missed its deadline"
-    );
-    let Some(build) = runtime_build() else {
-        panic!("the runtime this process built reports its build")
-    };
-    let words: String = stand_in_words(build).expect("a stand-in is named");
-    drop(late);
-    assert!(
-        words.contains("outlasted"),
-        "the line names the deadline as the cause: {words}"
-    );
-    assert!(
-        words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())),
-        "the line names the wait the service gives the late build: {words}"
+        || {
+            run_on_runtime(async {}).expect("the runtime runs one task");
+            let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
+            assert_eq!(
+                built_flavor(),
+                Some(BuiltFlavor::CurrentThreadAfterDeadline),
+                "the control stands in for a build that missed its deadline"
+            );
+            let Some(build) = runtime_build() else {
+                panic!("the runtime this process built reports its build")
+            };
+            let words: String = stand_in_words(build).expect("a stand-in is named");
+            drop(late);
+            assert!(
+                words.contains("outlasted"),
+                "the line names the deadline as the cause: {words}"
+            );
+            assert!(
+                words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())),
+                "the line names the wait the service gives the late build: {words}"
+            );
+        },
     );
 }
 
@@ -115,35 +115,37 @@ fn a_stand_in_runtime_is_named_with_its_cause_and_the_wait() {
 /// ```
 #[test]
 fn the_words_of_a_task_with_no_worker_name_it_the_wait_and_what_to_check() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_words_of_a_task_with_no_worker_name_it_the_wait_and_what_to_check",
-    ) {
-        return;
-    }
-    run_on_runtime(async {}).expect("the runtime runs one task");
-    let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
-    let words: String = no_worker_words("the acceptor of connections");
-    drop(late);
-    assert!(
-        words.contains("the acceptor of connections"),
-        "the line names the task it could not start: {words}"
-    );
-    assert!(
-        words.contains("no worker thread"),
-        "the line says what this process lacked: {words}"
-    );
-    assert!(
-        words.contains("outlasted"),
-        "the line names the cause of the stand-in: {words}"
-    );
-    assert!(
-        words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())),
-        "the line names the wait a build that missed its deadline is given: {words}"
-    );
-    assert!(
-        words.contains("`ulimit -u`") && words.contains("pids.max") && words.contains("memory.max"),
-        "the line names what to check: {words}"
+        || {
+            run_on_runtime(async {}).expect("the runtime runs one task");
+            let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
+            let words: String = no_worker_words("the acceptor of connections");
+            drop(late);
+            assert!(
+                words.contains("the acceptor of connections"),
+                "the line names the task it could not start: {words}"
+            );
+            assert!(
+                words.contains("no worker thread"),
+                "the line says what this process lacked: {words}"
+            );
+            assert!(
+                words.contains("outlasted"),
+                "the line names the cause of the stand-in: {words}"
+            );
+            assert!(
+                words.contains(&format!("{} ms", RUNTIME_BUILD_PATIENCE.as_millis())),
+                "the line names the wait a build that missed its deadline is given: {words}"
+            );
+            assert!(
+                words.contains("`ulimit -u`")
+                    && words.contains("pids.max")
+                    && words.contains("memory.max"),
+                "the line names what to check: {words}"
+            );
+        },
     );
 }
 
@@ -200,34 +202,34 @@ fn the_line_of_a_wait_for_the_build_names_the_task_the_deadline_and_the_wait() {
 /// ```
 #[test]
 fn a_process_that_never_built_a_runtime_says_so_and_a_wait_with_nothing_coming_ends() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_process_that_never_built_a_runtime_says_so_and_a_wait_with_nothing_coming_ends",
-    ) {
-        return;
-    }
-    assert!(
-        runtime_build().is_none(),
-        "no runtime was asked for yet, so none is described"
-    );
-    assert!(!late_build_arrived(), "no build missed a deadline here");
-    let words: String = no_worker_words("the after-commit work");
-    assert!(
-        words.contains("the after-commit work") && words.contains("never built"),
-        "the line names the task and that no build exists: {words}"
-    );
-    let refused: RefusalForTheControl = a_control_refuses_every_task();
-    let began: std::time::Instant = std::time::Instant::now();
-    let arrived: bool = await_a_worker_within(THE_LONGEST_A_WAIT_THIS_CONTROL_RUNS);
-    let waited: std::time::Duration = began.elapsed();
-    drop(refused);
-    assert!(
-        !arrived,
-        "a system that refuses every thread gives no worker"
-    );
-    assert!(
-        waited < THE_LONGEST_A_WAIT_THIS_CONTROL_RUNS * 10,
-        "the wait ended at its bound and not later: {waited:?}"
+        || {
+            assert!(
+                runtime_build().is_none(),
+                "no runtime was asked for yet, so none is described"
+            );
+            assert!(!late_build_arrived(), "no build missed a deadline here");
+            let words: String = no_worker_words("the after-commit work");
+            assert!(
+                words.contains("the after-commit work") && words.contains("never built"),
+                "the line names the task and that no build exists: {words}"
+            );
+            let refused: RefusalForTheControl = a_control_refuses_every_task();
+            let began: std::time::Instant = std::time::Instant::now();
+            let arrived: bool = await_a_worker_within(THE_LONGEST_A_WAIT_THIS_CONTROL_RUNS);
+            let waited: std::time::Duration = began.elapsed();
+            drop(refused);
+            assert!(
+                !arrived,
+                "a system that refuses every thread gives no worker"
+            );
+            assert!(
+                waited < THE_LONGEST_A_WAIT_THIS_CONTROL_RUNS * 10,
+                "the wait ended at its bound and not later: {waited:?}"
+            );
+        },
     );
 }
 

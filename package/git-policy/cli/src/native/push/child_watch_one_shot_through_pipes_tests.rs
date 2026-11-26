@@ -113,36 +113,36 @@ fn a_call_from_inside_the_runtime_is_refused_and_starts_no_child() {
 /// (issue 6511).
 #[test]
 fn a_run_leaves_no_descriptor_open() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_run_leaves_no_descriptor_open",
-    ) {
-        return;
-    }
-    // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
-    output_watched(&mut shell("exit 0"), "the warm-up", long_window_terms())
-        .expect("the warm-up ran");
-    let before: usize = open_descriptors();
-    for _ in 0..3 {
-        output_watched(
-            &mut shell("printf out; printf err >&2"),
-            "a run to its end",
-            long_window_terms(),
-        )
-        .expect("the run");
-    }
-    let sink: crate::test_support::SharedSink = crate::test_support::SharedSink::default();
-    let terms: WatchTerms = WatchTerms {
-        limit: Duration::from_millis(300),
-        cadence: crate::wait_progress::Cadence {
-            grace: Duration::from_millis(60),
-            interval: Duration::from_millis(60),
+        || {
+            // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
+            output_watched(&mut shell("exit 0"), "the warm-up", long_window_terms())
+                .expect("the warm-up ran");
+            let before: usize = open_descriptors();
+            for _ in 0..3 {
+                output_watched(
+                    &mut shell("printf out; printf err >&2"),
+                    "a run to its end",
+                    long_window_terms(),
+                )
+                .expect("the run");
+            }
+            let sink: crate::test_support::SharedSink = crate::test_support::SharedSink::default();
+            let terms: WatchTerms = WatchTerms {
+                limit: Duration::from_millis(300),
+                cadence: crate::wait_progress::Cadence {
+                    grace: Duration::from_millis(60),
+                    interval: Duration::from_millis(60),
+                },
+                notices: Box::new(sink),
+            };
+            output_watched(&mut shell("sleep 30"), "a run ended at its window", terms)
+                .expect_err("a silent step is ended");
+            assert_eq!(open_descriptors(), before);
         },
-        notices: Box::new(sink),
-    };
-    output_watched(&mut shell("sleep 30"), "a run ended at its window", terms)
-        .expect_err("a silent step is ended");
-    assert_eq!(open_descriptors(), before);
+    );
 }
 
 /// The one-shot run that ends at a ceiling does not wait for its child with `wait_with_output` or any other blocking call of the
