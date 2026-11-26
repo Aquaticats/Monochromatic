@@ -79,3 +79,20 @@ fn a_backwards_range_keeps_only_the_character_that_opens_it() {
     assert_eq!(for_matcher("[!a-z0-9].md"), "[!a-z0-9].md");
     assert_eq!(for_matcher("a[z-a]b[a-c]c.md"), "a[z]b[a-c]c.md");
 }
+
+/// A long line of brackets is one pass over the pattern:
+///  a hundred and fifty thousand unclosed `[` finish inside ten seconds,
+///  where looking for each class's end from its own `[` takes minutes on this machine
+///  and reads the same character again for every `[` before it.
+#[test]
+fn unclosed_brackets_are_scanned_once() {
+    let pattern: String = "[".repeat(150_000);
+    let wanted: usize = pattern.chars().count();
+    let translated: String = crate::test_deadline::finished_within_deadline_after(
+        std::time::Duration::from_secs(10),
+        move || for_matcher(pattern.as_str()),
+    );
+    // An unclosed `[` is a literal, so the line comes back as it went in.
+    assert_eq!(translated.chars().count(), wanted);
+    assert!(translated.chars().all(|found| return found == '['));
+}
