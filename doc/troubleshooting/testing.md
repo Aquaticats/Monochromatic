@@ -525,6 +525,8 @@ Linux answers `ENOENT` for a record already removed,
 and `ESRCH` for one whose task it released;
 the driver counts both as a process that is gone
 (`package/pi-shared/subagent-driver/src/process-ended-codes.ts`).
+The read's own mechanism is in
+`package/pi-shared/subagent-driver/doc/troubleshooting/a-process-that-ends-while-its-record-is-read.md`.
 The control does the same:
 it waits for the child that runs the program it started,
 treats a child whose program cannot be read as one of the profile scripts,
