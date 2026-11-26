@@ -107,7 +107,7 @@ is what names it.
 
 Traced runs rarely fail:
 one failure in 26 traced attempts before the one above,
-and none in 460 traced attempts after it,
+and none in 400 traced attempts after it,
 while untraced runs failed twice in eight.
 The tracer stops each tracee at each traced call,
 which narrows the window the failure needs;
