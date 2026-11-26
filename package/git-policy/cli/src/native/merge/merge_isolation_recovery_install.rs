@@ -21,7 +21,7 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{Change, worktree_path};
 use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk};
 use crate::merge_isolation_take_asides::{
-    Take, finish_asides_awaiting, put_back, restore_what_git_did_not_write_awaiting, take_aside_awaiting,
+    Take, finish_asides_awaiting, put_back_awaiting, restore_what_git_did_not_write_awaiting, take_aside_awaiting,
 };
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
@@ -153,7 +153,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
             Err(failure) => {
                 // A take that stops must not leave the files it already took under their private names; the one it stopped on is
                 //  in the failure, because the rename came before the read that failed.
-                let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
+                let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
                 let mut refusal: String = failure.error.0;
                 if !left.is_empty() {
                     refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
@@ -164,7 +164,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
         }
     }
     if !changed.is_empty() {
-        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
+        let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
         return Err(MergeRefusal { error: RecoveryError(refusal), began: installed_before || !left.is_empty() });
@@ -183,7 +183,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     update.input = Some(index_input);
     if let Err(error) = run_git_checked_awaiting(&place.git, &update).await {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
+        let left: Vec<String> = put_back_awaiting(&everything_taken(&taken_writes, &taken_deletions)).await;
         return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: installed_before || !left.is_empty() });
     }
     // From here the index holds the merge's entries, so a command that stops must not go on reading the checkout.

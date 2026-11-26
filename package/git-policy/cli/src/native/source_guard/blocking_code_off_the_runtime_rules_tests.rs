@@ -500,11 +500,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
     },
     // One call on a known small file inside a task, which the plan allows once and the merge's own step batches.
     Allowed {
-        file: "merge/merge_isolation_take_asides.rs",
-        rule: "storage-read-on-a-task",
-        why: "one metadata look, one link read and one removal of a known entry; the merge's own step owns batching them on the blocking pool",
-    },
-    Allowed {
         file: "merge/merge_second_pass_tree.rs",
         rule: "storage-read-on-a-task",
         why: "one removal of a known private index file; the merge's own step owns batching it on the blocking pool",
