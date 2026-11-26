@@ -1,0 +1,622 @@
+<!-- Copied from the audit's own ledger on 2026-11-25; absolute paths and its scratch scripts were removed for the public repository. Where each item is being handled is in the section "Routing, 2026-11-25" at the end. -->
+
+# Git policy CLI debt ledger, crate monochromatic-git-policy-cli, 2026-11-25T16:45:00-05:00
+
+Status: incomplete, unapproved and not final.
+One Claude Code session (Sonnet 5.5) wrote it from read-only measurement.
+No independent reviewer has read it, and no build, test or linter was run.
+What was not checked is listed in the section "Not checked and limits".
+
+## How to read this
+
+The crate is `package/git-policy/cli`.
+Every path in an item is relative to `B`, which is `package/git-policy/cli/src/native`,
+unless it starts with `package/` or `doc/` (repository root) or is absolute.
+Line numbers are from the main checkout's working tree, read between 2026-11-25T16:07 and 2026-11-25T16:50 (-05:00).
+`main` moved from `d739037e45` to `a849bb436a` meanwhile, and only the practices guide changed in the crate
+(measured: `git diff --stat d739037e45 a849bb436a -- package/git-policy/cli`).
+
+"Measured" means a command or script whose output I read; the command is named.
+"Inferred" means from reading code, with no run.
+Scripts, raw outputs and lists are in the audit's scratch folder (not kept)
+(called (audit scratch, not kept) in this ledger).
+
+Release against test code is decided by declaration, not by file name:
+(audit scratch, not kept) marks a file test-only when its declaring `mod` carries a `cfg` with `test`,
+or when it sits in `testing/`, `binary/` or `source_guard/`, or is a `*_tests.rs` sidecar.
+That leaves 1,524 release files and 1,479 test-only files of 3,003
+((audit scratch, not kept), (audit scratch, not kept)).
+Counts called "release" in this ledger use only those 1,524 files.
+
+Two scripts in (audit scratch, not kept) are superseded and must not be trusted:
+(audit scratch, not kept) filed the binary controls under the wrong prefix (seven of its nine hits were false),
+and (audit scratch, not kept) sees only one file at a time.
+(audit scratch, not kept) is the corrected one, and its raw output still holds false rows
+(command names and paths), so each hit named in item 4 was confirmed by reading the helper chain.
+
+Order: harm to correctness first, then how many sites one fix covers.
+Items marked "release" are shipped code; "tests" are test code and test support.
+
+## Fix rounds, in the order that suits the dependencies
+
+Round A, test harness core: items 4, 5 and 11.
+Land the branch of item 6 first.
+One agent, because all of it is `testing/test_support.rs`, `testing/child_test_process.rs`
+and the `binary/binary_support_fixture_*.rs` files.
+Round B, process-wide state in tests: items 3 and 10, after round A (it needs the child runner).
+One agent per mechanism (3a to 3g), because the files are disjoint.
+Round C, release reads: items 1 and 2, independent of the others.
+Item 2 starts with a source guard, then migrates in classes.
+Round D, waits and bounds in tests: item 7, one agent per folder.
+Round E, owner decision: items 8 and 18, then a conversion round.
+Round F, mechanical duplication and dead code: items 12, 13 and 14, independent of the others.
+Round G, file splits: item 15, one agent per file; item 16 only after the owner chooses a direction.
+Round H, SPEC edits: item 9, a few passages.
+
+## Items
+
+### Item 1. A pathspec file is read by path before Git reads it, and one read has no bound
+
+Category 3, release.
+Rests on `commit/commit_selection_staging.rs:383-389` (`selection_elements`) and `:403-415` (`selection_items`),
+which take the size with `std::fs::metadata(file)` and then call `std::fs::read(file)`,
+and on `commit/commit_index.rs:518-521`, which calls `std::fs::read(file)` with no size bound at all.
+The path comes straight from the command line: `landing/service_prepare_changes_config_and_pathspec_steps.rs:158-166`
+returns any name other than `-` unchanged (joined to the working directory).
+The preparation that reads it (`landing/service_prepare.rs`) takes the command's standard input as an input,
+so I infer it runs in the wrapper process and not in the service (not confirmed).
+The shared opener that takes the type from the open handle exists: `foundation/plain_file.rs:164` `read_plain_file`
+and `:188` `read_plain_file_through_links`.
+
+What is wrong: `metadata` follows links and reports length 0 for a named pipe, so the size check passes,
+and `read` then opens it blocking.
+The practices guide section "Every wait has a deadline" forbids that shape.
+Baseline: native Git also waits on a pipe with no writer, so the hang is no worse than Git's;
+the owner's rule is stricter (open issues 6415 and 6433 apply it to other files).
+The sharper point is inferred and not run: a one-shot input such as bash process substitution
+(`--pathspec-from-file=<(...)`) is consumed by this early read, so Git later reads end of file from the same path,
+which native Git would not do.
+
+Cost: a different commit result from native Git for one-shot inputs, and an unbounded read at `commit_index.rs:520`
+(risk; not seen failing).
+Issue 6415's branch `fix/git-policy-cli-named-pipe-in-a-record-folder` holds only the merge commit `c81f8c7743`
+so far (measured: `git log main..<branch> --oneline`).
+
+Fix: read the file once, at most `PATHSPEC_FILE_LIMIT` bytes, through the open handle, into the scratch snapshot
+and hand Git the snapshot, as the `-` route already does at `pathspec_file_for`;
+whether a pipe is refused or its bytes are snapshotted is the owner's choice.
+One function for the three sites, and a control with a `mkfifo` fixture
+(`binary/binary_abort_during_an_operation_tests.rs:1195` already makes one).
+Size: three read sites, one function.
+Label: measured by reading (`rg -n "pathspec_file\b"`); the process-substitution effect and the client-side run
+are inferred.
+
+### Item 2. Raw file reads bypass the plain-file helper, and the same read is written many times
+
+Categories 3 and 4, release.
+Measured: `rg -n "std::fs::read_to_string\(|std::fs::read\(|fs::read_to_string\(|fs::read\("` over the release files
+finds 181 sites in 119 files; 138 remain after dropping `/proc`, mount table, boot id and cgroup paths;
+the helper `foundation/plain_file.rs` has 74 call sites in 55 files
+(`rg -c "read_plain_file\(|read_plain_text\(|read_plain_text_at\(|read_plain_file_through_links\(|open_plain_file\("`).
+At least twenty of the raw reads open files under a Git directory or a state folder
+(a variable-name match: (audit scratch, not kept)).
+Examples that a person or another program can replace with a named pipe:
+`repo_read/repo_read_config_scan.rs:66` (config), `repo_read/git_directory_roots.rs:37,65` (`commondir`, `.git` file),
+`landing/service_head.rs:123,140` (`commondir`, `HEAD`), `landing/service_work_common_directory.rs:57,67,93`,
+`push/push_failure_notice.rs:509` (`HEAD`), `merge/merge_second_pass_finish.rs:412` (rebase todo),
+`merge/merge_isolation_git_reads.rs:271` and `merge/pull_isolation.rs:599` (`FETCH_HEAD`),
+`worktree_clone_add_route/add_fill.rs:281,289`, `service/service_review.rs:76`,
+`worktree/worktree_remove_hand_over.rs:1168` (`.git` pointer).
+
+The `commondir` read alone is written seven ways.
+`foundation/common_directory_of_a_git_directory.rs:35` is the shared answer (11 callers, itself a raw
+`read_to_string`), and five more raw reads of the same file exist:
+`repo_read/git_directory_roots.rs:37`, `landing/service_work_common_directory.rs:93`, `landing/service_head.rs:123`,
+`service/service_review.rs:76`, `worktree_clone_add_route/add_fill.rs:289`;
+`repo_read/repo_read_layout.rs:310` goes through a local `small_file`
+(`repo_read/repo_read_layout_disk_and_directory_facts.rs:65`).
+Bounded-read bodies are copied: `invocation/real_git_candidate.rs:342` `read_up_to`,
+`worktree/worktree_clean_content.rs:84` and `account_companion/companion_mount_table.rs:166` `read_at_most`,
+23 hand-written `take(..).read_to_end` sites in 22 files ((audit scratch, not kept)),
+and 14 hand-written `custom_flags(... O_NONBLOCK ...)` opens in 12 files ((audit scratch, not kept)).
+
+Cost: the hang of item 1 in each place, plus unbounded memory; native Git also blocks on a pipe at several of these,
+but two open issues (6415, 6433) already treat the same shape as defects here.
+Many of the 138 read files the wrapper itself wrote into a private folder, which is lower risk (inferred);
+triage is part of the fix.
+Fix: first a source guard in `source_guard/` (in the style of `no_test_changes_the_process_directory_tests.rs`) that
+refuses `std::fs::read*` on non-`/proc` paths outside `foundation/plain_file.rs`, with an allow-list that shrinks;
+then migrate in classes (Git-directory reads, record folders, user paths);
+make `common_directory_of` the one `commondir` reader.
+Size: 138 sites in about 100 files; 6 `commondir` copies; about 40 copied bounded-read or open bodies.
+
+Round of 2026-11-25, branch `fix/git-policy-cli-raw-file-reads-through-the-plain-file-reader`:
+the guard landed as `source_guard/raw_file_reads_tests.rs`,
+and its first measurement was 151 calls in 101 release files
+(159 calls in 107 files by text, less the six test-only files the declaration scan leaves out).
+Seventeen sites in eleven release files moved onto `plain_file`:
+`commondir`,
+`HEAD`,
+the `.git` pointer file,
+`FETCH_HEAD`,
+a rebase or sequencer todo list,
+and a configuration file,
+with `foundation/common_directory_of_a_git_directory.rs` as the one `commondir` reader.
+What is left is on `KEPT_SITES` of the guard: 134 calls in 91 files, in five named classes.
+The classes for later rounds: the system's own facts (`system`),
+the wrapper's own records (`own-record`),
+the remaining Git-directory reads (`git-directory`: the index, pack files, `MERGE_MSG`, `sequencer/opts`,
+a registration's `gitdir`, `.git/info/exclude`),
+paths the person's project holds (`person-path`),
+and the copied bounded-read or non-blocking-open bodies
+(`invocation/real_git_candidate.rs`'s `read_up_to`,
+`worktree/worktree_clean_content.rs`'s and `account_companion/companion_mount_table.rs`'s `read_at_most`,
+and `foundation/private_storage.rs`'s `read_regular_file`, which `repo_read` and four other folders still name).
+
+### Item 3. Tests change process-wide state, which only a process per test makes safe
+
+Category 1, tests.
+The tests were written for nextest's one process per test; the container gate does that,
+and a threaded `cargo test --lib` (how rounds run) does not.
+Nineteen comments lean on it ((audit scratch, not kept)).
+The seven mechanisms, each with its sites, are one item because one child runner (item 10) fixes them.
+
+Item 3a, the durable-sync switch.
+`foundation/private_storage_syncs_test_support.rs:21,34-36`: `SYNCING_IS_FAITHFUL` is an `AtomicBool`;
+`skip_the_durability_syncs_here` stores false and nothing stores true.
+Six calls: `worktree_copying/worktree_copy_lifecycle_tests.rs:1035`, `foundation/private_storage_tests.rs:379`,
+`foundation/earlier_names_folded_into_current_tests.rs:121,157`,
+`foundation/earlier_log_lines_added_to_current_log_tests.rs:113,383`.
+`foundation/private_storage_tests.rs:372-380` asserts that a faithful flush of a pipe is refused
+before it calls the skip, so it fails when any of the other five ran first in the same process (inferred from the code).
+After the flip every sync in other tests is a no-op (`foundation/private_storage.rs:357,682`,
+`foundation/earlier_log_lines_added_to_current_log.rs:299`), so crash-order controls test less than they say.
+
+Item 3b, the descriptor limit.
+`testing/test_support.rs:609-658` (`set_soft_limit`, `restore_limit`, `leave_free`) lowers `RLIMIT_NOFILE` of the
+whole process, and `leave_free(0)` fills every remaining descriptor,
+so a concurrent thread's `open`, `pipe`, `socket` or spawn gets `EMFILE` meanwhile.
+Eight sites in four files: `process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs:85,119,152`,
+`commit/native_commit_waiting_notice_tests.rs:330,410`, `worktree/worktree_clean_tests.rs:97`,
+`subvolume/fs_beneath_directory_chain_tests.rs:75,108`.
+The restore is skipped when an assertion fires between the two calls (`fs_beneath_directory_chain_tests.rs:109`).
+
+Item 3c, descriptor 2.
+`landing/work_item_tests.rs:1001-1030` points fd 2 at `/dev/full`;
+`repair/package_repair_command_tests.rs:949,995` points it at a pipe filled to capacity and never drained;
+`worktree/add_standing_notice_tests.rs:209,291` points it at a pipe.
+Under libtest's default capture a test thread's `eprintln!` and panic message go to the capture buffer and not to fd 2,
+so the redirect hits what writes fd 2 directly: the watchdog's report (`testing/run_progress.rs:830-834`),
+the service log, children started meanwhile (they inherit it), and every `--nocapture` run.
+A write to the drained-never pipe blocks, and the watchdog's own write would block before its `abort()` (inferred).
+
+Item 3d, the environment.
+`worktree/worktree_clone_conversion_size_read_tests.rs:700-713` sets five `GIT_CONFIG_*` variables and removes them
+only if the read returns, and every Git child of other tests inherits them;
+`:1217` sets `CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS=1500` and never removes it
+(read at `foundation/lazy_runtime.rs:148`, longer than the one-second build deadline).
+The safe form exists: `worktree/worktree_ladder_target_tests.rs:397` and
+`worktree/worktree_clean_content_safety_tests.rs:470` set the variable only in a child.
+
+Item 3e, the umask.
+`landing/service_index_claim_tests.rs:398-402` sets `0o077` in the test process and restores it only on success.
+The safe forms: `testing/umask_child_test_support.rs`, `binary/binary_merge_mode_tests.rs:55-95`.
+
+Item 3f, signal dispositions and in-process signals.
+`service/service_client_interrupted_tests.rs` (sends at `:53,104,156,185,269,274`, nine `sigaction` hits),
+`process/signal_report_tests.rs:48-59` (replaces the `SIGTERM` handler), `process/signal_relay_tests.rs`
+(its `RELAY_STATICS` mutex at `:302` serialises only that file) and `lfs/lfs_upload_tests.rs:427` (item 6)
+all claim `SIGTERM` or `SIGINT` in one process with no shared lock.
+`service/service_client_interrupted_tests.rs:104` is the process-directed shape of issue 6463:
+`kill(getpid(), SIGINT)` reaches any thread, and the binary dies if another test has put the default action back
+at that moment (inferred, not run).
+
+Item 3g, library statics that tests arm (a lower bound).
+`service/service_client_reach_service_tests.rs:95` `MANAGER` is shared by 14 tests and set under a lock that is
+released before `reach` runs (the file's own header says so);
+`service/service_client_wake_tests.rs:28` `STARTS_ASKED` is reset and asserted by two tests;
+`testing/fixture_git_commands.rs:118` `ENDING_SEAM` is armed by one test and fired by the first bounded query that
+reaches its bound in any thread (low risk);
+the service stop state is process-wide (comments at `push/bounded_push_awaiting_tests.rs:95`,
+`process/stop_of_the_service_noticed_by_its_children_tests.rs:6`, `process/signal_relay_tests.rs:692`).
+The uncapped scan finds 70 `Mutex`, `Atomic` or `OnceLock` statics in 39 test-only files
+((audit scratch, not kept)); I read the ones named here and not the rest,
+and several carry an `ONE_AT_A_TIME` mutex.
+
+Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
+Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
+Fix: run each such body in a child of the test binary through the one helper of item 10;
+for 3g give each test its own instance or hold one lock for the whole test.
+Size: about 45 sites in about 24 files across seven mechanisms.
+Label: sites measured with (audit scratch, not kept) and `rg -n "dup2\(|set_var\(|umask\("`;
+the interleaving effects are inferred.
+
+### Item 4. A fixture folder is named by process and name only, and a repeat deletes a live folder
+
+Category 1, tests.
+`testing/test_support.rs:323-337` (`fixture_with_prefix`) names the folder `<root>/<prefix>-<pid>-<name>`,
+removes an existing folder of that name (`:327-331`), then calls `create_dir` (`:332`),
+which panics if another thread created it between the check and the call.
+`binary/binary_support_fixture_directories.rs:213-227` repeats it as `native-binary-<pid>-<name>`.
+Measured: 3,955 literal `fixture("...")` calls (`rg -o 'fixture\("([^"]+)"\)'`) and 402 non-literal sites in 309
+files; names are unique only by convention.
+Confirmed repeats in one test executable, each checked by reading the helper chain:
+`registry-observe-main` (`worktree_copying/worktree_copy_registry_tests.rs:31,54`),
+`merge-recovery-other-branch` (`merge/merge_isolation_recovery_tests.rs:1890,2950`),
+`service-land-recover-alternate` (`landing/service_land_tests.rs:1080,2046`),
+`service-land-switched` (`landing/service_land_tests.rs:1237,1724`),
+`work-lease` (`landing/service_work_tests.rs:323`, `landing/work_item_tests.rs:321`),
+`work-given-up` (`landing/service_work_tests.rs:467`, `landing/work_item_tests.rs:782`),
+`claim-names` (`lock/single_owner_claim_tests.rs:150`,
+`worktree_clone_mount_handler/per_slot_root_claim_tests.rs:225`,
+`worktree_copying/worktree_copy_stage_claim_tests.rs:57`),
+`claim-vanished` (`landing/service_index_claim_tests.rs:247`,
+`worktree_copying/worktree_copy_stage_claim_tests.rs:787`),
+and in the binary target `timing-signal` (`binary/binary_commit_timing_tests.rs:1380,2610`).
+Other repeated names are in different executables (lib against `native_binary`) and do not collide.
+
+Cost: seen today (`DirectoryNotEmpty`, and the `create_dir` panic at `test_support.rs:332`, per the practices guide);
+the cross-module pairs (`work-lease`, `claim-names`) appear only in an unfiltered threaded run.
+Fix: make each call's folder its own inside the helper (a process-wide atomic counter in the name, `create_dir` only,
+no remove-stale branch), once in each helper, or once with item 11.
+No call site needs an edit: nothing outside the helpers builds the `native-unit-` or `native-binary-` names
+(measured: `rg -n "native-unit-|native-binary-"` finds only the helpers and doc paths).
+Size: two function bodies cover 4,357 sites and the nine known repeats.
+
+### Item 5. Stand-ins outlive an aborted or killed run, because `spawn_owned` in the lib has no death signal
+
+Category 2, tests.
+`testing/test_support.rs:287-293` (`spawn_owned`) sets a process group and registers it; the only cleanup is
+`ThreadFixtures::drop` (`:255-268`), which runs `killpg`.
+`testing/run_progress.rs:830-834` ends a stuck run with `std::process::abort()`, which runs no destructor,
+and a `SIGKILL` from outside runs none either.
+The binary target's copy, `binary/binary_support_fixture_service.rs:119-135`, adds `prctl(PR_SET_PDEATHSIG, SIGKILL)`
+for exactly this reason ("a test binary killed outright runs no guard at all"); the lib's copy does not.
+So every child the lib's tests started survives such an end.
+Measured: 214 lines in tests start long-sleeping stand-ins (`sleep` of 30 s or more, `HOLD_SECONDS` 3,000 at
+`lfs/lfs_upload_tests.rs:443`, `sleep 600` at `push/push_patience_tests.rs:77`, `sleep 120` at 24 lines in 14 files);
+194 raw `.spawn()` lines in 109 test and support files against 87 `spawn_owned` lines in 52 files;
+60 `impl Drop` guards in test and support files, and 37 files with such a guard kill or wait a child,
+each file with its own (`Helper`, `Held`, `NuisanceGit`).
+A child must not keep the run's output open (the guide); the stand-ins that `exec sleep` inherit standard output.
+
+Cost: seen today (a stand-in held the run's output for 45 minutes, per the guide).
+Fix: add the `PR_SET_PDEATHSIG` pre-exec to the lib's `spawn_owned` (it fires when the spawning thread ends,
+which is the intent), redirect inherited output in the stand-ins,
+then route the raw spawns through `spawn_owned` after triage.
+Size: one function fixes all 87 current users; about 100 files with raw spawns need triage.
+Label: the abort and the missing death signal are measured by reading both files; the survival of children is
+inferred.
+
+### Item 6. The fix for issue 6463 exists but is not merged, and main still has the signal at `getpid()`
+
+Categories 1, 2 and 7, tests.
+`lfs/lfs_upload_tests.rs:427` on main still sends `libc::kill(libc::getpid(), libc::SIGTERM)`;
+the stand-in at `:419` still `exec`s `/usr/bin/sleep` for `HOLD_SECONDS` (`:443`);
+the wait at `:423` for the pid file has no deadline.
+The fix is `898bdaa86b` (and `1c9c0666f3`) on `fix/git-policy-cli-lfs-upload-tests-signal-their-own-test-binary`,
+which is also on origin and is not an ancestor of main
+(measured: `git merge-base --is-ancestor 898bdaa86b HEAD` says not an ancestor;
+`git log --all --oneline -S'libc::kill(libc::getpid(), libc::SIGTERM)' -- <file>`).
+Drift: `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` says the control "once sent" the
+signal, which is true only on that branch.
+Fix: merge the branch (no new round); then check that `:423` and the long sleep are gone there.
+Size: one file, one branch.
+
+### Item 7. Test waits without deadlines, sleeps as synchronisation, and wall-clock bounds
+
+Category 1, tests.
+Waits with no end (measured by (audit scratch, not kept): 34 sleeping loops with no visible bound,
+most of them waiting on a stop flag):
+`transaction/transaction_phase_tests.rs:145` and `:172` spin until a file appears, and `:176` joins the thread,
+so a test that fails first hangs;
+`lock/index_holder_wait_tests.rs:47`; `lfs/lfs_upload_tests.rs:423` (item 6).
+Candidates not triaged (many follow a kill): 57 `.recv()` with no timeout, 233 `.join().expect/unwrap`,
+335 `.wait()` or `.wait_with_output()` in test files.
+Sleeps used to wait for another party: 382 literal-duration `thread::sleep` calls in tests, 15 of one second or more
+(for example `binary/binary_commit_when_the_service_stops_tests.rs:557`, six seconds), 57 of 100 to 999 ms
+(`push/push_progress_tests.rs:568`, `process/signal_relay_tests.rs:483`), 310 shorter.
+The bounded helpers exist (`testing/test_support_wait_bounds.rs`: `wait_until`, `finished_within`)
+and have 145 uses in 48 files.
+Wall-clock upper bounds: 99 single-line assertions `elapsed < Duration::from_*`
+(`rg -n "assert!\([^;]*(elapsed|waited|took|spent|lasted)[^;]*<..."`),
+the tight ones at 100 ms (`process/stuck_children_reaped_when_the_kernel_lets_go_tests.rs:46,73`),
+150 ms (`foundation/side_by_side_on_the_current_task_tests.rs:206`), 500 ms (`service/journald_native_tests.rs:605`);
+`push/bounded_query_tests.rs:211` asserts under ten seconds.
+Open issue 6405 is one such bound that host load stretched.
+
+Cost: hangs of the run (the watchdog then aborts after 120 s, which feeds item 5) and failures under load.
+Fix: replace each fixed sleep with `wait_until`; replace each tight bound with an order of events or a ratio to a
+control run in the same round; give the four open loops a deadline.
+Size: 4 loops, 72 sleeps of 100 ms or more, 99 bounds, about 625 waits to triage.
+Label: counts measured; which waits are really unbounded is inferred except for the four named.
+
+### Item 8. The release carries test-only fault variables that kill or stall the service
+
+Category 3, release; needs an owner decision.
+`service/service_fault.rs:1-17,92-105` says the fault point "is compiled into the release executable, and only the
+explicit variable arms it"; `reach` then sends the process `SIGKILL` when `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names
+the point.
+Likewise `transaction/transaction_phase.rs:34,372-376,517` (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`: kill or pause),
+`foundation/lazy_runtime.rs:136-149` (a sleep), `service/journald_native.rs:54,450` (log datagrams to a named socket),
+`worktree_clone_add_route/add_route_plan.rs:37-43,212-214,279` (hold, stop, `raise(SIGKILL)`),
+and `service/service_warm_request_control_window.rs`, a release file that parks on `CLI_GIT_TEST_ONLY_WARM_SCAN_PARK`.
+Measured: 18 `CLI_GIT_TEST_ONLY_*` constants in release files
+(`rg -c 'const [A-Z_]+: &str = "CLI_GIT_TEST_ONLY_'` over (audit scratch, not kept));
+one is compiled out by a feature (`start_probe/probe_deadline.rs:145,154`, feature `start-probe-raised-deadline`).
+The `Cargo.toml` comment on that feature gives the reason: a unit's `Environment=` line can set such a variable.
+Cost: risk (inferred): an exported variable or a unit line can kill or stall the commit service
+("Commits should never fail").
+Fix: decide with the owner whether to gate all of them like the start probe (binary controls then need a second build)
+or to record the exception; then one round.
+Size: 18 constants; read sites not counted.
+
+### Item 9. SPEC passages the code contradicts or points at nothing
+
+Category 7.
+`SPEC.md:10948-10956` lists `SERVICE_GREETING_SILENCE` (3 seconds) as the wait before a commit asks the manager to
+restart a running unit that greets nothing.
+No such constant exists (`rg -w SERVICE_GREETING_SILENCE` finds only a control and troubleshooting history);
+`service/service_client_reach_service.rs:297` ends the wait for a greeting only at `config.start_ceiling`
+(one minute);
+`service/wait_ceilings_tests.rs:218-221` asserts the constant is absent;
+`SPEC.md:11681` and `:12425-12427` say the same as the code.
+The reason is recorded: `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md:583,720`
+(a three-second silence ended a desktop session).
+Four `SPEC.md` citations name files that do not exist:
+`:10483` `process/pinned_member_signalled_through_a_pidfd.rs` (now `process/member_signalled_through_its_pidfd.rs`),
+`:13475` `push/push_failure_notice_wording.rs` (probably `push/push_failure_notice_words.rs`),
+`:15887` `service/service_work_push_environment.rs` (now `landing/service_work_push_environment.rs`),
+`:3637` `worktree/worktree_removal_refuses_a_nested_volume.rs` (no file of that name; the refusal text is in
+`worktree/worktree_remove_hand_over.rs` near `:995` and `:1118`).
+Two more in `doc/` are historical (`doc/step-5-second-executable-2026-11-20.md:27`,
+`doc/planted-control-and-durable-survivors-resume.md:14`).
+Cost: the first passage invites the exact mistake the incident recorded.
+Fix: delete or rewrite the bullet; correct the four paths.
+Caution for the round: `Cargo.toml` says `service::service_instance_tests` and
+`worktree_clone_mount::slot_identity_store_tests` read `SPEC.md` at run time, so check what each pins before editing.
+Size: five passages.
+Checked and consistent (measured): 289 cited source paths (6 missing, the ones named in this item), 191 bare `.rs`
+names (1 missing, the example `a.rs`), 44 numeric statements beside 34 constants (no real disagreement;
+two hits were a test-local `ANSWER_CEILING`), 53 `CLI_GIT_*` names (two absent from code are stated as removed at
+`SPEC.md:13212` and `:15765`).
+Method: (audit scratch, not kept), `rg -o "src/native/[A-Za-z0-9_./-]+\.rs"`; the 25,451 lines of prose were
+not read.
+
+### Item 10. The test binary is started as a child in 35 places with six helper shapes and little ownership
+
+Categories 4 and 2, tests.
+Measured: `rg -n '"--exact"'` finds 35 sites in 32 files ((audit scratch, not kept)).
+`testing/child_test_process.rs` is the shared helper and has users in 9 files; others write their own:
+`testing/umask_child_test_support.rs`, `testing/no_threads_child_test_support.rs`,
+`testing/file_size_limit_child_test_support.rs`, `testing/root_namespace_test_support.rs`,
+and `binary/binary_merge_mode_tests.rs:55-95`, a copy of the umask one (seven identical code lines at `:74-81` and
+`umask_child_test_support.rs:27-34`).
+Only 9 of the 32 files use `spawn_owned`; `testing/child_test_process.rs:58` waits with `.output()`
+(no deadline, not owned); only some callers check `1 passed` (`testing/no_threads_child_test_support.rs:127` does).
+Cost: maintenance, plus the hangs and leaks of items 5 and 7.
+Fix: one helper in `testing/` that starts the child with `spawn_owned`, a deadline, piped output and the `1 passed`
+check; migrate the 35 sites; this is the runner item 3 needs.
+Size: 35 sites, 6 helper bodies.
+
+### Item 11. The lib and binary test targets each keep a copy of the fixture support, and the copies diverged
+
+Category 4, tests.
+Measured with (audit scratch, not kept): 19 identical code lines in runs of three or more between
+`testing/test_support.rs` and `binary/binary_support_fixture_directories.rs`
+((audit scratch, not kept)).
+Copies: `forbid_core_dumps` (`test_support.rs:67-74` and `binary_support_fixture_directories.rs:348-355`),
+`system_temporary_directories` (`:140-150` and `:58-68`), `fixture_root` (`:110-125` and `:38-45`),
+fixture creation (`:323-337` and `:213-227`), `settle_fixture` and `remove_patiently` (`:229-241` and `:268`),
+`FIXTURE_ROOT_VARIABLE` (`:82` and `:20`), and `spawn_owned` plus `own_group`
+(`:287-307` against `binary/binary_support_fixture_service.rs:102-135`), which differ in the death signal (item 5).
+Cost: a fix lands in one target and not the other (items 4 and 5 are two such).
+Fix: one file included by `#[path]` in both targets; `binary/binary_tests.rs:33` already includes
+`../testing/real_git_lfs_the_run_requires.rs` this way.
+Size: 8 helpers.
+
+### Item 12. One-line byte tests are copied into 101 definitions
+
+Category 4, release.
+Measured with (audit scratch, not kept); the 101 definitions with their `file:line` are in
+(audit scratch, not kept).
+Eight names (`is_nul_byte` 29, `is_nul` 13, `is_line_feed_byte` 14, `is_newline` 11, `is_line_feed` 7,
+`is_slash` 11, `is_space_byte` 7, `is_space` 9) define 101 functions, 98 of them with one of four bodies:
+`*byte == 0` (41), `*byte == b'\n'` (32), `*byte == b'/'` (10), `*byte == b' '` (15).
+Probably the `rust/avoidable-closure` rule (`monochromatic-lint.config.jsonc`, warn) pushes each file to name its own.
+Cost: maintenance only.
+Fix: one `foundation/` file with the four named tests, replace the copies (mechanical).
+Size: 98 definitions.
+
+### Item 13. Five sync and awaiting twin pairs hold the same code twice
+
+Category 4, release.
+Measured with (audit scratch, not kept) (runs of six or more identical code lines; each run's two ranges are listed in
+(audit scratch, not kept)), the spans that hold the runs:
+`lfs/lfs_upload_plan.rs:446-555` and `lfs/lfs_upload_plan_awaiting.rs:56-165` (88 lines);
+`push/auto_push.rs:435-608` and `push/auto_push_awaiting.rs:85-257` (46);
+`transaction/transaction_git.rs:298-474` and `transaction/transaction_git_awaiting.rs:147-253` (45);
+`foundation/diagnostic_lines_off_the_calling_thread.rs:222-498` and
+`service/service_log_lines_off_the_calling_thread.rs:217-425` (44);
+`push/auto_push_reconcile.rs:382-403` and `push/auto_push_reconcile_awaiting.rs:295-316` (21).
+Thirteen `_awaiting` files exist in all (`rg --files | rg awaiting`).
+These are the tokio move's transition; the guard's allow-list (item 18) records its end.
+Cost: a fix lands in one twin only.
+Fix: finish the move for each pair (delete the synchronous twin) or extract the shared body.
+Size: 5 pairs, about 244 identical lines.
+
+### Item 14. Public functions nothing calls, and public functions only tests call
+
+Category 5, release.
+Method: for every `fn name` in a release file, count the word's occurrences in all `.rs` files under `B` (comments
+stripped), then in `cli.fuzz`, `cli/e2e`, `cli/perf`, `cli/bin`, `SPEC.md`, `README.md`, `DESIGN.md` and `doc/`
+((audit scratch, not kept), output (audit scratch, not kept)).
+Result: 8,867 function names; 47 are never referenced anywhere ((audit scratch, not kept), with lines in
+(audit scratch, not kept); only doc comments mention three of them);
+all 47 are `pub`, which is why Clippy with `-D warnings` stays quiet ((audit scratch, not kept)).
+Largest clusters: `worktree_clone_unmount/` (11 functions), `zfs_compatibility_gate/gate_paths.rs` (3).
+A further 172 `pub` functions in release files are referenced only from test-only files, for example
+`landing/service_land.rs:80` `land_batch` (102 test references) and `landing/service_index_lock.rs:297,323,334`
+`acquire_noting_wait`, `acquire_on` and `acquire_within`: release code that exists for tests.
+Cost: maintenance; the second kind makes tests exercise a function the release does not call.
+Fix: delete the 47 with their text (the practices guide, "Write less code"; issue 6430 is the same kind of removal);
+move the 172 under `#[cfg(test)]` or into the sidecars.
+Size: 47 deletions, 172 moves.
+Label: measured by name; a name reused elsewhere would hide dead code (undercount); I saw no overcount
+(a call through a macro or `include_str!` text would be missed).
+No source file is unreferenced (3,003 files; the two found are Cargo test targets: (audit scratch, not kept)).
+
+### Item 15. Twenty-four files are over the line budget, thirty more are at the edge
+
+Category 6, release and test support.
+The rule is `rust/max-lines` 300 as error (`monochromatic-lint.config.jsonc`); `*_tests.rs` files are exempt.
+The count is of lines holding a non-comment token, which mirrors
+`package/linter/monochromatic-lint/src/rust_source.rs:98-132`
+(approximated with `rg -c -v '^\s*(//.*)?$'`; the linter was not run; (audit scratch, not kept)):
+24 files over 300 and 30 at 290 to 300.
+The largest: `worktree/worktree_remove_hand_over.rs` 569; `worktree_clone_mount_handler/record_checkout_mode.rs` 437;
+`worktree_clone_mount_handler/mount_path_descendant_mode.rs` 436; `repair/package_repair_toolchain.rs` 434;
+`binary/binary_support_fixture_service.rs` 432; `worktree_copying/worktree_copy_owed_copy.rs` 407;
+`landing/service_claim_watch.rs` 404; `repair/package_repair_prewarm_job.rs` 386;
+`landing/service_work_drain_pending_claims.rs` 368; `worktree_clone_add_route/add_route_steps.rs` 358;
+`worktree_clone_mount_handler/handler_mode_arguments.rs` 356; `service/service_units_of_removed_worktrees.rs` 346;
+`commit/native_commit_waiting_notice.rs` 336; the other eleven are 301 to 328 (full list in the keep file).
+No `monochromatic-lint-disable` directive and no recorded baseline excuses them
+(`rg -c "monochromatic-lint-disable" src/native` finds none).
+The package task `lint:monochromatic-lint` runs with `--max-warnings 0` (`package/git-policy/cli/mise.toml`),
+but the gate runs Clippy only, and the linter binary is not on the main checkout's `PATH`
+(`doc/handover/cli-git-rust-implementation.md`, the note on `monochromatic-lint`).
+Cost: lint errors the moment the linter runs here (inferred); the big sidecars are exempt, but a 4,676-line test file
+(`merge/merge_isolation_recovery_tests.rs`) is a reading cost.
+Fix: split each by role into sibling modules, re-exporting, never stripping docs (MXL); one agent per file.
+Size: 24 files.
+Label: approximated count; confirm by running the linter once before the round.
+
+### Item 16. Twenty-nine of fifty-five source folders sit in one dependency loop, and the layout rules are not enforced
+
+Category 6, release.
+Measured with (audit scratch, not kept) (references `crate::name` and `use crate::{...}` mapped to folders
+through each `mod.rs`; 1,534 modules; the 1,524 release files only, so `testing/` is out): one strongly connected set
+holds 29 folders over 378 folder edges, and 97 pairs of folders use each other
+((audit scratch, not kept)).
+The base folder `foundation` uses `invocation` (4 files), `landing` (3), `lfs` (1), `policy` (3), `service` (4) and
+`worktree` (1), and is used by `landing` in 115 files and `worktree` in 142.
+The repository rules LYD, LYL and LYF ask for `uses/` folders, no mutual use and no file loops;
+only 19 of 55 folders have a `uses/` folder, and the linter rules `rust/folder-uses-links` and
+`rust/file-order-in-folder` are configured only for the zfs binding package
+(`monochromatic-lint.config.jsonc`, block `layout-zfs-request-to-openzfs-kernel-device`).
+Cost: structure only; no failure seen.
+Fix: the owner chooses a direction first (enable the rules here, or record the exception);
+the loops are not a mechanical edit.
+Size: 29 folders, 97 pairs.
+Label: measured by script; `crate::name` can be a type or function that shares a module's name, which would
+over-count (inferred, small).
+
+### Item 17. Four names say too little
+
+Category 6.
+`foundation/` (131 files: diagnostics, scratch folders, runtimes and plain files together), `binary/` (195 files, all
+consumer-level controls and their support), `testing/` (37), and the source root `src/native` itself
+(`Cargo.toml` `[lib] path`, named in many task descriptions): words that fit any code (VGW).
+File names are good: no file is named `helpers`, `utils` or the like; the only repeated name is `mod.rs` (55)
+(`rg --files | xargs -n1 basename | sort | uniq -c`).
+Cost: reading only.
+Fix: low priority; rename cost is high, so only with item 16.
+Size: 4 names.
+
+### Item 18. The runtime guard has sixty-three recorded exceptions, and it reads one file at a time
+
+Category 3, release; already tracked.
+`source_guard/blocking_code_off_the_runtime_rules_tests.rs` holds 63 `Allowed` rows:
+31 `blocking-sleep`, 22 `thread-start`, 8 `storage-read-on-a-task` (all in `merge/`:
+`merge_isolation_carry_place.rs`, `merge_isolation_changes.rs`, `merge_isolation_kept_copies_decisions.rs`,
+`merge_isolation_recovery_records.rs`, `merge_isolation_recovery_steps.rs`, `merge_isolation_take_asides.rs`,
+`merge_second_pass_tree.rs`, `merge_second_pass_worktree.rs`), 2 `unretried-start` (macOS and Windows only).
+Each row names its removal condition.
+The scan's own header says it follows no call, so a synchronous helper that reads a file and is called from an
+`async fn` is invisible to it (inferred; not measured).
+Fix: one conversion round for the eight `merge/` reads ("the merge's own step owns it"), then the owner's tokio plan
+finishes the rest; keep the list as the tracker.
+Size: 63 rows.
+
+### Item 19. Lists written as fixed-length arrays carry a hand-counted length
+
+Category: magic numbers (`AGENTS.md`'s MGN), added 2026-11-25T19:45-05:00 on the owner's "Isn't 95 a magic number that can
+be avoided?" about the raw-read guard's `const KEPT_SITES: [(&str, usize, &str); 95]`.
+Measured with `rg 'const [A-Z_]+: \[[^\]]*; [0-9]+\] = \['` on `main`: 277 such constants in 187 files of the crate's `src`,
+13 of them in 10 `source_guard` files (for example `hook_self_invocation_tests.rs`'s `MAIN_CODE: [&str; 47]` and
+`root_mode_name_tests.rs`'s `NAMES_CODE: [&str; 53]`).
+Every entry added or removed edits the count beside it, and the count says nothing a reader needs.
+The raw-read guard's three lists became slices on its branch (`&[...]`), as other guards already write them.
+Not every match is a list: an array whose length is its meaning (a header of a fixed byte width, a table indexed by an
+enum) keeps it.
+Fix: one round, after the live rounds touching those files merge, that turns every list of names, sites or words into a
+slice and leaves meaningful lengths, plus a `source_guard` control that refuses a new `const` list of string literals
+with a numeric length; the package guide states the rule since this item.
+Size: up to 277 constants, most of them one-line changes.
+
+## Already in flight, do not duplicate
+
+`fix/git-policy-cli-lfs-upload-tests-signal-their-own-test-binary`: item 6, unmerged.
+`fix/git-policy-cli-lock-controls-that-fail-only-in-a-threaded-run`: commit `841d20b762` gives two forward controls
+their own folders (an item 4 instance, 3 files); not an ancestor of main
+(`git log main..<branch> --oneline` lists three commits).
+`fix/git-policy-cli-named-pipe-in-a-record-folder`: issue 6415, only a merge commit so far.
+Open issues (measured: `gh issue view <n> --repo Aquaticats/Monochromatic --json state`):
+6405 (wall-clock bound), 6412 (return wider than its caller), 6415, 6421 (notes on the commit thread),
+6430 (copy-saving code nothing calls), 6433 (unbounded read of a launcher record); 6454 is closed.
+
+## Looked for and not found
+
+No test calls `set_current_dir` (a source guard enforces it:
+`source_guard/no_test_changes_the_process_directory_tests.rs`).
+The three release group-kill functions (`account_companion/companion_process_calls.rs:205`,
+`start_probe/probe_processes.rs:244`, `repair/package_repair_start.rs:567`) take a pid that comes from a checked
+`fork` result or `Child::id`, so no path to `kill(0)` or `kill(-1)` was found (inferred from the callers).
+Literal `/tmp` appears in test data strings; the one fixed path is `binary/binary_zfs_step9_m_arms_tests.rs:635,653`
+(`/tmp/m9target`), inside an arm that returns unless `in_guest()`.
+No orphan source file (item 14). SPEC numbers and paths are mostly right (item 9).
+
+## Not checked and limits
+
+No build, test or linter was run, so every "fails threaded" statement is inferred from code, not seen.
+The 402 non-literal `fixture(...)` sites were not all resolved; only helper chains for the nine confirmed names
+were read.
+The 138 raw reads, the 99 bounds and the 625 candidate waits were counted, not each classified.
+Release-code waits on children and channels were scanned by pattern (`rg`), not read one by one.
+The SPEC's 25,451 prose lines and the README's 9,427 were not read; only paths, constants and variable names were
+compared.
+Module and folder names were judged from file and folder lists, not from the contents of each.
+Only three in-flight branches and the open issues named in the practices guide were checked; the other worktrees under
+`.claude/worktrees/` may already touch these files.
+The release set is decided by declarations; a release file that only tests call can still sit in it
+(item 14 counts such functions).
+Counts that use regular expressions can miss multi-line forms; the patterns are in the commands named in each item.
+
+## Routing, 2026-11-25
+
+Where each item went when the coordinator read the ledger at about 16:50 (-05:00).
+Items that wait name what they wait on.
+
+- Item 1: the issue 6415 round (`fix/git-policy-cli-named-pipe-in-a-record-folder`) was told its three sites.
+- Item 2: after issue 6415's fix lands, a source guard on raw reads and migration rounds by class.
+- Item 3: after the harness rounds of items 4, 5, 10 and 11 merge (it needs one child runner);
+  the `process::signal_relay` tests of 3f went to the test-child round,
+  because they failed three and then hung 31 minutes in a threaded run on main's code.
+- Item 4: the threaded-test round (`fix/git-policy-cli-lock-controls-that-fail-only-in-a-threaded-run`) owns
+  `fixture()` and was told of the binary target's copy and the nine confirmed repeats.
+- Item 5: the test-child round (`test/git-policy-cli-test-children-owned-and-signalled-only-by-their-starter`) was
+  told to add the death signal to the lib's `spawn_owned`.
+- Item 6: merged as `124d251aaf` (2026-11-25T16:45:48-05:00).
+- Item 7: after the harness rounds merge, one round per folder.
+- Item 8: a question for the owner.
+- Item 9: its own round.
+- Items 10 and 11: one round after the threaded-test and test-child rounds merge, since all three edit
+  `testing/test_support.rs`.
+- Item 12: after the live rounds of 2026-11-25 merge, since it edits many of their files.
+- Item 13: with the move of each pair to the async runtime.
+- Item 14: its own round, which keeps every piece built ahead and unwired by
+  `doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`.
+- Item 15: one round per file once the repository's linter runs in this package's worktrees.
+- Items 16 and 17: a question for the owner.
+- Item 18: stays the guard's own list; the eight `merge/` reads get one conversion round later.

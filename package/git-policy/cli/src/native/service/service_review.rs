@@ -31,6 +31,7 @@ use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, 
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
+use crate::common_directory_of_a_git_directory::common_directory_of;
 use crate::service_work::Verdict;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
@@ -52,47 +53,6 @@ use std::time::Duration;
 pub const CALL_QUIET_WINDOW: Duration = Duration::from_secs(10);
 
 /// What:
-///  The common Git directory of a worktree's Git directory:
-/// the directory its `commondir` file names,
-/// else the directory
-///  itself.
-/// Why:
-///   A linked worktree's items carry that worktree's own Git directory (`.git/worktrees/<name>`),
-/// which Git deletes with the
-///  worktree,
-/// while the repository's one log lives in the common directory.
-/// Git strips every trailing carriage return and
-///  line feed and resolves a relative path against the Git directory (`get_common_dir_noenv` in `path.c`),
-/// as the layout
-///  reader does;
-/// a path that cannot be resolved is used as written,
-/// so the entry still goes to the common directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
-/// ```
-pub fn common_dir_of(git_dir: &Path) -> PathBuf {
-    let Ok(text) = std::fs::read(git_dir.join("commondir")) else {
-        return git_dir.to_path_buf();
-    };
-    // Everything up to the last byte that is not a line break; nothing when the file holds only line breaks.
-    let mut end: usize = text.len();
-    while end > 0 && (text[end - 1] == b'\r' || text[end - 1] == b'\n') {
-        end -= 1;
-    }
-    if end == 0 {
-        return git_dir.to_path_buf();
-    }
-    #[cfg(unix)]
-    let named: PathBuf = PathBuf::from(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(&text[..end]));
-    #[cfg(not(unix))]
-    let named: PathBuf = PathBuf::from(String::from_utf8_lossy(&text[..end]).into_owned());
-    let joined: PathBuf = git_dir.join(named);
-    return std::fs::canonicalize(&joined).unwrap_or(joined);
-}
-
-/// What:
 ///  The options for one item:
 /// the script's environment variables read from the service's environment,
 /// and the call
@@ -103,14 +63,16 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
 /// and a service that serves several repositories
 ///   writes each one's own;
 /// the item names its worktree's Git directory,
-/// and the common one follows from it with no Git start.
+/// and the common one follows from it with no Git start,
+/// through the one reader of a Git directory's `commondir` file,
+/// which opens it as a plain file so a named pipe there cannot hold the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// optionsFor(item, process.env)
 /// ```
 pub fn options_for(item: &WorkItem, variable: &dyn EnvironmentVariables) -> ReviewOptions {
-    let common: PathBuf = common_dir_of(item.git_dir.as_path());
+    let common: PathBuf = common_directory_of(item.git_dir.as_path());
     let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
     options.quiet_window = CALL_QUIET_WINDOW;
     return options;

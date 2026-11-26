@@ -1,0 +1,189 @@
+# The child starts of this crate's test files that name no owner yet.
+#
+# One line per site: the file's path relative to `src/native`, a `|`, and why the site is not
+# moved onto `test_support::spawn_owned` yet.  A line that begins with `#`, and a blank line, is a
+# note.  `source_guard/test_children_owned_tests.rs` reads this file and fails on a bare start the
+# ledger does not name, and on a line whose site the file no longer holds, so moving a site means
+# deleting its line.  A round that moves a folder deletes that folder's lines and says so in its
+# report.
+binary/binary_abort_during_an_operation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_client_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_client_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_client_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_commit_timing_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_commit_when_the_service_stops_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_coordination_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_fault_run.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_forwarding_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_held_lock_support.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_hold_at_prepare_support.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_kept_references_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_killed_holder_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_lfs_server_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_long_runtime_directory_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_carries_edits_kill_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_isolation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_isolation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_isolation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_never_fails_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_never_fails_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_merge_notice_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_push_minimum_rate_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_push_stacking_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_runtime_build_under_limits_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_commit_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_connections_without_a_thread_each_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_finished_record_retention_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_landing_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_lane_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_mode_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_mode_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_mode_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_mode_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_provision_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_replay_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_replay_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_stop_ends_its_gits_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_stop_ends_its_gits_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_service_upgrade_one_executable_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_ssh_terminal_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_ssh_terminal_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_stale_ref_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_stale_ref_lock_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_supervisor_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_supervisor_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support_fixture_service.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support_observation.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support_observation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support_observation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_wait_notice_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_word_merge_pass_gate.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_worktree_copy_concurrent_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_step9_m_arms_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_zfs_step9_m_arms_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_unmount_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+commit/commit_preparation_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
+landing/service_index_claim_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_lock_by_creation_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_reclaim_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_unheld_removal_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_unheld_removal_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_index_unheld_removal_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_owed_index_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_owed_index_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_owed_index_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_reference_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
+lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/lock_holder_records_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/lock_holder_records_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_lock_killed_git.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_lock_killed_git.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_lock_killed_git.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_lock_killed_git.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stale_ref_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+lock/stopped_git_locks_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_changes_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/child_awaited_through_a_pidfd_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/child_waited_for_within_a_ceiling_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/open_file_of_a_descriptor_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/process_tree_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/stuck_children_reaped_when_the_kernel_lets_go_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
+push/auto_push_reconcile_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_push_awaiting_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_query_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/bounded_query_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/push_minimum_rate_socket_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/push_progress_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/push_wait_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
+repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
+repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
+repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
+repair/package_repair_command_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
+repair/package_repair_toolchain_tests.rs | the repair folder is not moved yet; a later round takes it folder by folder
+testing/fixture_executable.rs | the testing folder is not moved yet; a later round takes it folder by folder
+testing/fixture_git_commands.rs | the testing folder is not moved yet; a later round takes it folder by folder
+testing/run_progress_tests.rs | the testing folder is not moved yet; a later round takes it folder by folder
+testing/smart_http_support.rs | the testing folder is not moved yet; a later round takes it folder by folder
+transaction/transaction_git_tests.rs | the control proves the fixture ends the fake Git a failed test left, so its child must outlive the test thread
+worktree/worktree_clone_conversion_size_read_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
+worktree/worktree_convert_tests.rs | the worktree folder is not moved yet; a later round takes it folder by folder
+worktree_clone_mount_handler/per_slot_root_claim_tests.rs | the worktree_clone_mount_handler folder is not moved yet; a later round takes it folder by folder
+worktree_clone_unmount/reattach_tests.rs | the worktree_clone_unmount folder is not moved yet; a later round takes it folder by folder
+worktree_clone_unmount/staged_unmount_tests.rs | the worktree_clone_unmount folder is not moved yet; a later round takes it folder by folder
+worktree_copying/worktree_copy_interrupted_checkout_tests.rs | the worktree_copying folder is not moved yet; a later round takes it folder by folder
+worktree_copying/worktree_copy_stage_claim_tests.rs | the worktree_copying folder is not moved yet; a later round takes it folder by folder
+worktree_copying/worktree_copy_unreadable_records_tests.rs | the worktree_copying folder is not moved yet; a later round takes it folder by folder

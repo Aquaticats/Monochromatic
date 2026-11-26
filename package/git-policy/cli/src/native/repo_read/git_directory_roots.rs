@@ -9,6 +9,10 @@
 //! because both run when Git has just failed or is about to be
 //!  started,
 //! and reading a few small files costs nothing.
+//!  The two files are read as plain ones (`crate::plain_file`),
+//! and the `commondir` rule is the one reader of
+//!  `foundation/common_directory_of_a_git_directory.rs`:
+//! the copy that stood here read the file with a call that waits on a named pipe.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,29 +25,12 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 /// The command whose repository is wanted.
 use std::process::Command;
-
-/// The common Git directory a linked worktree's Git directory names in its `commondir` file,
-/// or the directory itself.
-///  The few lines are repeated here because the module that reads it belongs to the service run,
-/// which the client path
-///  may not name (`standards_review_boundary_tests.rs`);
-/// a path that cannot be resolved is used as written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
-/// ```
-pub fn common_dir_for(git_dir: &Path) -> PathBuf {
-    let Ok(text) = std::fs::read_to_string(git_dir.join("commondir")) else {
-        return git_dir.to_path_buf();
-    };
-    let named: &str = text.trim_end_matches(['\r', '\n']);
-    if named.is_empty() {
-        return git_dir.to_path_buf();
-    }
-    let joined: PathBuf = git_dir.join(named);
-    return std::fs::canonicalize(&joined).unwrap_or(joined);
-}
+/// The one reader of a Git directory's `commondir` file,
+/// which opens it as a plain file so a named pipe there cannot hold the sweep.
+use crate::common_directory_of_a_git_directory::common_directory_of;
+/// The reader that cannot wait, and the bound a `.git` pointer file is read to.
+use crate::plain_file::read_plain_file;
+use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 
 /// Where the Git directory of a working directory is:
 /// `.git` as a directory,
@@ -62,7 +49,10 @@ pub fn git_directory_of(start: &Path) -> Option<PathBuf> {
                 return Some(dot_git);
             }
             if metadata.is_file() {
-                let text: String = std::fs::read_to_string(dot_git.as_path()).ok()?;
+                // The pointer is read as a plain file, so a name swapped for a pipe after the look above is refused at once
+                //  rather than waited on (`git_directory_roots_tests`).
+                let bytes: Vec<u8> = read_plain_file(dot_git.as_path(), GIT_FILE_LIMIT).ok()?;
+                let text: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
                 let named: &str = text.lines().next()?.strip_prefix("gitdir:")?.trim();
                 return Some(directory.join(named));
             }
@@ -90,7 +80,9 @@ pub fn roots_for(working: &Path, named: Option<PathBuf>) -> Vec<PathBuf> {
     };
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Some(directory) = git_dir {
-        let common: PathBuf = common_dir_for(directory.as_path());
+        // The one reader of `commondir` answers with the directory itself when the file names none, so both roots come from
+        //  the same rule every other caller of this crate uses.
+        let common: PathBuf = common_directory_of(directory.as_path());
         roots.push(directory.clone());
         if common != directory {
             roots.push(common);
@@ -126,3 +118,8 @@ pub fn roots_of_command(command: &Command) -> Vec<PathBuf> {
     }
     return roots_for(working.as_path(), named);
 }
+
+/// Controls for the two files these roots are read from stay out of the release executable.
+#[cfg(test)]
+#[path = "git_directory_roots_tests.rs"]
+mod tests;

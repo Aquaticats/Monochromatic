@@ -122,12 +122,6 @@ impl StepLine {
         return StepLine { step, answer: StepAnswer::NotExercised { reason, errno: ErrnoWord::of_name(errno) }, source: None };
     }
 
-    /// One step that did not run from the number its call answered,
-    /// which stays a number where this build has no name for it.
-    pub fn not_exercised_number(step: ProbeStep, reason: &'static str, errno: Option<i32>) -> Self {
-        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno: ErrnoWord::of_number(errno) }, source: None };
-    }
-
     /// The line as the pipe carries it,
     /// its newline included.
     pub fn encode(&self) -> String {

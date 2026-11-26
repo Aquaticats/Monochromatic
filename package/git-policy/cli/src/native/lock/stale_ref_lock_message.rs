@@ -21,7 +21,7 @@ use crate::iso_time::format_iso_milliseconds;
 use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
 use crate::stale_ref_lock_judge::{Proof, Verdict};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 /// The start of every line the wrapper prints.
@@ -156,16 +156,6 @@ impl Outcome {
         }
         return format!("{}\n", lines.join("\n"));
     }
-}
-
-/// The paths of a list,
-/// for a log line.
-pub fn path_list(paths: &[PathBuf]) -> String {
-    let mut quoted: Vec<String> = Vec::new();
-    for path in paths {
-        quoted.push(shell_quote(path.as_path()));
-    }
-    return quoted.join(" ");
 }
 
 /// Controls for the notices and the quoting are in the test module.

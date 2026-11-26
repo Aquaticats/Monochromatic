@@ -66,15 +66,16 @@ fn cached_shapes(root: &Path, repo: &Path) {
 /// a fresh index has none until something writes a tree.
 fn without_cache_tree(repo: &Path) {
     let listing = git_output(repo, &["ls-files", "--stage", "-z"]);
-    let mut update = std::process::Command::new(crate::test_support::REAL_GIT)
+    let mut command = std::process::Command::new(crate::test_support::REAL_GIT);
+    command
         .current_dir(repo)
         .env("GIT_INDEX_FILE", repo.join(".git/fresh-index"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .args(["update-index", "-z", "--index-info"])
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .expect("update-index starts");
+        .stdin(std::process::Stdio::piped());
+    // Owned, so a control that fails while it writes the entries leaves no Git holding the fresh index.
+    let mut update = crate::test_support::spawn_owned(&mut command).expect("update-index starts");
     std::io::Write::write_all(&mut update.stdin.take().expect("stdin"), listing.stdout.as_slice()).expect("entries");
     assert!(update.wait().expect("update-index ends").success());
     std::fs::rename(repo.join(".git/fresh-index"), repo.join(".git/index")).expect("installed");

@@ -411,6 +411,34 @@ because that gate's journal is not kept.
 Cause N holds the evidence,
 the fix and the controls for the second.
 
+### The removal of a worktree read another process as a holder (issue 6475)
+
+`worktree::worktree_remove_hand_over::tests::the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_it`
+failed in the gate on `main` at `132843d9d1` with the holder scan's sentence where it expects Git's own:
+"process 155499 belongs to this account, works elsewhere, and the files it holds open could not be read".
+The service's own removal reads every process of the account to see whether one works in the worktree
+(`worktree_process_inside.rs`),
+so a process another test of the same container started after this fixture's worktree was made keeps that worktree,
+and the control's verdict was decided by whatever ran beside it.
+The release scan is not the defect:
+keeping the worktree while a young process of this account cannot be read is its documented rule
+(`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`,
+"A process can hide its working folder from its own account",
+and `SPEC.md`,
+"The removal guard leaves out the command's own chain of parents").
+
+The failure was reproduced on this host on 2026-11-25 by starting one process that hides its working folder
+(`PR_SET_DUMPABLE` 0 and no exec after it) at the moment a fixture worktree appears,
+which the scan refuses in the same way;
+the sentence then names the working folder,
+because the kernel refuses `/proc/<pid>/cwd` and `/proc/<pid>/fd` with the same check
+(`fs/proc/base.c`, `call_proc_get_link`).
+The control now hands the service's call a process table of its own fixture
+(`delete_subvolume_of_with`,
+`test_support::an_empty_process_table`),
+and the landed sweep's own service call does the same,
+while `delete_subvolume_of` keeps reading this machine's `/proc`.
+
 ## Cause H: the two standing failures
 
 `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
@@ -419,6 +447,33 @@ and failed on the Btrfs host (`doc/handover/cli-git-rust-implementation.md`, the
 which `owed_push` passed on this host). Both complain that a scratch directory named
 `cli-git-lock-holders` is left behind. They fail with the fixture root on tmpfs as well, so no mount
 change touches them, and they are not this host's doing.
+
+### Cause H diagnosed, and fixed, on 2026-11-25
+
+The gate on `main` at `64a71a4c9b` failed both again (issues 6466 and 6468). Two causes, both in the
+controls, and neither needs a mount fact:
+
+- Every wrapper command writes `<common-git-dir>/cli-git-lock-holders/<pid>.<digest>` before it starts
+  any Git since `74b1a8c0a0`, and a later command's pass removes the record once every process it names
+  is gone (`lock/lock_holder_records.rs`, `lock_holder_record_reads.rs`'s `sweep`). Both controls read
+  the whole `.git` directory after one command, so both read that record; the crate had already decided
+  it says nothing about what a command did to a repository, in
+  `binary_commit_form_refusal_tests.rs`'s `everything_under`, which skips the same folder. Reproduced on
+  this host: one `log` in a fixture repository leaves the folder with one `self` line, a second `log`
+  leaves its own, and the refused commit of the `service_no_manager` control leaves one with the `self`
+  line alone.
+- The naming control also compared `git count-objects -v`'s whole text, and its `size` field sums the
+  `st_blocks` of the loose objects. On this host's ZFS dataset a file reports one 512-byte block until
+  the pool's transaction group commits and its real blocks afterwards: seven unchanged 40-to-50-byte
+  files measured `1` block each and `9` blocks each a moment later, which moved the `size` of seven
+  loose objects between `3` and `31` with no process touching them. `sync` did not settle it reliably
+  (three rounds unchanged), so the control now compares the facts a commit elsewhere can change and
+  leaves those fields out.
+
+Both controls now pass on this host, and the modules around them were run threaded afterwards
+(`repository_naming_commit::` seven tests and `service_no_manager::` two, both `test result: ok`). The
+record itself still stays in a repository until a later command sweeps it, which is what `SPEC.md`'s
+"The record" describes; that is not a change either control was measuring.
 
 ## Verification
 
@@ -875,7 +930,9 @@ Two whole suites ran on this host against the branch's tree, each in the gate's 
 
 ### What these changes do not cover
 
-- The two standing failures (cause H) still fail, and no mount change touches them.
+- The two standing failures (cause H) still failed when this section was written, and no mount change
+  touched them; the section "Cause H diagnosed, and fixed, on 2026-11-25" holds their two causes and the
+  controls that changed.
 - The memory bound the gate gives each check also bounds its image build: `buildLimitArguments` with the
   gate's own limits (`bin/container-limits.ts`, whose implementation lives in the mutation-test package,
   called at `bin/test-native-container.ts:234`) turns that bound into the build's `--memory`. The image

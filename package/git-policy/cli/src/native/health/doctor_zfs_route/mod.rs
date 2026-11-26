@@ -34,9 +34,13 @@
 //!  The facts themselves are the wiring run's to gather once from the live
 //!  system,
 //!  as the add route's preflight gathers the same delegation through
-//!  `grants_of` and as the guest arm's helpers gather the rest;
-//!  nothing in this folder is reached from the wrapper's command entry,
-//!  the handler or a boot unit until step 18 is wired,
+//!  `grants_of` and as the guest arm's helpers gather the rest.
+//!  `doctor`'s own section reaches none of them today:
+//!  the one caller outside this folder is the add route's own delegation check,
+//!  which takes `check_delegation` from here
+//!  (`worktree_clone_add_route::add_grants`),
+//!  and every other check is reached by its tests and its guest arms alone
+//!  until step 18 is wired,
 //!  which is the project's answer of 2026-11-23
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
 //!  "Building later pieces ahead of the plan's order").
@@ -72,9 +76,15 @@
 //! - `identity_checks.rs`:
 //!   the recorded parent and slot identities against the live folders,
 //!   naming the failing field or path component.
+//! - `delegation_reply.rs`:
+//!   the kernel's delegation reply and the grant model it becomes:
+//!   who a grant names,
+//!   how widely it reaches,
+//!   and the dataset that carries it.
 //! - `delegation_checks.rs`:
+//!   the required and forbidden permissions,
 //!   the effective delegation including ancestor grants,
-//!   and the absence of the lineage-changing grants.
+//!   and the commands that settle each finding.
 //! - `handler_checks.rs`:
 //!   the handler's installation,
 //!   configuration,
@@ -87,6 +97,35 @@
 //! - `holder_checks.rs`:
 //!   the namespaces that hold a clone,
 //!   from the all-namespace scan's result.
+//! - `clone_state_checks.rs`:
+//!   what one managed slot is:
+//!   the clone mounted at it,
+//!   unmounted from it,
+//!   staged under the cache,
+//!   and the add or removal that stopped part-way.
+//! - `registration_checks.rs`:
+//!   the Git registration one slot's record names,
+//!   complete, pruned or pointing elsewhere.
+//! - `managed_lock_checks.rs`:
+//!   the sentence one slot's managed Git lock prints in each state,
+//!   and the missing pointer's sentence beside it.
+//! - `binding_record_checks.rs`:
+//!   the fields of the binding record one add wrote.
+//! - `removal_plan_checks.rs`:
+//!   the destruction plan one removal left and the outcome of each name in it.
+//! - `clone_snapshot_checks.rs`:
+//!   the clone's own snapshots beside the plan's states.
+//! - `clone_origin_checks.rs`:
+//!   the origin each clone names and its deferred-destroy mark.
+//! - `clone_retention_checks.rs`:
+//!   what one clone and its snapshots retain,
+//!   in named accounting fields.
+//! - `blocked_removal_checks.rs`:
+//!   the blocked-removal state:
+//!   the standing intent,
+//!   the snapshots already destroyed,
+//!   the holders,
+//!   and what may end them.
 //! - `later_step_checks.rs`:
 //!   every check a later step builds,
 //!   answered unknown and naming that step.
@@ -125,6 +164,9 @@ pub mod store_staging_removal;
 /// The recorded parent and slot identities against the live folders.
 pub mod identity_checks;
 
+/// The kernel's delegation reply and the grant model it becomes.
+pub mod delegation_reply;
+
 /// The effective delegation and the lineage-changing grants' absence.
 pub mod delegation_checks;
 
@@ -140,6 +182,33 @@ pub mod staging_folder_checks;
 /// The namespaces that hold a clone.
 pub mod holder_checks;
 
+/// What one managed slot is.
+pub mod clone_state_checks;
+
+/// The Git registration one slot's record names.
+pub mod registration_checks;
+
+/// The sentence one slot's managed Git lock prints.
+pub mod managed_lock_checks;
+
+/// The binding record one add wrote.
+pub mod binding_record_checks;
+
+/// The destruction plan one removal left.
+pub mod removal_plan_checks;
+
+/// The clone's own snapshots beside the plan's states.
+pub mod clone_snapshot_checks;
+
+/// The origin each clone names and its deferred-destroy mark.
+pub mod clone_origin_checks;
+
+/// What one clone and its snapshots retain.
+pub mod clone_retention_checks;
+
+/// The blocked-removal state of one clone.
+pub mod blocked_removal_checks;
+
 /// The checks later steps still owe.
 pub mod later_step_checks;
 
@@ -151,6 +220,12 @@ pub mod route_checks;
 #[cfg(test)]
 #[path = "route_test_facts.rs"]
 pub(crate) mod route_test_facts;
+
+/// The removal-side lines' guest arm,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "clone_lines_guest_arm_tests.rs"]
+mod clone_lines_guest_arm_tests;
 
 /// What one check answered.
 pub use check_outcome::{Check, CheckOutcome, CheckReport, finding, pass, unknown};
@@ -175,8 +250,10 @@ pub use store_listing::{
 pub use store_staging_removal::{StagingRemoval, StagingRemovalRefusal, StagingRemovalRequest, remove_known_staging_forms};
 /// The recorded parent and slot identities.
 pub use identity_checks::{LiveIdentity, ParentIdentityFacts, RecordedIdentity, SlotIdentityFacts, check_parent_identity, check_slot_identity, walk_refusal_is_unproved};
+/// The kernel's delegation reply and the grant model it becomes.
+pub use delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_of};
 /// The effective delegation.
-pub use delegation_checks::{DelegationFacts, FORBIDDEN_PERMISSIONS, Grant, GrantPlace, Inheritance, REQUIRED_GRANTS, RequiredGrant, Who, allow_command, check_delegation, grants_of, missing_grants, place_dataset};
+pub use delegation_checks::{FORBIDDEN_PERMISSIONS, REQUIRED_GRANTS, RequiredGrant, GrantPlace, allow_command, check_delegation, missing_grants, place_dataset};
 /// The handler's installation and folders.
 pub use handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ROOT_MODE_EXECUTABLE_PATH, ZEDLET_EVENT_PATH, PathFacts, PathState, REQUIRED_ROOT_MODES, ReadinessFacts, RequestFacts,
@@ -186,7 +263,25 @@ pub use handler_checks::{
 pub use staging_folder_checks::{StagedFolder, StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder, is_derived_folder_name, staging_binds};
 /// The namespaces that hold a clone.
 pub use holder_checks::{HolderFacts, NamespaceHold, check_holders};
+/// What one managed slot is.
+pub use clone_state_checks::{CloneStateFacts, check_clone_state};
+/// The Git registration one slot's record names.
+pub use registration_checks::{RegistrationFacts, check_registration};
+/// The sentence one slot's managed Git lock prints.
+pub use managed_lock_checks::{ManagedLockFacts, check_managed_lock};
+/// The binding record one add wrote.
+pub use binding_record_checks::{NOT_RECORDED, check_binding_record};
+/// The destruction plan one removal left.
+pub use removal_plan_checks::{PlanFileReading, RecordedSnapshot, RemovalPlanFacts, check_removal_plan, recorded_outcomes};
+/// The clone's own snapshots beside the plan's states.
+pub use clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
+/// The origin each clone names and its deferred-destroy mark.
+pub use clone_origin_checks::{CloneOriginFacts, RecordedOrigin, check_clone_origin};
+/// What one clone and its snapshots retain.
+pub use clone_retention_checks::{AccountingFacts, CloneRetentionFacts, LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, check_clone_retention};
+/// The blocked-removal state of one clone.
+pub use blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
 /// The checks later steps still owe.
 pub use later_step_checks::{LaterStep, check_later_step};
 /// Every check's answer in one list.
-pub use route_checks::{RouteFacts, route_checks};
+pub use route_checks::{CloneFacts, RouteFacts, route_checks};

@@ -342,8 +342,13 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
     }
     // A record that cannot be read after it was taken is settled like one that cannot be decoded: leaving it in `recovering`
     //  would have every later pass take it, fail the same way, and keep the service waiting on it for good.
-    let Ok(text) = std::fs::read_to_string(owned.as_path()) else {
-        return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok().then_some(None);
+    //  A named pipe at its name answers as unreadable at once (`crate::plain_file::read_plain_text`), where a plain read would
+    //  wait for a writer that may never come.
+    let failed_folder: PathBuf = state_directory(work_dir, FAILED);
+    let Ok(text) = crate::plain_file::read_plain_text(owned.as_path()) else {
+        // The folder is made first, as the queue's own writer makes it, so a queue whose `failed` folder was removed still
+        //  settles the record instead of taking it again every pass.
+        return (create_private_directory_all(failed_folder.as_path()).is_ok() && std::fs::rename(owned.as_path(), failed_folder.join(id)).is_ok()).then_some(None);
     };
     let (target, given_up): (&str, Option<WorkItem>) = match WorkItem::decode(text.as_str()) {
         Ok(mut item) if item.id() == id || item.id_before_the_branch() == id => {

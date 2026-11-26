@@ -132,12 +132,6 @@ impl FolderIdentity {
         return Ok(FolderIdentity { inode: object.inode, birth: object.birth });
     }
 
-    /// The identity of a device-bearing object,
-    /// for the callers that already read one.
-    pub fn from_object(object: crate::fs_beneath::ObjectId) -> FolderIdentity {
-        return FolderIdentity { inode: object.inode, birth: object.birth };
-    }
-
     /// The inode the identity names.
     pub fn inode(self) -> u64 {
         return self.inode;

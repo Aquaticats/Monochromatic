@@ -712,3 +712,25 @@ fn the_copy_of_a_batchs_conclusion_state_goes_with_the_journal_of_a_stopped_inst
     assert!(!journal.exists(), "the journal goes with the copy of the conclusion state it made");
     remove(machine.root.as_path());
 }
+
+/// A note that is a named pipe is written over rather than waited on,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and every commit of the worktree writes this note when its units are missing (issue 6415).
+#[test]
+fn a_note_that_is_a_named_pipe_is_written_over_at_once() {
+    let root: PathBuf = fixture("instance-note-named-pipe");
+    let runtime: PathBuf = root.join("runtime");
+    let instance: &str = "0123456789abcdef";
+    let note: PathBuf = note_path(runtime.as_path(), instance);
+    std::fs::create_dir_all(note.parent().expect("the note's folder")).expect("the notes folder");
+    crate::subvolume_sync_attrs::make_fifo(note.as_path(), 0o600).expect("a named pipe where the note goes");
+    let git_dir: PathBuf = root.join("worktree/.git");
+    let over_runtime: PathBuf = runtime.clone();
+    let over_git_dir: PathBuf = git_dir.clone();
+    let answered = crate::test_support::finished_within(move || return record_worktree(over_runtime.as_path(), instance, over_git_dir.as_path()).map_err(|error| return error.to_string()));
+    let Some(recorded) = answered else { panic!("a note that is a named pipe held the commit") };
+    assert_eq!(recorded, Ok(()), "the note is replaced where a pipe stood");
+    assert_eq!(std::fs::read_to_string(note.as_path()).expect("the note"), format!("{}{}\n", crate::path_bytes_in_records::GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(git_dir.as_path())));
+    remove(root.as_path());
+}

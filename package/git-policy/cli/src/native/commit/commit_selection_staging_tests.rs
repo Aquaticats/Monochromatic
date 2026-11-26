@@ -101,3 +101,34 @@ fn a_pathspec_file_this_reader_cannot_take_names_nothing() {
     assert_eq!(selection_elements(&selection_naming_file(too_large.as_path(), false)), None);
     crate::test_support::remove(directory.parent().expect("the fixture root"));
 }
+
+/// A pathspec file that is a named pipe names nothing,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// so a commit that names one would never return (issue 6415).
+#[test]
+fn a_pathspec_file_that_is_a_named_pipe_names_nothing_at_once() {
+    let directory: PathBuf = fixture_directory("selection-elements-named-pipe");
+    let pipe: PathBuf = directory.join("pathspec.fifo");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    let over: PathBuf = pipe.clone();
+    let answered = crate::test_support::finished_within(move || return selection_elements(&selection_naming_file(over.as_path(), false)));
+    let Some(elements) = answered else { panic!("a pathspec file that is a named pipe held the commit") };
+    assert_eq!(elements, None, "a pipe names no element, so the staging hands the file to Git");
+    crate::test_support::remove(directory.parent().expect("the fixture root"));
+}
+
+/// The items a pathspec file names are unreadable when the file is a named pipe,
+/// at the bound,
+/// rather than a wait for a writer (issue 6415).
+#[test]
+fn a_pathspec_file_that_is_a_named_pipe_is_unreadable_at_once() {
+    let directory: PathBuf = fixture_directory("selection-items-named-pipe");
+    let pipe: PathBuf = directory.join("pathspec.fifo");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    let over: PathBuf = pipe.clone();
+    let answered = crate::test_support::finished_within(move || return matches!(selection_items(&selection_naming_file(over.as_path(), false)), Selected::Unreadable));
+    let Some(unreadable) = answered else { panic!("a pathspec file that is a named pipe held the commit") };
+    assert!(unreadable, "a pipe is a selection this reader cannot take");
+    crate::test_support::remove(directory.parent().expect("the fixture root"));
+}

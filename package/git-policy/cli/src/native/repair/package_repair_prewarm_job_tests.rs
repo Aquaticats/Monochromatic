@@ -7,6 +7,13 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
+/// Import the program a filling runs and its bounds.
+/// Import the command a person runs instead of a clean Cargo refuses.
+use crate::package_repair_command::ToolLimits;
+use crate::package_repair_cargo::manual_command;
+/// Import the two variables a clean is given and the staging suffix the add and this job share.
+use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE};
+
 /// A Cargo program that is not there,
 /// so a control reaches the clean and never runs a build.
 const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";

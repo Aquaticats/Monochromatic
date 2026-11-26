@@ -275,7 +275,9 @@ thread_local! {
 /// What:
 ///  Start a helper process that dies with the test thread that started it,
 /// whether the test passes,
-/// fails or panics.
+/// fails,
+/// panics,
+/// or the whole test process is killed.
 /// Why:
 ///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture.
 /// The
@@ -284,12 +286,44 @@ thread_local! {
 /// and the group is
 ///  killed when the thread's fixtures are dropped,
 /// the same moment the fixture directories go.
+///  The group kill is a guard this process runs,
+///  and a process ended by `SIGKILL` or by `run_progress`'s `abort` runs no guard,
+///  so the helper also asks the kernel for a parent-death signal,
+///  which ends it when the thread that started it is gone however the process ends.
 pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
+    // SAFETY: between `fork` and `exec` only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
+    //  A test binary ended by `SIGKILL`, or by the `abort`s of `run_progress`, runs no guard at all, so the group kill below
+    //  never happens; the kernel's parent-death signal is what ends the child then.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
     let child: std::process::Child = command.spawn()?;
     own_group(&child);
     return Ok(child);
+}
+
+/// What:
+///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
+/// Why:
+///  A stand-in that `exec`s a long sleep inherits this run's output pipe and holds it open,
+///  so a caller that pipes the run's output waits for a process the run has already lost (issue 6463);
+///  a program whose output nobody reads gives the pipe back by holding none.
+/// Gotcha:
+///  This overrides whatever streams the caller set,
+///  so a control that reads its child's output starts it with `spawn_owned` and says which stream it pipes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawnOwned(command, { stdio: 'ignore' });
+/// ```
+pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<std::process::Child> {
+    command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    return spawn_owned(command);
 }
 
 /// What:
@@ -318,12 +352,36 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// Create one empty fixture directory owned by this test process and test name,
+/// How many fixture folders this process has made,
+/// which names each call's folder its own.
+/// Why:
+///   A run of `cargo test` is many tests as threads of one process,
+/// and two tests that pass one name took one folder,
+/// whose removal each made while the other was writing in it
+/// (`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md`).
+static FIXTURES_MADE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The number this call's folder is named with:
+/// one number for every call, in the order the process makes them.
+fn the_number_of_this_fixture() -> u64 {
+    return FIXTURES_MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// What:
+///  Make one empty fixture directory for this call of this test,
 ///  under a prefix that keeps the fixtures of different support modules apart.
+/// Why:
+///   Every call names a folder of its own,
+/// so two tests that pass the same name never share one,
+///  and neither removes the other's live folder:
+/// the folder carries the process's number and the number this call took,
+/// and the name the test writes.
+/// A folder of a run that was killed may carry this process's number and this call's number,
+///  so one that exists is removed first.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
     forbid_core_dumps();
-    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
+    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{}-{name}", std::process::id(), the_number_of_this_fixture()));
     if root.exists() {
         // A fixture an earlier run was killed in the middle of may hold a directory it closed, so the permission is given back first.
         restore_owner_access(&root);
@@ -336,9 +394,31 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     return canonical;
 }
 
-/// Create one empty fixture directory owned by this test process and test name.
+/// Create one empty fixture directory for this call of this test.
 pub(crate) fn fixture(name: &str) -> PathBuf {
     return fixture_with_prefix("native-unit", name);
+}
+
+/// What:
+///  An empty stand-in process table for one fixture:
+///  a folder under the fixture's root that holds no process,
+///  which a removal reads in place of this machine's `/proc`.
+/// Why:
+///   A removal of a whole worktree reads every process of the account to see whether one works in it,
+///  and a control that read the machine's own table would depend on every program every other session runs:
+///  a program started after the fixture's worktree was made keeps that worktree,
+///  and issue 6475's container gate refused a removal over another test's process.
+///  A control about a process working inside the worktree writes the entry it needs here instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = anEmptyProcessTable(fixtureRoot); // a folder that holds no process
+/// ```
+pub(crate) fn an_empty_process_table(root: &Path) -> PathBuf {
+    let table: PathBuf = root.join("proc");
+    // A table that cannot be made is no table at all, so the control stops here rather than reading the machine's.
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    return table;
 }
 
 /// What:
