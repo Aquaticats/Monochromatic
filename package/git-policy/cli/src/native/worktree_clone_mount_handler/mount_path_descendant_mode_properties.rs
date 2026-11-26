@@ -17,7 +17,7 @@
 //! const attributes = attributesOf(facts, reader, 'zpcachyos'); // MOUNT_ATTR_NOATIME
 //! ```
 
-use super::refusals::MountPathDescendantFailure;
+use super::mount_path_descendant_mode_refusals::MountPathDescendantFailure;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, PropertyValue, value_of};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;

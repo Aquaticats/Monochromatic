@@ -39,26 +39,13 @@ use std::path::{Path, PathBuf};
 /// The record's own facts,
 /// the field a later run finds different,
 /// and why the mode recorded nothing.
-#[path = "record_checkout_mode_record.rs"]
-mod record;
-
-/// The record as the file it is:
-/// the read,
-/// the write,
-/// its folder's proofs and the three lines an answer prints.
-#[path = "record_checkout_mode_record_file.rs"]
-mod record_file;
-
-/// The record's version,
-/// the modes its folder and its file are made with and the name it is written
-/// under while it is replaced.
-pub use self::record::{RECORD_FOLDER_MODE, RECORD_MODE, RECORD_VERSION, WRITABLE_BY_OTHERS, WRITING_NAME, DifferingField, RecordCheckoutFailure, RecordedCheckout};
+pub use super::record_checkout_mode_record::{RECORD_FOLDER_MODE, RECORD_MODE, RECORD_VERSION, WRITABLE_BY_OTHERS, WRITING_NAME, DifferingField, RecordCheckoutFailure, RecordedCheckout};
 
 /// The record's own read,
 /// which every proof that names a checkout asks.
-pub(super) use self::record_file::read_record;
+pub(super) use super::record_checkout_mode_record_file::read_record;
 
-use self::record_file::{already_recorded_line, recorded_line, replaced_line, write_record};
+use super::record_checkout_mode_record_file::{already_recorded_line, recorded_line, replaced_line, write_record};
 
 /// What:
 ///  Where one `record-checkout` run reads and writes,

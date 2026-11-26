@@ -23,7 +23,7 @@
 //! ```
 
 use crate::file_only_root_may_write::{FileControlRefusal, read_file_only_root_may_write};
-use crate::worktree_clone_mount_handler::record_checkout_mode::{
+use super::record_checkout_mode_record::{
     RECORD_FOLDER_MODE, RECORD_MODE, RecordCheckoutFailure, RecordedCheckout, WRITABLE_BY_OTHERS, WRITING_NAME,
 };
 use rustix::process::geteuid;

@@ -27,33 +27,19 @@ use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, publish_inventory, read_inventory};
 
-/// The facts every step is given,
-/// the refusal a step stops with and the one record write.
-#[path = "add_route_steps_facts_and_refusal.rs"]
-mod facts_and_refusal;
-
-/// The slot's own proof and Git's registration,
-/// with the scan that adopts a complete one or clears an incomplete one.
-#[path = "add_route_steps_slot_and_registration.rs"]
-mod slot_and_registration;
-
-/// The frozen capture and the checkout snapshot it is taken before.
-#[path = "add_route_steps_snapshot_and_capture.rs"]
-mod snapshot_and_capture;
-
 /// The fixed facts one add's steps share,
 /// the refusal a step stops with and the one write that persists a phase.
-pub use self::facts_and_refusal::{StepRefusal, Steps, write_the_record};
+pub use super::add_route_steps_facts_and_refusal::{StepRefusal, Steps, write_the_record};
 
 /// Make or verify the empty slot and record its identity.
-pub use self::slot_and_registration::step_slot;
+pub use super::add_route_steps_slot_and_registration::step_slot;
 
 /// Scan for the registration and run Git's own add,
 /// or adopt what stands.
-pub use self::slot_and_registration::step_git;
+pub use super::add_route_steps_slot_and_registration::step_git;
 
 /// Take the checkout snapshot and publish its inventory.
-pub use self::snapshot_and_capture::step_snapshot;
+pub use super::add_route_steps_snapshot_and_capture::step_snapshot;
 
 /// What:
 ///  Make the clone when it is not there, adopt it when only its record is

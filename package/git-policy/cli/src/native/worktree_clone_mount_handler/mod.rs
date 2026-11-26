@@ -117,6 +117,14 @@ pub mod root_mode_names;
 /// the words and the version line.
 pub mod handler_install_paths;
 
+/// The mode words,
+/// the options each mode takes and the usage text.
+pub mod handler_mode_words;
+
+/// Why one invocation is not a mode,
+/// and the words each cause answers.
+pub mod handler_mode_argument_refusals;
+
 /// The mode words, the adoption's options and the replacement a record admits.
 pub mod handler_mode_arguments;
 
@@ -201,9 +209,26 @@ pub mod holder_scan_mode;
 /// The administrator's adoption of a replacement parent folder.
 pub mod adopt_worktree_parent_mode;
 
+/// What the checkout record holds,
+/// the field a later run finds different and why the mode recorded nothing.
+pub mod record_checkout_mode_record;
+
+/// The record as the file it is:
+/// its read,
+/// its write and its folder's proofs.
+pub mod record_checkout_mode_record_file;
+
 /// The checkout's path, dataset, GUID, container and pool,
 /// and the GUID a legitimate restore replaces.
 pub mod record_checkout_mode;
+
+/// Why the `mount-path-descendant` mode mounted nothing,
+/// one variant per cause and the words each answers.
+pub mod mount_path_descendant_mode_refusals;
+
+/// The properties an explicit mount is refused by,
+/// and the attributes a dataset's own properties resolve to.
+pub mod mount_path_descendant_mode_properties;
 
 /// One nested dataset mounted beneath the recorded checkout.
 pub mod mount_path_descendant_mode;

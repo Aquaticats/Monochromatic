@@ -38,22 +38,13 @@ use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-/// The words one invocation is read as,
-/// and the usage text this build prints.
-#[path = "handler_mode_words.rs"]
-mod words;
-
-/// Why one invocation could not be read as a mode,
-/// and the words each cause answers.
-#[path = "handler_mode_argument_refusals.rs"]
-mod refusals;
-
-/// The mode words this build accepts,
+/// The words one invocation is read as:
+/// the mode words,
 /// the options each mode takes and the usage text.
-pub use self::words::{CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION, ROOT_MODE_FILE_PLACEHOLDER, VERSION_WORD, usage};
+pub use super::handler_mode_words::{CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION, ROOT_MODE_FILE_PLACEHOLDER, VERSION_WORD, usage};
 
 /// Why one invocation could not be read as a mode.
-pub use self::refusals::ArgumentRefusal;
+pub use super::handler_mode_argument_refusals::ArgumentRefusal;
 
 /// What:
 ///  The administrator's identification of the replacement folder an adoption judges.

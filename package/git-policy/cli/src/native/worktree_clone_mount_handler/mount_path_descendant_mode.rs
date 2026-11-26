@@ -39,27 +39,17 @@ use std::path::{Path, PathBuf};
 /// Why the mode mounted nothing,
 /// one variant per cause,
 /// and the words each answers.
-#[path = "mount_path_descendant_mode_refusals.rs"]
-mod refusals;
+pub use super::mount_path_descendant_mode_refusals::MountPathDescendantFailure;
 
 /// The properties and values an explicit mount is refused by,
-/// and the attributes the dataset's own properties resolve to.
-#[path = "mount_path_descendant_mode_properties.rs"]
-mod properties;
-
-/// Why the mode mounted nothing,
-/// with the words each cause answers.
-pub use self::refusals::MountPathDescendantFailure;
-
-/// The properties whose values decide whether an explicit mount succeeds,
 /// and the values they hold.
-pub use self::properties::{
+pub use super::mount_path_descendant_mode_properties::{
     ATIME_PROPERTY, CANMOUNT_OFF, CANMOUNT_PROPERTY, DEVICES_PROPERTY, ENCRYPTION_PROPERTY, EXEC_PROPERTY, INCONSISTENT_PROPERTY, KEY_STATUS_AVAILABLE, KEY_STATUS_PROPERTY, MOUNTPOINT_DASH,
     MOUNTPOINT_LEGACY, MOUNTPOINT_NONE, MOUNTPOINT_PROPERTY, NBMAND_PROPERTY, OVERLAY_PROPERTY, READONLY_PROPERTY, RECEIVE_RESUME_TOKEN_PROPERTY, REDACTED_PROPERTY, RELATIME_PROPERTY,
     SETUID_PROPERTY, SWITCHED_OFF, SWITCHED_ON, ZONED_PROPERTY,
 };
 
-use self::properties::{attributes_of, refuse_unmountable};
+use super::mount_path_descendant_mode_properties::{attributes_of, refuse_unmountable};
 
 /// What:
 ///  The one mount this mode may place,

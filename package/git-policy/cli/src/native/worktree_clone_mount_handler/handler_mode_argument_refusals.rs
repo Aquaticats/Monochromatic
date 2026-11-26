@@ -16,7 +16,7 @@
 //! type ArgumentRefusal = { kind: 'unknown-mode'; word: string } | { kind: 'missing-option'; option: string };
 //! ```
 
-use super::words::{CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION};
+use super::handler_mode_words::{CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, INODE_OPTION, MODE_WORDS, NONCE_OPTION, REPLACE_OPTION};
 use crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name;
 use crate::worktree_clone_mount_handler::root_mode_names::ROOT_GROUP_WORD;
 
