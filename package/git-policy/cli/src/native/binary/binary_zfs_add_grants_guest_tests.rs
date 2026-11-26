@@ -528,6 +528,35 @@ fn remove_the_ladders_worktree(fixture: &Fixture, name: &str) {
     assert!(removed.status.success(), "the ladder's worktree at {} cannot be removed by {ACCOUNT_NAME}: {}", fixture.slot(name).display(), String::from_utf8_lossy(removed.stderr.as_slice()));
 }
 
+/// What:
+///  Clear this arm's own slots as the account,
+///  so a second run starts from nothing.
+/// Why:
+///  A run that failed mid-arm leaves the checkout with the account,
+///  and Git's own ownership rule then refuses a cleanup run as root,
+///  so the arm clears its slots the same way it removes the ladder's worktree.
+fn start_the_arm_from_nothing(fixture: &Fixture) {
+    for name in ["account-companion", "account-legacy", "account-refused"] {
+        let path: PathBuf = fixture.slot(name);
+        if !path.exists() {
+            continue;
+        }
+        let slot: &str = path.to_str().expect("a text path");
+        let attempts: [Vec<&str>; 2] = [vec!["worktree", "unlock", slot], vec!["worktree", "remove", "--force", "--force", slot]];
+        for words in attempts {
+            let _answered: Output = Command::new("/usr/sbin/runuser")
+                .args(["--user", ACCOUNT_NAME, "--", "/usr/bin/env"])
+                .arg(format!("HOME={ACCOUNT_HOME}/zfs-add-home"))
+                .arg("GIT_CONFIG_NOSYSTEM=1")
+                .arg("/usr/bin/git")
+                .args(words)
+                .current_dir(fixture.root.as_path())
+                .output()
+                .expect("the account's git starts");
+        }
+    }
+}
+
 /// Run one whole add as the delegated account with the companion's own check
 /// out of the way,
 /// mounting the clone when it appears.
@@ -589,6 +618,7 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
         grant_to_the_account(&fixture, &grant);
     }
     hand_the_fixture_to_the_account(&fixture);
+    start_the_arm_from_nothing(&fixture);
     // Arm one, the host's own state:
     // with the companion running,
     // this guest refuses the managed add at its `setgroups` step,
@@ -606,6 +636,7 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
         "this guest refuses the managed add at the companion's `setgroups` step, which is why the next halves take that check out of the way: {companion}"
     );
     assert!(companion.contains("the reflink or ordinary Git route"), "the refusal names what the slot takes instead: {companion}");
+    println!("the companion's own line on this guest: {}", companion.lines().find(|line| return line.contains("managed add refused")).unwrap_or("none"));
     assert!(!fixture.dataset_stands(fixture.clone("account-companion").as_str()), "the refused managed add made no clone: {companion}");
     assert!(!fixture.home().join("account-companion.binding").exists(), "the refused managed add wrote no binding: {companion}");
     remove_the_ladders_worktree(&fixture, "account-companion");
@@ -623,7 +654,6 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     assert_eq!(value, "legacy", "the clone reads the design's `mountpoint`: {said}");
     assert_eq!(source, format!("inherited from {}", fixture.container()), "the clone inherited the value from the container, and not from its origin or itself: {said}");
     assert_eq!(std::fs::read_to_string(fixture.slot("account-legacy").join("plain.txt")).expect("the filled worktree's file"), "plain\n", "the add filled the worktree");
-    fixture.clear_the_slot("account-legacy");
     // Arm three: the container is set to another `mountpoint`, which every clone
     // below it would inherit, so the preflight refuses before any write.
     // The checkout's snapshots are read before it, so the arm's own claim is that
@@ -651,7 +681,10 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     assert_eq!(snapshots_of_the_checkout(&fixture), snapshots_before, "the refused add took no origin snapshot: {answer}");
     // The fixture goes back to the root arms' shape, and the delegation to the
     // nine uid 0 holds, so a run of this arm changes nothing the next one reads.
+    // The filled slot is cleared last, because Git's own ownership rule refuses a
+    // `worktree remove` run as root while the checkout belongs to the account.
     hand_to_the_account_from_root(fixture.root.as_path());
+    fixture.clear_the_slot("account-legacy");
     for grant in DECIDED {
         withhold_from_the_account(&fixture, &grant);
     }

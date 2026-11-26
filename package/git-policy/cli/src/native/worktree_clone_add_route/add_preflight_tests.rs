@@ -558,3 +558,52 @@ fn the_preflight_judges_the_container_before_it_reads_the_grants() {
     let grants: usize = joined.find("refuse_without_the_decided_grants(").expect("the grant read is in the preflight");
     assert!(call < grants, "the container is judged before the delegation is read, so a wrong container is refused without a grant answer a person would have to read twice");
 }
+
+/// What:
+///  A container whose reply leaves `setuid` or `devices` out is refused,
+///  because OpenZFS omits a property that is at its default,
+///  and a property at its default is on.
+/// Why:
+///  The first guest arm of this round found exactly this:
+///  a container the driver built without the two properties answers no entry
+///  for either,
+///  and the kernel's reply says nothing about them rather than saying on,
+///  so a check that read an absent entry as a pass would let a container whose
+///  clones mount set-user-ID and device nodes through
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reply = { mountpoint: pair('legacy'), canmount: number(0) };
+/// expect(refuseContainer(factsOf(container, reply))).toMatch(/is not in the reply/);
+/// ```
+#[test]
+fn a_container_whose_reply_leaves_a_flag_out_is_refused() {
+    use crate::worktree_clone_mount_handler::sweep_dataset_facts::facts_of;
+    use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
+    let mut properties: NvList = NvList::new();
+    let mut mountpoint: NvList = NvList::new();
+    mountpoint.add_str("value", "legacy");
+    mountpoint.add_str("source", CONTAINER_DATASET);
+    properties.add_nvlist("mountpoint", mountpoint);
+    let mut canmount: NvList = NvList::new();
+    canmount.add_u64("value", 0);
+    canmount.add_str("source", CONTAINER_DATASET);
+    properties.add_nvlist("canmount", canmount);
+    let stats: DmuObjsetStats = DmuObjsetStats {
+        dds_num_clones: 0,
+        dds_creation_txg: 42,
+        dds_guid: 9_000_000_000_000_000_002,
+        dds_type: crate::doctor_zfs_route::zfs_checks::FILESYSTEM_OBJECT_SET,
+        dds_is_snapshot: 0,
+        dds_inconsistent: 0,
+        dds_redacted: 0,
+        dds_origin: [0; 256],
+        dds_flags: 0,
+    };
+    let facts: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts = facts_of(CONTAINER_DATASET, &DatasetIdentity { stats, properties });
+    let container: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(CONTAINER_DATASET), reading: Reading::Read(facts) };
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err("a reply that leaves `setuid` out proves nothing about the mount and is refused");
+    assert!(refusal.message.contains("`setuid` is not in the reply"), "the sentence names the missing property: {}", refusal.message);
+    assert!(refusal.message.contains(CONTAINER_DATASET), "the sentence names the container: {}", refusal.message);
+}
