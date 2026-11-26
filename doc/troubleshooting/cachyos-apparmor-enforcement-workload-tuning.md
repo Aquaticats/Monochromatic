@@ -2234,6 +2234,12 @@ the `apparmor` package's unconfined-flag stub that `/etc/apparmor.d/disable/fire
 so the stub would have replaced the enforcing `firefox` profile.
 Afterwards both profiles were still enforcing and both reads succeeded with no denial.
 
+Seen in the same window and not granted, since they did not come from IVPN
+(Tor Browser was not started through the split tunnel):
+`torbrowser-tor` denied `lyrebird` creating `inet` and `inet6` sockets,
+`torbrowser` denied locks on its Mesa shader cache under `~/.local/share/torbrowser`,
+and `zfs` denied `/sys/module/zfs/version`.
+
 ### apparmor_parser on drafts in the scratch folder
 
 `sudo apparmor_parser --skip-kernel-load` on profile drafts in `~/temp/agent`
