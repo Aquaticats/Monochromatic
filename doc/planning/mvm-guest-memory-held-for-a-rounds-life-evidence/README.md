@@ -159,12 +159,17 @@ a default guest on the same container-built binaries.
 
 ## Editing
 
-Three mechanical removals only:
+Four mechanical edits only:
 the 2026-11-25 files were renamed `.log` to `.log.txt` when they were committed,
 because this repository's `.gitignore` ignores `*.log`;
 every line naming a round folder's own home path is removed from the copies,
 because the repository is public;
 and one file that held no bytes (`mem-second-8g`'s push log) was removed rather than kept.
+Three hand-written title lines,
+the first line of `step-timings-2026-11-26T03-56Z.txt`,
+`container-build-binaries-2026-11-26T03-51Z.txt` and `container-build-binaries-2026-11-26T00-16Z.txt`,
+name the file and its guest or time instead of a round ordinal;
+no reading changed.
 Nothing else is changed.
 
 ## What is not in this folder
