@@ -15,8 +15,14 @@
 
 use super::*;
 use crate::names::NameField;
-use crate::nvlist::{NvData, NvList};
-use crate::requests::{Error, INITIAL_REPLY_SIZE};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
+use crate::requests::{
+    Error,
+    INITIAL_REPLY_SIZE,
+};
 
 #[test]
 fn a_new_request_names_its_target_and_clears_both_addresses() {

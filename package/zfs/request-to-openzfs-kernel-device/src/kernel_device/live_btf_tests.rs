@@ -23,11 +23,20 @@
 use super::fixture::Fixture;
 use super::fixture_pool::FixturePool;
 use super::live_btf_fields::{
-    COMMAND_STRUCT_BYTES, DMU_OBJSET_STATS_BYTES, dmu_objset_stats_fields, zfs_cmd_fields,
+    COMMAND_STRUCT_BYTES,
+    DMU_OBJSET_STATS_BYTES,
+    dmu_objset_stats_fields,
+    zfs_cmd_fields,
 };
 use super::live_btf_nested_fields::{
-    DRR_BEGIN_BYTES, ZFS_SHARE_BYTES, ZFS_STAT_BYTES, ZINJECT_RECORD_BYTES, drr_begin_fields,
-    zfs_share_fields, zfs_stat_fields, zinject_record_fields,
+    DRR_BEGIN_BYTES,
+    ZFS_SHARE_BYTES,
+    ZFS_STAT_BYTES,
+    ZINJECT_RECORD_BYTES,
+    drr_begin_fields,
+    zfs_share_fields,
+    zfs_stat_fields,
+    zinject_record_fields,
 };
 use crate::requests::Operation;
 /// The path type the module BTF's location is built from.
@@ -198,7 +207,10 @@ fn module_btf() -> PathBuf {
 /// The type information `pahole` prints for `structure` in `module`,
 /// read with the
 /// kernel's own types as the base.
-fn pahole(module: &std::path::Path, structure: &str) -> String {
+fn pahole(
+    module: &std::path::Path,
+    structure: &str,
+) -> String {
     let output = Command::new(PAHOLE)
         .args(["--btf_base", VMLINUX_BTF, "--class_name", structure])
         .arg(module)
@@ -281,7 +293,10 @@ fn offset_and_size(comment: &str) -> Option<(usize, usize)> {
 
 /// The member named `name`,
 /// or a panic naming what was printed instead.
-fn member<'a>(members: &'a [Member], name: &str) -> &'a Member {
+fn member<'a>(
+    members: &'a [Member],
+    name: &str,
+) -> &'a Member {
     return members
         .iter()
         .find(|found| {
@@ -295,7 +310,10 @@ fn member<'a>(members: &'a [Member], name: &str) -> &'a Member {
 /// Assert each expected field is reported at its offset and size,
 /// and that the
 /// module reports no member the mirror lacks.
-fn assert_fields(members: &[Member], expected: &[(&str, usize, usize)]) {
+fn assert_fields(
+    members: &[Member],
+    expected: &[(&str, usize, usize)],
+) {
     for (name, offset, size) in expected {
         let found: &Member = member(members, name);
         assert_eq!(found.offset, *offset, "the offset of {name}");

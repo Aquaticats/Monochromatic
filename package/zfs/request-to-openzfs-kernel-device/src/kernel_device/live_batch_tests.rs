@@ -114,14 +114,20 @@ fn an_own_snapshot_batch_destroys_both_and_keeps_the_checkout_history() {
 /// read from `zfs get`,
 /// which the fixture uses as its own
 /// control of the dependency the batch refuses.
-fn cli_origin(fixture: &Fixture, dataset: &str) -> String {
+fn cli_origin(
+    fixture: &Fixture,
+    dataset: &str,
+) -> String {
     let printed: String = fixture.zfs(&["get", "-H", "-o", "value", "origin", dataset]);
     return printed.trim().to_string();
 }
 
 /// The snapshot names a dataset holds,
 /// in the kernel's own order.
-fn snapshots(device: &ZfsDevice, dataset: &str) -> Vec<String> {
+fn snapshots(
+    device: &ZfsDevice,
+    dataset: &str,
+) -> Vec<String> {
     return listing_names(|cursor| {
         return device.snapshot_list_next(dataset, cursor);
     });

@@ -15,7 +15,10 @@
 //!  a request field the caller never set.
 
 use super::*;
-use crate::layout::{COMMAND_STRUCT_SIZE, ZfsCmd};
+use crate::layout::{
+    COMMAND_STRUCT_SIZE,
+    ZfsCmd,
+};
 
 #[test]
 fn a_new_buffer_is_the_default_size_zeroed_and_word_aligned() {

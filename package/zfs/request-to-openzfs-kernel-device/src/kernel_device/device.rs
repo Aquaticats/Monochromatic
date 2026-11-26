@@ -21,24 +21,42 @@
 //!  replayed write could create a second snapshot or destroy a second time.
 
 /// The facts one answer supplies.
-use super::call_outcome::{AnswerFacts, ReadFailure, interpret_read_failure, write_failure};
+use super::call_outcome::{
+    AnswerFacts,
+    ReadFailure,
+    interpret_read_failure,
+    write_failure,
+};
 /// The failure type these calls return.
 use super::device_error::DeviceError;
 /// The one unsafe call.
 use super::ioctl_call;
 /// The read retry rule and what one attempt returned.
-use super::read_reply::{ReadAttempt, retry_read};
+use super::read_reply::{
+    ReadAttempt,
+    retry_read,
+};
 /// The decoded list a call returns.
 use crate::nvlist::NvList;
 /// The request a call carries and the list it answers with.
 use crate::requests::Request;
 /// The owned descriptor,
 /// the file it came from and the raw handle the call needs.
-use std::fs::{File, OpenOptions};
+use std::fs::{
+    File,
+    OpenOptions,
+};
 /// The descriptor the call needs and the ownership that closes it.
-use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+use std::os::fd::{
+    AsRawFd,
+    OwnedFd,
+    RawFd,
+};
 /// The path the handle remembers.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The device file a live call is carried over.
 use super::DEVICE_PATH;
@@ -115,12 +133,17 @@ impl ZfsDevice {
     /// [`DeviceError::Request`] when the kernel refuses the read,
     /// and
     /// [`DeviceError::MissingReply`] when it finished without a list.
-    pub(crate) fn attempt_read(&self, request: &mut Request) -> Result<ReadAttempt, DeviceError> {
+    pub(crate) fn attempt_read(
+        &self,
+        request: &mut Request,
+    ) -> Result<ReadAttempt, DeviceError> {
         let Some(errno) = ioctl_call::perform(self.descriptor(), request) else {
             let reply: Option<NvList> = request.take_reply()?;
             let list: NvList =
                 super::call_outcome::require_reply(request.operation(), request.target(), reply)?;
-            return Ok(ReadAttempt::Reply { list });
+            return Ok(ReadAttempt::Reply {
+                list,
+            });
         };
         let facts: AnswerFacts<'_> = AnswerFacts {
             operation: request.operation(),
@@ -131,10 +154,14 @@ impl ZfsDevice {
         };
         return match interpret_read_failure(facts) {
             ReadFailure::End => Ok(ReadAttempt::End),
-            ReadFailure::NeedsBiggerReply { requested } => {
-                Ok(ReadAttempt::NeedsBiggerReply { requested })
-            }
-            ReadFailure::Failed { source } => Err(source),
+            ReadFailure::NeedsBiggerReply {
+                requested,
+            } => Ok(ReadAttempt::NeedsBiggerReply {
+                requested,
+            }),
+            ReadFailure::Failed {
+                source,
+            } => Err(source),
         };
     }
 
@@ -147,7 +174,10 @@ impl ZfsDevice {
     /// # Throws
     ///
     /// What `ZfsDevice::attempt_read` and `retry_read` throw.
-    pub(crate) fn read(&self, request: &mut Request) -> Result<Option<NvList>, DeviceError> {
+    pub(crate) fn read(
+        &self,
+        request: &mut Request,
+    ) -> Result<Option<NvList>, DeviceError> {
         return retry_read(request, |asking| {
             return self.attempt_read(asking);
         });
@@ -166,7 +196,10 @@ impl ZfsDevice {
     /// with the
     /// per-name failures it supplied,
     /// and when the reply it wrote does not decode.
-    pub(crate) fn write(&self, request: &mut Request) -> Result<Option<NvList>, DeviceError> {
+    pub(crate) fn write(
+        &self,
+        request: &mut Request,
+    ) -> Result<Option<NvList>, DeviceError> {
         let failure: Option<i32> = ioctl_call::perform(self.descriptor(), request);
         let reported: u64 = request.command().zc_nvlist_dst_size;
         let held: usize = request.reply().len();

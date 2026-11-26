@@ -12,7 +12,11 @@
 //!  them with `pahole`'s output without reading the assertions.
 
 use super::*;
-use std::mem::{align_of, offset_of, size_of};
+use std::mem::{
+    align_of,
+    offset_of,
+    size_of,
+};
 
 #[test]
 fn struct_size_is_the_module_btf_size() {

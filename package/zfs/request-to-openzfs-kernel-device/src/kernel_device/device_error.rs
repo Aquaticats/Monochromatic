@@ -74,9 +74,19 @@ impl DeviceError {
     /// when the kernel supplied one.
     pub fn errno(&self) -> Option<i32> {
         return match self {
-            DeviceError::Open { source, .. } => source.raw_os_error(),
-            DeviceError::Request { source } => source.errno(),
-            DeviceError::UnstableReply { .. } | DeviceError::MissingReply { .. } => None,
+            DeviceError::Open {
+                source,
+                ..
+            } => source.raw_os_error(),
+            DeviceError::Request {
+                source,
+            } => source.errno(),
+            DeviceError::UnstableReply {
+                ..
+            }
+            | DeviceError::MissingReply {
+                ..
+            } => None,
         };
     }
 
@@ -84,10 +94,18 @@ impl DeviceError {
     /// when the kernel answered a request.
     pub fn request(&self) -> Option<&Error> {
         return match self {
-            DeviceError::Request { source } => Some(source),
-            DeviceError::Open { .. }
-            | DeviceError::UnstableReply { .. }
-            | DeviceError::MissingReply { .. } => None,
+            DeviceError::Request {
+                source,
+            } => Some(source),
+            DeviceError::Open {
+                ..
+            }
+            | DeviceError::UnstableReply {
+                ..
+            }
+            | DeviceError::MissingReply {
+                ..
+            } => None,
         };
     }
 }
@@ -96,14 +114,22 @@ impl DeviceError {
 impl fmt::Display for DeviceError {
     /// Names the path or the request,
     /// never a bare error number.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
-            DeviceError::Open { path, source } => write!(
+            DeviceError::Open {
+                path,
+                source,
+            } => write!(
                 formatter,
                 "opening the OpenZFS device at '{}': {source}",
                 path.display()
             ),
-            DeviceError::Request { source } => write!(formatter, "{source}"),
+            DeviceError::Request {
+                source,
+            } => write!(formatter, "{source}"),
             DeviceError::UnstableReply {
                 operation,
                 target,
@@ -114,7 +140,10 @@ impl fmt::Display for DeviceError {
                 "{operation} on '{target}': the kernel asked for a {requested} byte reply and the \
                  buffer already holds {held} bytes, so the answer is not trusted"
             ),
-            DeviceError::MissingReply { operation, target } => write!(
+            DeviceError::MissingReply {
+                operation,
+                target,
+            } => write!(
                 formatter,
                 "{operation} on '{target}': the kernel finished without a reply list"
             ),
@@ -128,9 +157,19 @@ impl std::error::Error for DeviceError {
     /// if any.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         return match self {
-            DeviceError::Open { source, .. } => Some(source),
-            DeviceError::Request { source } => Some(source),
-            DeviceError::UnstableReply { .. } | DeviceError::MissingReply { .. } => None,
+            DeviceError::Open {
+                source,
+                ..
+            } => Some(source),
+            DeviceError::Request {
+                source,
+            } => Some(source),
+            DeviceError::UnstableReply {
+                ..
+            }
+            | DeviceError::MissingReply {
+                ..
+            } => None,
         };
     }
 }
@@ -139,6 +178,8 @@ impl std::error::Error for DeviceError {
 impl From<Error> for DeviceError {
     /// Wraps the request failure without changing what it says.
     fn from(source: Error) -> DeviceError {
-        return DeviceError::Request { source };
+        return DeviceError::Request {
+            source,
+        };
     }
 }

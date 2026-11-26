@@ -20,7 +20,10 @@
 //! and ignores a zero error number.
 
 /// The codec list and value types.
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 /// The formatting traits the diagnostics implement.
 use std::fmt;
 
@@ -50,7 +53,10 @@ pub struct ElementError {
 /// How the value prints to a person.
 impl fmt::Display for ElementError {
     /// Prints the element name with its error text.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}: {}", self.name, errno_text(self.errno));
     }
 }
@@ -73,16 +79,27 @@ pub fn element_errors(list: &NvList) -> Vec<ElementError> {
 
 /// Walk `list` for element errors,
 /// stopping at [`MAXIMUM_ELEMENTS_KEPT`].
-fn collect(list: &NvList, elements: &mut Vec<ElementError>) {
+fn collect(
+    list: &NvList,
+    elements: &mut Vec<ElementError>,
+) {
     for pair in list.iter() {
         if elements.len() >= MAXIMUM_ELEMENTS_KEPT {
             return;
         }
         let errno: i32 = match &pair.data {
-            NvData::Int32 { value } => *value,
-            NvData::Int64 { value } => *value as i32,
-            NvData::Uint64 { value } => *value as i32,
-            NvData::List { value: nested } => {
+            NvData::Int32 {
+                value,
+            } => *value,
+            NvData::Int64 {
+                value,
+            } => *value as i32,
+            NvData::Uint64 {
+                value,
+            } => *value as i32,
+            NvData::List {
+                value: nested,
+            } => {
                 if let Some(value) = property_error_value(nested) {
                     value
                 } else {
