@@ -416,9 +416,18 @@ const ACCOUNT_HOME: &str = "/home/ubuntu";
 /// which is outside `/root` because that folder is unreadable to it.
 const ACCOUNT_BIN: &str = "/opt/zfs-add-bin";
 
-/// The container's `mountpoint` in the second arm,
+/// The container's `mountpoint` in the third arm,
 /// which is not `legacy`.
 const ANOTHER_MOUNTPOINT: &str = "/srv/not-legacy";
+
+/// The companion's own test-only switch, which this arm uses to take its
+/// separate check out of the way,
+/// because this guest refuses the managed add at that check's `setgroups` step
+/// and the companion has its own arm beside its own module.
+const COMPANION_SWITCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ACCOUNT_COMPANION";
+
+/// The value that runs no companion check at all.
+const COMPANION_DISABLED: &str = "disabled";
 
 /// Run one `chown --recursive` and refuse when it failed.
 fn hand_to_the_account(path: &std::path::Path) {
@@ -464,7 +473,7 @@ fn hand_the_fixture_to_the_account(fixture: &Fixture) {
 ///  so every value the add reads is set on the `env` the account's process
 ///  becomes,
 ///  never on this test's own process.
-fn add_command_as_the_account(fixture: &Fixture, name: &str) -> Command {
+fn add_command_as_the_account(fixture: &Fixture, name: &str, extra: &[String]) -> Command {
     let mut command: Command = Command::new("/usr/sbin/runuser");
     command.args(["--user", ACCOUNT_NAME, "--", "/usr/bin/env"]);
     command.arg(format!("HOME={ACCOUNT_HOME}/zfs-add-home"));
@@ -477,6 +486,9 @@ fn add_command_as_the_account(fixture: &Fixture, name: &str) -> Command {
     command.arg("GIT_AUTHOR_EMAIL=fixture@example.invalid");
     command.arg("GIT_COMMITTER_NAME=Fixture");
     command.arg("GIT_COMMITTER_EMAIL=fixture@example.invalid");
+    for assignment in extra {
+        command.arg(assignment);
+    }
     command.arg(format!("{ACCOUNT_BIN}/git"));
     command.args(["worktree", "add", fixture.slot(name).to_str().expect("a text path")]);
     command
@@ -491,7 +503,38 @@ fn add_command_as_the_account(fixture: &Fixture, name: &str) -> Command {
 /// Run one whole add as the delegated account to its end,
 /// mounting the clone when it appears.
 fn run_add_as_the_account(fixture: &Fixture, name: &str) -> Output {
-    let mut child: Child = add_command_as_the_account(fixture, name).spawn().expect("the account's add starts");
+    let mut child: Child = add_command_as_the_account(fixture, name, &[]).spawn().expect("the account's add starts");
+    fixture.mount_when_the_clone_appears(name, &mut child);
+    return child.wait_with_output().expect("the account's add ends");
+}
+
+/// What:
+///  Remove the plain worktree the ladder made at one slot,
+///  as the account that made it.
+/// Why:
+///  The checkout belongs to the account for this arm,
+///  so Git's own ownership rule refuses a `worktree remove` run as root,
+///  and the folder would stay registered into the next arm's fixture.
+fn remove_the_ladders_worktree(fixture: &Fixture, name: &str) {
+    let removed: Output = Command::new("/usr/sbin/runuser")
+        .args(["--user", ACCOUNT_NAME, "--", "/usr/bin/env"])
+        .arg(format!("HOME={ACCOUNT_HOME}/zfs-add-home"))
+        .arg("GIT_CONFIG_NOSYSTEM=1")
+        .arg("/usr/bin/git")
+        .args(["worktree", "remove", "--force", "--force", fixture.slot(name).to_str().expect("a text path")])
+        .current_dir(fixture.root.as_path())
+        .output()
+        .expect("the account's git starts");
+    assert!(removed.status.success(), "the ladder's worktree at {} cannot be removed by {ACCOUNT_NAME}: {}", fixture.slot(name).display(), String::from_utf8_lossy(removed.stderr.as_slice()));
+}
+
+/// Run one whole add as the delegated account with the companion's own check
+/// out of the way,
+/// mounting the clone when it appears.
+fn run_add_as_the_account_without_the_companion(fixture: &Fixture, name: &str) -> Output {
+    let switch: String = format!("{COMPANION_SWITCH_VARIABLE}={COMPANION_DISABLED}");
+    let extra: [String; 1] = [switch];
+    let mut child: Child = add_command_as_the_account(fixture, name, &extra).spawn().expect("the account's add starts");
     fixture.mount_when_the_clone_appears(name, &mut child);
     return child.wait_with_output().expect("the account's add ends");
 }
@@ -546,12 +589,30 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
         grant_to_the_account(&fixture, &grant);
     }
     hand_the_fixture_to_the_account(&fixture);
-    let made: Output = run_add_as_the_account(&fixture, "account-legacy");
-    let said: String = format!("{}{}", String::from_utf8_lossy(made.stdout.as_slice()), String::from_utf8_lossy(made.stderr.as_slice()));
+    // Arm one, the host's own state:
+    // with the companion running,
+    // this guest refuses the managed add at its `setgroups` step,
+    // because Ubuntu 24.04's AppArmor profile denies the capability that step's
+    // `open` asks for inside the user namespace,
+    // and the add takes the ladder instead of the clone route.
+    // The arm's other halves therefore take the companion's own check out of the
+    // way through its documented test switch:
+    // the companion is not this issue's subject, and its guest arm lives beside
+    // its own module.
+    let refused: Output = run_add_as_the_account(&fixture, "account-companion");
+    let companion: String = format!("{}{}", String::from_utf8_lossy(refused.stdout.as_slice()), String::from_utf8_lossy(refused.stderr.as_slice()));
     assert!(
-        !said.contains("managed add refused"),
-        "the account companion let the managed add go ahead, so this arm ran the add it is about: {said}"
+        companion.contains("the account companion's setgroups failed"),
+        "this guest refuses the managed add at the companion's `setgroups` step, which is why the next halves take that check out of the way: {companion}"
     );
+    assert!(companion.contains("the reflink or ordinary Git route"), "the refusal names what the slot takes instead: {companion}");
+    assert!(!fixture.dataset_stands(fixture.clone("account-companion").as_str()), "the refused managed add made no clone: {companion}");
+    assert!(!fixture.home().join("account-companion.binding").exists(), "the refused managed add wrote no binding: {companion}");
+    remove_the_ladders_worktree(&fixture, "account-companion");
+    // Arm two: the add as the account, with the companion's own check out of the way,
+    // makes the clone and the clone reads the container's `legacy`.
+    let made: Output = run_add_as_the_account_without_the_companion(&fixture, "account-legacy");
+    let said: String = format!("{}{}", String::from_utf8_lossy(made.stdout.as_slice()), String::from_utf8_lossy(made.stderr.as_slice()));
     assert!(made.status.success(), "the whole add as {ACCOUNT_NAME} failed: {said}");
     assert!(said.contains("made the worktree as a ZFS clone"), "the add took the clone route: {said}");
     let record: git_policy_cli::worktree_clone_binding_record::BindingRecord = fixture.binding("account-legacy").expect("the add's binding");
@@ -563,19 +624,22 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     assert_eq!(source, format!("inherited from {}", fixture.container()), "the clone inherited the value from the container, and not from its origin or itself: {said}");
     assert_eq!(std::fs::read_to_string(fixture.slot("account-legacy").join("plain.txt")).expect("the filled worktree's file"), "plain\n", "the add filled the worktree");
     fixture.clear_the_slot("account-legacy");
-    // The second arm: the container is set to another `mountpoint`, which every
-    // clone below it would inherit, so the preflight refuses before any write.
+    // Arm three: the container is set to another `mountpoint`, which every clone
+    // below it would inherit, so the preflight refuses before any write.
+    // The checkout's snapshots are read before it, so the arm's own claim is that
+    // the refused add took none rather than that the fixture holds none.
+    let snapshots_before: String = snapshots_of_the_checkout(&fixture);
     let wrong: String = format!("mountpoint={ANOTHER_MOUNTPOINT}");
     std::fs::create_dir_all(ANOTHER_MOUNTPOINT).expect("the other mountpoint's folder");
     fixture.zfs_ok(&["set", wrong.as_str(), fixture.container().as_str()]);
-    let refused: Output = run_add_as_the_account(&fixture, "account-refused");
-    let answer: String = format!("{}{}", String::from_utf8_lossy(refused.stdout.as_slice()), String::from_utf8_lossy(refused.stderr.as_slice()));
+    let answered: Output = run_add_as_the_account_without_the_companion(&fixture, "account-refused");
+    let answer: String = format!("{}{}", String::from_utf8_lossy(answered.stdout.as_slice()), String::from_utf8_lossy(answered.stderr.as_slice()));
     // The container goes back to the design's shape before any assertion, so a
     // failed arm never leaves the fixture refusing every later add.
     fixture.zfs_ok(&["set", "mountpoint=legacy", fixture.container().as_str()]);
     let (restored, _source) = mountpoint_of(&fixture, fixture.container().as_str());
     assert_eq!(restored, "legacy", "the container is back at the design's `mountpoint`");
-    assert!(!refused.status.success(), "an add under a container that is not `legacy` is refused: {answer}");
+    assert!(!answered.status.success(), "an add under a container that is not `legacy` is refused: {answer}");
     assert!(answer.contains(fixture.container().as_str()), "the refusal names the container: {answer}");
     assert!(answer.contains("mountpoint"), "the refusal names the property: {answer}");
     assert!(answer.contains("legacy"), "the refusal names the value the design needs: {answer}");
@@ -584,7 +648,7 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     assert!(!fixture.slot("account-refused").exists(), "the refused add made no slot folder: {answer}");
     assert!(!fixture.home().join("account-refused.binding").exists(), "the refused add wrote no binding: {answer}");
     assert!(!a_claim_stands_for(&fixture, "account-refused"), "the refused add took no claim: {answer}");
-    assert!(!snapshots_of_the_checkout(&fixture).contains("git-worktree-clone-origin-"), "the refused add took no origin snapshot: {answer}");
+    assert_eq!(snapshots_of_the_checkout(&fixture), snapshots_before, "the refused add took no origin snapshot: {answer}");
     // The fixture goes back to the root arms' shape, and the delegation to the
     // nine uid 0 holds, so a run of this arm changes nothing the next one reads.
     hand_to_the_account_from_root(fixture.root.as_path());
