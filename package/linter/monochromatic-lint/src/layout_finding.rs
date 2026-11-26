@@ -4,9 +4,11 @@
 //!  Both layout rules report a file,
 //!  a line and a message,
 //!  and the step that runs them adds the severity and the diagnostic code.
-//!  A finding also carries the key that an allow-list entry writes to tolerate it,
-//!  and a finding of a loop carries none,
-//!  because a loop is tolerated one use at a time and never as a whole.
+//!  A finding also carries the key that an allow-list entry writes to tolerate it.
+//!  A loop of folders, of entries or of files carries none,
+//!  because it is tolerated one use at a time and never as a whole;
+//!  the one loop finding with a key is the use written in a group's own file,
+//!  which no `uses` line can record.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,8 +44,10 @@ pub struct LayoutFinding {
     /// The stable name of this one finding,
     ///  which an allow-list entry writes to tolerate it;
     ///  empty for a finding no list may tolerate,
-    ///  such as a loop,
-    ///  which is tolerated by listing the uses inside it.
+    ///  such as a loop of folders, entries or files,
+    ///  which is tolerated by listing the uses inside it;
+    ///  the loop a group's own file closes carries one,
+    ///  because no `uses` line can name that use.
     pub key: String,
 }
 
