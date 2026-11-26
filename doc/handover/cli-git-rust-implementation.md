@@ -125,7 +125,13 @@ Rounds started earlier run on the pool they named.
   the last two that did (6494 and the setgroups skip) merged by 07:57,
   so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- The split's round 1, on the virtual writer.
+- The split's round 1 ended at 09:14 with four of step 2's five items moved and `copy_file_exclusive` stopped on an open point
+  (`doc/handover/questions-for-the-owner.md`);
+  it ran no `cargo fmt` because `~/temp/agent/rounds-common-rules-2026-11-25.md` still said the crate was unformatted,
+  so the coordinator formatted its 28 files (`a715581524`) and corrected that rule;
+  its merge check compares any red module against `main` and merges only when no failure is the branch's own.
+  It filed, through the coordinator, 6512 (folder docs misspell the file-list marker, so the layout lint reads none of their lists),
+  6513 (the linter reads a near-miss marker as no list, silently) and 6514 (the started-as-git record control can read the parent's record).
 - Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
   and 6510 (the interactive selection control reads the run's terminal and never ends),
   both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
