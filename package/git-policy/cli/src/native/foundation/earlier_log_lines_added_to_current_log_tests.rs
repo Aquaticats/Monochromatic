@@ -346,9 +346,11 @@ fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
 /// The control runs its body in a child process of its own:
 /// the lock is an advisory `flock` on a file of the fixture,
 /// and a fork another test of the same process makes while this control holds it duplicates the descriptor that
-/// holds it, so the lock outlives the control's own copy and the fold that follows answers `Busy`.
+/// holds it,
+///  so the lock outlives the control's own copy and the fold that follows answers `Busy`.
 /// That reading comes from the two places `fold_log` answers `Busy` and from this control passing alone and failing
-/// beside its neighbours; a child of its own takes every other test's fork out of the window (issue 6487).
+/// beside its neighbours;
+///  a child of its own takes every other test's fork out of the window (issue 6487).
 #[cfg(unix)]
 #[test]
 fn a_fold_that_another_process_holds_is_left_alone() {

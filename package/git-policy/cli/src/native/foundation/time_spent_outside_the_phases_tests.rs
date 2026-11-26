@@ -3,8 +3,10 @@
 //!  and the writer that measures one of them.
 //!  Each control runs its body in a child process of its own:
 //!  the three counters belong to the whole process,
-//!  and one control drives one of them to its end on purpose, which would leave every other reader of that record
-//!  in this process with a figure no command spent (`testing/process_wide_state_child_test_support.rs`, issue 6487).
+//!  and one control drives one of them to its end on purpose,
+//!  which would leave every other reader of that record
+//!  in this process with a figure no command spent (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6487).
 //! Why:
 //!  A counter that adds the wrong span,
 //!  or forgets a removal that never finished,

@@ -6,16 +6,22 @@
 //!  and the container gate runs each test in a process of its own (nextest),
 //!  so a control that sets process-wide state passes the gate and fails a threaded run:
 //!  measured on 2026-11-25,
-//!  `cargo test --lib foundation::` failed 16 tests and then deadlocked, and each of them passed alone (issue 6487).
-//!  The child runs one test and ends with it, so what the control sets reaches nothing else,
+//!  `cargo test --lib foundation::` failed 16 tests and then deadlocked,
+//!  and each of them passed alone (issue 6487).
+//!  The child runs one test and ends with it,
+//!  so what the control sets reaches nothing else,
 //!  and the setters of that state refuse in any other process,
 //!  naming the starter below.
-//!  A child makes its own fixtures: unlike the descriptor-limit child (`descriptor_limit_child_test_support.rs`),
-//!  nothing here counts this process's open descriptors, so the fixture the watchdog arms while it is made costs
+//!  A child makes its own fixtures:
+//!  unlike the descriptor-limit child (`descriptor_limit_child_test_support.rs`),
+//!  nothing here counts this process's open descriptors,
+//!  so the fixture the watchdog arms while it is made costs
 //!  nothing a control measures.
 //! Gotcha:
-//!  The variable names the control it started, and a child of that child inherits it:
-//!  a grandchild is inside a process of its own too, which is exactly what a control that sets this state needs.
+//!  The variable names the control it started,
+//!  and a child of that child inherits it:
+//!  a grandchild is inside a process of its own too,
+//!  which is exactly what a control that sets this state needs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,19 +30,25 @@
 //! ```
 
 /// What:
-///  `ChildTest` is one request for a child of this test binary, and `passed` starts it, waits for it with a deadline
+///  `ChildTest` is one request for a child of this test binary,
+///  and `passed` starts it,
+///  waits for it with a deadline
 ///  and checks that the one test it ran passed.
 /// Why:
-///  Every child of this crate's test binary is started in one place (`child_test_process.rs`, debt ledger item 10),
+///  Every child of this crate's test binary is started in one place (`child_test_process.rs`,
+///  debt ledger item 10),
 ///  so this file states a request and never builds a command of its own.
 use super::child_test_process::{
     ChildTest,
     passed,
 };
 /// What:
-///  `OsStr` is borrowed operating-system text of raw bytes, whose sibling is `String`, an owned UTF-8 buffer.
+///  `OsStr` is borrowed operating-system text of raw bytes,
+///  whose sibling is `String`,
+///  an owned UTF-8 buffer.
 /// Why:
-///  An environment value is bytes, and this file hands the child the path of the one test it runs as one.
+///  An environment value is bytes,
+///  and this file hands the child the path of the one test it runs as one.
 use std::ffi::OsStr;
 
 /// The variable whose value marks the child this file started,
@@ -62,8 +74,11 @@ pub(crate) fn this_process_is_the_child() -> bool {
 }
 
 /// What:
-///  Refuse to set `state`, a fact that belongs to the whole process, in a process that is not a child this file
-///  started, naming the starter that makes the calling process one.
+///  Refuse to set `state`,
+///  a fact that belongs to the whole process,
+///  in a process that is not a child this file
+///  started,
+///  naming the starter that makes the calling process one.
 /// Why:
 ///  A setter that changes this process's room or its bound calls this before it changes anything,
 ///  so a control that forgot the child fails at its own first line,
@@ -154,7 +169,8 @@ pub(crate) fn started_within_a_child_of_its_own(
 /// Why:
 ///  The bound belongs to the whole process and is made on the first job that asks for a place,
 ///  so a control that holds it here and does not own the process decides what every other test of the run gets;
-///  this states the child's ownership once, and names the setter it stands in front of.
+///  this states the child's ownership once,
+///  and names the setter it stands in front of.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

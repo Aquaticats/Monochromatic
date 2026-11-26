@@ -134,17 +134,25 @@ pub fn budgeted_workers(
 /// What:
 ///  `fn workers_for_this_process(host: &HostResources, limits: &RuntimeLimits) -> usize` answers the workers this
 ///  process makes its runtime and its bound from:
-///  the room a control gave it when one did, and otherwise `budgeted_workers`.
-///  `HostResources` is the host's stated CPUs and free memory, and `RuntimeLimits` the threads and address space
+///  the room a control gave it when one did,
+///  and otherwise `budgeted_workers`.
+///  `HostResources` is the host's stated CPUs and free memory,
+///  and `RuntimeLimits` the threads and address space
 ///  left;
-///  the siblings a reader might expect are a bare number, which could not say where it came from, and the
-///  `RuntimePlan` itself, which is this answer plus the choice of runtime.
+///  the siblings a reader might expect are a bare number,
+///  which could not say where it came from,
+///  and the
+///  `RuntimePlan` itself,
+///  which is this answer plus the choice of runtime.
 /// Why:
 ///  The room stands in for a machine with fewer CPUs than a control's work needs (`room_for_blocking_jobs_in_a_control.rs`),
-///  and it is a fact about this process, read at the one moment this process makes its runtime and its bound.
-///  `budgeted_workers` stays a function of the host and the limits a caller states, so a control that plans a fixed
+///  and it is a fact about this process,
+///  read at the one moment this process makes its runtime and its bound.
+///  `budgeted_workers` stays a function of the host and the limits a caller states,
+///  so a control that plans a fixed
 ///  host reads only what it stated rather than a room another test gave the process (issue 6487).
-///  Both the runtime and the bound ask this one function, so the two figures cannot drift apart.
+///  Both the runtime and the bound ask this one function,
+///  so the two figures cannot drift apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,12 +173,17 @@ pub(crate) fn workers_for_this_process(
 
 /// What:
 ///  `fn plan_with_workers(workers: usize) -> RuntimePlan` turns a worker count into the plan it names:
-///  the current-thread runtime when not even one worker fits, and otherwise a multi-thread runtime whose blocking
+///  the current-thread runtime when not even one worker fits,
+///  and otherwise a multi-thread runtime whose blocking
 ///  pool is as wide as its workers.
-///  Its sibling is a plan built from a host and limits, which is `plan_runtime`; this one takes the figure those two
-///  decide, so a caller that decided the figure another way states it here.
+///  Its sibling is a plan built from a host and limits,
+///  which is `plan_runtime`;
+///  this one takes the figure those two
+///  decide,
+///  so a caller that decided the figure another way states it here.
 /// Why:
-///  `plan_runtime` and this process's own plan both need the same rule about a count of zero, and one copy of it is
+///  `plan_runtime` and this process's own plan both need the same rule about a count of zero,
+///  and one copy of it is
 ///  what keeps the runtime the process builds and the plan a control states in agreement.
 ///
 /// In TS you'd write (pseudocode):

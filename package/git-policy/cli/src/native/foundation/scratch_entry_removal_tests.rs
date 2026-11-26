@@ -8,7 +8,8 @@
 //! Each control runs its body in a child process of its own:
 //!  the count of removals in flight and the record of those that did not finish belong to the whole process,
 //!  and a removal that outlasts its ceiling keeps working on its own thread after its caller is told
-//!  (`testing/process_wide_state_child_test_support.rs`, issue 6487).
+//!  (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6487).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

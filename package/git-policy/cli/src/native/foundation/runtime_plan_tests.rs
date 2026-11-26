@@ -43,10 +43,12 @@ const ROOM_FOR_THE_CONTROL: usize = 3;
 ///  and a host a caller states gives its own workers whatever room this process was given.
 /// Why:
 ///  The room stands in for a machine with fewer CPUs than a control's work needs,
-///  and it belongs to this process: it is read where this process makes its runtime and its bound,
+///  and it belongs to this process:
+///  it is read where this process makes its runtime and its bound,
 ///  and never by a plan a caller states for itself,
 ///  so a control that plans a fixed host cannot read another test's room (issue 6487).
-///  Both the runtime and the bound ask the same function, so the bound cannot take a room the runtime did not.
+///  Both the runtime and the bound ask the same function,
+///  so the bound cannot take a room the runtime did not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
