@@ -278,6 +278,51 @@ await describe({
       },
     },),
     it({
+      name: 'a success handler started with no systemd variables stays silent and leaves the streak open',
+      fn: async function successHandlerWithoutVariables() {
+        /**
+         The run under test: the OnSuccess= handler, with an open streak and no MONITOR_* values.
+         */
+        const { deps, recorded, } = fakeDeps({ streak: { lastAlertAtMs: HOUR_MS, }, },);
+        /**
+         Exit status of the entry.
+         */
+        const status = await runAlert({
+          request: request({
+            trigger: 'unit-succeeded',
+            outcome: { result: '', exitCode: '', exitStatus: '', },
+          },),
+          deps,
+        },);
+        expect(status,).toBe(0,);
+        expect(recorded.notifications,).toHaveLength(0,);
+        expect(recorded.streak,).toEqual({ lastAlertAtMs: HOUR_MS, },);
+      },
+    },),
+    it({
+      name: 'a failure handler alerts even when systemd passed no variables',
+      fn: async function failureHandlerWithoutVariables() {
+        /**
+         The run under test: the OnFailure= handler with no open streak and no MONITOR_* values.
+         */
+        const { deps, recorded, } = fakeDeps({ nowMs: 5 * HOUR_MS, },);
+        /**
+         Exit status of the entry.
+         */
+        const status = await runAlert({
+          request: request({
+            trigger: 'unit-failed',
+            outcome: { result: '', exitCode: '', exitStatus: '', },
+          },),
+          deps,
+        },);
+        expect(status,).toBe(0,);
+        expect(recorded.notifications,).toHaveLength(1,);
+        expect(recorded.notifications[0]?.summary,).toBe('Garage sync failed',);
+        expect(recorded.streak,).toEqual({ lastAlertAtMs: 5 * HOUR_MS, },);
+      },
+    },),
+    it({
       name: 'a recovery alert that cannot be shown keeps the streak open and exits non-zero',
       fn: async function recoveryNotificationFailure() {
         /**

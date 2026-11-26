@@ -14,9 +14,10 @@ import {
   errorLines,
   tailLines,
 } from './alert-journal.ts';
-import type {
-  AlertTrigger,
-  UnitOutcome,
+import {
+  type AlertTrigger,
+  reportsRecovery,
+  type UnitOutcome,
 } from './alert-outcome.ts';
 import {
   SYNC_UNIT,
@@ -136,8 +137,10 @@ export function summaryFor({
   /**
    Whether this message reports a recovery rather than a failure.
    */
-  const recovered = (trigger === 'watcher-started')
-    || ((trigger === 'unit') && (outcome.result === 'success'));
+  const recovered = reportsRecovery({
+    trigger,
+    outcome,
+  },);
   if (recovered) {
     return unit === SYNC_UNIT ? 'Garage sync recovered' : `Garage sync recovered (${unit})`;
   }
@@ -320,10 +323,7 @@ export function composeMessage(input: Readonly<MessageInput>,): Notification {
   /**
    Whether this message reports a recovery.
    */
-  const recovered = (input.trigger === 'watcher-started')
-    || ((input.trigger === 'unit') && (input.outcome
-      .result
-      === 'success'));
+  const recovered = reportsRecovery(input,);
   /**
    Body lines before the log command.
    */

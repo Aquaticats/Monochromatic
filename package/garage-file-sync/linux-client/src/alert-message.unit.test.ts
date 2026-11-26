@@ -15,8 +15,11 @@ import {
   describeOutcome,
 } from './alert-message.ts';
 import {
+  ALERT_TRIGGERS,
   classifyOutcome,
+  classifyRequest,
   parseAlertArguments,
+  reportsRecovery,
   resolveAlertRequest,
 } from './alert-outcome.ts';
 import {
@@ -31,6 +34,34 @@ const FAILED_RUN = {
   result: 'exit-code',
   exitCode: 'exited',
   exitStatus: '1',
+};
+
+/**
+ A run that exited with status 0 as systemd reports it.
+ */
+const CLEAN_EXIT = {
+  result: 'success',
+  exitCode: 'exited',
+  exitStatus: '0',
+};
+
+/**
+ A run stopped by hand as systemd reports it: a clean stop, not a clean exit.
+ */
+const STOPPED_BY_HAND = {
+  result: 'success',
+  exitCode: 'killed',
+  exitStatus: 'TERM',
+};
+
+/**
+ What the entry reads when systemd passes no `MONITOR_*` variables, as it does for a
+ handler one unit names in both `OnFailure=` and `OnSuccess=`.
+ */
+const NO_VARIABLES = {
+  result: '',
+  exitCode: '',
+  exitStatus: '',
 };
 
 /**
@@ -85,6 +116,10 @@ await describe({
             expect(parseAlertArguments([SYNC_UNIT,],),).toEqual({ trigger: 'unit', unit: SYNC_UNIT, },);
             expect(parseAlertArguments([WATCH_UNIT, '--trigger=hook-failed',],),)
               .toEqual({ trigger: 'hook-failed', unit: WATCH_UNIT, },);
+            for (const trigger of ALERT_TRIGGERS) {
+              expect(parseAlertArguments([SYNC_UNIT, `--trigger=${trigger}`,],),)
+                .toEqual({ trigger, unit: SYNC_UNIT, },);
+            }
           },
         },),
         it({
@@ -93,6 +128,51 @@ await describe({
             expect(() => parseAlertArguments(['--trigger=later',],),).toThrow('--trigger must be one of',);
             expect(() => parseAlertArguments(['--force',],),).toThrow('unknown option',);
             expect(() => parseAlertArguments(['a.service', 'b.service',],),).toThrow('only one unit name',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: classifyRequest.name,
+      children: [
+        it({
+          name: 'a failure handler always reports a failure, even when systemd passed no variables',
+          fn: async function failureHandler() {
+            expect(classifyRequest({ trigger: 'unit-failed', outcome: FAILED_RUN, },),).toBe('failure',);
+            expect(classifyRequest({ trigger: 'unit-failed', outcome: NO_VARIABLES, },),).toBe('failure',);
+          },
+        },),
+        it({
+          name: 'a success handler is a recovery only for exit status 0, and a stop otherwise, never a failure',
+          fn: async function successHandler() {
+            expect(classifyRequest({ trigger: 'unit-succeeded', outcome: CLEAN_EXIT, },),).toBe('recovery',);
+            expect(classifyRequest({ trigger: 'unit-succeeded', outcome: STOPPED_BY_HAND, },),).toBe('stopped',);
+            expect(classifyRequest({ trigger: 'unit-succeeded', outcome: NO_VARIABLES, },),).toBe('stopped',);
+          },
+        },),
+        it({
+          name: 'the hook modes are a failure and a recovery, and a hand-started handler follows the variables',
+          fn: async function otherTriggers() {
+            expect(classifyRequest({ trigger: 'hook-failed', outcome: NO_VARIABLES, },),).toBe('failure',);
+            expect(classifyRequest({ trigger: 'watcher-started', outcome: NO_VARIABLES, },),).toBe('recovery',);
+            expect(classifyRequest({ trigger: 'unit', outcome: CLEAN_EXIT, },),).toBe('recovery',);
+            expect(classifyRequest({ trigger: 'unit', outcome: NO_VARIABLES, },),).toBe('failure',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: reportsRecovery.name,
+      children: [
+        it({
+          name: 'only the watcher starting, a success handler and a hand-started successful run report a recovery',
+          fn: async function recoveryWording() {
+            expect(reportsRecovery({ trigger: 'watcher-started', outcome: NO_VARIABLES, },),).toBe(true,);
+            expect(reportsRecovery({ trigger: 'unit-succeeded', outcome: CLEAN_EXIT, },),).toBe(true,);
+            expect(reportsRecovery({ trigger: 'unit', outcome: CLEAN_EXIT, },),).toBe(true,);
+            expect(reportsRecovery({ trigger: 'unit', outcome: FAILED_RUN, },),).toBe(false,);
+            expect(reportsRecovery({ trigger: 'unit-failed', outcome: CLEAN_EXIT, },),).toBe(false,);
+            expect(reportsRecovery({ trigger: 'hook-failed', outcome: NO_VARIABLES, },),).toBe(false,);
           },
         },),
       ],

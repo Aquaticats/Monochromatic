@@ -43,9 +43,21 @@ Garage cannot notify a client that the bucket changed.
   directory-watcher, restarted thirty seconds after a crash, no start limit;
   its failure and its restart are alerted like the sync unit's.
 - `systemd/rclone-bisync-garage-alert@.service`:
-  the alert template. The instance names the unit it speaks about,
-  and `src/alert.ts` reads systemd's `MONITOR_*` variables to tell a failed run,
-  a successful run and a run stopped by hand apart.
+  the failure template, started by `OnFailure=`.
+  The instance names the unit it speaks about,
+  and it runs `src/alert.ts` with `--trigger=unit-failed`.
+- `systemd/rclone-bisync-garage-recovered@.service`:
+  the success template, started by `OnSuccess=`,
+  which runs `src/alert.ts` with `--trigger=unit-succeeded`.
+  The entry reads systemd's `MONITOR_*` variables to tell a run that exited with status 0
+  from a run stopped by hand,
+  and stays silent when they are missing.
+  The two templates must stay separate:
+  systemd 262 passes no `MONITOR_*` variables to a handler that one unit names in both
+  `OnFailure=` and `OnSuccess=`
+  (its journal line: "multiple trigger source candidates for exit status propagation",
+  measured on this PC's user manager at 2026-11-25T21:34:00-05:00),
+  and with a shared handler every clean five-minute run was reported as a failure.
 - `config/garage-plain.yml`:
   the directory-watcher config for `~/Plain`.
 

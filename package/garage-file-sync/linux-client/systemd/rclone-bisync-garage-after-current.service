@@ -11,7 +11,7 @@ After=rclone-bisync-garage.service
 OnFailure=rclone-bisync-garage-alert@%n.service
 # Its next successful run closes that alert streak with one recovery notice; with no
 # streak open the handler exits without a notice.
-OnSuccess=rclone-bisync-garage-alert@%n.service
+OnSuccess=rclone-bisync-garage-recovered@%n.service
 
 [Service]
 # One step, and --no-block so the trigger and the watcher's hook return at once

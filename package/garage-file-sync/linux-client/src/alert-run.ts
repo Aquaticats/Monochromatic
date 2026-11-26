@@ -14,7 +14,7 @@ import {
 } from './alert-message.ts';
 import type { NotifyOutcome, } from './alert-notify.ts';
 import {
-  classifyOutcome,
+  classifyRequest,
   type AlertRequest,
 } from './alert-outcome.ts';
 import {
@@ -67,11 +67,7 @@ export async function runAlert({
   /**
    What this event means: a failure, a recovery, or neither.
    */
-  const outcomeClass = request.trigger === 'hook-failed'
-    ? 'failure'
-    : request.trigger === 'watcher-started'
-      ? 'recovery'
-      : classifyOutcome(request.outcome,);
+  const outcomeClass = classifyRequest(request,);
   /**
    The unit's open streak, and the reason its file could not be used.
    */

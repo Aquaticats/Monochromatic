@@ -18,15 +18,66 @@ import {
 /**
  What started the alert entry.
 
- `unit` is a real run of a unit, reported by systemd's `OnFailure=` or `OnSuccess=`;
+ `unit-failed` is a real run reported by systemd's `OnFailure=` (the template
+ `rclone-bisync-garage-alert@.service`), `unit-succeeded` one reported by `OnSuccess=`
+ (the template `rclone-bisync-garage-recovered@.service`), and `unit` a handler started by
+ hand, classified from the `MONITOR_*` variables alone.
+ The two templates are separate because systemd 262 passes no `MONITOR_*` variables to a
+ handler that one unit names in both `OnFailure=` and `OnSuccess=`: it logs
+ "multiple trigger source candidates for exit status propagation" and skips them
+ (measured on this PC's user manager, 2026-11-25), so the trigger is the only reliable
+ way to know which dependency started the entry;
  `hook-failed` is the watcher's change hook failing to start the trigger unit;
  `watcher-started` is the watcher's own start hook, which reports a watcher outage
  whose alert streak is open.
  */
 export type AlertTrigger =
   | 'unit'
+    | 'unit-failed'
+    | 'unit-succeeded'
     | 'hook-failed'
     | 'watcher-started';
+
+/**
+ Every trigger the command line accepts, in the order the usage text lists them.
+ */
+export const ALERT_TRIGGERS: readonly AlertTrigger[] = [
+  'unit',
+  'unit-failed',
+  'unit-succeeded',
+  'hook-failed',
+  'watcher-started',
+] as const;
+
+/**
+ Tells whether a command-line value names a trigger.
+
+ @param value - text written after `--trigger=`
+
+ @returns true when the value is one of `ALERT_TRIGGERS`
+ */
+function isAlertTrigger(value: string,): value is AlertTrigger {
+  return (ALERT_TRIGGERS as readonly string[]).includes(value,);
+}
+
+/**
+ Tells whether a trigger reports a run of a unit, so the unit systemd names is the one
+ the alert describes.
+
+ @param trigger - what started the entry
+
+ @returns true for `unit`, `unit-failed` and `unit-succeeded`
+
+ @example
+ ```ts
+ isUnitTrigger('unit-succeeded',); // true
+ isUnitTrigger('hook-failed',); // false
+ ```
+ */
+export function isUnitTrigger(trigger: AlertTrigger,): boolean {
+  return (trigger === 'unit') || (trigger === 'unit-failed')
+    || (trigger === 'unit-succeeded');
+}
 
 /**
  How a unit's last run ended, as systemd reports it.
@@ -98,6 +149,67 @@ export function classifyOutcome(outcome: Readonly<UnitOutcome>,): OutcomeClass {
 }
 
 /**
+ Classifies one alert event from what started the entry and what systemd reported.
+
+ `OnFailure=` starts its handler only for a failed run, so `unit-failed` is a failure
+ whatever the variables say. `OnSuccess=` also fires for a run stopped by hand, so
+ `unit-succeeded` is a recovery only when systemd reports exit status 0, and a stop
+ otherwise, including when systemd passed no variables: a success handler never reports a
+ failure.
+
+ @param trigger - what started the entry, which names the dependency that fired
+
+ @param outcome - result, exit code and exit status systemd reported, empty when it passed none
+
+ @returns the class the alert acts on
+
+ @example
+ ```ts
+ classifyRequest({ trigger: 'unit-succeeded', outcome: { result: '', exitCode: '', exitStatus: '', }, },); // 'stopped'
+ ```
+ */
+export function classifyRequest({
+  trigger,
+  outcome,
+}: Readonly<{
+  trigger: AlertTrigger;
+  outcome: UnitOutcome;
+}>): OutcomeClass {
+  if ((trigger === 'unit-failed') || (trigger === 'hook-failed')) return 'failure';
+  if (trigger === 'watcher-started') return 'recovery';
+  if (trigger === 'unit-succeeded') {
+    return classifyOutcome(outcome,) === 'recovery' ? 'recovery' : 'stopped';
+  }
+  return classifyOutcome(outcome,);
+}
+
+/**
+ Tells whether a message for this event reports a recovery rather than a failure.
+
+ @param trigger - what started the entry
+
+ @param outcome - result systemd reported, which decides a hand-started handler
+
+ @returns true for the watcher starting again, for a success handler, and for a hand-started
+   handler whose run systemd reports as a success
+
+ @example
+ ```ts
+ reportsRecovery({ trigger: 'unit-failed', outcome, },); // false
+ ```
+ */
+export function reportsRecovery({
+  trigger,
+  outcome,
+}: Readonly<{
+  trigger: AlertTrigger;
+  outcome: UnitOutcome;
+}>): boolean {
+  return (trigger === 'watcher-started') || (trigger === 'unit-succeeded')
+    || ((trigger === 'unit') && (outcome.result === 'success'));
+}
+
+/**
  Reads the trigger and unit name from the entry's command line.
 
  The unit name is positional because the alert unit passes its own instance name
@@ -136,10 +248,9 @@ export function parseAlertArguments(argv: readonly string[],): {
        Trigger value, as written after the prefix.
        */
       const value = argument.slice(triggerPrefix.length,);
-      if ((value !== 'unit') && (value !== 'hook-failed')
-        && (value !== 'watcher-started')) {
+      if (!isAlertTrigger(value,)) {
         throw new AlertArgumentError(
-          `--trigger must be one of unit, hook-failed, watcher-started; got "${value}"`,
+          `--trigger must be one of ${ALERT_TRIGGERS.join(', ',)}; got "${value}"`,
         );
       }
       parsed.trigger = value;
@@ -195,7 +306,7 @@ export function resolveAlertRequest({
   /**
    Unit this alert describes.
    */
-  const unit = parsed.trigger === 'unit'
+  const unit = isUnitTrigger(parsed.trigger,)
     ? env.MONITOR_UNIT ?? parsed.unit
       ?? SYNC_UNIT
     : parsed.unit ?? WATCH_UNIT;
