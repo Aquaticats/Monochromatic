@@ -10,7 +10,8 @@
 //!  (issue 6485).
 //!  A control that starts `ran_in_a_registry_of_its_own` first asks its question in a child process of the test binary,
 //!  whose registry holds nothing but what that control planted.
-//!  This check is a text scan and not a run: the control it guards is in another test target,
+//!  This check is a text scan and not a run:
+//!  the control it guards is in another test target,
 //!  and the crate's source-scan base is already here.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +20,8 @@
 //! ```
 
 /// What:
-///  `THE_CONTROLS_TEXT` is the whole text of `binary/binary_supervisor_tests.rs`, embedded when this check is built.
+///  `THE_CONTROLS_TEXT` is the whole text of `binary/binary_supervisor_tests.rs`,
+///  embedded when this check is built.
 /// Why:
 ///  The check reads that file's controls and never runs them,
 ///  and `include_str!` reads the text even though that file belongs to another test target.
@@ -31,10 +33,12 @@
 const THE_CONTROLS_TEXT: &str = include_str!("../binary/binary_supervisor_tests.rs");
 
 /// What:
-///  `THE_CONTROLS` is the path a finding names, relative to `src/native`, which is how this crate's other findings name
-///  a file.
+///  `THE_CONTROLS` is the path a finding names,
+///  relative to `src/native`,
+///  which is how this crate's other findings name a file.
 /// Why:
-///  A reader opens the path a finding gives from the crate's own folder, without the `../` the `include_str!` needs.
+///  A reader opens the path a finding gives from the crate's own folder,
+///  without the `../` the `include_str!` needs.
 const THE_CONTROLS: &str = "binary/binary_supervisor_tests.rs";
 
 /// What:
@@ -66,7 +70,9 @@ const A_CONTROL_STARTS_AT: &str = "#[test]";
 
 /// What:
 ///  `struct Control` is one control of the read text:
-///  the line its `#[test]` is on, its function's name, and every line it spans.
+///  the line its `#[test]` is on,
+///  its function's name,
+///  and every line it spans.
 /// Why:
 ///  The finding must name the control and the line to open,
 ///  and a scan of loose lines could not say which control a question belongs to.
@@ -77,20 +83,26 @@ const A_CONTROL_STARTS_AT: &str = "#[test]";
 /// ```
 struct Control<'a> {
     /// What:
-    ///  the line number of the control's `#[test]`, counted from one,
+    ///  the line number of the control's `#[test]`,
+    ///  counted from one,
     ///  which its findings are placed against.
     /// Why:
-    ///  a finding is `path:line`, and the line is where the control starts.
+    ///  a finding is `path:line`,
+    ///  and the line is where the control starts.
     starts_at: usize,
     /// What:
-    ///  the name of the control's function, empty until the scan reaches its `fn` line.
+    ///  the name of the control's function,
+    ///  empty until the scan reaches its `fn` line.
     /// Why:
-    ///  the finding names the control, so a reader knows which one to open.
+    ///  the finding names the control,
+    ///  so a reader knows which one to open.
     name: String,
     /// What:
-    ///  every line of the control, borrowed from the read text.
+    ///  every line of the control,
+    ///  borrowed from the read text.
     /// Why:
-    ///  the scan looks for calls in these lines alone, so a call in one control never excuses another.
+    ///  the scan looks for calls in these lines alone,
+    ///  so a call in one control never excuses another.
     lines: Vec<&'a str>,
 }
 
@@ -117,7 +129,8 @@ fn function_name_of(line: &str) -> Option<String> {
 }
 
 /// What:
-///  `fn controls(text: &str) -> Vec<Control<'_>>` splits `text` into its controls, in the order they appear.
+///  `fn controls(text: &str) -> Vec<Control<'_>>` splits `text` into its controls,
+///  in the order they appear.
 /// Why:
 ///  Each control is judged on its own lines,
 ///  so one control that starts a child never excuses another that does not.
@@ -188,9 +201,10 @@ fn call_lines(
 
 /// What:
 ///  `fn findings_in(text: &str) -> Vec<String>` is every control of `text` that asks a registry-wide question
-///  without starting a process of its own, as `path:line (control)`.
+///  without starting a process of its own,
+///  as `path:line (control)`.
 /// Why:
-///  The finding is the whole answer both controls below need:
+///  The finding is the whole answer the controls that read it need:
 ///  the real file's text must give none,
 ///  and a planted text must give exactly the control that asks the question in the run's own process.
 ///

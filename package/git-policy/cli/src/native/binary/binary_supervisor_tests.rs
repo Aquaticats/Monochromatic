@@ -18,10 +18,11 @@
 
 /// What:
 ///  `ChildTest` is the request for one child of this test binary that runs one named test,
-///  and `passed` starts it, waits for it with a deadline, and fails the caller with everything the child said when its
-///  one test did not pass.
+///  and `passed` starts it,
+///  waits for it with a deadline,
+///  and fails the caller with everything the child said when its one test did not pass.
 /// Why:
-///  The kill registry the controls below ask their questions of is one value the whole process shares,
+///  The kill registry those questions read is one value the whole process shares,
 ///  so the controls that ask about all of it run their body where nothing else planted a record,
 ///  and this crate starts such a child in one place only.
 use super::child_test_process::{
@@ -1248,8 +1249,9 @@ fn a_registered_command_stays_watched() {
 }
 
 /// What:
-///  `CLI_GIT_SUPERVISOR_REGISTRY_CHILD` is the name of the variable that marks the child `ran_in_a_registry_of_its_own`
-///  starts, and the one thing that tells that child from the process that started it.
+///  `CLI_GIT_SUPERVISOR_REGISTRY_CHILD` is the name of the variable that marks the child
+///  `ran_in_a_registry_of_its_own` starts,
+///  and the one thing that tells that child from the process that started it.
 /// Why:
 ///  A child that did not know it was one would start another child of its own and never run the control's body.
 ///
@@ -1261,7 +1263,8 @@ const REGISTRY_CHILD_VARIABLE: &str = "CLI_GIT_SUPERVISOR_REGISTRY_CHILD";
 
 /// What:
 ///  `fn child_path(name: &str) -> String` is the name libtest answers to for the control `name` of this file:
-///  the module's own path without the crate's first segment, and the control's name after it.
+///  the module's own path without the crate's first segment,
+///  and the control's name after it.
 /// Why:
 ///  `--exact` matches this text and nothing else,
 ///  and a name that matches no test ends successfully while running nothing,
@@ -1283,12 +1286,16 @@ fn child_path(name: &str) -> String {
 
 /// What:
 ///  `fn ran_in_a_registry_of_its_own(name: &str) -> bool` starts this same control in a child process of this test
-///  binary, where the kill registry holds nothing but what that control plants, and asserts that the child's one test
-///  passed.
-///  It answers `true` in the process that started the child, whose body then returns,
-///  and `false` in the child itself, where the body goes on.
+///  binary,
+///  where the kill registry holds nothing but what that control plants,
+///  and asserts that the child's one test passed.
+///  It answers `true` in the process that started the child,
+///  whose body then returns,
+///  and `false` in the child itself,
+///  where the body goes on.
 /// Why:
-///  The registry `plant_kill`, `unclaimed_kill` and `kill_to_abort` read is one value the whole process shares,
+///  The registry `plant_kill`,
+///  `unclaimed_kill` and `kill_to_abort` read is one value the whole process shares,
 ///  and a crate's tests run as threads of that process,
 ///  so a control that asks a question about every record reads the records the other controls planted meanwhile:
 ///  two controls of a threaded run failed with each other's message (issue 6485).
