@@ -31,8 +31,10 @@ Every one of those controls passed alone (`--exact`).
 
 After the change:
 three runs of the same module, 36 passed and 0 failed each time, in 5.26 to 5.31 seconds;
-and three more after `origin/main` was merged at `73f1091ce0`, 36 passed and 0 failed each time,
-in 5.27, 5.36 and 5.39 seconds.
+three more after `origin/main` was merged at `73f1091ce0`, 36 passed and 0 failed each time,
+in 5.27, 5.36 and 5.39 seconds;
+and three more after the second merge of `origin/main` at `0aa42fdb9f`, 36 passed and 0 failed each time,
+in 5.25, 5.29 and 5.30 seconds.
 
 ## Root cause
 
