@@ -146,9 +146,25 @@ prior art read (#490 in full);
 intake read (no templates; `aa-log -R` paste requested);
 no trust or vouch system (`.github/workflows/main.yml` has none, and no `VOUCHED` file exists);
 the work-in-progress search is recorded.
-Not done: a clean-runner reproduction repository,
-and a run of the exact patch against the `abi/5.0` source.
-So there is no recommendation.
+Reproduction repository: [apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction),
+created private on 2026-11-26 in the owner's account (author `Aquaticat` with the account's noreply address).
+Its workflow builds apparmor.d at `4c4fec70fc` with `just build` and `prebuild` on `ubuntu-26.04`
+(the only Ubuntu release that `prebuild` accepts),
+installs `torbrowser-tor` alone in enforce mode,
+and checks the mode with `aa-status --json`.
+Runs [45776389452](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776389452) (push) and
+[45776560760](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760) (manual) gave the same result:
+the stock job's control lookup passed and its asserting step,
+`aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com`, exited `2`;
+the patched job passed the lookup under `torbrowser-tor//pluggable-transports`
+and the check that `torbrowser-tor` itself still fails it.
+The two earlier runs failed in setup (an unknown `--enforce` option, a patch the repository's whitespace hook
+had changed, and Ubuntu 24.04) and do not count.
+That workflow applies the exact patch to the `abi/5.0` source with `git apply`, so that item is closed too.
+The copy beside this file has its blank context lines stripped by this repository's commit hook;
+GNU `patch --strip=1` applies it, while `git apply` needs the copy in the reproduction repository.
+Not done: the repository is still private, so the maintainer cannot read it yet.
+So there is no recommendation until it is public.
 Posting puts the owner's GitHub account in front of the maintainer,
 and filing is the owner's decision.
 Before posting, check the live repository again for a duplicate or a fix.
@@ -183,6 +199,10 @@ browser's `term`/`kill` on close, which was denied here too.
 
 Tested on the installed build: under the child, `getent` resolves and lyrebird starts; under `torbrowser-tor` the
 lookup still fails. With an equivalent local child profile Tor Browser connected through Snowflake.
+
+Reproduction on a clean Ubuntu 26.04 runner, built from this commit with `just build` and `prebuild`:
+https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction
+(the stock job fails on the lookup step, the patched job passes).
 
 This report was prepared with an AI assistant; the reproduction and the test results above were run on the
 reporter's machine.
