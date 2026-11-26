@@ -13,7 +13,10 @@
 ///  imports interior-mutability cells.
 /// Why:
 ///  the model and directory-read generation mutate from GTK closures.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// What:
 ///  imports the borrowed path type.
 /// Why:
@@ -34,7 +37,10 @@ use gtk4::prelude::*;
 ///  imports concrete GTK fallback widget types.
 /// Why:
 ///  a missing pane or failed directory read degrades to a label widget.
-use gtk4::{Label, Widget};
+use gtk4::{
+    Label,
+    Widget,
+};
 
 /// What:
 ///  imports the shared pane-strip state machine from the original app's crate.
@@ -48,7 +54,11 @@ use file_manager::model::PaneStripState;
 ///  and location domain types from the original app's crate.
 /// Why:
 ///  activating an entry maps it to a `PaneLocation` and returns a stable `PaneId`.
-use file_manager::types::{FileEntry, PaneId, PaneLocation};
+use file_manager::types::{
+    FileEntry,
+    PaneId,
+    PaneLocation,
+};
 
 /// What:
 ///  imports the placement snapshot type shared with the pure band math.
@@ -59,18 +69,27 @@ use crate::band::Placement;
 ///  imports the sticky layout adapter.
 /// Why:
 ///  this controller delegates GTK reconciliation and reveal to it.
-use crate::layout::{PaneWidgetBuilder, StickyLayout};
+use crate::layout::{
+    PaneWidgetBuilder,
+    StickyLayout,
+};
 /// What:
 ///  imports listing and preview pane builders.
 /// Why:
 ///  a directory pane is a listing pane;
 ///  a preview pane renders a typed icon.
-use crate::pane::{build_listing_pane, build_preview_pane};
+use crate::pane::{
+    build_listing_pane,
+    build_preview_pane,
+};
 /// What:
 ///  imports the observed-state writer and its input bundle.
 /// Why:
 ///  boundary tests poll the mirrored state file after every mutation and scroll.
-use crate::state_out::{ObservedInputs, write_observed_state};
+use crate::state_out::{
+    ObservedInputs,
+    write_observed_state,
+};
 
 /// What:
 ///  shared controller state captured by GTK closures.
@@ -140,7 +159,9 @@ impl StripController {
             }
         }));
         inner.layout.scroll_to_pane(root_id);
-        return Self { inner }
+        return Self {
+            inner,
+        };
     }
 
     /// What:
@@ -148,7 +169,7 @@ impl StripController {
     /// Why:
     ///  the concrete GTK root lives behind `StickyLayout` so callers do not depend on it.
     pub fn widget(&self) -> Widget {
-        return self.inner.layout.widget()
+        return self.inner.layout.widget();
     }
 
     /// What:
@@ -158,7 +179,10 @@ impl StripController {
     ///  the compositor drops keystrokes sent before the surface exists,
     ///  so boundary tests
     ///      gate their first key on the observed `ready` fact flipping true.
-    pub(crate) fn wire_window_map(&self, window: &gtk4::ApplicationWindow) {
+    pub(crate) fn wire_window_map(
+        &self,
+        window: &gtk4::ApplicationWindow,
+    ) {
         let weak = Rc::downgrade(&self.inner);
         window.connect_map(move |_| {
             if let Some(inner) = weak.upgrade() {
@@ -189,7 +213,10 @@ pub(crate) fn close_active(inner: &Rc<StripInner>) {
 ///  keyboard column navigation moves both widget focus and the model's focus,
 ///  so the observed
 ///      `activePath` follows what the user sees.
-pub(crate) fn focus_pane(inner: &Rc<StripInner>, id: PaneId) {
+pub(crate) fn focus_pane(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+) {
     inner.state.borrow_mut().focus(id);
     write_state(inner);
 }
@@ -202,7 +229,7 @@ pub(crate) fn focus_pane(inner: &Rc<StripInner>, id: PaneId) {
 fn next_generation(inner: &Rc<StripInner>) -> u64 {
     let generation = inner.generation.get() + 1;
     inner.generation.set(generation);
-    return generation
+    return generation;
 }
 
 /// What:
@@ -219,7 +246,7 @@ fn placements_of(inner: &Rc<StripInner>) -> Vec<Placement> {
             parent: pane.parent,
         });
     }
-    return placements
+    return placements;
 }
 
 /// What:
@@ -248,7 +275,9 @@ fn active_path_of(state: &PaneStripState) -> String {
         return String::new();
     };
     match &pane.location {
-        PaneLocation::Directory(path) | PaneLocation::Preview(path) => return path.display().to_string(),
+        PaneLocation::Directory(path) | PaneLocation::Preview(path) => {
+            return path.display().to_string();
+        }
     }
 }
 
@@ -257,8 +286,11 @@ fn active_path_of(state: &PaneStripState) -> String {
 ///  or nothing when the pane is not live.
 /// Why:
 ///  callers release the state borrow before building widgets from the location.
-fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
-    return Some(state.pane(id)?.location.clone())
+fn location_of(
+    state: &PaneStripState,
+    id: PaneId,
+) -> Option<PaneLocation> {
+    return Some(state.pane(id)?.location.clone());
 }
 
 /// What:
@@ -266,8 +298,11 @@ fn location_of(state: &PaneStripState, id: PaneId) -> Option<PaneLocation> {
 ///  or nothing when the pane is not live.
 /// Why:
 ///  a spawn focuses the column of the pane it just created.
-fn column_of(state: &PaneStripState, id: PaneId) -> Option<usize> {
-    return Some(state.pane(id)?.column)
+fn column_of(
+    state: &PaneStripState,
+    id: PaneId,
+) -> Option<usize> {
+    return Some(state.pane(id)?.column);
 }
 
 /// What:
@@ -302,8 +337,11 @@ impl PaneWidgetBuilder for Rc<StripInner> {
     /// Why:
     ///  forwards to `build_pane_widget`,
     ///  which owns the per-location construction.
-    fn build_widget(&self, id: PaneId) -> Widget {
-        return build_pane_widget(self, id)
+    fn build_widget(
+        &self,
+        id: PaneId,
+    ) -> Widget {
+        return build_pane_widget(self, id);
     }
 }
 
@@ -314,7 +352,10 @@ impl PaneWidgetBuilder for Rc<StripInner> {
 ///  a preview becomes an icon pane;
 ///  a
 ///      missing pane degrades to a label.
-fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
+fn build_pane_widget(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+) -> Widget {
     let location = location_of(&inner.state.borrow(), id);
     match location {
         Some(PaneLocation::Directory(path)) => return build_directory_pane(inner, id, &path),
@@ -325,7 +366,7 @@ fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
                     close_pane(&upgraded, id);
                 }
             })
-            .upcast::<Widget>()
+            .upcast::<Widget>();
         }
         None => return Label::new(Some("(missing pane)")).upcast::<Widget>(),
     }
@@ -338,7 +379,11 @@ fn build_pane_widget(inner: &Rc<StripInner>, id: PaneId) -> Widget {
 ///  activating a row spawns `path`'s child from this pane via a weak back-reference,
 ///  so the
 ///      closure never keeps the strip alive.
-fn build_directory_pane(inner: &Rc<StripInner>, id: PaneId, path: &Path) -> Widget {
+fn build_directory_pane(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+    path: &Path,
+) -> Widget {
     let generation = next_generation(inner);
     match file_manager::fs::read_directory(path, generation) {
         Ok(snapshot) => {
@@ -357,11 +402,12 @@ fn build_directory_pane(inner: &Rc<StripInner>, id: PaneId, path: &Path) -> Widg
                     }
                 },
             )
-            .upcast::<Widget>()
+            .upcast::<Widget>();
         }
         Err(error) => {
             tracing::error!(%error, path = %path.display(), "failed to read directory for pane");
-            return Label::new(Some(&format!("Cannot read {}: {error}", path.display()))).upcast::<Widget>()
+            return Label::new(Some(&format!("Cannot read {}: {error}", path.display())))
+                .upcast::<Widget>();
         }
     }
 }
@@ -376,7 +422,12 @@ fn build_directory_pane(inner: &Rc<StripInner>, id: PaneId, path: &Path) -> Widg
 ///  anything else a preview;
 ///      dedup-and-focus lives in the shared model,
 ///  so a revisit focuses the existing pane.
-fn spawn_from(inner: &Rc<StripInner>, source: PaneId, entry: &FileEntry, force_duplicate: bool) {
+fn spawn_from(
+    inner: &Rc<StripInner>,
+    source: PaneId,
+    entry: &FileEntry,
+    force_duplicate: bool,
+) {
     let location = if entry.path.is_dir() {
         PaneLocation::Directory(entry.path.clone())
     } else {
@@ -406,8 +457,15 @@ fn spawn_from(inner: &Rc<StripInner>, source: PaneId, entry: &FileEntry, force_d
 ///  explicit close is the only way a pane dies;
 ///  reconciliation drops the widget and mirrors
 ///      the new state.
-fn close_pane(inner: &Rc<StripInner>, id: PaneId) {
+fn close_pane(
+    inner: &Rc<StripInner>,
+    id: PaneId,
+) {
     inner.state.borrow_mut().close(id);
     reconcile(inner);
-    tracing::info!(closed = id.0, panes = inner.state.borrow().len(), "closed pane");
+    tracing::info!(
+        closed = id.0,
+        panes = inner.state.borrow().len(),
+        "closed pane"
+    );
 }
