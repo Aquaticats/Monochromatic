@@ -527,6 +527,21 @@ Pieces of steps 12,
 15,
 16 and 18 are built ahead and on `main`,
 unwired.
+State at 2026-11-25T19:20-05:00, by the plan's 23 steps:
+1 to 16 on `main` (12 to 16 wired, the removal command path still cut);
+17's cancel command merged (`df15f27a7a`) and its forced arm's decision half (`64a71a4c9b`),
+its kernel calls unbuilt (round `zfs-step-17-forced-arm-ends-holders-and-measures-its-wait`);
+18's `doctor` checks merged unwired (`838b7f5e71`), its managed-lock lines a round;
+19's migration entry and units built ahead (`72a0be07ef`), the migration not run on this host;
+20 a live round; 21 merged; 22's guest half a round, its storage half the owner's act; 23 not started.
+Before a person's add takes the route:
+the add's `mountpoint` request the design forbids (issue 6462, answered "C: inherit" and "Both"),
+`doctor`'s create-time and named-set gaps (6472), 2C, the attach path's A5 answer,
+wiring 17 and 18 with step 22's request budget and lifting the removal path's cut,
+step 19's migration on this host, steps 22 and 23, and a release carrying it, installed.
+The deferred-destroy refusal is shown (step 15's guest arm);
+the forced removal is measured for the holder kinds a guest showed, the rest refused
+(`doc/decision/cli-git-zfs-worktree-design.md`, "What still gates shipping").
 Nothing of the route is installed on this machine,
 and the release after alpha.45 is the first to carry steps 9 and 10.
 
