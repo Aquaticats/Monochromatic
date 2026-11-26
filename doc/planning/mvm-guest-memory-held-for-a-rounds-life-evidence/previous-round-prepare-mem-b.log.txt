@@ -1,0 +1,10 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0 91 20.3M   91 18.6M    0     0  27.8M      0 --:--:-- --:--:-- --:--:-- 27.9M100 20.3M  100 20.3M    0     0  29.3M      0 --:--:-- --:--:-- --:--:-- 29.5M
+/root/rustup-init: OK
+cargo 1.100.0 (3acc79c0c 2026-11-05)
+rustc 1.100.0 (0ef1bc386 2026-11-09)
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+DONE=0
