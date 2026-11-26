@@ -314,27 +314,35 @@ On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 ~~~md
 `ivpn-ui` 3.15.15-1 fails in `prepare()` when the builder's `~/.npmrc` has a `prefix=` (or `globalconfig=`) line:
 
-    Your user’s .npmrc file (${HOME}/.npmrc)
-    has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
-    Run `nvm use --delete-prefix v22.12.0` to unset it.
+```text
+Your user’s .npmrc file (${HOME}/.npmrc)
+has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
+Run `nvm use --delete-prefix v22.12.0` to unset it.
+```
 
 After `nvm install`, nvm 0.40.8 checks [`${HOME}/.npmrc` and returns 10][nvm] when such a line is there.
 [`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`,
 so whether the package builds depends on the builder's dotfiles.
-A `prefix=` line is a common way to install npm globals without root.
+npm's own docs suggest [`npm config set prefix`][npmprefix] for installing global packages without root,
+and `npm config set` [writes to the user configuration file][npmset], `~/.npmrc`.
 
 Setting `HOME` inside the helper fixes it; with this change the package built with the same `~/.npmrc`:
 
-    export NVM_DIR="${srcdir}/.nvm"
-    export HOME="${srcdir}/.home"
-    mkdir -p "${HOME}"
+```bash
+export NVM_DIR="${srcdir}/.nvm"
+export HOME="${srcdir}/.home"
+mkdir -p "${HOME}"
+```
 
-npm and electron-builder then cache under `$srcdir`, so a clean build downloads them again.
+npm's cache [defaults to `~/.npm`][npmcache], so it moves into `$srcdir/.home` and a clean build downloads packages again.
 
 This comment was prepared with an AI assistant; the build results above were run on the commenter's machine.
 
 [nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
 [recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
+[npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
+[npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
+[npmcache]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Posix%3A%20~%2F.npm
 ~~~
 
 [aur-recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
