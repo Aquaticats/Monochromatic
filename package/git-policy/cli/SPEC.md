@@ -17018,9 +17018,13 @@ so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
 A process whose process limit refuses that thread says which limit refused it,
 and writes every line on the thread that says it instead:
-one write, made only where the descriptor reports room,
-so no caller waits for a reader and nothing a command says is lost
-(issue 6476).
+writes of at most one pipe page each,
+made only while the descriptor reports room,
+so no caller waits for a reader,
+and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
+while the rest of it is dropped and counted as a line the queue could not say
+(issue 6476;
+`src/native/foundation/lines_written_by_a_thread.rs`).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -19631,7 +19635,11 @@ Git's own words for a refused form,
 the warning about a committed conflict marker,
 the line about an operation left open,
 the note on a rebuilt commit,
+the note that a branch moved under a build,
 the note about a commit held behind a reference lock,
+the notices the steps before the command show the worktree (the records of failed pushes,
+the commits a reference lock keeps off their branch,
+and the records a removal settled or queued),
 and the hand-off's notices),
 is handed to the thread that writes standard error
 (`foundation/standard_error_off_the_calling_thread.rs`)
@@ -19647,6 +19655,9 @@ which carries Git's summary and the wrapper's summary line as Git writes them.
 A control runs a commit whose standard error is a pipe filled to its capacity and never read,
 and expects the command to return with the commit on the branch and the pipe still full
 (`src/native/binary/binary_commit_stalled_standard_error_tests.rs`).
+Every site above has such a control of its own,
+beside the scenario that makes its line
+(`src/native/binary/`).
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
