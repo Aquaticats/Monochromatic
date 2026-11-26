@@ -5,7 +5,9 @@
 //!  `--no-optional-locks`,
 //!  `--git-dir`,
 //!  `-C <the Git directory>` and
-//!  `-C <the repository>`.
+//!  `-C <the repository>`,
+//!  and a removal or a move behind a global option this build does not read is
+//!  refused in a repository that holds slot records.
 //! Why:
 //!  `SPEC.md` promises that every spelling Git accepts is read for the worktree
 //!  a `git worktree remove` or `git worktree move` names,
@@ -398,6 +400,201 @@ fn a_bound_slots_removal_is_refused_behind_every_global_option() {
         bound.pointer,
         "the underlay pointer Git wrote stands"
     );
+    remove(bound.root.as_path());
+}
+
+/// The global option no build of this wrapper reads,
+/// which is the shape of an option a newer Git adds.
+const A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ: &str = "--no-such-global-option-yet";
+
+/// What:
+///  A bound slot's removal behind a global option this build does not read is
+///  refused,
+///  and the sentence names that option and the spellings the wrapper reads.
+/// Why:
+///  The alpha.47 pass's finding:
+///  a global option a newer Git adds,
+///  typed before a relative slot path,
+///  left the path unread,
+///  so the removal was forwarded and Git deleted the registration and the
+///  underlay pointer while the record still said `phase=filled`
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+#[test]
+fn a_bound_slots_removal_behind_a_global_option_this_build_does_not_read_is_refused() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-removal-unread-global");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &[
+            A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+            "worktree",
+            "remove",
+            "-f",
+            "-f",
+            "one",
+        ],
+    );
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the refusal is the wrapper's own status: {stderr}"
+    );
+    assert!(
+        stderr.contains(A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ),
+        "the refusal names the option it could not read: {stderr}"
+    );
+    assert!(
+        stderr.contains("git -C <repository> worktree remove"),
+        "the refusal names the spelling the wrapper reads: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    assert!(bound.registration.is_dir(), "the registration stands");
+    assert_eq!(
+        std::fs::read(bound.slot.join(".git")).expect("the pointer reads"),
+        bound.pointer,
+        "the underlay pointer Git wrote stands"
+    );
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A bound slot's move behind a global option this build does not read is
+///  refused,
+///  and the sentence names that option and the spellings the wrapper reads.
+/// Why:
+///  Both words are fixed by the same answer:
+///  a move behind an option the wrapper does not know would rename the slot
+///  while the record kept the old path,
+///  exactly as the removal would delete it.
+#[test]
+fn a_bound_slots_move_behind_a_global_option_this_build_does_not_read_is_refused() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-move-unread-global");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &[
+            A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+            "worktree",
+            "move",
+            "one",
+            "../moved",
+        ],
+    );
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the refusal is the wrapper's own status: {stderr}"
+    );
+    assert!(
+        stderr.contains(A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ),
+        "the refusal names the option it could not read: {stderr}"
+    );
+    assert!(
+        stderr.contains("git -C <repository> worktree move"),
+        "the refusal names the spelling the wrapper reads: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was moved");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  A repository that holds no slot record forwards the same command as before.
+/// Why:
+///  The refusal exists for the records a slot would leave behind,
+///  and an ordinary repository has none,
+///  so its removal and its move must cost no refusal and reach Git.
+#[test]
+fn a_command_behind_a_global_option_this_build_does_not_read_is_git_s_own_without_records() {
+    let unrecorded: RegisteredSlot = a_registered_slot("entry-slot-unread-global-no-records");
+    for word in ["remove", "move"] {
+        let words: Vec<OsString> = started_in(
+            unrecorded.repository.as_path(),
+            &[
+                A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ,
+                "worktree",
+                word,
+                "one",
+                "../elsewhere",
+            ],
+        );
+        assert!(
+            matches!(
+                plan_invocation(words.as_slice(), &[], &inputs(unrecorded.root.as_path())),
+                Action::Forward { .. }
+            ),
+            "a repository with no slot records forwards the {word} as before"
+        );
+    }
+    remove(unrecorded.root.as_path());
+}
+
+/// What:
+///  A removal of a bound slot whose binding record cannot be read is refused
+///  through the planner and the served run,
+///  naming the record and what to repair.
+/// Why:
+///  The alpha.47 pass's finding 12:
+///  with the record overwritten by garbage,
+///  `git worktree move` refused while `git worktree remove -f -f <slot>` exited
+///  0 and Git deleted the registration and the slot folder
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+#[test]
+fn a_bound_slots_removal_with_a_record_that_cannot_be_read_is_refused() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-removal-unreadable-record");
+    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(
+        bound.common.as_path(),
+    );
+    std::fs::create_dir_all(home.as_path()).expect("the fixture home");
+    std::fs::write(home.join("one.binding"), b"not a record\n").expect("the foreign record writes");
+    let words: Vec<OsString> = started_in(
+        bound.repository.as_path(),
+        &["worktree", "remove", "-f", "-f", "one"],
+    );
+    let facts: CopyFacts = settled_facts(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+    assert!(
+        stderr.contains("one.binding"),
+        "the refusal names the record it could not read: {stderr}"
+    );
+    assert!(stderr.contains("cannot be read"), "{stderr}");
+    assert!(
+        stderr.contains("restore it from a copy"),
+        "the refusal names what to repair: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "nothing was removed");
+    assert!(bound.registration.is_dir(), "the registration stands");
     remove(bound.root.as_path());
 }
 

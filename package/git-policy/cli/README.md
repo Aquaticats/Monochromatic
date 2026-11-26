@@ -2446,6 +2446,20 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
+A slot whose binding record cannot be read is refused too,
+as a move of such a slot already refuses,
+and that refusal names the record it could not read and how to repair it,
+rather than let Git delete a registration nothing proved safe.
+It is decided from the record alone,
+so no mount table and no pool is read to make it.
+A `git worktree remove` or `git worktree move` behind a global option this build does not know
+(a spelling a newer Git may add) is refused while the repository holds slot records,
+because the option leaves the worktree's path unread and Git would then delete a bound
+slot's registration or rename it while the record kept the old path.
+The refusal names that option and the two spellings the wrapper reads:
+the command without it,
+or `git -C <repository> worktree ...`.
+A repository with no slot record forwards the command as before.
 The refusal prints the slot's state,
 its dataset and the one next safe action,
 says that this release has no removal for a clone,
