@@ -1322,6 +1322,72 @@ fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
     remove(directory.as_path());
 }
 
+/// A stamp that sets no time and reports success,
+/// so a control can hand the claim's read a record it will not open.
+fn a_stamp_that_touches_nothing(_path: &Path) -> std::io::Result<()> {
+    // The success variant of `Result`, which is what a stamp that did nothing reports.
+    return Ok(());
+}
+
+/// A claim whose record is a named pipe is answered at once as a claim this command cannot read,
+/// rather than waited on.
+/// Why:
+///   The queue's folders are ones another command and a person can write to,
+/// so a name in `claimed` can hold something that is no plain file,
+/// and a plain read of it waits inside `open(2)` for a writer that may never come,
+/// which holds the consumer of the queue for ever (alpha.47's release pass, Low 7).
+/// The stamp refuses a pipe too, which is the guard beside this one:
+/// this control stamps nothing, so the read itself is what the bound below catches.
+/// The same name read the plain way is shown waiting inside the same bound,
+/// which is what proves the bound can see a wait.
+#[test]
+fn a_claim_whose_record_is_a_named_pipe_is_answered_at_once() {
+    let directory: PathBuf = fixture("work-claim-named-pipe");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let waiting: WorkItem = item(WorkKind::Push, "f1f0");
+    enqueue(work.as_path(), &waiting).expect("enqueue");
+    // The enqueued record's own name, which is where the queue would read the work from.
+    let queued: PathBuf = state_directory(work.as_path(), PENDING).join(waiting.id());
+    std::fs::remove_file(queued.as_path()).expect("the record the enqueue wrote");
+    // The permission bits of a queue entry: read and write for its owner alone, and nothing for anyone else.
+    crate::subvolume_sync_attrs::make_fifo(queued.as_path(), 0o600)
+        .expect("a named pipe where the record went");
+    let id: String = waiting.id();
+    let inside: PathBuf = work.clone();
+    let answered = crate::test_support::finished_within(move || {
+        return claim_next_stamped(
+            inside.as_path(),
+            &clock(),
+            &[WorkKind::Push],
+            &a_stamp_that_touches_nothing,
+        );
+    });
+    let Some(answer) = answered else {
+        panic!(
+            "claiming a record whose name holds a named pipe waited for a writer that may never come"
+        )
+    };
+    assert!(
+        matches!(&answer, Err(message) if message.contains(format!("reading the claim of {id} failed").as_str())),
+        "the claim is refused as a record this command cannot read: {answer:?}"
+    );
+    assert!(
+        names(work.as_path(), PENDING).is_empty(),
+        "the pipe is no longer queued"
+    );
+    let claimed: Vec<String> = names(work.as_path(), CLAIMED);
+    assert_eq!(claimed.len(), 1, "the claim was taken: {claimed:?}");
+    // The read the bound above guards, made the plain way on the same name, so the bound is shown to see a wait.
+    let pointer: PathBuf = state_directory(work.as_path(), CLAIMED).join(&claimed[0]);
+    let waited =
+        crate::test_support::finished_within(move || return std::fs::read_to_string(pointer).ok());
+    assert!(
+        waited.is_none(),
+        "a plain read of the same name waits, so the bound above can see a wait"
+    );
+    remove(directory.as_path());
+}
+
 /// A recovery that moves an item to `failed` for want of tries gives the item back,
 /// so the caller can tell the person;
 /// a
