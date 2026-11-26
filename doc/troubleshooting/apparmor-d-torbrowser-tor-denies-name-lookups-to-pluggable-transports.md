@@ -163,8 +163,24 @@ had changed, and Ubuntu 24.04) and do not count.
 That workflow applies the exact patch to the `abi/5.0` source with `git apply`, so that item is closed too.
 The copy beside this file has its blank context lines stripped by this repository's commit hook;
 GNU `patch --strip=1` applies it, while `git apply` needs the copy in the reproduction repository.
-Not done: the repository is still private, so the maintainer cannot read it yet.
-So there is no recommendation until it is public.
+On the owner's choice it was made public at `2026-11-26T02:38:35-05:00`;
+the repository page and run 45776389452 then returned HTTP 200 to an anonymous `curl`.
+Every file and commit was read before the switch:
+three files (`README.md`, the workflow, the patch) and three commits,
+all authored and committed as `Aquaticat` with the noreply address,
+with no local path, host name, e-mail address or token.
+
+With every readiness item done, filing is recommended:
+the six constraints hold, the reproduction was re-run on the day on this host and on two clean runners,
+the patch was checked against the stock profile in the same workflow,
+and the duplicate, work-in-progress and trust-system searches are recorded above with their dates.
+The risk stays the poster's:
+the issue and the repository carry the owner's GitHub account,
+and a maintainer may still prefer the current strictness.
+Filing is the owner's decision.
+Check the tracker once more on the day of posting.
+The patch could go as a pull request with the issue;
+the repository's contribution docs ask for nothing first.
 Posting puts the owner's GitHub account in front of the maintainer,
 and filing is the owner's decision.
 Before posting, check the live repository again for a duplicate or a fix.
@@ -195,7 +211,7 @@ Proposed fix: keep the denies on `tor`, and give the transports their own child 
 IPv4/IPv6 stream and datagram sockets (patch below). The `signal receive` line also fixes Tor not receiving the
 browser's `term`/`kill` on close, which was denied here too.
 
-<the patch from apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.patch>
+Patch: https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/blob/main/torbrowser-tor-pluggable-transports.patch
 
 Tested on the installed build: under the child, `getent` resolves and lyrebird starts; under `torbrowser-tor` the
 lookup still fails. With an equivalent local child profile Tor Browser connected through Snowflake.
