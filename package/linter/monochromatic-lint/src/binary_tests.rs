@@ -1898,13 +1898,12 @@ fn layout_group_folders_run_in_the_built_executable() {
     );
 }
 
-/// A use by a group's own file reaches no entry loop,
+/// A use by a group's own file reaches no entry edge,
 ///  because the shelf rule reports that file and a group's summary is what its child folders use,
-///  so a new use from the group's own file to another entry is no finding
-///  even while a listed entry loop joins the two entries,
-///  and no `uses` line is owed for it.
+///  so the loop it closes is reported by the group-own check,
+///  and no `uses` line records that use.
 #[test]
-fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
+fn layout_a_groups_own_file_use_inside_a_tolerated_loop_is_reported() {
     let fixture: Fixture = Fixture::new();
     fixture.write(
         "Cargo.toml",
@@ -1936,17 +1935,19 @@ fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
         r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
     );
     let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
-    assert_eq!(
-        (
-            clean.status,
-            clean.stdout.as_str(),
-            clean.stderr.contains("both sit inside one loop")
-        ),
-        (0, "", false),
-        "{}",
-        clean.stderr
-    );
-    // The use is no finding and owes no `uses` line: a line naming it is the dead line below.
+    assert_eq!(clean.status, 1, "{}", clean.stderr);
+    // The use closes a loop the entry graph cannot see, and the finding carries no key.
+    for part in [
+        "These entries use each other in a loop",
+        "src/grp uses src/a",
+    ] {
+        assert!(
+            clean.stdout.contains(part),
+            "{part} missing in {}",
+            clean.stdout
+        );
+    }
+    // No `uses` line records that use: a line naming it is the dead line below.
     fixture.write(
         "folder.txt",
         "missing-link src/a -> src/grp/g2\n\
@@ -1962,6 +1963,12 @@ fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
     assert!(
         dead.stdout
             .contains("uses src/grp -> src/a` in folder.txt tolerates nothing any more"),
+        "{}",
+        dead.stdout
+    );
+    assert!(
+        dead.stdout
+            .contains("These entries use each other in a loop"),
         "{}",
         dead.stdout
     );
@@ -2338,6 +2345,61 @@ fn layout_a_file_name_holding_a_space_stays_in_every_check() {
             .contains("space-in-file-name src/n p q.rs` in folder.txt tolerates nothing any more"),
         "{}",
         renamed.stdout
+    );
+}
+
+/// A use written in a group's own file that closes a mutual dependency between its group and another entry is reported,
+///  with no key,
+///  because a group's own code makes no edge of the entry graph
+///  and the allow list promises that new code cannot add a loop.
+#[test]
+fn layout_a_groups_own_file_use_that_closes_a_loop_is_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod a;\npub mod grp;\n");
+    // `a` uses the group's second folder, so the group already uses `a` once the own file joins in.
+    fixture.write("src/a/mod.rs", "//! A.\nmod one;\n");
+    fixture.write("src/a/one.rs", "pub struct Z;\nuse crate::grp::g2::Y;\n");
+    fixture.write(
+        "src/grp/mod.rs",
+        "//! Group.\npub mod g1;\npub mod g2;\npub mod own;\n",
+    );
+    fixture.write("src/grp/own.rs", "//! Own.\nuse crate::a::one::Z;\n");
+    fixture.write("src/grp/g1/mod.rs", "//! G1.\n");
+    fixture.write("src/grp/g2/mod.rs", "//! G2.\npub struct Y;\n");
+    // Every other finding of this tree is on the list, so only the loop is left to report.
+    fixture.write(
+        "folder.txt",
+        "group-file src/grp own.rs\nmissing-link src/a -> src/grp/g2\n",
+    );
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let looped: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    for part in [
+        "use each other in a loop",
+        "src/grp uses src/a",
+        "src/a uses src/grp",
+    ] {
+        assert!(
+            looped.stdout.contains(part),
+            "{part} missing in {}",
+            looped.stdout
+        );
+    }
+    // The use is what closes the loop: without it the same list holds every finding.
+    fixture.write("src/grp/own.rs", "//! Own.\n");
+    let quiet: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (quiet.status, quiet.stdout.as_str()),
+        (0, ""),
+        "{}",
+        quiet.stderr
     );
 }
 
